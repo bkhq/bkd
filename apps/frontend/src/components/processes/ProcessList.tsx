@@ -69,9 +69,7 @@ function formatDuration(timestamp: string | null): string {
 }
 
 function isIdle(proc: ProcessInfo): boolean {
-  return (
-    proc.sessionStatus === 'running' && !proc.turnInFlight && !!proc.lastIdleAt
-  )
+  return !proc.turnInFlight && !!proc.lastIdleAt
 }
 
 function ProcessCard({

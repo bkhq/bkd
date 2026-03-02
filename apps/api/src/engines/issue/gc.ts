@@ -7,6 +7,7 @@ import { logger } from '@/logger'
 import { IDLE_TIMEOUT_MS } from './constants'
 import type { EngineContext } from './context'
 import { emitIssueSettled, emitStateChange } from './events'
+import { withIssueLock } from './process/lock'
 import { cleanupDomainData } from './process/state'
 
 // ---------- Domain GC sweep ----------
@@ -51,30 +52,33 @@ export function gcSweep(ctx: EngineContext): void {
       )
       ctx.pm.forceKill(entry.id)
       cleanupDomainData(ctx, managed.executionId)
-      // Fire-and-forget DB update — preserve prior terminal status if already set
+      // Fire-and-forget DB update — use issue lock to prevent racing with follow-up
       const { issueId: gcIssueId, executionId: gcExecutionId } = managed
-      void (async () => {
-        try {
-          const existing = await getIssueWithSession(gcIssueId)
-          const priorStatus = existing?.sessionFields.sessionStatus
-          const isTerminal =
-            priorStatus === 'failed' || priorStatus === 'cancelled'
-          const finalStatus = isTerminal ? priorStatus : 'completed'
-          emitStateChange(ctx, gcIssueId, gcExecutionId, finalStatus)
-          if (!isTerminal) {
-            await updateIssueSession(gcIssueId, {
-              sessionStatus: finalStatus,
-            })
-          }
-          await autoMoveToReview(gcIssueId)
-          emitIssueSettled(ctx, gcIssueId, gcExecutionId, finalStatus)
-        } catch (err) {
-          logger.error(
-            { issueId: gcIssueId, err },
-            'idle_timeout_settle_failed',
+      void withIssueLock(ctx, gcIssueId, async () => {
+        const existing = await getIssueWithSession(gcIssueId)
+        const priorStatus = existing?.sessionFields.sessionStatus
+        // If a follow-up already reactivated the issue, skip settlement
+        if (priorStatus === 'running' || priorStatus === 'pending') {
+          logger.debug(
+            { issueId: gcIssueId, priorStatus },
+            'idle_timeout_settle_skipped_reactivated',
           )
+          return
         }
-      })()
+        const isTerminal =
+          priorStatus === 'failed' || priorStatus === 'cancelled'
+        const finalStatus = isTerminal ? priorStatus : 'completed'
+        emitStateChange(ctx, gcIssueId, gcExecutionId, finalStatus)
+        if (!isTerminal) {
+          await updateIssueSession(gcIssueId, {
+            sessionStatus: finalStatus,
+          })
+        }
+        await autoMoveToReview(gcIssueId)
+        emitIssueSettled(ctx, gcIssueId, gcExecutionId, finalStatus)
+      }).catch((err) => {
+        logger.error({ issueId: gcIssueId, err }, 'idle_timeout_settle_failed')
+      })
       cleaned++
     }
   }
