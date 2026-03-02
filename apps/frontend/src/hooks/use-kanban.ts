@@ -374,10 +374,11 @@ export function useSlashCommands(
   })
 }
 
-export function useGlobalSlashCommands() {
+export function useGlobalSlashCommands(engine?: string | null) {
   return useQuery({
-    queryKey: ['settings', 'slash-commands'],
-    queryFn: () => kanbanApi.getSlashCommandSettings(),
+    queryKey: ['settings', 'slash-commands', engine ?? 'all'],
+    queryFn: () => kanbanApi.getSlashCommandSettings(engine ?? undefined),
+    enabled: !!engine,
     staleTime: Infinity,
   })
 }

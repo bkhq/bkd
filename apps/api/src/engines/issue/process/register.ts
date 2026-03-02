@@ -11,7 +11,11 @@ import {
 import type { ManagedProcess } from '@/engines/issue/types'
 import { getPidFromManaged } from '@/engines/issue/utils/pid'
 import { RingBuffer } from '@/engines/issue/utils/ring-buffer'
-import type { NormalizedLogEntry, SpawnedProcess } from '@/engines/types'
+import type {
+  EngineType,
+  NormalizedLogEntry,
+  SpawnedProcess,
+} from '@/engines/types'
 import { logger } from '@/logger'
 
 // ---------- Process registration ----------
@@ -20,6 +24,7 @@ export function register(
   ctx: EngineContext,
   executionId: string,
   issueId: string,
+  engineType: EngineType,
   process: SpawnedProcess,
   logParser: (line: string) => NormalizedLogEntry | NormalizedLogEntry[] | null,
   turnIndex: number,
@@ -31,6 +36,7 @@ export function register(
   const managed: ManagedProcess = {
     executionId,
     issueId,
+    engineType,
     process,
     state: 'running',
     startedAt: new Date(),

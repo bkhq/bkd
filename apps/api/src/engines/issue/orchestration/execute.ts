@@ -123,6 +123,7 @@ export async function executeIssue(
       ctx,
       executionId,
       issueId,
+      opts.engineType,
       spawned,
       (line) => normalizer.parse(line),
       0,

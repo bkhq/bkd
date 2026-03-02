@@ -136,19 +136,24 @@ settings.patch(
   },
 )
 
-// --- Slash Commands (cached from engine init) ---
+// --- Slash Commands (cached from engine init, per-engine) ---
 
-const SLASH_COMMANDS_KEY = 'engine:slashCommands'
-
-// GET /api/settings/slash-commands
+// GET /api/settings/slash-commands?engine=claude-code
 settings.get('/slash-commands', async (c) => {
-  const raw = await getAppSetting(SLASH_COMMANDS_KEY)
+  const engine = c.req.query('engine') as
+    | import('@/engines/types').EngineType
+    | undefined
+  const key = engine ? `engine:slashCommands:${engine}` : undefined
+
   let commands: string[] = []
-  if (raw) {
-    try {
-      commands = JSON.parse(raw) as string[]
-    } catch {
-      commands = []
+  if (key) {
+    const raw = await getAppSetting(key)
+    if (raw) {
+      try {
+        commands = JSON.parse(raw) as string[]
+      } catch {
+        commands = []
+      }
     }
   }
   return c.json({ success: true, data: { commands } })

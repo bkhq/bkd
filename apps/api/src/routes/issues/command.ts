@@ -235,7 +235,9 @@ command.get('/:id/slash-commands', async (c) => {
     return c.json({ success: false, error: 'Issue not found' }, 404)
   }
 
-  const commands = issueEngine.getSlashCommands(issueId)
+  const engineType =
+    (issue.engineType as import('@/engines/types').EngineType) ?? undefined
+  const commands = issueEngine.getSlashCommands(issueId, engineType)
   return c.json({ success: true, data: { commands } })
 })
 

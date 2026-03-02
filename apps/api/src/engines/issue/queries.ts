@@ -1,5 +1,6 @@
-import { getAppSetting } from '@/db/helpers'
-import type { NormalizedLogEntry } from '@/engines/types'
+import { cacheDel } from '@/cache'
+import { getAppSetting, setAppSetting } from '@/db/helpers'
+import type { EngineType, NormalizedLogEntry } from '@/engines/types'
 import type { EngineContext } from './context'
 import { getLogsFromDb } from './persistence/queries'
 import { cancel } from './process/cancel'
@@ -7,23 +8,89 @@ import { getActiveProcesses, getActiveProcessForIssue } from './process/state'
 import type { ManagedProcess } from './types'
 import { isVisibleForMode, setIssueDevMode } from './utils/visibility'
 
-const SLASH_COMMANDS_KEY = 'engine:slashCommands'
+const SLASH_COMMANDS_PREFIX = 'engine:slashCommands'
 
-/** In-memory cache for slash commands from DB, avoids async in hot path. */
-let cachedSlashCommands: string[] | null = null
+/** All known engine types for cache loading. */
+const ALL_ENGINE_TYPES: EngineType[] = [
+  'claude-code',
+  'codex',
+  'gemini',
+  'echo',
+]
 
-/** Load slash commands from DB into memory cache. Called on startup and after probe. */
+/** Per-engine in-memory cache for slash commands from DB. */
+const cachedSlashCommands = new Map<EngineType, string[]>()
+
+/** DB key for engine-specific slash commands. */
+export function slashCommandsKey(engineType: EngineType): string {
+  return `${SLASH_COMMANDS_PREFIX}:${engineType}`
+}
+
+/** Load slash commands from DB into memory cache for all engines. Called on startup and after probe. */
 export async function refreshSlashCommandsCache(): Promise<void> {
-  const raw = await getAppSetting(SLASH_COMMANDS_KEY)
+  await Promise.all(
+    ALL_ENGINE_TYPES.map(async (et) => {
+      const raw = await getAppSetting(slashCommandsKey(et))
+      try {
+        const commands = raw ? (JSON.parse(raw) as string[]) : null
+        if (commands && commands.length > 0) {
+          cachedSlashCommands.set(et, commands)
+        } else {
+          cachedSlashCommands.delete(et)
+        }
+      } catch {
+        cachedSlashCommands.delete(et)
+      }
+    }),
+  )
+}
+
+/** Refresh cache for a single engine type. */
+export async function refreshSlashCommandsCacheForEngine(
+  engineType: EngineType,
+): Promise<void> {
+  const raw = await getAppSetting(slashCommandsKey(engineType))
   try {
-    cachedSlashCommands = raw ? (JSON.parse(raw) as string[]) : null
+    const commands = raw ? (JSON.parse(raw) as string[]) : null
+    if (commands && commands.length > 0) {
+      cachedSlashCommands.set(engineType, commands)
+    } else {
+      cachedSlashCommands.delete(engineType)
+    }
   } catch {
-    cachedSlashCommands = null
+    cachedSlashCommands.delete(engineType)
   }
 }
 
-export function getCachedSlashCommands(): string[] {
-  return cachedSlashCommands ?? []
+export function getCachedSlashCommands(engineType?: EngineType): string[] {
+  if (engineType) return cachedSlashCommands.get(engineType) ?? []
+  // Fallback: merge all engines (for backwards compat with global endpoint without engine param)
+  const all: string[] = []
+  for (const cmds of cachedSlashCommands.values()) {
+    all.push(...cmds)
+  }
+  return all
+}
+
+/**
+ * One-time migration: move legacy global `engine:slashCommands` key to
+ * the per-engine key `engine:slashCommands:claude-code` (the only engine
+ * that previously reported slash commands). Safe to call multiple times.
+ */
+export async function migrateSlashCommandsKey(): Promise<void> {
+  const LEGACY_KEY = 'engine:slashCommands'
+  const raw = await getAppSetting(LEGACY_KEY)
+  if (!raw) return
+  // Only migrate if the new per-engine key doesn't exist yet
+  const existing = await getAppSetting(slashCommandsKey('claude-code'))
+  if (existing) return
+  await setAppSetting(slashCommandsKey('claude-code'), raw)
+  // Clean up legacy key from DB
+  const { db } = await import('@/db')
+  const { appSettings } = await import('@/db/schema')
+  const { eq } = await import('drizzle-orm')
+  await db.delete(appSettings).where(eq(appSettings.key, LEGACY_KEY))
+  await cacheDel(`app_setting:${LEGACY_KEY}`)
 }
 
 // ---------- Public read-only queries ----------
@@ -127,10 +194,13 @@ export function isTurnInFlight(ctx: EngineContext, issueId: string): boolean {
 export function getSlashCommands(
   ctx: EngineContext,
   issueId: string,
+  engineType?: EngineType,
 ): string[] {
   const active = getActiveProcessForIssue(ctx, issueId)
   if (active && active.slashCommands.length > 0) return active.slashCommands
-  return getCachedSlashCommands()
+  // Use the active process's engine type, or the caller-supplied one, for cache lookup
+  const et = active?.engineType ?? engineType
+  return getCachedSlashCommands(et)
 }
 
 export async function cancelAll(ctx: EngineContext): Promise<void> {

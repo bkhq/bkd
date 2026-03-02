@@ -153,7 +153,7 @@ export function ChatBody({
   }, [deleteIssueMutation, issueId, onAfterDelete])
 
   const hasSession = !!issue.sessionStatus
-  const { data: globalCmds } = useGlobalSlashCommands()
+  const { data: globalCmds } = useGlobalSlashCommands(issue.engineType)
   const { data: liveCmds } = useSlashCommands(projectId, issueId, hasSession)
   const slashCommands =
     (liveCmds?.commands.length ? liveCmds.commands : globalCmds?.commands) ?? []

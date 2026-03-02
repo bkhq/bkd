@@ -1,16 +1,20 @@
 import { setAppSetting } from '@/db/helpers'
-import { refreshSlashCommandsCache } from '@/engines/issue/queries'
+import {
+  refreshSlashCommandsCacheForEngine,
+  slashCommandsKey,
+} from '@/engines/issue/queries'
 import type { ManagedProcess } from '@/engines/issue/types'
 import { normalizeStream } from '@/engines/logs'
-import type { NormalizedLogEntry } from '@/engines/types'
+import type { EngineType, NormalizedLogEntry } from '@/engines/types'
 import { isCancelledNoiseEntry, isTurnCompletionEntry } from './classification'
 
-const SLASH_COMMANDS_KEY = 'engine:slashCommands'
-
-async function saveSlashCommandsToSettings(commands: string[]): Promise<void> {
+async function saveSlashCommandsToSettings(
+  engineType: EngineType,
+  commands: string[],
+): Promise<void> {
   if (commands.length === 0) return
-  await setAppSetting(SLASH_COMMANDS_KEY, JSON.stringify(commands))
-  await refreshSlashCommandsCache()
+  await setAppSetting(slashCommandsKey(engineType), JSON.stringify(commands))
+  await refreshSlashCommandsCacheForEngine(engineType)
 }
 
 export interface StreamCallbacks {
@@ -67,7 +71,10 @@ export async function consumeStream(
         Array.isArray(entry.metadata.slashCommands)
       ) {
         managed.slashCommands = entry.metadata.slashCommands as string[]
-        void saveSlashCommandsToSettings(managed.slashCommands)
+        void saveSlashCommandsToSettings(
+          managed.engineType,
+          managed.slashCommands,
+        )
       }
 
       // Tag all entries in a meta turn so they are hidden from the frontend

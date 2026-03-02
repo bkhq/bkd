@@ -251,8 +251,10 @@ export const kanbanApi = {
   probeEngines: () => post<ProbeResult>('/api/engines/probe', {}),
 
   // App Settings
-  getSlashCommandSettings: () =>
-    get<{ commands: string[] }>('/api/settings/slash-commands'),
+  getSlashCommandSettings: (engine?: string) =>
+    get<{ commands: string[] }>(
+      `/api/settings/slash-commands${engine ? `?engine=${encodeURIComponent(engine)}` : ''}`,
+    ),
   getWorkspacePath: () => get<{ path: string }>('/api/settings/workspace-path'),
   updateWorkspacePath: (path: string) =>
     patch<{ path: string }>('/api/settings/workspace-path', { path }),

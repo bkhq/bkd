@@ -260,7 +260,10 @@ message.post('/:id/follow-up', async (c) => {
       await collectPendingMessages(issueId, fullPrompt)
     const firstWord = prompt.split(/\s/)[0] ?? ''
     const knownCommands = issueEngine
-      .getSlashCommands(issueId)
+      .getSlashCommands(
+        issueId,
+        (issue.engineType as import('@/engines/types').EngineType) ?? undefined,
+      )
       .map((cmd) => (cmd.startsWith('/') ? cmd : `/${cmd}`))
     const isCommand =
       firstWord.startsWith('/') &&

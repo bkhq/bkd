@@ -186,8 +186,8 @@ export class IssueEngine {
     return isTurnInFlight(this.ctx, issueId)
   }
 
-  getSlashCommands(issueId: string): string[] {
-    return getSlashCommands(this.ctx, issueId)
+  getSlashCommands(issueId: string, engineType?: EngineType): string[] {
+    return getSlashCommands(this.ctx, issueId, engineType)
   }
 
   getActiveProcesses(): ManagedProcess[] {

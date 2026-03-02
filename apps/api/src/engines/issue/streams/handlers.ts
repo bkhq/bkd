@@ -39,7 +39,12 @@ export function handleStreamEntry(
   // Completed messages (from item/completed) will be persisted as the final record.
   // Do NOT store in ring buffer — deltas would flood the buffer and evict canonical records.
   if (effectiveEntry.metadata?.streaming === true) {
-    emitLog(ctx, issueId, executionId, effectiveEntry)
+    const trimmed = effectiveEntry.content.trim()
+    const emitted =
+      trimmed === effectiveEntry.content
+        ? effectiveEntry
+        : { ...effectiveEntry, content: trimmed }
+    emitLog(ctx, issueId, executionId, emitted)
     return
   }
 

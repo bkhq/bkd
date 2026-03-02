@@ -1,4 +1,5 @@
 import type {
+  EngineType,
   NormalizedLogEntry,
   PermissionPolicy,
   ProcessStatus,
@@ -9,6 +10,7 @@ import type { RingBuffer } from './utils/ring-buffer'
 export interface ManagedProcess {
   executionId: string
   issueId: string
+  engineType: EngineType
   process: SpawnedProcess
   state: ProcessStatus
   startedAt: Date
