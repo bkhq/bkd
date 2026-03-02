@@ -4,6 +4,7 @@ import { serveStatic, websocket } from 'hono/bun'
 import app from './app'
 import { embeddedStatic } from './embedded-static'
 import { issueEngine } from './engines/issue'
+import { refreshSlashCommandsCache } from './engines/issue/queries'
 import {
   registerSettledReconciliation,
   startPeriodicReconciliation,
@@ -21,6 +22,11 @@ import {
   registerShutdownForUpgrade,
   stopPeriodicCheck,
 } from './upgrade/service'
+
+// Load cached slash commands into memory for fast lookup
+void refreshSlashCommandsCache().catch((err) => {
+  logger.error({ err }, 'slash_commands_cache_load_failed')
+})
 
 // Run startup reconciliation: mark stale sessions as failed and move
 // orphaned working issues to review.

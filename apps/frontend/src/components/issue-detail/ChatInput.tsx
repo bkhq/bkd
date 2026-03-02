@@ -219,7 +219,11 @@ export function ChatInput({
                 size: f.size,
               }))
             : undefined
-        const isCommand = prompt.startsWith('/')
+        const firstWord = prompt.split(/\s/)[0] ?? ''
+        const isCommand =
+          firstWord.startsWith('/') &&
+          (normalizedCommands.length === 0 ||
+            normalizedCommands.some((cmd) => cmd === firstWord))
         const metadata: Record<string, unknown> | undefined = isTodo
           ? {
               type: 'pending',
@@ -325,7 +329,7 @@ export function ChatInput({
   )
 
   return (
-    <div className="shrink-0 w-full min-w-0 p-4 relative z-30">
+    <div className="shrink-0 w-full min-w-0 px-4 pb-2 relative z-30">
       <div
         className={`rounded-xl border bg-card/80 backdrop-blur-sm shadow-sm transition-all duration-200 focus-within:border-border focus-within:shadow-md ${
           isDragOver
