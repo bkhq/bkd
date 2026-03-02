@@ -15,7 +15,11 @@ let cachedSlashCommands: string[] | null = null
 /** Load slash commands from DB into memory cache. Called on startup and after probe. */
 export async function refreshSlashCommandsCache(): Promise<void> {
   const raw = await getAppSetting(SLASH_COMMANDS_KEY)
-  cachedSlashCommands = raw ? (JSON.parse(raw) as string[]) : null
+  try {
+    cachedSlashCommands = raw ? (JSON.parse(raw) as string[]) : null
+  } catch {
+    cachedSlashCommands = null
+  }
 }
 
 export function getCachedSlashCommands(): string[] {
