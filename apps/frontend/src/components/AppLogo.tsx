@@ -7,7 +7,7 @@ export function AppLogo({ className }: { className?: string }) {
     <img
       src={resolved === 'dark' ? '/favicon-dark.svg' : '/favicon.svg'}
       alt="BitK"
-      className={cn('rounded-[22%]', className)}
+      className={cn('rounded-lg', className)}
     />
   )
 }

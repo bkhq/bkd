@@ -49,7 +49,7 @@ function ProjectCard({
       >
         <CardHeader>
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold bg-muted text-muted-foreground">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-bold bg-muted text-muted-foreground">
               {getProjectInitials(project.name)}
             </div>
             <div className="min-w-0 flex-1">

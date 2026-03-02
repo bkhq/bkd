@@ -1,4 +1,5 @@
 import {
+  Activity,
   ChevronDown,
   ChevronRight,
   FolderOpen,
@@ -17,6 +18,7 @@ import type { StatusDefinition } from '@/lib/statuses'
 import { STATUSES } from '@/lib/statuses'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import { usePanelStore } from '@/stores/panel-store'
+import { useProcessManagerStore } from '@/stores/process-manager-store'
 import type { Issue } from '@/types/kanban'
 
 export function IssueListPanel({
@@ -40,6 +42,7 @@ export function IssueListPanel({
   const { data: project } = useProject(projectId)
   const openCreateDialog = usePanelStore((s) => s.openCreateDialog)
   const toggleFileBrowser = useFileBrowserStore((s) => s.toggle)
+  const toggleProcessManager = useProcessManagerStore((s) => s.toggle)
   const [search, setSearch] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -133,6 +136,16 @@ export function IssueListPanel({
               <FolderOpen className="h-3.5 w-3.5" />
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground md:hidden"
+            onClick={() => toggleProcessManager(projectId)}
+            aria-label={t('processManager.title')}
+            title={t('processManager.title')}
+          >
+            <Activity className="h-3.5 w-3.5" />
+          </Button>
           <Button
             variant="ghost"
             size="icon"

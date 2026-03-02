@@ -113,7 +113,7 @@ export function MobileSidebar({
                     }`}
                   >
                     <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold ${
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold ${
                         isActive
                           ? 'bg-primary text-primary-foreground'
                           : 'bg-foreground/[0.07] text-foreground/60'

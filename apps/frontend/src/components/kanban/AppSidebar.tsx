@@ -58,7 +58,7 @@ function ProjectButton({
           onClick={onClick}
           onMouseEnter={showTooltip}
           onMouseLeave={() => setTooltip(null)}
-          className={`flex items-center justify-center w-9 h-9 rounded-xl text-[11px] font-bold transition-all cursor-pointer focus:outline-none ${
+          className={`flex items-center justify-center w-9 h-9 rounded-lg text-[11px] font-bold transition-all cursor-pointer focus:outline-none ${
             isActive
               ? 'bg-primary text-primary-foreground shadow-sm'
               : 'bg-foreground/[0.07] text-foreground/60 hover:bg-foreground/[0.13] hover:text-foreground/80'
@@ -114,7 +114,7 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
       {/* Home */}
       <button
         type="button"
-        className="flex items-center justify-center w-9 h-9 rounded-xl cursor-pointer focus:outline-none"
+        className="flex items-center justify-center w-9 h-9 rounded-lg cursor-pointer focus:outline-none"
         aria-label={t('sidebar.home')}
         title={t('sidebar.home')}
         onClick={() => navigate('/')}

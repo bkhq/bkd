@@ -470,11 +470,6 @@ function EngineSelect({
               <span className="font-medium">
                 {profile?.name ?? a.engineType}
               </span>
-              {a.version ? (
-                <span className="text-[10px] text-muted-foreground ml-1">
-                  v{a.version}
-                </span>
-              ) : null}
             </DropdownMenuItem>
           )
         })}
