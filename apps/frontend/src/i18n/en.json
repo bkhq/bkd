@@ -264,6 +264,8 @@
     "buildId": "Build",
     "devBuild": "Development build",
     "packageMode": "Package",
+    "worktreeAutoCleanup": "Auto-cleanup worktrees",
+    "worktreeAutoCleanupHint": "Automatically remove worktrees for issues that have been done for more than 1 day",
     "upgradeEnabled": "Auto-upgrade",
     "upgradeEnabledHint": "Automatically check for and download new versions",
     "upgradeChecking": "Checking for updates...",

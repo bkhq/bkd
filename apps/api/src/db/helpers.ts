@@ -209,3 +209,13 @@ export async function ensureDefaultFilterRules(): Promise<void> {
     )
   }
 }
+
+// --- Worktree auto-cleanup default seeding ---
+
+export async function ensureWorktreeAutoCleanupDefault(): Promise<void> {
+  const { WORKTREE_AUTO_CLEANUP_KEY } = await import('../jobs/worktree-cleanup')
+  const existing = await getAppSetting(WORKTREE_AUTO_CLEANUP_KEY)
+  if (existing === null) {
+    await setAppSetting(WORKTREE_AUTO_CLEANUP_KEY, 'true')
+  }
+}

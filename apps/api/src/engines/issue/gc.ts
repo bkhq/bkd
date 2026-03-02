@@ -9,7 +9,6 @@ import type { EngineContext } from './context'
 import { emitIssueSettled, emitStateChange } from './events'
 import { withIssueLock } from './process/lock'
 import { cleanupDomainData } from './process/state'
-import { cleanupWorktree } from './utils/worktree'
 
 // ---------- Domain GC sweep ----------
 
@@ -51,14 +50,8 @@ export function gcSweep(ctx: EngineContext): void {
         },
         'idle_timeout_terminate',
       )
-      const { worktreeBaseDir, worktreePath } = managed
-      managed.worktreeBaseDir = undefined
-      managed.worktreePath = undefined // prevent double-cleanup
       ctx.pm.forceKill(entry.id)
       cleanupDomainData(ctx, managed.executionId)
-      if (worktreeBaseDir && worktreePath) {
-        cleanupWorktree(worktreeBaseDir, managed.issueId, worktreePath)
-      }
       // Fire-and-forget DB update — use issue lock to prevent racing with follow-up
       const { issueId: gcIssueId, executionId: gcExecutionId } = managed
       void withIssueLock(ctx, gcIssueId, async () => {

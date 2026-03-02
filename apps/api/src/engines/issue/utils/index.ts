@@ -12,7 +12,6 @@ export {
   setIssueDevMode,
 } from './visibility'
 export {
-  cleanupWorktree,
   createWorktree,
   removeWorktree,
   resolveWorktreePath,

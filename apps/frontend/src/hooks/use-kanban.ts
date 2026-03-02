@@ -36,6 +36,7 @@ export const queryKeys = {
     ['projects', projectId, 'processes'] as const,
   projectWorktrees: (projectId: string) =>
     ['projects', projectId, 'worktrees'] as const,
+  worktreeAutoCleanup: () => ['settings', 'worktreeAutoCleanup'] as const,
   upgradeVersion: () => ['upgrade', 'version'] as const,
   upgradeEnabled: () => ['upgrade', 'enabled'] as const,
   upgradeCheck: () => ['upgrade', 'check'] as const,
@@ -464,6 +465,29 @@ export function useUpdateWorkspacePath() {
     mutationFn: (path: string) => kanbanApi.updateWorkspacePath(path),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.workspacePath() })
+    },
+  })
+}
+
+// --- Worktree Auto-Cleanup hooks ---
+
+export function useWorktreeAutoCleanup(enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.worktreeAutoCleanup(),
+    queryFn: () => kanbanApi.getWorktreeAutoCleanup(),
+    enabled,
+    staleTime: Infinity,
+  })
+}
+
+export function useSetWorktreeAutoCleanup() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (enabled: boolean) => kanbanApi.setWorktreeAutoCleanup(enabled),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.worktreeAutoCleanup(),
+      })
     },
   })
 }

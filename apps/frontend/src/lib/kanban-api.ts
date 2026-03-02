@@ -256,6 +256,12 @@ export const kanbanApi = {
   getWorkspacePath: () => get<{ path: string }>('/api/settings/workspace-path'),
   updateWorkspacePath: (path: string) =>
     patch<{ path: string }>('/api/settings/workspace-path', { path }),
+  getWorktreeAutoCleanup: () =>
+    get<{ enabled: boolean }>('/api/settings/worktree-auto-cleanup'),
+  setWorktreeAutoCleanup: (enabled: boolean) =>
+    patch<{ enabled: boolean }>('/api/settings/worktree-auto-cleanup', {
+      enabled,
+    }),
 
   // Upgrade
   getVersionInfo: () =>

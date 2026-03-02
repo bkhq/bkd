@@ -5,7 +5,6 @@ import { withIssueLock } from '@/engines/issue/process/lock'
 import { cleanupDomainData } from '@/engines/issue/process/state'
 import { dispatch } from '@/engines/issue/state'
 import { getPidFromManaged } from '@/engines/issue/utils/pid'
-import { cleanupWorktree } from '@/engines/issue/utils/worktree'
 import { logger } from '@/logger'
 
 // ---------- Cancel ----------
@@ -76,7 +75,6 @@ export async function terminateProcess(
     // Kill active processes (spawning or running)
     const active = ctx.pm.getActiveInGroup(issueId)
     let lastExecutionId = ''
-    const worktreeEntries: Array<{ baseDir: string; path: string }> = []
     for (const entry of active) {
       const managed = entry.meta
       logger.info(
@@ -88,14 +86,6 @@ export async function terminateProcess(
         },
         'force_terminate_active_process',
       )
-      if (managed.worktreeBaseDir && managed.worktreePath) {
-        worktreeEntries.push({
-          baseDir: managed.worktreeBaseDir,
-          path: managed.worktreePath,
-        })
-        managed.worktreeBaseDir = undefined
-        managed.worktreePath = undefined // prevent double-cleanup
-      }
       dispatch(managed, { type: 'CLEAR_PENDING_INPUTS' })
       managed.state = 'cancelled'
       emitStateChange(ctx, issueId, entry.id, 'cancelled')
@@ -107,9 +97,6 @@ export async function terminateProcess(
     await updateIssueSession(issueId, { sessionStatus: 'cancelled' })
     await autoMoveToReview(issueId)
     emitIssueSettled(ctx, issueId, lastExecutionId, 'cancelled')
-    for (const wt of worktreeEntries) {
-      cleanupWorktree(wt.baseDir, issueId, wt.path)
-    }
     logger.info({ issueId }, 'force_terminate_completed')
   })
 }

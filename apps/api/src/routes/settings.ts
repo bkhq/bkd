@@ -10,6 +10,7 @@ import {
   DEFAULT_FILTER_RULES,
   WRITE_FILTER_RULES_KEY,
 } from '@/engines/write-filter'
+import { WORKTREE_AUTO_CLEANUP_KEY } from '@/jobs/worktree-cleanup'
 
 const settings = new Hono()
 
@@ -113,6 +114,25 @@ settings.patch(
       success: true,
       data: updatedRules.find((r) => r.id === ruleId),
     })
+  },
+)
+
+// --- Worktree Auto-Cleanup ---
+
+// GET /api/settings/worktree-auto-cleanup
+settings.get('/worktree-auto-cleanup', async (c) => {
+  const value = await getAppSetting(WORKTREE_AUTO_CLEANUP_KEY)
+  return c.json({ success: true, data: { enabled: value === 'true' } })
+})
+
+// PATCH /api/settings/worktree-auto-cleanup
+settings.patch(
+  '/worktree-auto-cleanup',
+  zValidator('json', z.object({ enabled: z.boolean() })),
+  async (c) => {
+    const { enabled } = c.req.valid('json')
+    await setAppSetting(WORKTREE_AUTO_CLEANUP_KEY, String(enabled))
+    return c.json({ success: true, data: { enabled } })
   },
 )
 

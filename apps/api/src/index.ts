@@ -13,6 +13,7 @@ import {
 } from './engines/reconciler'
 import { startChangesSummaryWatcher } from './events/changes-summary'
 import { startUploadCleanup } from './jobs/upload-cleanup'
+import { startWorktreeCleanup } from './jobs/worktree-cleanup'
 import { logger } from './logger'
 import { APP_DIR, ROOT_DIR } from './root'
 import { printStartupBanner } from './startup-banner'
@@ -106,10 +107,14 @@ printStartupBanner(listenHost, listenPort)
 // Start periodic upload cleanup (removes files older than 7 days)
 const stopUploadCleanup = startUploadCleanup()
 
+// Start periodic worktree cleanup (removes worktrees for done issues older than 1 day)
+const stopWorktreeCleanup = startWorktreeCleanup()
+
 // Register shutdown callback for upgrade restarts (stops server + cancels engines)
 registerShutdownForUpgrade(async () => {
   stopPeriodicReconciliation()
   stopUploadCleanup()
+  stopWorktreeCleanup()
   stopPeriodicCheck()
   await issueEngine.cancelAll()
   http.stop()
@@ -134,6 +139,7 @@ async function shutdown(signal: string) {
   // Stop periodic jobs before cancelling processes
   stopPeriodicReconciliation()
   stopUploadCleanup()
+  stopWorktreeCleanup()
   stopPeriodicCheck()
 
   // Cancel all active engine processes before shutting down

@@ -20,6 +20,7 @@ import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
 import { setIssueDevMode } from '@/engines/issue/utils/visibility'
 import {
   createWorktree,
+  isWorktreeRegistered,
   resolveWorktreePath,
 } from '@/engines/issue/utils/worktree'
 import type {
@@ -151,11 +152,19 @@ export async function spawnRetry(
     try {
       const s = await stat(candidatePath)
       if (s.isDirectory()) {
-        worktreePath = candidatePath
-        workingDir = candidatePath
+        // Verify the worktree belongs to the current project repo
+        if (await isWorktreeRegistered(baseDir, candidatePath)) {
+          worktreePath = candidatePath
+          workingDir = candidatePath
+        } else {
+          logger.warn(
+            { issueId, candidatePath, baseDir },
+            'worktree_not_registered_follow_up_fallback',
+          )
+        }
       }
     } catch {
-      // Worktree doesn't exist — retry in base dir
+      // Worktree doesn't exist — follow-up in base dir
     }
   }
 
@@ -262,8 +271,19 @@ export async function spawnFollowUpProcess(
     try {
       const s = await stat(candidatePath)
       if (s.isDirectory()) {
-        worktreePath = candidatePath
-        workingDir = candidatePath
+        // Verify the worktree is registered under the current project repo;
+        // if the project directory was changed, the old worktree is stale.
+        if (await isWorktreeRegistered(baseDir, candidatePath)) {
+          worktreePath = candidatePath
+          workingDir = candidatePath
+        } else {
+          logger.warn(
+            { issueId, candidatePath, baseDir },
+            'worktree_not_registered_recreating',
+          )
+          worktreePath = await createWorktree(baseDir, issue.projectId, issueId)
+          workingDir = worktreePath
+        }
       }
     } catch {
       // Worktree dir doesn't exist — create fresh
