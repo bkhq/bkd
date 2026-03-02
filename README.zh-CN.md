@@ -19,6 +19,61 @@ BitK 是 CLI 编程代理的统一前端 —— 支持 [Claude Code](https://git
 - **暗色模式** — 浅色 / 深色 / 跟随系统
 - **移动端适配** — 响应式布局，支持触控
 
+## 安装
+
+### 方式一：启动器（推荐）
+
+从 [launcher release](https://github.com/bkhq/bitk/releases/tag/launcher-v1) 下载启动器。启动器是一个小型二进制文件（约 90 MB），会自动下载和管理应用更新（每次约 1 MB）：
+
+```bash
+# Linux (x64)
+curl -LO https://github.com/bkhq/bitk/releases/download/launcher-v1/bitk-launcher-linux-x64
+chmod +x bitk-launcher-linux-x64
+./bitk-launcher-linux-x64
+
+# macOS (Apple Silicon)
+curl -LO https://github.com/bkhq/bitk/releases/download/launcher-v1/bitk-launcher-darwin-arm64
+chmod +x bitk-launcher-darwin-arm64
+./bitk-launcher-darwin-arm64
+```
+
+启动器跨版本保持不变，只有轻量级的应用包会被更新。启动后打开 http://localhost:3000。
+
+### 方式二：独立二进制文件
+
+下载完全自包含的二进制文件（约 105 MB），从 [GitHub Releases](https://github.com/bkhq/bitk/releases)：
+
+```bash
+# Linux (x64)
+curl -LO https://github.com/bkhq/bitk/releases/latest/download/bitk-linux-x64
+chmod +x bitk-linux-x64
+./bitk-linux-x64
+
+# macOS (Apple Silicon)
+curl -LO https://github.com/bkhq/bitk/releases/latest/download/bitk-darwin-arm64
+chmod +x bitk-darwin-arm64
+./bitk-darwin-arm64
+```
+
+无需安装运行时。启动后打开 http://localhost:3000。
+
+### 方式三：从源码运行
+
+```bash
+# 1. 安装 Bun（如果还没有）
+curl -fsSL https://bun.sh/install | bash
+
+# 2. 克隆并安装依赖
+git clone <repo-url> bitk && cd bitk
+bun install
+
+# 3. 构建并启动
+bun run build
+bun run start
+```
+
+打开 http://localhost:3000。
+
 ## 前置条件
 
 BitK 以子进程方式启动 AI 编程代理，使用前请至少安装其中一个：
@@ -49,26 +104,6 @@ npm install -g @google/gemini-cli
 
 > BitK 启动时会自动检测已安装的代理，可以任意组合使用。
 
-## 快速开始
-
-```bash
-# 1. 安装 Bun（如果还没有）
-curl -fsSL https://bun.sh/install | bash
-
-# 2. 克隆并安装依赖
-git clone <repo-url> bitk && cd bitk
-bun install
-
-# 3. 配置环境变量（可选）
-cp .env.example .env
-# 编辑 .env 设置 API 密钥、端口等
-
-# 4. 启动开发服务器
-bun run dev
-```
-
-开发服务器会在 3010 端口启动 API，3000 端口启动 Vite 前端。打开 http://localhost:3000 即可使用。
-
 ## 使用方法
 
 1. **创建项目** — 设置项目名称和工作目录（代理将在该仓库中工作）
@@ -77,61 +112,27 @@ bun run dev
 4. **对话** — 随时发送追加消息、上传文件或取消执行
 5. **审查** — 查看 Diff、检查代理的工具调用记录，拖拽 Issue 到完成
 
-## 脚本命令
+## 配置
 
-```bash
-# 开发
-bun run dev              # API + 前端（通过 --filter 并行启动）
-bun run dev:api          # 仅 API（端口 3010）
-bun run dev:frontend     # 仅前端（端口 3000）
-
-# 代码质量
-bun run lint             # Biome 检查（所有工作区）
-bun run format           # Biome 格式化（所有工作区）
-bun run format:check
-
-# 测试
-bun run test             # 所有测试（并行）
-bun run test:api         # 仅后端测试
-bun run test:frontend    # 仅前端测试
-
-# 数据库
-bun run db:generate      # 生成迁移 SQL
-bun run db:migrate       # 执行迁移
-bun run db:reset         # 重置 SQLite 数据库
-
-# 生产部署
-bun run build            # 构建前端
-bun run start            # 生产服务器（端口 3000）
-```
-
-## 技术栈
-
-| 层级 | 技术 |
-|------|------|
-| 运行时 | [Bun](https://bun.sh) |
-| 后端 | [Hono](https://hono.dev) |
-| 数据库 | SQLite + [Drizzle ORM](https://orm.drizzle.team) |
-| 前端 | React 19 + [Vite](https://vite.dev) |
-| 样式 | [Tailwind CSS](https://tailwindcss.com) v4 |
-| 拖拽 | [@dnd-kit/react](https://dndkit.com) |
-| 终端 | [xterm.js](https://xtermjs.org) |
-| 国际化 | [i18next](https://www.i18next.com) |
-
-## 环境变量
-
-完整配置参见 [`.env.example`](.env.example)，主要变量：
+所有配置通过环境变量完成。在项目根目录创建 `.env` 文件或设置环境变量：
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `API_PORT` | 服务端口 | `3000` |
+| `API_HOST` | 监听地址 | `0.0.0.0` |
 | `API_SECRET` | Bearer 认证令牌（未设置则无需认证） | — |
+| `ALLOWED_ORIGIN` | CORS 允许的来源 | `*` |
 | `DB_PATH` | SQLite 数据库路径 | `data/bitk.db` |
 | `MAX_CONCURRENT_EXECUTIONS` | 最大并行代理会话数 | `5` |
+| `LOG_LEVEL` | 日志级别（`trace` / `debug` / `info` / `warn` / `error`） | `info` |
 | `ANTHROPIC_API_KEY` | Claude API 密钥 | — |
 | `OPENAI_API_KEY` | OpenAI / Codex API 密钥 | — |
 | `GOOGLE_API_KEY` | Gemini API 密钥 | — |
 
+## 开发
+
+参见 [docs/development.md](docs/development.md) 了解开发环境搭建、项目结构和贡献指南。
+
 ## 许可证
 
-MIT
+Apache-2.0
