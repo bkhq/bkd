@@ -14,6 +14,7 @@ function getMode(): string {
 export function printStartupBanner(host: string, port: number) {
   const mode = getMode()
   const nodeEnv = process.env.NODE_ENV ?? 'development'
+  const logLevel = process.env.LOG_LEVEL ?? 'info'
 
   consola.box(
     [
@@ -22,6 +23,7 @@ export function printStartupBanner(host: string, port: number) {
       `  Mode:      ${mode}`,
       `  Env:       ${nodeEnv}`,
       `  Listen:    ${host}:${port}`,
+      `  Log:       ${logLevel}`,
       `  Root:      ${ROOT_DIR}`,
       `  Database:  ${dbPath}`,
       `  Runtime:   Bun ${Bun.version}`,
