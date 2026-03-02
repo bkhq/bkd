@@ -11,4 +11,9 @@ export {
   isVisibleForMode,
   setIssueDevMode,
 } from './visibility'
-export { createWorktree, removeWorktree } from './worktree'
+export {
+  cleanupWorktree,
+  createWorktree,
+  removeWorktree,
+  resolveWorktreePath,
+} from './worktree'

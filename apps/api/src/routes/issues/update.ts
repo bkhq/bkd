@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { zValidator } from '@hono/zod-validator'
 import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -5,7 +6,12 @@ import { cacheDel, cacheDelByPrefix, cacheGetOrSet } from '@/cache'
 import { db } from '@/db'
 import { findProject } from '@/db/helpers'
 import { issues as issuesTable } from '@/db/schema'
-import { issueEngine, setIssueDevMode } from '@/engines/issue'
+import {
+  issueEngine,
+  removeWorktree,
+  resolveWorktreePath,
+  setIssueDevMode,
+} from '@/engines/issue'
 import { emitIssueUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
 import {
@@ -15,6 +21,24 @@ import {
   triggerIssueExecution,
   updateIssueSchema,
 } from './_shared'
+
+/** Fire-and-forget worktree cleanup for done transitions */
+function cleanupWorktreeOnDone(
+  projectId: string,
+  issueId: string,
+  projectDirectory: string | null,
+  useWorktree: boolean,
+): void {
+  if (!useWorktree) return
+  const baseDir = projectDirectory ? resolve(projectDirectory) : process.cwd()
+  const worktreePath = resolveWorktreePath(projectId, issueId)
+  void removeWorktree(baseDir, worktreePath).catch((err) => {
+    logger.debug(
+      { issueId, worktreePath, err },
+      'done_transition_worktree_cleanup',
+    )
+  })
+}
 
 const update = new Hono()
 
@@ -70,8 +94,8 @@ update.patch(
     }> = []
     // Collect issues that already have a session but need pending messages flushed
     const toFlush: Array<{ id: string; model: string | null }> = []
-    // Collect issues transitioning to done that need active processes cancelled
-    const toCancel: string[] = []
+    // Collect issues transitioning to done that need active processes cancelled + worktree cleanup
+    const toCancel: Array<{ id: string; useWorktree: boolean }> = []
 
     await db.transaction(async (tx) => {
       for (const u of body.updates) {
@@ -125,9 +149,9 @@ update.patch(
           }
         }
 
-        // Check if transitioning to done → cancel active processes
+        // Check if transitioning to done → cancel active processes + cleanup worktree
         if (u.statusId === 'done' && existing && existing.statusId !== 'done') {
-          toCancel.push(u.id)
+          toCancel.push({ id: u.id, useWorktree: existing.useWorktree })
         }
 
         const [row] = await tx
@@ -153,11 +177,12 @@ update.patch(
     for (const issue of toFlush) {
       flushPendingAsFollowUp(issue.id, issue)
     }
-    // Cancel active processes for issues that transitioned to done
-    for (const issueId of toCancel) {
-      void issueEngine.cancelIssue(issueId).catch((err) => {
-        logger.error({ issueId, err }, 'done_transition_cancel_failed')
+    // Cancel active processes and cleanup worktrees for issues that transitioned to done
+    for (const { id, useWorktree } of toCancel) {
+      void issueEngine.cancelIssue(id).catch((err) => {
+        logger.error({ issueId: id, err }, 'done_transition_cancel_failed')
       })
+      cleanupWorktreeOnDone(project.id, id, project.directory, useWorktree)
     }
 
     // Invalidate issue caches after bulk update
@@ -321,11 +346,17 @@ update.patch(
       flushPendingAsFollowUp(issueId, { model: existing.model })
     }
 
-    // Fire-and-forget cancel for done transition
+    // Fire-and-forget cancel + worktree cleanup for done transition
     if (transitioningToDone) {
       void issueEngine.cancelIssue(issueId).catch((err) => {
         logger.error({ issueId, err }, 'done_transition_cancel_failed')
       })
+      cleanupWorktreeOnDone(
+        project.id,
+        issueId,
+        project.directory,
+        existing.useWorktree,
+      )
     }
 
     return c.json({ success: true, data: serializeIssue(row) })

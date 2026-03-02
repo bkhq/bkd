@@ -36,7 +36,17 @@
     "deleteConfirm": "Are you sure you want to delete this project? All issues will also be deleted. This action cannot be undone.",
     "deleting": "Deleting...",
     "deleteConfirmPlaceholder": "Type project name to confirm",
-    "deleteConfirmHint": "Please type \"{{name}}\" to confirm deletion"
+    "deleteConfirmHint": "Please type \"{{name}}\" to confirm deletion",
+    "tabGeneral": "General",
+    "tabWorktrees": "Worktrees",
+    "worktrees": "Worktrees",
+    "worktreeEmpty": "No worktrees found for this project.",
+    "worktreeIssueId": "Issue",
+    "worktreeBranch": "Branch",
+    "worktreeDelete": "Delete",
+    "worktreeDeleting": "Deleting...",
+    "worktreeDeleteConfirm": "Delete worktree for issue {{issueId}}?",
+    "worktreeLoading": "Loading worktrees..."
   },
   "kanban": {
     "newIssue": "New Issue",
@@ -271,9 +281,7 @@
     "upgradeChecksumFailed": "Checksum mismatch",
     "upgradeRestart": "Restart to upgrade",
     "upgradeRestarting": "Restarting...",
-    "upgradeLastChecked": "Last checked: {{time}}",
-    "tabGeneral": "General",
-    "tabModels": "Models"
+    "upgradeLastChecked": "Last checked: {{time}}"
   },
   "error": {
     "title": "Something went wrong",

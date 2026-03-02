@@ -34,6 +34,8 @@ export const queryKeys = {
     ['projects', projectId, 'files', path, { hideIgnored }] as const,
   projectProcesses: (projectId: string) =>
     ['projects', projectId, 'processes'] as const,
+  projectWorktrees: (projectId: string) =>
+    ['projects', projectId, 'worktrees'] as const,
   upgradeVersion: () => ['upgrade', 'version'] as const,
   upgradeEnabled: () => ['upgrade', 'enabled'] as const,
   upgradeCheck: () => ['upgrade', 'check'] as const,
@@ -91,6 +93,27 @@ export function useDeleteProject() {
     mutationFn: (id: string) => kanbanApi.deleteProject(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects() })
+    },
+  })
+}
+
+export function useProjectWorktrees(projectId: string) {
+  return useQuery({
+    queryKey: queryKeys.projectWorktrees(projectId),
+    queryFn: () => kanbanApi.getWorktrees(projectId),
+    enabled: !!projectId,
+  })
+}
+
+export function useDeleteWorktree() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { projectId: string; issueId: string }) =>
+      kanbanApi.deleteWorktree(data.projectId, data.issueId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.projectWorktrees(variables.projectId),
+      })
     },
   })
 }

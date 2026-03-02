@@ -3,6 +3,7 @@ import { resolve, sep } from 'node:path'
 import { Hono } from 'hono'
 import { cacheGetOrSet } from '@/cache'
 import { findProject } from '@/db/helpers'
+import { resolveWorktreePath } from '@/engines/issue/utils/worktree'
 import { getProjectOwnedIssue } from './_shared'
 
 // ---------- Types ----------
@@ -50,6 +51,27 @@ async function resolveProjectDir(projectId: string): Promise<string> {
   if (!s.isDirectory())
     throw new Error(`Project directory is not a directory: ${root}`)
   return root
+}
+
+/**
+ * If the issue has a worktree and its directory exists, use it.
+ * Otherwise fall back to the project root.
+ */
+async function resolveChangesDir(
+  projectId: string,
+  issueId: string,
+  useWorktree: boolean,
+  projectRoot: string,
+): Promise<string> {
+  if (!useWorktree) return projectRoot
+  const wtPath = resolveWorktreePath(projectId, issueId)
+  try {
+    const s = await stat(wtPath)
+    if (s.isDirectory()) return wtPath
+  } catch {
+    // worktree dir doesn't exist — fall back
+  }
+  return projectRoot
 }
 
 async function runGit(
@@ -164,7 +186,13 @@ changes.get('/:id/changes', async (c) => {
   const issue = await getProjectOwnedIssue(project.id, issueId)
   if (!issue) return c.json({ success: false, error: 'Issue not found' }, 404)
 
-  const root = await resolveProjectDir(project.id)
+  const projectRoot = await resolveProjectDir(project.id)
+  const root = await resolveChangesDir(
+    project.id,
+    issueId,
+    issue.useWorktree,
+    projectRoot,
+  )
   const gitRepo = await isGitRepo(root)
   if (!gitRepo) {
     return c.json({
@@ -223,9 +251,15 @@ changes.get('/:id/changes/file', async (c) => {
     )
   }
 
-  const root = await resolveProjectDir(project.id)
+  const projectRoot = await resolveProjectDir(project.id)
+  const root = await resolveChangesDir(
+    project.id,
+    issueId,
+    issue.useWorktree,
+    projectRoot,
+  )
 
-  // SEC-019: Validate path is inside project root on ALL code paths
+  // SEC-019: Validate path is inside working directory on ALL code paths
   if (!isPathInsideRoot(root, path)) {
     return c.json({ success: false, error: 'Invalid path' }, 400)
   }

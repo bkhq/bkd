@@ -1,4 +1,4 @@
-import { FolderOpen, Loader2 } from 'lucide-react'
+import { FolderOpen, GitBranch, Loader2, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -15,8 +15,14 @@ import {
 import { Field, FieldGroup } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { useDeleteProject, useUpdateProject } from '@/hooks/use-kanban'
+import {
+  useDeleteProject,
+  useDeleteWorktree,
+  useProjectWorktrees,
+  useUpdateProject,
+} from '@/hooks/use-kanban'
 import { kanbanApi } from '@/lib/kanban-api'
 import type { Project } from '@/types/kanban'
 
@@ -92,6 +98,81 @@ function DeleteProjectDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function WorktreeTab({ project }: { project: Project }) {
+  const { t } = useTranslation()
+  const { data: worktrees, isLoading } = useProjectWorktrees(project.id)
+  const deleteWorktree = useDeleteWorktree()
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
+        {t('project.worktreeLoading')}
+      </div>
+    )
+  }
+
+  if (!worktrees || worktrees.length === 0) {
+    return (
+      <p className="py-8 text-center text-sm text-muted-foreground">
+        {t('project.worktreeEmpty')}
+      </p>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      {worktrees.map((wt) => (
+        <div
+          key={wt.issueId}
+          className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
+        >
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <p className="truncate text-sm font-medium font-mono">
+              {wt.issueId}
+            </p>
+            {wt.branch ? (
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <GitBranch className="size-3" />
+                <span className="truncate">{wt.branch}</span>
+              </p>
+            ) : null}
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 text-muted-foreground hover:text-destructive"
+            disabled={deleteWorktree.isPending && deletingId === wt.issueId}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  t('project.worktreeDeleteConfirm', {
+                    issueId: wt.issueId,
+                  }),
+                )
+              ) {
+                return
+              }
+              setDeletingId(wt.issueId)
+              deleteWorktree.mutate(
+                { projectId: project.id, issueId: wt.issueId },
+                { onSettled: () => setDeletingId(null) },
+              )
+            }}
+          >
+            {deleteWorktree.isPending && deletingId === wt.issueId ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Trash2 className="size-4" />
+            )}
+          </Button>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -172,120 +253,142 @@ export function ProjectSettingsDialog({
             </div>
           </DialogHeader>
 
-          <FieldGroup>
-            <Field>
-              <Label>
-                {t('project.name')} <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('project.namePlaceholder')}
-                autoFocus
-                className="w-full"
-              />
-            </Field>
+          <Tabs defaultValue="general">
+            <TabsList>
+              <TabsTrigger value="general">
+                {t('project.tabGeneral')}
+              </TabsTrigger>
+              <TabsTrigger value="worktrees">
+                {t('project.tabWorktrees')}
+              </TabsTrigger>
+            </TabsList>
 
-            <Field>
-              <Label>{t('project.description')}</Label>
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t('project.descriptionPlaceholder')}
-                rows={3}
-                className="w-full resize-none"
-              />
-            </Field>
+            <TabsContent value="general">
+              <FieldGroup>
+                <Field>
+                  <Label>
+                    {t('project.name')}{' '}
+                    <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={t('project.namePlaceholder')}
+                    autoFocus
+                    className="w-full"
+                  />
+                </Field>
 
-            <Field>
-              <Label>{t('project.directory')}</Label>
-              <div className="flex gap-1.5">
-                <Input
-                  type="text"
-                  value={directory}
-                  onChange={(e) => setDirectory(e.target.value)}
-                  placeholder={t('project.directoryPlaceholder')}
-                  className="w-full"
-                />
+                <Field>
+                  <Label>{t('project.description')}</Label>
+                  <Textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder={t('project.descriptionPlaceholder')}
+                    rows={3}
+                    className="w-full resize-none"
+                  />
+                </Field>
+
+                <Field>
+                  <Label>{t('project.directory')}</Label>
+                  <div className="flex gap-1.5">
+                    <Input
+                      type="text"
+                      value={directory}
+                      onChange={(e) => setDirectory(e.target.value)}
+                      placeholder={t('project.directoryPlaceholder')}
+                      className="w-full"
+                    />
+                    <Button
+                      onClick={() => setDirPickerOpen(true)}
+                      variant="outline"
+                      size="icon"
+                      title={t('project.browseDirectories')}
+                    >
+                      <FolderOpen className="size-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                  <DirectoryPicker
+                    open={dirPickerOpen}
+                    onOpenChange={setDirPickerOpen}
+                    initialPath={directory || undefined}
+                    onSelect={setDirectory}
+                  />
+                </Field>
+
+                <Field className="space-y-1.5">
+                  <Label>{t('project.repositoryUrl')}</Label>
+                  <div className="flex gap-1.5">
+                    <Input
+                      type="text"
+                      value={repositoryUrl}
+                      onChange={(e) => setRepositoryUrl(e.target.value)}
+                      placeholder={t('project.repositoryUrlPlaceholder')}
+                      className="w-full"
+                    />
+                    <Button
+                      onClick={async () => {
+                        const dir = directory.trim()
+                        if (!dir) return
+                        setDetectingRemote(true)
+                        try {
+                          const result = await kanbanApi.detectGitRemote(dir)
+                          setRepositoryUrl(result.url)
+                        } catch {
+                          // silently ignore — directory may not be a git repo
+                        } finally {
+                          setDetectingRemote(false)
+                        }
+                      }}
+                      variant="outline"
+                      type="button"
+                      disabled={!directory.trim() || detectingRemote}
+                      title={t('project.detectGitRemote')}
+                      className="shrink-0"
+                    >
+                      {detectingRemote ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        'Auto'
+                      )}
+                    </Button>
+                  </div>
+                </Field>
+
+                {error ? (
+                  <p className="text-sm text-destructive">{error}</p>
+                ) : null}
+              </FieldGroup>
+
+              <DialogFooter className="mt-4">
                 <Button
-                  onClick={() => setDirPickerOpen(true)}
-                  variant="outline"
-                  size="icon"
-                  title={t('project.browseDirectories')}
+                  variant="destructive"
+                  onClick={() => setDeleteDialogOpen(true)}
                 >
-                  <FolderOpen className="size-4 text-muted-foreground" />
+                  {t('project.delete')}
                 </Button>
-              </div>
-              <DirectoryPicker
-                open={dirPickerOpen}
-                onOpenChange={setDirPickerOpen}
-                initialPath={directory || undefined}
-                onSelect={setDirectory}
-              />
-            </Field>
-
-            <Field className="space-y-1.5">
-              <Label>{t('project.repositoryUrl')}</Label>
-              <div className="flex gap-1.5">
-                <Input
-                  type="text"
-                  value={repositoryUrl}
-                  onChange={(e) => setRepositoryUrl(e.target.value)}
-                  placeholder={t('project.repositoryUrlPlaceholder')}
-                  className="w-full"
-                />
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
+                  {t('common.cancel')}
+                </Button>
                 <Button
-                  onClick={async () => {
-                    const dir = directory.trim()
-                    if (!dir) return
-                    setDetectingRemote(true)
-                    try {
-                      const result = await kanbanApi.detectGitRemote(dir)
-                      setRepositoryUrl(result.url)
-                    } catch {
-                      // silently ignore — directory may not be a git repo
-                    } finally {
-                      setDetectingRemote(false)
-                    }
-                  }}
-                  variant="outline"
-                  type="button"
-                  disabled={!directory.trim() || detectingRemote}
-                  title={t('project.detectGitRemote')}
-                  className="shrink-0"
+                  onClick={handleSave}
+                  disabled={
+                    updateProject.isPending || !name.trim() || !hasChanges
+                  }
                 >
-                  {detectingRemote ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    'Auto'
-                  )}
+                  {updateProject.isPending
+                    ? t('project.saving')
+                    : t('project.saveChanges')}
                 </Button>
-              </div>
-            </Field>
+              </DialogFooter>
+            </TabsContent>
 
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          </FieldGroup>
-
-          <DialogFooter>
-            <Button
-              variant="destructive"
-              onClick={() => setDeleteDialogOpen(true)}
-            >
-              {t('project.delete')}
-            </Button>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={updateProject.isPending || !name.trim() || !hasChanges}
-            >
-              {updateProject.isPending
-                ? t('project.saving')
-                : t('project.saveChanges')}
-            </Button>
-          </DialogFooter>
+            <TabsContent value="worktrees">
+              <WorktreeTab project={project} />
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 

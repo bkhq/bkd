@@ -26,6 +26,7 @@ export function register(
   worktreePath: string | undefined,
   metaTurn: boolean,
   onTurnCompleted: () => void,
+  worktreeBaseDir?: string,
 ): ManagedProcess {
   const managed: ManagedProcess = {
     executionId,
@@ -43,6 +44,7 @@ export function register(
     metaTurn,
     slashCommands: [],
     spawnCommand: process.spawnCommand,
+    worktreeBaseDir,
     worktreePath,
     pendingInputs: [],
   }

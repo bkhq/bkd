@@ -90,6 +90,14 @@ export const kanbanApi = {
   ) => patch<Project>(`/api/projects/${id}`, data),
   deleteProject: (id: string) => del<{ id: string }>(`/api/projects/${id}`),
 
+  // Worktrees
+  getWorktrees: (projectId: string) =>
+    get<Array<{ issueId: string; path: string; branch: string | null }>>(
+      `/api/projects/${projectId}/worktrees`,
+    ),
+  deleteWorktree: (projectId: string, issueId: string) =>
+    del<{ issueId: string }>(`/api/projects/${projectId}/worktrees/${issueId}`),
+
   // Issues
   getIssues: (projectId: string) =>
     get<Issue[]>(`/api/projects/${projectId}/issues`),

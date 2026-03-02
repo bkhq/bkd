@@ -1,8 +1,6 @@
 import { stat } from 'node:fs/promises'
-import { join } from 'node:path'
 import { getIssueWithSession, updateIssueSession } from '@/engines/engine-store'
 import { engineRegistry } from '@/engines/executors'
-import { WORKTREE_DIR } from '@/engines/issue/constants'
 import type { EngineContext } from '@/engines/issue/context'
 import { emitStateChange } from '@/engines/issue/events'
 import { getNextTurnIndex } from '@/engines/issue/persistence/queries'
@@ -20,7 +18,10 @@ import {
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
 import { setIssueDevMode } from '@/engines/issue/utils/visibility'
-import { createWorktree } from '@/engines/issue/utils/worktree'
+import {
+  createWorktree,
+  resolveWorktreePath,
+} from '@/engines/issue/utils/worktree'
 import type {
   EngineType,
   PermissionPolicy,
@@ -239,7 +240,7 @@ export async function spawnFollowUpProcess(
   let workingDir = baseDir
   let worktreePath: string | undefined
   if (issue.useWorktree) {
-    const candidatePath = join(baseDir, WORKTREE_DIR, issueId)
+    const candidatePath = resolveWorktreePath(issue.projectId, issueId)
     try {
       const s = await stat(candidatePath)
       if (s.isDirectory()) {
@@ -249,7 +250,7 @@ export async function spawnFollowUpProcess(
     } catch {
       // Worktree dir doesn't exist — create fresh
       try {
-        worktreePath = await createWorktree(baseDir, issueId)
+        worktreePath = await createWorktree(baseDir, issue.projectId, issueId)
         workingDir = worktreePath
       } catch (wtErr) {
         logger.warn(
@@ -301,6 +302,7 @@ export async function spawnFollowUpProcess(
     worktreePath,
     metadata?.type === 'system',
     () => handleTurnCompleted(ctx, issueId, executionId),
+    worktreePath ? baseDir : undefined,
   )
   // User message already persisted above (before spawn)
   monitorCompletion(ctx, executionId, issueId, engineType, false)

@@ -2,16 +2,28 @@ import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { WORKTREE_DIR } from '@/engines/issue/constants'
 import { logger } from '@/logger'
+import { ROOT_DIR } from '@/root'
 
 // ---------- Git worktree helpers ----------
 
+/**
+ * Deterministic worktree path: `<ROOT_DIR>/data/worktrees/<projectId>/<issueId>/`
+ */
+export function resolveWorktreePath(
+  projectId: string,
+  issueId: string,
+): string {
+  return join(ROOT_DIR, WORKTREE_DIR, projectId, issueId)
+}
+
 export async function createWorktree(
   baseDir: string,
+  projectId: string,
   issueId: string,
 ): Promise<string> {
   const branchName = `bitk/${issueId}`
-  const worktreeDir = join(baseDir, WORKTREE_DIR, issueId)
-  await mkdir(join(baseDir, WORKTREE_DIR), { recursive: true })
+  const worktreeDir = resolveWorktreePath(projectId, issueId)
+  await mkdir(join(ROOT_DIR, WORKTREE_DIR, projectId), { recursive: true })
 
   // Create worktree with a new branch off HEAD
   const proc = Bun.spawn(
@@ -59,7 +71,10 @@ export async function removeWorktree(
         stderr: 'pipe',
       },
     )
-    await proc.exited
+    const code = await proc.exited
+    if (code !== 0) {
+      throw new Error(`git worktree remove exited with code ${code}`)
+    }
     logger.debug({ worktreeDir }, 'worktree_removed')
   } catch (error) {
     logger.warn({ worktreeDir, error }, 'worktree_remove_failed')
@@ -70,4 +85,18 @@ export async function removeWorktree(
       /* best effort */
     }
   }
+}
+
+/**
+ * Fire-and-forget worktree cleanup.
+ * @param baseDir - The git repo directory that owns this worktree
+ */
+export function cleanupWorktree(
+  baseDir: string,
+  issueId: string,
+  worktreePath: string,
+): void {
+  void removeWorktree(baseDir, worktreePath).catch((error) => {
+    logger.warn({ issueId, worktreePath, error }, 'worktree_cleanup_failed')
+  })
 }

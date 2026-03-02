@@ -7,6 +7,7 @@ import git from './git'
 import issues from './issues'
 import processes from './processes'
 import projects from './projects'
+import worktrees from './worktrees'
 
 const apiRoutes = new Hono()
 
@@ -15,6 +16,7 @@ apiRoutes.route('/projects', projects)
 apiRoutes.route('/projects/:projectId/issues', issues)
 apiRoutes.route('/projects/:projectId/files', files)
 apiRoutes.route('/projects/:projectId/processes', processes)
+apiRoutes.route('/projects/:projectId/worktrees', worktrees)
 
 // Infrastructure routes
 apiRoutes.route('/filesystem', filesystem)

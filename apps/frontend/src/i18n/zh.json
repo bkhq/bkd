@@ -36,7 +36,17 @@
     "deleteConfirm": "确定要删除此项目吗？所有任务也将一并删除，此操作无法撤销。",
     "deleting": "删除中...",
     "deleteConfirmPlaceholder": "输入项目名称以确认",
-    "deleteConfirmHint": "请输入 \"{{name}}\" 以确认删除"
+    "deleteConfirmHint": "请输入 \"{{name}}\" 以确认删除",
+    "tabGeneral": "常规",
+    "tabWorktrees": "工作树",
+    "worktrees": "工作树",
+    "worktreeEmpty": "该项目暂无工作树。",
+    "worktreeIssueId": "任务",
+    "worktreeBranch": "分支",
+    "worktreeDelete": "删除",
+    "worktreeDeleting": "删除中...",
+    "worktreeDeleteConfirm": "确定删除任务 {{issueId}} 的工作树吗？",
+    "worktreeLoading": "加载工作树中..."
   },
   "kanban": {
     "newIssue": "新建任务",
@@ -271,9 +281,7 @@
     "upgradeChecksumFailed": "校验不匹配",
     "upgradeRestart": "重启升级",
     "upgradeRestarting": "重启中...",
-    "upgradeLastChecked": "上次检查：{{time}}",
-    "tabGeneral": "通用",
-    "tabModels": "模型"
+    "upgradeLastChecked": "上次检查：{{time}}"
   },
   "error": {
     "title": "出错了",
