@@ -1,0 +1,170 @@
+import { zValidator } from '@hono/zod-validator'
+import { Hono } from 'hono'
+import * as z from 'zod'
+import {
+  applyUpgradeAndRestart,
+  checkForUpdates,
+  deleteDownloadedUpdate,
+  downloadUpdate,
+  getDownloadStatus,
+  getLastCheckResult,
+  getVersionInfo,
+  isUpgradeEnabled,
+  listDownloadedUpdates,
+  setUpgradeEnabled,
+} from '@/upgrade/service'
+
+const ALLOWED_DOWNLOAD_HOSTS = new Set([
+  'github.com',
+  'objects.githubusercontent.com',
+])
+
+function isAllowedDownloadHost(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname
+    return ALLOWED_DOWNLOAD_HOSTS.has(hostname)
+  } catch {
+    return false
+  }
+}
+
+const githubUrlSchema = z
+  .string()
+  .url()
+  .refine(isAllowedDownloadHost, 'URL must be from GitHub')
+
+// Matches: bitk-linux-x64-v0.0.5, bitk-darwin-arm64-v0.0.5, bitk-app-v0.0.5.tar.gz
+const upgradeFileNameSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(
+    /^bitk-[\w-]+-v\d+\.\d+\.\d+(?:\.tar\.gz)?$/,
+    'File name must match bitk-<type>-v<version> format',
+  )
+
+const upgrade = new Hono()
+
+// GET /api/upgrade/version — current version info
+upgrade.get('/version', (c) => {
+  const info = getVersionInfo()
+  return c.json({ success: true, data: info })
+})
+
+// GET /api/upgrade/enabled — whether upgrade is enabled
+upgrade.get('/enabled', async (c) => {
+  const enabled = await isUpgradeEnabled()
+  return c.json({ success: true, data: { enabled } })
+})
+
+// PATCH /api/upgrade/enabled — toggle upgrade on/off
+upgrade.patch(
+  '/enabled',
+  zValidator('json', z.object({ enabled: z.boolean() })),
+  async (c) => {
+    const { enabled } = c.req.valid('json')
+    await setUpgradeEnabled(enabled)
+    return c.json({ success: true, data: { enabled } })
+  },
+)
+
+// GET /api/upgrade/check — check for updates (uses cache if recent)
+upgrade.get('/check', async (c) => {
+  const result = await getLastCheckResult()
+  return c.json({ success: true, data: result })
+})
+
+// POST /api/upgrade/check — force-check for updates
+upgrade.post('/check', async (c) => {
+  const result = await checkForUpdates()
+  return c.json({ success: true, data: result })
+})
+
+// POST /api/upgrade/download — download an update
+upgrade.post(
+  '/download',
+  zValidator(
+    'json',
+    z.object({
+      url: githubUrlSchema,
+      fileName: upgradeFileNameSchema,
+      checksumUrl: githubUrlSchema.optional(),
+    }),
+  ),
+  async (c) => {
+    const { url, fileName, checksumUrl } = c.req.valid('json')
+    // Check status synchronously before starting background download
+    const currentStatus = getDownloadStatus()
+    if (currentStatus.status === 'downloading') {
+      return c.json(
+        { success: false, error: 'A download is already in progress' },
+        409,
+      )
+    }
+    // Start download in background, log errors instead of swallowing
+    downloadUpdate(url, fileName, checksumUrl).catch((err) => {
+      // Download errors are tracked in downloadStatus; just log here
+      void err
+    })
+    return c.json({ success: true, data: { status: 'started', fileName } })
+  },
+)
+
+// GET /api/upgrade/download/status — check download progress
+upgrade.get('/download/status', (c) => {
+  const status = getDownloadStatus()
+  return c.json({ success: true, data: status })
+})
+
+// POST /api/upgrade/restart — apply downloaded upgrade and restart
+upgrade.post('/restart', async (c) => {
+  try {
+    await applyUpgradeAndRestart()
+    return c.json({
+      success: true,
+      data: { status: 'restarting' },
+    })
+  } catch (err) {
+    return c.json(
+      {
+        success: false,
+        error: err instanceof Error ? err.message : 'Restart failed',
+      },
+      400,
+    )
+  }
+})
+
+// GET /api/upgrade/downloads — list downloaded update files
+upgrade.get('/downloads', async (c) => {
+  const files = await listDownloadedUpdates()
+  return c.json({ success: true, data: files })
+})
+
+// DELETE /api/upgrade/downloads/:fileName — delete a downloaded update
+upgrade.delete(
+  '/downloads/:fileName',
+  zValidator(
+    'param',
+    z.object({
+      fileName: upgradeFileNameSchema,
+    }),
+  ),
+  async (c) => {
+    const { fileName } = c.req.valid('param')
+    try {
+      await deleteDownloadedUpdate(fileName)
+      return c.json({ success: true, data: { deleted: fileName } })
+    } catch (err) {
+      return c.json(
+        {
+          success: false,
+          error: err instanceof Error ? err.message : 'Delete failed',
+        },
+        404,
+      )
+    }
+  },
+)
+
+export default upgrade

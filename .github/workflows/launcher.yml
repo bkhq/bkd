@@ -1,0 +1,139 @@
+name: Launcher
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: launcher-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: bun-linux-x64
+            runner: ubuntu-latest
+            label: linux-x64
+            suffix: linux-x64
+          - target: bun-linux-arm64
+            runner: ubuntu-24.04-arm
+            label: linux-arm64
+            suffix: linux-arm64
+          - target: bun-darwin-arm64
+            runner: macos-latest
+            label: darwin-arm64
+            suffix: darwin-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - name: Build launcher binary
+        env:
+          MATRIX_TARGET: ${{ matrix.target }}
+          MATRIX_SUFFIX: ${{ matrix.suffix }}
+        run: |
+          bun install
+          ARTIFACT="bitk-launcher-${MATRIX_SUFFIX}"
+          echo "ARTIFACT=${ARTIFACT}" >> "$GITHUB_ENV"
+          bun scripts/compile.ts --mode launcher --target "${MATRIX_TARGET}" --outfile "${ARTIFACT}"
+          ls -lh "dist/${ARTIFACT}" && file "dist/${ARTIFACT}" && cat "dist/checksums.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bitk-launcher-${{ matrix.suffix }}
+          path: |
+            dist/bitk-launcher-${{ matrix.suffix }}
+            dist/checksums.txt
+          retention-days: 30
+
+  release:
+    name: Update launcher release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Prepare assets
+        run: |
+          mkdir -p release/
+          # Copy launcher binaries only
+          cp artifacts/bitk-launcher-linux-x64/bitk-* release/
+          cp artifacts/bitk-launcher-linux-arm64/bitk-* release/
+          cp artifacts/bitk-launcher-darwin-arm64/bitk-* release/
+          for f in release/bitk-launcher-*; do
+            chmod +x "$f"
+          done
+          # Merge checksums from all build jobs
+          cat artifacts/*/checksums.txt > release/checksums.txt
+          # Verify checksums before publishing
+          cd release
+          echo "--- Verifying checksums ---"
+          sha256sum -c checksums.txt
+
+      - name: Get commit info
+        id: info
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update launcher release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_SHA: ${{ github.sha }}
+          SHA_SHORT: ${{ steps.info.outputs.sha_short }}
+          BUILD_DATE: ${{ steps.info.outputs.date }}
+        run: |
+          TAG="launcher-v1"
+          # Delete existing release if it exists (to recreate with new assets)
+          gh release delete "${TAG}" --yes 2>/dev/null || true
+          # Pin tag to the exact commit that triggered this workflow
+          git tag -f "${TAG}" "${COMMIT_SHA}"
+          git push origin "refs/tags/${TAG}" --force
+          # Create new release with updated assets
+          gh release create "${TAG}" release/* \
+            --target "${COMMIT_SHA}" \
+            --title "Launcher v1 (${BUILD_DATE})" \
+            --notes "$(cat <<NOTES
+          ## Launcher Binaries
+
+          One-time download for package-mode deployments. The launcher binary (~90 MB)
+          loads app code from \`data/app/v{version}/server.js\` at startup.
+
+          First-time run auto-downloads the latest app package from GitHub releases.
+          Subsequent updates only require the app package (~1 MB).
+
+          **Built from:** \`${SHA_SHORT}\` on ${BUILD_DATE}
+
+          ### Manual Setup
+
+          \`\`\`bash
+          # 1. Download launcher for your platform
+          chmod +x bitk-launcher-linux-x64
+
+          # 2. Run — auto-downloads the latest app package
+          ./bitk-launcher-linux-x64
+          \`\`\`
+          NOTES
+          )" \
+            --prerelease

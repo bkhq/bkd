@@ -1,0 +1,3 @@
+{
+  "extends": "@bitk/tsconfig/base.json"
+}
