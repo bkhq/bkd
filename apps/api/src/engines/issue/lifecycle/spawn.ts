@@ -1,8 +1,6 @@
 import { stat } from 'node:fs/promises'
-import { join } from 'node:path'
 import { getIssueWithSession, updateIssueSession } from '@/engines/engine-store'
 import { engineRegistry } from '@/engines/executors'
-import { WORKTREE_DIR } from '@/engines/issue/constants'
 import type { EngineContext } from '@/engines/issue/context'
 import { emitStateChange } from '@/engines/issue/events'
 import { getNextTurnIndex } from '@/engines/issue/persistence/queries'
@@ -20,7 +18,11 @@ import {
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
 import { setIssueDevMode } from '@/engines/issue/utils/visibility'
-import { createWorktree } from '@/engines/issue/utils/worktree'
+import {
+  createWorktree,
+  isWorktreeRegistered,
+  resolveWorktreePath,
+} from '@/engines/issue/utils/worktree'
 import type {
   EngineType,
   PermissionPolicy,
@@ -140,7 +142,32 @@ export async function spawnRetry(
   const executor = engineRegistry.get(engineType)
   if (!executor) throw new Error(`No executor for engine type: ${engineType}`)
 
-  const workingDir = await resolveWorkingDir(issue.projectId)
+  const baseDir = await resolveWorkingDir(issue.projectId)
+
+  // Resolve worktree if the issue uses one
+  let workingDir = baseDir
+  let worktreePath: string | undefined
+  if (issue.useWorktree) {
+    const candidatePath = resolveWorktreePath(issue.projectId, issueId)
+    try {
+      const s = await stat(candidatePath)
+      if (s.isDirectory()) {
+        // Verify the worktree belongs to the current project repo
+        if (await isWorktreeRegistered(baseDir, candidatePath)) {
+          worktreePath = candidatePath
+          workingDir = candidatePath
+        } else {
+          logger.warn(
+            { issueId, candidatePath, baseDir },
+            'worktree_not_registered_follow_up_fallback',
+          )
+        }
+      }
+    } catch {
+      // Worktree doesn't exist — follow-up in base dir
+    }
+  }
+
   const permOptions = getPermissionOptions(engineType)
   const executionId = crypto.randomUUID()
 
@@ -168,9 +195,10 @@ export async function spawnRetry(
     spawned,
     (line) => normalizer.parse(line),
     turnIndex,
-    undefined,
+    worktreePath,
     false,
     () => handleTurnCompleted(ctx, issueId, executionId),
+    worktreePath ? baseDir : undefined,
   )
   monitorCompletion(ctx, executionId, issueId, engineType, true)
   logger.debug(
@@ -239,17 +267,28 @@ export async function spawnFollowUpProcess(
   let workingDir = baseDir
   let worktreePath: string | undefined
   if (issue.useWorktree) {
-    const candidatePath = join(baseDir, WORKTREE_DIR, issueId)
+    const candidatePath = resolveWorktreePath(issue.projectId, issueId)
     try {
       const s = await stat(candidatePath)
       if (s.isDirectory()) {
-        worktreePath = candidatePath
-        workingDir = candidatePath
+        // Verify the worktree is registered under the current project repo;
+        // if the project directory was changed, the old worktree is stale.
+        if (await isWorktreeRegistered(baseDir, candidatePath)) {
+          worktreePath = candidatePath
+          workingDir = candidatePath
+        } else {
+          logger.warn(
+            { issueId, candidatePath, baseDir },
+            'worktree_not_registered_recreating',
+          )
+          worktreePath = await createWorktree(baseDir, issue.projectId, issueId)
+          workingDir = worktreePath
+        }
       }
     } catch {
       // Worktree dir doesn't exist — create fresh
       try {
-        worktreePath = await createWorktree(baseDir, issueId)
+        worktreePath = await createWorktree(baseDir, issue.projectId, issueId)
         workingDir = worktreePath
       } catch (wtErr) {
         logger.warn(
@@ -301,6 +340,7 @@ export async function spawnFollowUpProcess(
     worktreePath,
     metadata?.type === 'system',
     () => handleTurnCompleted(ctx, issueId, executionId),
+    worktreePath ? baseDir : undefined,
   )
   // User message already persisted above (before spawn)
   monitorCompletion(ctx, executionId, issueId, engineType, false)

@@ -1,7 +1,8 @@
 # Plan Index
 
-> Updated: 2026-03-01 06:00 UTC
+> Updated: 2026-03-02 17:00 UTC
 
+- [ ] **PLAN-005 重构 Worktree 系统** - task: `WT-001` - owner: claude - file: `docs/plan/PLAN-005.md`
 - [x] **PLAN-004 GitHub 风格项目文件浏览器** - task: `FILE-001` - owner: claude - file: `docs/plan/PLAN-004.md`
 
 - [x] **PLAN-002 Frontend bundle-size optimization for Shiki and terminal** - task: `ENG-006` - owner: codex - file: `docs/plan/PLAN-002.md`

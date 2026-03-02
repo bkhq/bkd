@@ -90,6 +90,14 @@ export const kanbanApi = {
   ) => patch<Project>(`/api/projects/${id}`, data),
   deleteProject: (id: string) => del<{ id: string }>(`/api/projects/${id}`),
 
+  // Worktrees
+  getWorktrees: (projectId: string) =>
+    get<Array<{ issueId: string; path: string; branch: string | null }>>(
+      `/api/projects/${projectId}/worktrees`,
+    ),
+  deleteWorktree: (projectId: string, issueId: string) =>
+    del<{ issueId: string }>(`/api/projects/${projectId}/worktrees/${issueId}`),
+
   // Issues
   getIssues: (projectId: string) =>
     get<Issue[]>(`/api/projects/${projectId}/issues`),
@@ -248,6 +256,12 @@ export const kanbanApi = {
   getWorkspacePath: () => get<{ path: string }>('/api/settings/workspace-path'),
   updateWorkspacePath: (path: string) =>
     patch<{ path: string }>('/api/settings/workspace-path', { path }),
+  getWorktreeAutoCleanup: () =>
+    get<{ enabled: boolean }>('/api/settings/worktree-auto-cleanup'),
+  setWorktreeAutoCleanup: (enabled: boolean) =>
+    patch<{ enabled: boolean }>('/api/settings/worktree-auto-cleanup', {
+      enabled,
+    }),
 
   // Upgrade
   getVersionInfo: () =>

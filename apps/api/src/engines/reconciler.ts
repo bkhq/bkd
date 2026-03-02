@@ -1,7 +1,10 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { cacheDel } from '@/cache'
 import { db } from '@/db'
-import { ensureDefaultFilterRules } from '@/db/helpers'
+import {
+  ensureDefaultFilterRules,
+  ensureWorktreeAutoCleanupDefault,
+} from '@/db/helpers'
 import { issues as issuesTable } from '@/db/schema'
 import { emitIssueUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
@@ -98,8 +101,9 @@ function hasActiveProcess(issueId: string): boolean {
  * whose sessions were running/pending when the server last stopped.
  */
 export async function startupReconciliation(): Promise<void> {
-  // Seed default write-filter rules if not present
+  // Seed defaults if not present
   await ensureDefaultFilterRules()
+  await ensureWorktreeAutoCleanupDefault()
 
   // First, mark stale sessions (running/pending sessionStatus) as failed.
   // This was previously done by cleanupStaleSessions in db/helpers.

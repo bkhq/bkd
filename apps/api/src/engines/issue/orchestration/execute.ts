@@ -66,7 +66,7 @@ export async function executeIssue(
 
     if (issue.useWorktree) {
       try {
-        worktreePath = await createWorktree(baseDir, issueId)
+        worktreePath = await createWorktree(baseDir, issue.projectId, issueId)
         workingDir = worktreePath
       } catch (error) {
         logger.warn(
@@ -129,6 +129,7 @@ export async function executeIssue(
       worktreePath,
       false,
       () => handleTurnCompleted(ctx, issueId, executionId),
+      worktreePath ? baseDir : undefined,
     )
     const messageId = persistUserMessage(ctx, issueId, executionId, opts.prompt)
     monitorCompletion(ctx, executionId, issueId, opts.engineType, false)

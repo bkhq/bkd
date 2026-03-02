@@ -41,6 +41,7 @@ import {
   useProbeEngines,
   useRestartWithUpgrade,
   useSetUpgradeEnabled,
+  useSetWorktreeAutoCleanup,
   useUpdateDefaultEngine,
   useUpdateEngineModelSetting,
   useUpdateWorkspacePath,
@@ -48,6 +49,7 @@ import {
   useUpgradeEnabled,
   useVersionInfo,
   useWorkspacePath,
+  useWorktreeAutoCleanup,
 } from '@/hooks/use-kanban'
 import { useTheme } from '@/hooks/use-theme'
 import { LANGUAGES } from '@/lib/constants'
@@ -95,6 +97,9 @@ export function AppSettingsDialog({
   const { data: wsData } = useWorkspacePath(open)
   const updateWsPath = useUpdateWorkspacePath()
   const [dirPickerOpen, setDirPickerOpen] = useState(false)
+
+  const { data: worktreeCleanupData } = useWorktreeAutoCleanup(open)
+  const setWorktreeAutoCleanup = useSetWorktreeAutoCleanup()
 
   const handleSelectWorkspace = (path: string) => {
     updateWsPath.mutate(path)
@@ -183,6 +188,25 @@ export function AppSettingsDialog({
                     </SelectContent>
                   </Select>
                 </Field>
+              </div>
+
+              {/* Worktree Auto-Cleanup */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-medium">
+                    {t('settings.worktreeAutoCleanup')}
+                  </span>
+                  <p className="text-[11px] text-muted-foreground">
+                    {t('settings.worktreeAutoCleanupHint')}
+                  </p>
+                </div>
+                <Switch
+                  size="sm"
+                  checked={worktreeCleanupData?.enabled ?? false}
+                  onCheckedChange={(checked) =>
+                    setWorktreeAutoCleanup.mutate(checked)
+                  }
+                />
               </div>
 
               {/* About & Upgrade section */}

@@ -154,9 +154,9 @@ update.patch(
       flushPendingAsFollowUp(issue.id, issue)
     }
     // Cancel active processes for issues that transitioned to done
-    for (const issueId of toCancel) {
-      void issueEngine.cancelIssue(issueId).catch((err) => {
-        logger.error({ issueId, err }, 'done_transition_cancel_failed')
+    for (const id of toCancel) {
+      void issueEngine.cancelIssue(id).catch((err) => {
+        logger.error({ issueId: id, err }, 'done_transition_cancel_failed')
       })
     }
 

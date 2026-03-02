@@ -56,7 +56,7 @@ export async function restartIssue(
     // Create git worktree if enabled for this issue
     if (issue.useWorktree) {
       try {
-        worktreePath = await createWorktree(baseDir, issueId)
+        worktreePath = await createWorktree(baseDir, issue.projectId, issueId)
         workingDir = worktreePath
       } catch (error) {
         logger.warn(
@@ -107,6 +107,7 @@ export async function restartIssue(
       worktreePath,
       false,
       () => handleTurnCompleted(ctx, issueId, executionId),
+      worktreePath ? baseDir : undefined,
     )
     monitorCompletion(ctx, executionId, issueId, engineType, false)
 

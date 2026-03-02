@@ -90,7 +90,7 @@ export function CreateIssueForm({
   const [engineType, setEngineType] = useState('')
   const [modelId, setModelId] = useState('')
   const [permission, setPermission] = useState<PermissionId>('auto')
-  const [useWorktree, setUseWorktree] = useState(false)
+  const [useWorktree, setUseWorktree] = useState(true)
 
   // Resolve the effective engine type ('' means use system default)
   const resolvedEngineType = useMemo(() => {
@@ -148,7 +148,7 @@ export function CreateIssueForm({
           setModelId('')
           setPriority('medium')
           setPermission('auto')
-          setUseWorktree(false)
+          setUseWorktree(true)
           onCreated?.()
         },
       },
