@@ -1,4 +1,5 @@
 import { setAppSetting } from '@/db/helpers'
+import { refreshSlashCommandsCache } from '@/engines/issue/queries'
 import type { ManagedProcess } from '@/engines/issue/types'
 import { normalizeStream } from '@/engines/logs'
 import type { NormalizedLogEntry } from '@/engines/types'
@@ -9,6 +10,7 @@ const SLASH_COMMANDS_KEY = 'engine:slashCommands'
 async function saveSlashCommandsToSettings(commands: string[]): Promise<void> {
   if (commands.length === 0) return
   await setAppSetting(SLASH_COMMANDS_KEY, JSON.stringify(commands))
+  await refreshSlashCommandsCache()
 }
 
 export interface StreamCallbacks {

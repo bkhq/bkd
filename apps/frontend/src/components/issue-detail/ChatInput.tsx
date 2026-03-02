@@ -219,7 +219,11 @@ export function ChatInput({
                 size: f.size,
               }))
             : undefined
-        const isCommand = prompt.startsWith('/')
+        const firstWord = prompt.split(/\s/)[0] ?? ''
+        const isCommand =
+          firstWord.startsWith('/') &&
+          (normalizedCommands.length === 0 ||
+            normalizedCommands.some((cmd) => cmd === firstWord))
         const metadata: Record<string, unknown> | undefined = isTodo
           ? {
               type: 'pending',

@@ -1,3 +1,4 @@
+import { getAppSetting } from '@/db/helpers'
 import type { NormalizedLogEntry } from '@/engines/types'
 import type { EngineContext } from './context'
 import { getLogsFromDb } from './persistence/queries'
@@ -5,6 +6,21 @@ import { cancel } from './process/cancel'
 import { getActiveProcesses, getActiveProcessForIssue } from './process/state'
 import type { ManagedProcess } from './types'
 import { isVisibleForMode, setIssueDevMode } from './utils/visibility'
+
+const SLASH_COMMANDS_KEY = 'engine:slashCommands'
+
+/** In-memory cache for slash commands from DB, avoids async in hot path. */
+let cachedSlashCommands: string[] | null = null
+
+/** Load slash commands from DB into memory cache. Called on startup and after probe. */
+export async function refreshSlashCommandsCache(): Promise<void> {
+  const raw = await getAppSetting(SLASH_COMMANDS_KEY)
+  cachedSlashCommands = raw ? (JSON.parse(raw) as string[]) : null
+}
+
+export function getCachedSlashCommands(): string[] {
+  return cachedSlashCommands ?? []
+}
 
 // ---------- Public read-only queries ----------
 
@@ -109,7 +125,8 @@ export function getSlashCommands(
   issueId: string,
 ): string[] {
   const active = getActiveProcessForIssue(ctx, issueId)
-  return active?.slashCommands ?? []
+  if (active && active.slashCommands.length > 0) return active.slashCommands
+  return getCachedSlashCommands()
 }
 
 export async function cancelAll(ctx: EngineContext): Promise<void> {
