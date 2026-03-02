@@ -41,9 +41,7 @@ export function gcSweep(ctx: EngineContext): void {
         {
           issueId: managed.issueId,
           executionId: managed.executionId,
-          idleMinutes: Math.round(
-            (now - managed.lastIdleAt.getTime()) / 60000,
-          ),
+          idleMinutes: Math.round((now - managed.lastIdleAt.getTime()) / 60000),
         },
         'idle_timeout_terminate',
       )

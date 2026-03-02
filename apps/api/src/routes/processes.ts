@@ -128,10 +128,7 @@ processes.post('/:issueId/terminate', async (c) => {
     await issueEngine.terminateProcess(issueId)
     return c.json({ success: true, data: { issueId, status: 'terminated' } })
   } catch (error) {
-    logger.error(
-      { issueId, error },
-      'terminate_process_failed',
-    )
+    logger.error({ issueId, error }, 'terminate_process_failed')
     return c.json(
       {
         success: false,
