@@ -47,7 +47,7 @@ function shikiSlim(): Plugin {
   }
 }
 
-const config = defineConfig(({ mode }) => {
+const config = defineConfig(() => {
   const apiPort = Number(process.env.VITE_API_PORT) || 3010
   const devPort = Number(process.env.VITE_DEV_PORT) || 3000
   const devHost = process.env.VITE_DEV_HOST || '0.0.0.0'
@@ -74,8 +74,7 @@ const config = defineConfig(({ mode }) => {
             if (pkg === '@tanstack/react-query') return 'vendor-query'
             if (pkg.startsWith('@dnd-kit/')) return 'vendor-dnd'
             if (
-              pkg === 'radix-ui' ||
-              pkg.startsWith('@radix-ui/') ||
+              pkg.startsWith('@base-ui/') ||
               pkg === 'lucide-react'
             )
               return 'vendor-ui'

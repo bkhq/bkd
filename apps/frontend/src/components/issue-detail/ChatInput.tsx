@@ -591,17 +591,19 @@ function BusyActionSelect({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-xs text-muted-foreground gap-1"
-          title={t('chat.busyAction.label')}
-        >
-          <span className="truncate max-w-[100px]">
-            {t(`chat.busyAction.${value}`)}
-          </span>
-        </Button>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs text-muted-foreground gap-1"
+            title={t('chat.busyAction.label')}
+          />
+        }
+      >
+        <span className="truncate max-w-[100px]">
+          {t(`chat.busyAction.${value}`)}
+        </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
@@ -634,10 +636,8 @@ function EngineInfo({ engineType }: { engineType: string }) {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" title={engineName}>
-          <EngineIcon engineType={engineType} className="size-4" />
-        </Button>
+      <PopoverTrigger render={<Button variant="ghost" size="icon" title={engineName} />}>
+        <EngineIcon engineType={engineType} className="size-4" />
       </PopoverTrigger>
       <PopoverContent
         side="top"
@@ -672,14 +672,16 @@ function ModelSelect({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-xs text-muted-foreground gap-1"
-        >
-          <span className="truncate max-w-[140px]">{displayName}</span>
-        </Button>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs text-muted-foreground gap-1"
+          />
+        }
+      >
+        <span className="truncate max-w-[140px]">{displayName}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
@@ -717,15 +719,17 @@ function WorktreeIndicator({
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-xs text-muted-foreground gap-1"
-          title={t('chat.worktree')}
-        >
-          <GitBranch className="h-3 w-3" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs text-muted-foreground gap-1"
+            title={t('chat.worktree')}
+          />
+        }
+      >
+        <GitBranch className="h-3 w-3" />
       </PopoverTrigger>
       <PopoverContent
         side="top"
@@ -772,10 +776,8 @@ function CommandPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" title={t('chat.commands')}>
-          <SlashSquare className="size-4" />
-        </Button>
+      <PopoverTrigger render={<Button variant="ghost" size="icon" title={t('chat.commands')} />}>
+        <SlashSquare className="size-4" />
       </PopoverTrigger>
       <PopoverContent side="top" align="start" className="w-[260px] p-0">
         <Command>
@@ -821,17 +823,19 @@ function ModeSelect({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-xs text-muted-foreground gap-1"
-          title={t('createIssue.mode')}
-        >
-          <span className="truncate max-w-[84px]">
-            {t(`createIssue.perm.${value}`)}
-          </span>
-        </Button>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs text-muted-foreground gap-1"
+            title={t('createIssue.mode')}
+          />
+        }
+      >
+        <span className="truncate max-w-[84px]">
+          {t(`createIssue.perm.${value}`)}
+        </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
