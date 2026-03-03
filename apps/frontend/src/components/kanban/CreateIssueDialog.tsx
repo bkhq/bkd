@@ -338,20 +338,22 @@ function StatusSelect({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 text-sm hover:text-foreground transition-colors w-full"
-        >
-          <span
-            className="h-2 w-2 rounded-full shrink-0"
-            style={{ backgroundColor: current?.color }}
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            className="flex items-center gap-1.5 text-sm hover:text-foreground transition-colors w-full"
           />
-          <span className="truncate">
-            {current ? tStatus(t, current.name) : t('issue.selectStatus')}
-          </span>
-          <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
-        </button>
+        }
+      >
+        <span
+          className="h-2 w-2 rounded-full shrink-0"
+          style={{ backgroundColor: current?.color }}
+        />
+        <span className="truncate">
+          {current ? tStatus(t, current.name) : t('issue.selectStatus')}
+        </span>
+        <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[160px]">
         {statuses.map((s) => (
@@ -383,15 +385,17 @@ function PrioritySelect({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 text-sm hover:text-foreground transition-colors w-full"
-        >
-          <PriorityIcon priority={value} />
-          <span className="capitalize truncate">{tPriority(t, value)}</span>
-          <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
-        </button>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            className="flex items-center gap-1.5 text-sm hover:text-foreground transition-colors w-full"
+          />
+        }
+      >
+        <PriorityIcon priority={value} />
+        <span className="capitalize truncate">{tPriority(t, value)}</span>
+        <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-36">
         {PRIORITIES.map((p) => (
@@ -430,20 +434,22 @@ function EngineSelect({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 text-sm hover:text-foreground transition-colors w-full"
-        >
-          {value ? (
-            <EngineIcon
-              engineType={value}
-              className="h-3.5 w-3.5 text-muted-foreground shrink-0"
-            />
-          ) : null}
-          <span className="truncate">{currentName}</span>
-          <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
-        </button>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            className="flex items-center gap-1.5 text-sm hover:text-foreground transition-colors w-full"
+          />
+        }
+      >
+        {value ? (
+          <EngineIcon
+            engineType={value}
+            className="h-3.5 w-3.5 text-muted-foreground shrink-0"
+          />
+        ) : null}
+        <span className="truncate">{currentName}</span>
+        <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[200px]">
         <DropdownMenuItem
@@ -520,16 +526,18 @@ function ModelSelect({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 text-sm hover:text-foreground transition-colors w-full"
-        >
-          <span className="truncate">
-            {isDefault ? t('createIssue.modelDefault') : (current?.name ?? '—')}
-          </span>
-          <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
-        </button>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            className="flex items-center gap-1.5 text-sm hover:text-foreground transition-colors w-full"
+          />
+        }
+      >
+        <span className="truncate">
+          {isDefault ? t('createIssue.modelDefault') : (current?.name ?? '—')}
+        </span>
+        <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[220px]">
         <DropdownMenuItem
@@ -575,17 +583,19 @@ function PermissionSelect({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 text-sm hover:text-foreground transition-colors w-full"
-        >
-          <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <span className="truncate">
-            {t(`createIssue.perm.${current.id}`)}
-          </span>
-          <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
-        </button>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            className="flex items-center gap-1.5 text-sm hover:text-foreground transition-colors w-full"
+          />
+        }
+      >
+        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="truncate">
+          {t(`createIssue.perm.${current.id}`)}
+        </span>
+        <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[140px]">
         <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
