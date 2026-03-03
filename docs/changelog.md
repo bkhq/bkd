@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-03-03 02:00 [progress]
+修复客户端设置弹窗横向滚动：在设置对话框两个 tab 内容容器添加 `overflow-x-hidden`，并对 About/模型卡片中的长文本与状态区域增加 `min-w-0`、`truncate`、`flex-wrap` 防止撑宽；同时将设置弹窗宽度提升为 `sm:max-w-xl md:max-w-2xl`。
+
 ## 2026-03-01 03:15 [progress]
 修复 API 后端 23 个测试失败（所有修改仅限测试文件，源码无变更）：状态码 201→202 对齐、pending 消息元数据键 `{ type: 'pending' }` 对齐、codex normalizeLog 工具名 Bash/Edit 对齐、引擎探测超时增加、filesystem 403 断言放宽、flush 竞态条件修复。最终 208 测试全部通过。
 

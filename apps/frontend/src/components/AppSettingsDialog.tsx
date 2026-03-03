@@ -107,7 +107,10 @@ export function AppSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent aria-describedby={undefined}>
+      <DialogContent
+        aria-describedby={undefined}
+        className="sm:max-w-xl md:max-w-2xl"
+      >
         <DialogHeader>
           <DialogTitle>{t('settings.title')}</DialogTitle>
         </DialogHeader>
@@ -122,7 +125,7 @@ export function AppSettingsDialog({
 
           {/* General tab */}
           <TabsContent value="general">
-            <div className="max-h-[60dvh] overflow-y-auto space-y-4 pt-2">
+            <div className="max-h-[60dvh] overflow-y-auto overflow-x-hidden space-y-4 pt-2">
               <Field>
                 <Label>{t('settings.workspacePath')}</Label>
                 <div className="mt-1.5 flex items-center gap-1.5">
@@ -216,7 +219,7 @@ export function AppSettingsDialog({
 
           {/* Models tab */}
           <TabsContent value="models">
-            <div className="max-h-[60dvh] overflow-y-auto space-y-4 pt-2">
+            <div className="max-h-[60dvh] overflow-y-auto overflow-x-hidden space-y-4 pt-2">
               {/* Default Engine */}
               {!enginesLoading && availableEngines.length > 0 ? (
                 <Field>
@@ -373,25 +376,30 @@ function AboutSection({ open }: { open: boolean }) {
       <Label className="mb-2">{t('settings.about')}</Label>
 
       {/* Version & Build */}
-      <div className="mt-1.5 grid grid-cols-2 gap-2 text-xs">
-        <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">
+      <div className="mt-1.5 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <span className="shrink-0 text-muted-foreground">
             {t('settings.currentVersion')}
           </span>
-          <Badge variant="outline" className="font-mono">
+          <Badge variant="outline" className="shrink-0 font-mono">
             {versionInfo?.version === 'dev'
               ? t('settings.devBuild')
               : `v${versionInfo?.version ?? '...'}`}
           </Badge>
           {versionInfo?.isPackageMode ? (
-            <Badge variant="secondary" className="text-[10px] py-0">
+            <Badge variant="secondary" className="shrink-0 text-[10px] py-0">
               {t('settings.packageMode')}
             </Badge>
           ) : null}
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">{t('settings.buildId')}</span>
-          <span className="font-mono text-foreground/80">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="shrink-0 text-muted-foreground">
+            {t('settings.buildId')}
+          </span>
+          <span
+            className="min-w-0 truncate font-mono text-foreground/80"
+            title={versionInfo?.commit ?? '...'}
+          >
             {versionInfo?.commit ?? '...'}
           </span>
         </div>
@@ -479,7 +487,10 @@ function AboutSection({ open }: { open: boolean }) {
                     <CircleCheck className="h-3 w-3" />
                     {t('settings.upgradeDownloaded')}
                     {dlStatus.fileName ? (
-                      <span className="font-mono text-[10px] text-muted-foreground">
+                      <span
+                        className="min-w-0 truncate font-mono text-[10px] text-muted-foreground"
+                        title={dlStatus.fileName}
+                      >
                         {dlStatus.fileName}
                       </span>
                     ) : null}
@@ -606,12 +617,14 @@ function EngineCard({
           className="size-4 text-muted-foreground shrink-0"
         />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-sm font-medium">
               {profile?.name ?? engine.engineType}
             </span>
             {engine.version && (
-              <Badge variant="outline">v{engine.version}</Badge>
+              <Badge variant="outline" className="shrink-0">
+                v{engine.version}
+              </Badge>
             )}
           </div>
           <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
@@ -628,7 +641,7 @@ function EngineCard({
             ) : null}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
           {engine.installed ? (
             <>
               <StatusBadge ok label={t('settings.engineInstalled')} />
