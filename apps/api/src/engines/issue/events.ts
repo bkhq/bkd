@@ -17,6 +17,8 @@ export function emitIssueSettled(
   executionId: string,
   status: string,
 ): void {
-  appEvents.emit('state', { issueId, executionId, state: status })
+  // Only emit 'done' — callers already emit 'state' via emitStateChange() before
+  // calling emitIssueSettled(), and the SSE route filters terminal states from
+  // the 'state' subscriber anyway (handled by the 'done' subscriber instead).
   appEvents.emit('done', { issueId, executionId, finalStatus: status })
 }

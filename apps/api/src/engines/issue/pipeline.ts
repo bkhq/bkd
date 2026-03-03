@@ -7,6 +7,7 @@ import { persistEntry } from './persistence/entry'
 import { buildToolDetail, persistToolDetail } from './persistence/tool-detail'
 import { dispatch } from './state'
 import { applyAutoTitle } from './title'
+
 // ---------- Pipeline registration ----------
 
 /**
@@ -66,8 +67,8 @@ export function registerLogPipeline(ctx: EngineContext): void {
               .run()
           }
         }
-        // Enrich the shared entry object so downstream stages see messageId
-        Object.assign(data.entry, persisted)
+        // Replace entry so downstream stages see messageId (avoid mutating original)
+        data.entry = { ...data.entry, ...persisted }
       }
       // DB failure does NOT block ring buffer (order 20) or SSE (order 100)
     },
