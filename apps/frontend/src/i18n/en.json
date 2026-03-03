@@ -186,6 +186,7 @@
     "scrollToBottom": "Scroll to bottom",
     "executionFailed": "Execution failed",
     "duration": "Completed in {{time}}",
+    "copyMessage": "Copy message",
     "status": {
       "pending": "Pending",
       "running": "Running",

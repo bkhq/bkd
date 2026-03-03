@@ -1,8 +1,10 @@
 import {
   AlertCircle,
+  Check,
   CheckCircle2,
   Circle,
   Clock,
+  Copy,
   FileEdit,
   FileText,
   Globe,
@@ -13,6 +15,7 @@ import {
   Terminal,
   Wrench,
 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getCommandPreview } from '@/lib/command-preview'
 import { formatFileSize } from '@/lib/format'
@@ -390,9 +393,32 @@ function AssistantMessage({
   durationMs?: number
 }) {
   const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    navigator.clipboard
+      .writeText(content)
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      })
+      .catch(() => {})
+  }
 
   return (
-    <div className="group px-5 py-1.5 animate-message-enter">
+    <div className="group relative px-5 py-1.5 animate-message-enter">
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="absolute right-3 top-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50"
+        title={t('session.copyMessage')}
+      >
+        {copied ? (
+          <Check className="h-3.5 w-3.5 text-emerald-500" />
+        ) : (
+          <Copy className="h-3.5 w-3.5" />
+        )}
+      </button>
       <div className="min-w-0 max-w-[72ch]">
         <MarkdownContent
           content={content}
