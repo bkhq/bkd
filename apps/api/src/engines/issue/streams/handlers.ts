@@ -49,6 +49,9 @@ export function handleStreamError(
   executionId: string,
   error: unknown,
 ): void {
+  // Guard: skip if execution was already cleaned up (cancel/GC/settle)
+  const managed = ctx.pm.get(executionId)?.meta
+  if (!managed) return
   const turnIdx = ctx.turnIndexes.get(executionId) ?? 0
   const errorEntry: NormalizedLogEntry = {
     entryType: 'error-message',

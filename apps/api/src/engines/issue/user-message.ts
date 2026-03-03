@@ -34,11 +34,16 @@ export function persistUserMessage(
   }
 
   // Emit through pipeline — handles DB persist (order 10), ring buffer (order 20),
-  // and SSE broadcast (order 100).  Pipeline enriches entry with messageId.
-  appEvents.emit('log', { issueId, executionId, entry, streaming: false })
+  // and SSE broadcast (order 100).  Pipeline enriches data.entry with messageId.
+  // Keep a reference to the event data so we can read the enriched entry after
+  // the synchronous emit completes (persist stage replaces data.entry, not the
+  // local `entry` variable).
+  const eventData = { issueId, executionId, entry, streaming: false as const }
+  appEvents.emit('log', eventData)
 
   // Store user message ID so agent responses in this turn can reference it
-  const messageId = (entry as { messageId?: string }).messageId ?? null
+  const messageId =
+    (eventData.entry as { messageId?: string }).messageId ?? null
   if (messageId) {
     ctx.userMessageIds.set(`${issueId}:${turnIdx}`, messageId)
   }
