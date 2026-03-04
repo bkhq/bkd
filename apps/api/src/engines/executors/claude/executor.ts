@@ -44,24 +44,13 @@ const CLAUDE_MODELS: EngineModel[] = [
     isDefault: false,
   },
   { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', isDefault: true },
-  { id: 'claude-opus-4-6[1m]', name: 'Claude Opus 4.6 (1M)', isDefault: false },
+  {
+    id: 'claude-opus-4-6[1m]',
+    name: 'Claude Opus 4.6 (1M)',
+    isDefault: false,
+  },
+  { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', isDefault: false },
 ]
-
-function applyPermissionArgs(
-  builder: CommandBuilder,
-  options: Pick<SpawnOptions, 'permissionMode' | 'model'>,
-) {
-  if (options.permissionMode === 'auto') {
-    // Default to skip-permissions since AskUserQuestion is disabled —
-    // plan mode would stall waiting for user approval that never comes.
-    builder.param('--dangerously-skip-permissions')
-    return
-  }
-
-  if (options.permissionMode === 'plan') {
-    builder.param('--permission-mode', 'plan')
-  }
-}
 
 export class ClaudeCodeExecutor implements EngineExecutor {
   readonly engineType = 'claude-code' as const
@@ -76,163 +65,31 @@ export class ClaudeCodeExecutor implements EngineExecutor {
     options: SpawnOptions,
     env: ExecutionEnv,
   ): Promise<SpawnedProcess> {
-    const builder = CommandBuilder.create(BASE_COMMAND)
-      .params(['-p', '--output-format=stream-json', '--verbose', '--no-chrome'])
-      .param('--input-format', 'stream-json')
-      .env('NPM_CONFIG_LOGLEVEL', 'error')
-      .env('IS_SANDBOX', '1')
-      .cwd(options.workingDir)
+    const builder = this.createBaseBuilder(options, env)
 
     if (options.externalSessionId) {
       builder.param('--session-id', options.externalSessionId)
     }
-
-    if (options.model && options.model !== 'auto') {
-      builder.param('--model', options.model)
-    }
-
-    applyPermissionArgs(builder, options)
-
     if (options.agent) {
       builder.param('--agent', options.agent)
     }
 
-    // Disable interactive questions — the web UI cannot respond to AskUserQuestion
-    builder.param('--disallowedTools', 'AskUserQuestion')
-
-    // Apply environment variables
-    if (options.env) {
-      builder.envs(options.env)
-    }
-    if (env.vars) {
-      builder.envs(env.vars)
-    }
-
-    const cmd = builder.build()
-    logger.debug(
-      {
-        issueId: env.issueId,
-        cwd: cmd.cwd ?? options.workingDir,
-        program: cmd.program,
-        args: cmd.args,
-      },
-      'claude_spawn_command',
-    )
-
-    const proc = Bun.spawn([cmd.program, ...cmd.args], {
-      cwd: cmd.cwd ?? options.workingDir,
-      stdin: 'pipe',
-      stdout: 'pipe',
-      stderr: 'pipe',
-      env: safeEnv(cmd.env),
-    })
-
-    // Create protocol handler to manage bidirectional control protocol
-    // (tool permission requests, hook callbacks, graceful interruption)
-    const handler = new ClaudeProtocolHandler(proc.stdin)
-    handler.sendUserMessage(options.prompt)
-    logger.debug(
-      {
-        issueId: env.issueId,
-        pid: (proc as { pid?: number }).pid,
-        mode: 'spawn',
-        promptChars: options.prompt.length,
-      },
-      'claude_process_spawned',
-    )
-
-    // Wrap stdout to intercept control_request messages
-    const filteredStdout = handler.wrapStdout(
-      proc.stdout as ReadableStream<Uint8Array>,
-    )
-
-    return {
-      subprocess: proc,
-      stdout: filteredStdout,
-      stderr: proc.stderr as ReadableStream<Uint8Array>,
-      cancel: () => handler.interrupt(),
-      protocolHandler: handler,
-      spawnCommand: [cmd.program, ...cmd.args].join(' '),
-    }
+    return this.spawnProcess(builder, options, env, 'spawn')
   }
 
   async spawnFollowUp(
     options: FollowUpOptions,
     env: ExecutionEnv,
   ): Promise<SpawnedProcess> {
-    const builder = CommandBuilder.create(BASE_COMMAND)
-      .params(['-p', '--output-format=stream-json', '--verbose', '--no-chrome'])
-      .param('--input-format', 'stream-json')
+    const builder = this.createBaseBuilder(options, env)
       .param('--resume', options.sessionId)
-      .env('NPM_CONFIG_LOGLEVEL', 'error')
-      .env('IS_SANDBOX', '1')
-      .cwd(options.workingDir)
+      .param('--replay-user-messages')
 
     if (options.resetToMessageId) {
       builder.param('--resume-session-at', options.resetToMessageId)
     }
 
-    if (options.model && options.model !== 'auto') {
-      builder.param('--model', options.model)
-    }
-
-    applyPermissionArgs(builder, options)
-
-    // Disable interactive questions for follow-up turns too.
-    builder.param('--disallowedTools', 'AskUserQuestion')
-
-    if (options.env) {
-      builder.envs(options.env)
-    }
-    if (env.vars) {
-      builder.envs(env.vars)
-    }
-
-    const cmd = builder.build()
-    logger.debug(
-      {
-        issueId: env.issueId,
-        cwd: cmd.cwd ?? options.workingDir,
-        program: cmd.program,
-        args: cmd.args,
-        resumeSessionId: options.sessionId,
-      },
-      'claude_followup_command',
-    )
-
-    const proc = Bun.spawn([cmd.program, ...cmd.args], {
-      cwd: cmd.cwd ?? options.workingDir,
-      stdin: 'pipe',
-      stdout: 'pipe',
-      stderr: 'pipe',
-      env: safeEnv(cmd.env),
-    })
-
-    // Create protocol handler for follow-up session
-    const handler = new ClaudeProtocolHandler(proc.stdin)
-    handler.sendUserMessage(options.prompt)
-    logger.debug(
-      {
-        issueId: env.issueId,
-        pid: (proc as { pid?: number }).pid,
-        mode: 'followup',
-        promptChars: options.prompt.length,
-      },
-      'claude_process_spawned',
-    )
-
-    const filteredStdout = handler.wrapStdout(
-      proc.stdout as ReadableStream<Uint8Array>,
-    )
-
-    return {
-      subprocess: proc,
-      stdout: filteredStdout,
-      stderr: proc.stderr as ReadableStream<Uint8Array>,
-      cancel: () => handler.interrupt(),
-      protocolHandler: handler,
-      spawnCommand: [cmd.program, ...cmd.args].join(' '),
-    }
+    return this.spawnProcess(builder, options, env, 'followup')
   }
 
   async cancel(spawnedProcess: SpawnedProcess): Promise<void> {
@@ -363,5 +220,115 @@ export class ClaudeCodeExecutor implements EngineExecutor {
 
   createNormalizer(filterRules: WriteFilterRule[]) {
     return new ClaudeLogNormalizer(filterRules)
+  }
+
+  // ---------- Private ----------
+
+  /**
+   * Build the common CommandBuilder shared by spawn and spawnFollowUp.
+   * Adds all standard flags, model, env vars, and permission-prompt-tool=stdio
+   * (permission mode is set via SDK control protocol, not CLI flags).
+   */
+  private createBaseBuilder(
+    options: SpawnOptions,
+    env: ExecutionEnv,
+  ): CommandBuilder {
+    const builder = CommandBuilder.create(BASE_COMMAND)
+      .params(['-p', '--output-format=stream-json', '--verbose', '--no-chrome'])
+      .param('--input-format', 'stream-json')
+      // Enable SDK-based permission handling via stdin/stdout control protocol
+      // instead of CLI-level flags like --dangerously-skip-permissions.
+      .param('--permission-prompt-tool', 'stdio')
+      // Include partial messages for better streaming experience
+      .param('--include-partial-messages')
+      .env('NPM_CONFIG_LOGLEVEL', 'error')
+      .env('IS_SANDBOX', '1')
+      .cwd(options.workingDir)
+
+    if (options.model && options.model !== 'auto') {
+      builder.param('--model', options.model)
+    }
+
+    // Disable interactive questions — the web UI cannot respond to AskUserQuestion
+    builder.param('--disallowedTools', 'AskUserQuestion')
+
+    if (options.env) {
+      builder.envs(options.env)
+    }
+    if (env.vars) {
+      builder.envs(env.vars)
+    }
+
+    return builder
+  }
+
+  /**
+   * Spawn a Bun subprocess, create the protocol handler, perform the SDK
+   * init handshake (initialize → set_permission_mode → send_user_message),
+   * and return the SpawnedProcess.
+   */
+  private spawnProcess(
+    builder: CommandBuilder,
+    options: SpawnOptions,
+    env: ExecutionEnv,
+    mode: 'spawn' | 'followup',
+  ): SpawnedProcess {
+    const cmd = builder.build()
+    logger.debug(
+      {
+        issueId: env.issueId,
+        cwd: cmd.cwd ?? options.workingDir,
+        program: cmd.program,
+        args: cmd.args,
+        ...(mode === 'followup' && 'sessionId' in options
+          ? { resumeSessionId: (options as FollowUpOptions).sessionId }
+          : {}),
+      },
+      `claude_${mode}_command`,
+    )
+
+    const proc = Bun.spawn([cmd.program, ...cmd.args], {
+      cwd: cmd.cwd ?? options.workingDir,
+      stdin: 'pipe',
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: safeEnv(cmd.env),
+    })
+
+    // Create protocol handler to manage bidirectional control protocol
+    // (tool permission requests, hook callbacks, graceful interruption)
+    const handler = new ClaudeProtocolHandler(proc.stdin)
+
+    // SDK init handshake: initialize → set_permission_mode → user message
+    handler.initialize()
+    handler.setPermissionMode(options.permissionMode ?? 'auto')
+    handler.sendUserMessage(options.prompt)
+
+    logger.debug(
+      {
+        issueId: env.issueId,
+        pid: (proc as { pid?: number }).pid,
+        mode,
+        promptChars: options.prompt.length,
+        permissionMode: options.permissionMode ?? 'auto',
+      },
+      'claude_process_spawned',
+    )
+
+    // Wrap stdout to intercept control_request messages
+    const filteredStdout = handler.wrapStdout(
+      proc.stdout as ReadableStream<Uint8Array>,
+    )
+
+    return {
+      subprocess: proc,
+      stdout: filteredStdout,
+      stderr: proc.stderr as ReadableStream<Uint8Array>,
+      cancel: () => {
+        void handler.interrupt().catch(() => {})
+      },
+      protocolHandler: handler,
+      spawnCommand: [cmd.program, ...cmd.args].join(' '),
+    }
   }
 }

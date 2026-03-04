@@ -1,5 +1,6 @@
 import type { FileSink } from 'bun'
 import { ulid } from 'ulid'
+import type { PermissionPolicy } from '@/engines/types'
 import { logger } from '@/logger'
 
 const MAX_IO_LOG_CHARS = 1200
@@ -89,6 +90,10 @@ interface ControlRequest {
 export class ClaudeProtocolHandler {
   private stdin: FileSink
   private closed = false
+  /** Called when a control_request is received, signaling the process is alive.
+   *  Used by the engine layer to update lastActivityAt during tool execution
+   *  (when no normal stdout entries are emitted). */
+  onActivity?: () => void
 
   constructor(stdin: FileSink) {
     this.stdin = stdin
@@ -194,6 +199,10 @@ export class ClaudeProtocolHandler {
           'claude_protocol_control_request',
         )
       }
+      // Signal activity so the stall detector knows the process is alive
+      // (control_requests are filtered from the downstream stdout stream,
+      // so consumeStream's lastActivityAt update doesn't fire for them).
+      this.onActivity?.()
       this.handleControlRequest(request_id, request)
     } catch (error) {
       logger.warn({ error }, 'Failed to parse control request')
@@ -255,6 +264,38 @@ export class ClaudeProtocolHandler {
     })
   }
 
+  /**
+   * Send SDK initialize control request.
+   * Tells Claude Code we speak the stream-json SDK protocol and support
+   * tool_approval (can_use_tool / hook_callback control requests).
+   */
+  initialize(): void {
+    this.writeJson({
+      type: 'control_request',
+      request_id: ulid(),
+      request: {
+        subtype: 'initialize',
+      },
+    })
+  }
+
+  /**
+   * Set the SDK permission mode.
+   * This replaces CLI-level permission flags (e.g. --dangerously-skip-permissions)
+   * with a proper SDK control request.
+   */
+  setPermissionMode(policy: PermissionPolicy): void {
+    const sdkMode = mapPermissionMode(policy)
+    this.writeJson({
+      type: 'control_request',
+      request_id: ulid(),
+      request: {
+        subtype: 'set_permission_mode',
+        mode: sdkMode,
+      },
+    })
+  }
+
   sendUserMessage(content: string): void {
     this.writeJson({
       type: 'user',
@@ -293,7 +334,28 @@ export class ClaudeProtocolHandler {
       this.stdin.write(`${json}\n`)
       this.stdin.flush?.()
     } catch (error) {
-      logger.warn({ error }, 'Failed to write to Claude stdin')
+      logger.error({ error }, 'stdin_write_failed_closing')
+      // Close stdin so Claude Code detects broken pipe and exits,
+      // rather than waiting forever for a response that was never delivered.
+      this.close()
     }
+  }
+}
+
+// ---------- Helpers ----------
+
+/** Map our PermissionPolicy to Claude SDK permission mode string. */
+function mapPermissionMode(
+  policy: PermissionPolicy,
+): 'bypassPermissions' | 'plan' | 'default' {
+  switch (policy) {
+    case 'auto':
+      return 'bypassPermissions'
+    case 'plan':
+      return 'plan'
+    case 'supervised':
+      return 'default'
+    default:
+      return 'bypassPermissions'
   }
 }
