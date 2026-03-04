@@ -204,7 +204,10 @@ export function monitorCompletion(
         }
       }
     } catch (outerErr) {
-      logger.error({ issueId, executionId, err: outerErr }, 'monitor_completion_outer_error')
+      logger.error(
+        { issueId, executionId, err: outerErr },
+        'monitor_completion_outer_error',
+      )
       dispatch(managed, { type: 'MARK_FAILED' })
       syncPmState(ctx, executionId, 'failed')
       emitStateChange(issueId, executionId, 'failed')
@@ -213,7 +216,10 @@ export function monitorCompletion(
       try {
         await settleIssue(ctx, issueId, executionId, 'failed')
       } catch (settleErr) {
-        logger.error({ issueId, executionId, err: settleErr }, 'monitor_completion_settle_failed')
+        logger.error(
+          { issueId, executionId, err: settleErr },
+          'monitor_completion_settle_failed',
+        )
       }
     }
   })()

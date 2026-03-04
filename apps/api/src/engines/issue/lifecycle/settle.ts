@@ -25,7 +25,10 @@ export async function settleIssue(
     await updateIssueSession(issueId, { sessionStatus: status })
     await autoMoveToReview(issueId)
   } catch (err) {
-    logger.error({ issueId, executionId, status, err }, 'settle_issue_partial_failure')
+    logger.error(
+      { issueId, executionId, status, err },
+      'settle_issue_partial_failure',
+    )
   } finally {
     cleanupDomainData(ctx, executionId)
     emitIssueSettled(issueId, executionId, status)
