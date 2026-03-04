@@ -63,14 +63,14 @@ export async function updateIssueSession(
     const [row] = await db
       .select()
       .from(issuesTable)
-      .where(eq(issuesTable.id, issueId))
+      .where(and(eq(issuesTable.id, issueId), eq(issuesTable.isDeleted, 0)))
     return row
   }
 
   const [row] = await db
     .update(issuesTable)
     .set(updates)
-    .where(eq(issuesTable.id, issueId))
+    .where(and(eq(issuesTable.id, issueId), eq(issuesTable.isDeleted, 0)))
     .returning()
 
   // Invalidate the issue cache so subsequent API reads return fresh data
