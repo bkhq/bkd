@@ -232,8 +232,9 @@ export async function flushQueuedInputs(
       mergedDisplay,
       all[all.length - 1]?.metadata,
     )
-    // Clear only after successful send
-    dispatch(managed, { type: 'CLEAR_PENDING_INPUTS' })
+    // Remove only the consumed messages — new inputs queued during the
+    // await above are preserved for the next flush cycle.
+    dispatch(managed, { type: 'SPLICE_PENDING_INPUTS', count: all.length })
   } catch (err) {
     // Messages preserved in managed.pendingInputs for next flush attempt
     logger.error(
