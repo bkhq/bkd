@@ -63,7 +63,7 @@ function buildFileContext(savedFiles: SavedFile[]): string {
   if (savedFiles.length === 0) return ''
   const parts = savedFiles.map(
     (f) =>
-      `[Attached file: ${f.originalName.replace(/[\r\n]/g, ' ').slice(0, 255)} at ${f.absolutePath}]`,
+      `[Attached file: ${f.originalName.replace(/[\r\n]/g, ' ').slice(0, 255)} at ${f.absolutePath.replace(/[\r\n]/g, '')}]`,
   )
   return `\n\n--- Attached files ---\n${parts.join('\n')}`
 }
