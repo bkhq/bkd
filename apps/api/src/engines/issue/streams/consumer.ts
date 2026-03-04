@@ -44,8 +44,8 @@ function pushStderrEntry(
 // ---------- Stream consumers ----------
 
 export async function consumeStream(
-  executionId: string,
-  issueId: string,
+  _executionId: string,
+  _issueId: string,
   stream: ReadableStream<Uint8Array>,
   parser: (line: string) => NormalizedLogEntry | NormalizedLogEntry[] | null,
   callbacks: StreamCallbacks,
@@ -102,8 +102,8 @@ export async function consumeStream(
 }
 
 export async function consumeStderr(
-  executionId: string,
-  issueId: string,
+  _executionId: string,
+  _issueId: string,
   stream: ReadableStream<Uint8Array>,
   callbacks: Pick<StreamCallbacks, 'getManaged' | 'getTurnIndex' | 'onEntry'>,
 ): Promise<void> {

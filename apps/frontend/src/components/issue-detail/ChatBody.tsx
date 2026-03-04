@@ -29,7 +29,11 @@ const LazySessionMessages = lazy(() =>
   import('./SessionMessages').then((m) => ({ default: m.SessionMessages })),
 )
 
-const TERMINAL_STATUSES: ReadonlySet<string> = new Set(['completed', 'failed', 'cancelled'])
+const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
+  'completed',
+  'failed',
+  'cancelled',
+])
 
 // ---------- shared session-state helpers ----------
 

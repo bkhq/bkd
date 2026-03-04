@@ -3,8 +3,8 @@ import {
   getIssueWithSession,
   updateIssueSession,
 } from '@/engines/engine-store'
-import { logger } from '@/logger'
 import type { ProcessStatus } from '@/engines/types'
+import { logger } from '@/logger'
 import { IDLE_TIMEOUT_MS, STREAM_STALL_TIMEOUT_MS } from './constants'
 import type { EngineContext } from './context'
 import { emitIssueSettled, emitStateChange } from './events'
@@ -23,18 +23,20 @@ function terminateAndSettle(
   ctx.pm.forceKill(pmEntryId)
   cleanupDomainData(ctx, managed.executionId)
   const { issueId, executionId } = managed
+  // Track the resolved status so the catch block can use it instead of
+  // falling back to defaultStatus (which may differ from the actual
+  // terminal status computed inside the lock).
+  let resolvedStatus: string = defaultStatus
   void withIssueLock(ctx, issueId, async () => {
     const existing = await getIssueWithSession(issueId)
     const priorStatus = existing?.sessionFields.sessionStatus
     if (priorStatus === 'running' || priorStatus === 'pending') {
-      logger.debug(
-        { issueId, priorStatus },
-        'gc_settle_skipped_reactivated',
-      )
+      logger.debug({ issueId, priorStatus }, 'gc_settle_skipped_reactivated')
       return
     }
     const isTerminal = priorStatus === 'failed' || priorStatus === 'cancelled'
     const finalStatus = isTerminal ? priorStatus : defaultStatus
+    resolvedStatus = finalStatus
     syncPmState(ctx, executionId, finalStatus as ProcessStatus)
     emitStateChange(issueId, executionId, finalStatus)
     if (!isTerminal) {
@@ -49,8 +51,9 @@ function terminateAndSettle(
   }).catch((err) => {
     logger.error({ issueId, err }, 'gc_settle_failed')
     // Safety net: ensure frontend is always notified even if settlement
-    // partially failed. Without this, the frontend stays stuck in "thinking".
-    emitIssueSettled(issueId, executionId, defaultStatus)
+    // partially failed. Use resolvedStatus (which may have been updated
+    // inside the lock) rather than defaultStatus to avoid status mismatch.
+    emitIssueSettled(issueId, executionId, resolvedStatus)
   })
 }
 
@@ -77,7 +80,9 @@ export function gcSweep(ctx: EngineContext): void {
     }
   }
 
-  // Terminate idle processes that have exceeded the idle timeout
+  // Terminate idle processes that have exceeded the idle timeout.
+  // Note: getActive() returns a snapshot array, so forceKill() inside
+  // terminateAndSettle() does not mutate the collection we're iterating.
   const now = Date.now()
   for (const entry of ctx.pm.getActive()) {
     const managed = entry.meta
@@ -123,6 +128,7 @@ export function gcSweep(ctx: EngineContext): void {
       )
       terminateAndSettle(ctx, entry.id, managed, 'failed')
       cleaned++
+      continue
     }
   }
 

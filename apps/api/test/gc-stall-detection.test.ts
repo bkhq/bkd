@@ -22,10 +22,10 @@ function makeManagedProcess(
 ): ManagedProcess {
   return {
     engineType: 'claude-code',
-    process: {} as any,
+    process: {} as unknown as ManagedProcess['process'],
     state: 'running',
     startedAt: new Date(),
-    logs: { toArray: () => [] } as any,
+    logs: { toArray: () => [] } as unknown as ManagedProcess['logs'],
     retryCount: 0,
     turnInFlight: true,
     queueCancelRequested: false,
@@ -87,7 +87,9 @@ describe('gcSweep — stream stall detection', () => {
       turnInFlight: true,
       lastActivityAt: stalledAt,
     })
-    const { ctx, forceKillCalls } = makeContext([{ id: 'exec-1', meta: managed }])
+    const { ctx, forceKillCalls } = makeContext([
+      { id: 'exec-1', meta: managed },
+    ])
 
     gcSweep(ctx)
 
@@ -102,7 +104,9 @@ describe('gcSweep — stream stall detection', () => {
       turnInFlight: true,
       lastActivityAt: recentActivity,
     })
-    const { ctx, forceKillCalls } = makeContext([{ id: 'exec-2', meta: managed }])
+    const { ctx, forceKillCalls } = makeContext([
+      { id: 'exec-2', meta: managed },
+    ])
 
     gcSweep(ctx)
 
@@ -118,7 +122,9 @@ describe('gcSweep — stream stall detection', () => {
       turnInFlight: true,
       lastActivityAt: atBoundary,
     })
-    const { ctx, forceKillCalls } = makeContext([{ id: 'exec-3', meta: managed }])
+    const { ctx, forceKillCalls } = makeContext([
+      { id: 'exec-3', meta: managed },
+    ])
 
     gcSweep(ctx)
 
@@ -134,7 +140,9 @@ describe('gcSweep — stream stall detection', () => {
       lastIdleAt: idleAt,
       lastActivityAt: idleAt,
     })
-    const { ctx, forceKillCalls } = makeContext([{ id: 'exec-4', meta: managed }])
+    const { ctx, forceKillCalls } = makeContext([
+      { id: 'exec-4', meta: managed },
+    ])
 
     gcSweep(ctx)
 
@@ -150,7 +158,9 @@ describe('gcSweep — stream stall detection', () => {
       lastIdleAt: recentIdle,
       lastActivityAt: recentIdle,
     })
-    const { ctx, forceKillCalls } = makeContext([{ id: 'exec-5', meta: managed }])
+    const { ctx, forceKillCalls } = makeContext([
+      { id: 'exec-5', meta: managed },
+    ])
 
     gcSweep(ctx)
 

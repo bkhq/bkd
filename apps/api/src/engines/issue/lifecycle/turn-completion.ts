@@ -135,7 +135,20 @@ export function handleTurnCompleted(
       // partially failed. Without this, the frontend never receives the
       // 'done' SSE event and stays stuck in "thinking" state indefinitely
       // (terminal states are filtered from the 'state' subscriber).
+      //
+      // Guard: check if a follow-up has reactivated the issue. If so, do NOT
+      // overwrite the new run's 'running'/'pending' status with our stale
+      // finalStatus, and skip the settled event to avoid confusing the frontend.
       try {
+        const freshIssue = await getIssueWithSession(issueId)
+        const currentStatus = freshIssue?.sessionFields.sessionStatus
+        if (currentStatus === 'running' || currentStatus === 'pending') {
+          logger.debug(
+            { issueId, executionId, finalStatus, currentStatus },
+            'issue_turn_settle_catch_skipped_reactivated',
+          )
+          return
+        }
         await updateIssueSession(issueId, { sessionStatus: finalStatus })
       } catch {
         // Best-effort — DB update may have already succeeded above
