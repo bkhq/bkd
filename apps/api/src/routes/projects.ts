@@ -219,7 +219,7 @@ projects.delete('/:projectId', async (c) => {
     return c.json({ success: false, error: 'Project not found' }, 404)
   }
 
-  // Find all active issues and cancel running sessions
+  // Find all active issues and force-terminate live processes before deleting.
   const activeIssues = await db
     .select({ id: issuesTable.id, sessionStatus: issuesTable.sessionStatus })
     .from(issuesTable)
@@ -227,14 +227,27 @@ projects.delete('/:projectId', async (c) => {
       and(eq(issuesTable.projectId, existing.id), eq(issuesTable.isDeleted, 0)),
     )
 
-  for (const issue of activeIssues) {
-    if (
-      issue.sessionStatus === 'running' ||
-      issue.sessionStatus === 'pending'
-    ) {
-      void issueEngine.cancelIssue(issue.id).catch((err) => {
-        logger.error({ issueId: issue.id, err }, 'project_delete_cancel_failed')
-      })
+  const toTerminate = activeIssues
+    .filter(
+      (issue) =>
+        issue.sessionStatus === 'running' ||
+        issue.sessionStatus === 'pending' ||
+        issueEngine.hasActiveProcessForIssue(issue.id),
+    )
+    .map((issue) => issue.id)
+
+  if (toTerminate.length > 0) {
+    try {
+      await Promise.all(toTerminate.map((issueId) => issueEngine.terminateProcess(issueId)))
+    } catch (err) {
+      logger.error(
+        { projectId: existing.id, issueCount: toTerminate.length, err },
+        'project_delete_terminate_failed',
+      )
+      return c.json(
+        { success: false, error: 'Failed to terminate active processes' },
+        500,
+      )
     }
   }
 

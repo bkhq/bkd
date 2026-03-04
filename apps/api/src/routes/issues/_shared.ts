@@ -149,9 +149,6 @@ export function flushPendingAsFollowUp(
       const { prompt, pendingIds } =
         await collectPendingWithAttachments(issueId)
       if (pendingIds.length === 0) return
-      // Promote pending rows (remove type:'pending') so they appear as regular
-      // user messages. Pass skipPersistMessage to avoid a duplicate log entry.
-      await promotePendingMessages(pendingIds)
       // Emit SSE so frontend shows "AI thinking" indicator
       emitIssueUpdated(issueId, { sessionStatus: 'pending' })
       await issueEngine.followUpIssue(
@@ -164,6 +161,9 @@ export function flushPendingAsFollowUp(
         undefined, // metadata
         { skipPersistMessage: true },
       )
+      // Promote only after follow-up is accepted. If follow-up fails, keep the
+      // rows as pending so the user can retry without message loss.
+      await promotePendingMessages(pendingIds)
       logger.debug(
         { issueId, pendingCount: pendingIds.length },
         'pending_flushed_as_followup',
@@ -262,8 +262,9 @@ export function triggerIssueExecution(
               { issueId, resolvedDir, workspaceRoot: resolvedRoot },
               'auto_execute_workdir_outside_workspace',
             )
-            // Fall through without setting effectiveWorkingDir — engine runs in default dir
-            return
+            throw new Error(
+              'Project directory is outside the configured workspace',
+            )
           }
         }
 

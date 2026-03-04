@@ -1,13 +1,16 @@
 # Task Index
 
-> Updated: 2026-03-05 20:05 UTC
+> Updated: 2026-03-04 20:42 UTC
 
 ## 待处理
 
-- [ ] **TEST-002 补充 IssueEngine 集成测试** `P1` - owner: - file: `docs/task/TEST-002.md`
+- [ ] （暂无）
 
 ## 已完成
 
+- [x] **TEST-003 深度测试进程与状态编排并补充架构文档** `P1` - owner: codex - file: `docs/task/TEST-003.md`
+- [x] **TEST-002 补充 IssueEngine 集成测试** `P1` - owner: codex - file: `docs/task/TEST-002.md`
+- [x] **ENG-015 审计后端进程与 Issue 状态管理** `P0` - owner: codex - file: `docs/task/ENG-015.md`
 - [x] **ENG-014 重构 Issue 取消流程和进程/Issue 状态解耦** `P0` - owner: claude - file: `docs/task/ENG-014.md`
 - [x] **ENG-009 数据库层优化（N+1、冗余查询、索引）** `P1` - owner: claude - file: `docs/task/ENG-009.md`
 - [x] **ENG-010 引擎系统健壮性改进** `P1` - owner: claude - file: `docs/task/ENG-010.md`

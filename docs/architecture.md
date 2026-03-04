@@ -174,6 +174,66 @@ Safety net for stale sessions:
 
 Three-tier caching: memory (10 min TTL) → DB (`appSettings`) → live probe (15s per-engine timeout). Each executor's `getAvailability()` and `getModels()` called in parallel.
 
+### Process/State Orchestration Deep Dive
+
+BitK runtime behavior depends on three coordinated state axes:
+
+| Axis | Field / Source | Values | Owner |
+|---|---|---|---|
+| Board workflow | `issues.statusId` | `todo`, `working`, `review`, `done` | Route layer + reconciler |
+| Session lifecycle | `issues.sessionStatus` | `pending`, `running`, `completed`, `failed`, `cancelled` | IssueEngine orchestration/lifecycle |
+| Subprocess lifecycle | `ProcessManager` in-memory state | `spawning`, `running`, `completed`, `failed`, `cancelled` | ProcessManager + executor events |
+
+#### Critical Transition Paths
+
+1. **Enter `working`**
+   - Trigger: issue create/update/bulk update.
+   - Behavior: route marks `sessionStatus=pending`, then `executeIssue()` spawns process, transitions to `running`.
+   - Guard: workspace path containment check prevents out-of-root execution.
+
+2. **Follow-up while active**
+   - Trigger: `/follow-up` or `/messages`.
+   - Behavior: if process is active, prompt is queued in memory (`pendingInputs`) or persisted as DB pending message (route-level fallback).
+   - Guard: `busyAction` (`queue`/`cancel`) controls whether current turn is interrupted.
+
+3. **Turn/process completion**
+   - Trigger: `monitorCompletion()` and `handleTurnCompletion()`.
+   - Behavior: settles process/session state, optionally auto-flushes pending messages, then moves issue to `review` when terminal.
+   - Guard: settlement races are avoided with `turnSettled` and per-issue lock.
+
+4. **Deletion**
+   - Trigger: delete issue/project APIs.
+   - Behavior: force terminate active issue processes before soft delete.
+   - Guard: termination failure aborts deletion (`500`) to avoid orphaned runtime state.
+
+#### Concurrency Control
+
+- **Per-issue mutex** (`withIssueLock`):
+  - Promise-chain lock keyed by `issueId`
+  - Queue depth cap (`MAX_QUEUE_DEPTH=10`)
+  - Acquire timeout (`30s`) + execution timeout (`120s`)
+  - Timeout path restores previous lock tail to avoid dropping a still-running lock chain
+- **Probe dedup** (`startup-probe.ts`):
+  - `probeInFlight` ensures concurrent discovery callers share one live probe
+  - Result is persisted to both in-memory cache and DB settings
+
+#### Failure Rollback Guarantees
+
+- `executeIssue()` spawn failure: session reverted to `failed` and failure event emitted.
+- `restartIssue()` spawn failure: session reverted/preserved to `failed` and failure event emitted.
+- Pending flush failure: pending message metadata remains retryable (no premature dispatch).
+- Auto-execute precondition failure (workspace boundary): issue transitions from `pending` to `failed`.
+
+#### Deep Test Coverage Matrix
+
+| Area | Representative tests | Intent |
+|---|---|---|
+| Lock serialization and queue control | `apps/api/test/issue-lock.test.ts` | Verify per-issue mutual exclusion, queue-limit rejection, timeout cleanup behavior |
+| Probe dedup and cache semantics | `apps/api/test/startup-probe.test.ts` | Verify concurrent callers trigger one live probe and cache/DB clearing re-enables fresh probe |
+| Spawn failure rollback | `apps/api/test/api-process-state-regression.test.ts` | Ensure execute/restart failures do not leave stuck `pending/running` session state |
+| Pending-message loss prevention | `apps/api/test/api-pending-messages.test.ts` | Ensure pending messages remain retryable on follow-up flush failure |
+| Deletion safety | `apps/api/test/api-process-state-regression.test.ts`, `apps/api/test/api-issues.test.ts`, `apps/api/test/api-projects.test.ts` | Ensure terminate-before-delete semantics and soft-delete visibility constraints |
+
 ### Event System (`events/`)
 
 **SSE endpoint** (`GET /api/events`) — single global stream via Hono `streamSSE`:

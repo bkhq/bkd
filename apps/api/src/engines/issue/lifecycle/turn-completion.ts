@@ -92,10 +92,6 @@ export function handleTurnCompleted(
         )
         try {
           const issue = await getIssueWithSession(issueId)
-          // Promote pending rows (remove type:'pending') BEFORE the follow-up
-          // so they appear as regular user messages. Pass skipPersistMessage to
-          // avoid creating a duplicate user-message log entry.
-          await promotePendingMessages(pendingIds)
           await ctx.followUpIssue?.(
             issueId,
             pendingPrompt,
@@ -106,6 +102,9 @@ export function handleTurnCompleted(
             undefined, // metadata
             { skipPersistMessage: true },
           )
+          // Promote only after follow-up is accepted. If follow-up fails, keep
+          // rows pending so the next retry can still consume them.
+          await promotePendingMessages(pendingIds)
           return
         } catch (flushErr) {
           logger.error({ issueId, err: flushErr }, 'auto_flush_pending_failed')

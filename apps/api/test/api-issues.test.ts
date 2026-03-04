@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
-import { createTestProject, expectSuccess, get, patch, post } from './helpers'
+import { createTestProject, del, expectSuccess, get, patch, post } from './helpers'
 /**
  * Issues CRUD API tests.
  */
@@ -301,5 +301,45 @@ describe('Parent/Child issues', () => {
       ),
     )
     expect(parentDetail.childCount).toBe(1)
+  })
+})
+
+describe('DELETE /api/projects/:projectId/issues/:id', () => {
+  test('deletes parent issue and cascades to child issues', async () => {
+    const parent = expectSuccess(
+      await post<Issue>(`/api/projects/${projectId}/issues`, {
+        title: 'Delete Parent',
+        statusId: 'todo',
+      }),
+    )
+    const child = expectSuccess(
+      await post<Issue>(`/api/projects/${projectId}/issues`, {
+        title: 'Delete Child',
+        statusId: 'todo',
+        parentIssueId: parent.id,
+      }),
+    )
+
+    const result = await del<{ id: string }>(
+      `/api/projects/${projectId}/issues/${parent.id}`,
+    )
+    expect(result.status).toBe(200)
+    expect(expectSuccess(result).id).toBe(parent.id)
+
+    const parentAfter = await get<Issue>(
+      `/api/projects/${projectId}/issues/${parent.id}`,
+    )
+    const childAfter = await get<Issue>(
+      `/api/projects/${projectId}/issues/${child.id}`,
+    )
+    expect(parentAfter.status).toBe(404)
+    expect(childAfter.status).toBe(404)
+  })
+
+  test('returns 404 for nonexistent issue', async () => {
+    const result = await del<{ id: string }>(
+      `/api/projects/${projectId}/issues/nonexistent`,
+    )
+    expect(result.status).toBe(404)
   })
 })

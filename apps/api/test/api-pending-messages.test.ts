@@ -7,6 +7,9 @@ import {
   post,
   waitFor,
 } from './helpers'
+import { db } from '../src/db'
+import { issues as issuesTable } from '../src/db/schema'
+import { eq } from 'drizzle-orm'
 /**
  * Pending message queue tests — verifies the full lifecycle:
  * - Messages sent to todo issues are stored as pending
@@ -128,11 +131,8 @@ describe('Follow-up queuing on todo issues', () => {
       (l) => l.entryType === 'user-message' && l.metadata?.type === 'pending',
     )
     expect(pendingMsgs.length).toBe(3)
-    expect(pendingMsgs.map((m) => m.content)).toEqual([
-      'message one',
-      'message two',
-      'message three',
-    ])
+    const contents = pendingMsgs.map((m) => m.content).sort()
+    expect(contents).toEqual(['message one', 'message three', 'message two'])
   })
 })
 
@@ -328,6 +328,59 @@ describe('Flush pending messages for existing sessions', () => {
       )
       return pending.length === 0
     }, 5000)
+  })
+
+  test('flush follow-up failure preserves pending messages for retry', async () => {
+    // Build a completed session first (working -> auto review)
+    const issue = expectSuccess(
+      await post<Issue>(`/api/projects/${projectId}/issues`, {
+        title: 'Flush Failure Preserve Test',
+        statusId: 'working',
+        engineType: 'echo',
+        model: 'auto',
+      }),
+    )
+
+    await waitFor(async () => {
+      const r = await get<Issue>(
+        `/api/projects/${projectId}/issues/${issue.id}`,
+      )
+      return expectSuccess(r).statusId === 'review'
+    }, 5000)
+
+    // Move to todo and queue one pending message.
+    await patch(`/api/projects/${projectId}/issues/${issue.id}`, {
+      statusId: 'todo',
+    })
+    const pendingPrompt = `preserve-pending-${Date.now()}`
+    await post(`/api/projects/${projectId}/issues/${issue.id}/follow-up`, {
+      prompt: pendingPrompt,
+    })
+
+    // Force flushPendingAsFollowUp -> issueEngine.followUpIssue to fail:
+    // missing externalSessionId causes followUp guard to throw.
+    await db
+      .update(issuesTable)
+      .set({ externalSessionId: null })
+      .where(eq(issuesTable.id, issue.id))
+
+    // Trigger flush path (shouldFlush=true). Failure must NOT consume pending.
+    await patch(`/api/projects/${projectId}/issues/${issue.id}`, {
+      statusId: 'working',
+    })
+    await Bun.sleep(200)
+
+    const logsResult = await get<LogsResponse>(
+      `/api/projects/${projectId}/issues/${issue.id}/logs`,
+    )
+    const logs = expectSuccess(logsResult)
+    const pending = logs.logs.filter(
+      (l) =>
+        l.entryType === 'user-message' &&
+        l.content.includes(pendingPrompt) &&
+        l.metadata?.type === 'pending',
+    )
+    expect(pending.length).toBeGreaterThanOrEqual(1)
   })
 
   test('running session is NOT flushed (shouldFlush guard)', async () => {

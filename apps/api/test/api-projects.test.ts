@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { expectSuccess, get, patch, post } from './helpers'
+import { del, expectSuccess, get, patch, post } from './helpers'
 /**
  * Projects API tests.
  */
@@ -14,6 +14,10 @@ interface Project {
   repositoryUrl?: string
   createdAt: string
   updatedAt: string
+}
+
+interface Issue {
+  id: string
 }
 
 describe('POST /api/projects', () => {
@@ -140,5 +144,47 @@ describe('PATCH /api/projects/:id', () => {
       name: 'Update',
     })
     expect(result.status).toBe(404)
+  })
+})
+
+describe('DELETE /api/projects/:id', () => {
+  test('soft-deletes project and excludes it from reads/listing', async () => {
+    const created = expectSuccess(
+      await post<Project>('/api/projects', {
+        name: `Delete Project ${Date.now()}`,
+      }),
+    )
+
+    const result = await del<{ id: string }>(`/api/projects/${created.id}`)
+    expect(result.status).toBe(200)
+    expect(expectSuccess(result).id).toBe(created.id)
+
+    const getDeleted = await get<Project>(`/api/projects/${created.id}`)
+    expect(getDeleted.status).toBe(404)
+
+    const list = expectSuccess(await get<Project[]>('/api/projects'))
+    expect(list.some((p) => p.id === created.id)).toBe(false)
+  })
+
+  test('deleting project also makes scoped issue routes inaccessible', async () => {
+    const project = expectSuccess(
+      await post<Project>('/api/projects', {
+        name: `Delete Project With Issue ${Date.now()}`,
+      }),
+    )
+    const issue = expectSuccess(
+      await post<Issue>(`/api/projects/${project.id}/issues`, {
+        title: 'Issue under deleted project',
+        statusId: 'todo',
+      }),
+    )
+
+    const result = await del<{ id: string }>(`/api/projects/${project.id}`)
+    expect(result.status).toBe(200)
+
+    const issueAfter = await get<Issue>(
+      `/api/projects/${project.id}/issues/${issue.id}`,
+    )
+    expect(issueAfter.status).toBe(404)
   })
 })

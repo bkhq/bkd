@@ -37,14 +37,22 @@ del.delete('/:id', async (c) => {
     return c.json({ success: false, error: 'Issue not found' }, 404)
   }
 
-  // Cancel any active session before deleting
-  if (
+  // Force-terminate active processes before deleting to avoid orphaned
+  // subprocesses continuing to run after the issue is soft-deleted.
+  const shouldTerminate =
     existing.sessionStatus === 'running' ||
-    existing.sessionStatus === 'pending'
-  ) {
-    void issueEngine.cancelIssue(issueId).catch((err) => {
-      logger.error({ issueId, err }, 'delete_cancel_failed')
-    })
+    existing.sessionStatus === 'pending' ||
+    issueEngine.hasActiveProcessForIssue(issueId)
+  if (shouldTerminate) {
+    try {
+      await issueEngine.terminateProcess(issueId)
+    } catch (err) {
+      logger.error({ issueId, err }, 'delete_terminate_failed')
+      return c.json(
+        { success: false, error: 'Failed to terminate active process' },
+        500,
+      )
+    }
   }
 
   await db.transaction(async (tx) => {
