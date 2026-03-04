@@ -387,7 +387,7 @@ export class CodexExecutor implements EngineExecutor {
         },
         close: () => handler.close(),
         sendUserMessage: (content: string) => {
-          handler.sendUserMessage(content)
+          void handler.sendUserMessage(content)
         },
       },
       // Expose the real Codex thread ID so the issue engine stores it
@@ -453,7 +453,7 @@ export class CodexExecutor implements EngineExecutor {
         },
         close: () => handler.close(),
         sendUserMessage: (content: string) => {
-          handler.sendUserMessage(content)
+          void handler.sendUserMessage(content)
         },
       },
       externalSessionId: handler.threadId,
