@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
+import { eq } from 'drizzle-orm'
 import {
   createTestProject,
   expectSuccess,
@@ -9,7 +10,6 @@ import {
 } from './helpers'
 import { db } from '../src/db'
 import { issues as issuesTable } from '../src/db/schema'
-import { eq } from 'drizzle-orm'
 /**
  * Pending message queue tests — verifies the full lifecycle:
  * - Messages sent to todo issues are stored as pending

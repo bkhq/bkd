@@ -67,9 +67,9 @@ describe('withIssueLock deep behavior', () => {
       withIssueLock(ctx, issueId, async () => {}),
     )
 
-    await expect(
-      withIssueLock(ctx, issueId, async () => {}),
-    ).rejects.toThrow('Lock queue full')
+    await expect(withIssueLock(ctx, issueId, async () => {})).rejects.toThrow(
+      'Lock queue full',
+    )
 
     if (!releaseFirst) {
       throw new Error('failed to capture releaseFirst')

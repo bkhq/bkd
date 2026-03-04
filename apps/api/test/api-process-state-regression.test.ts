@@ -327,7 +327,9 @@ describe('Auto execute status fallback', () => {
       expect(issue.sessionStatus).toBe('pending')
 
       await waitFor(async () => {
-        const r = await get<Issue>(`/api/projects/${project.id}/issues/${issue.id}`)
+        const r = await get<Issue>(
+          `/api/projects/${project.id}/issues/${issue.id}`,
+        )
         return expectSuccess(r).sessionStatus === 'failed'
       }, 5000)
     } finally {

@@ -13,9 +13,7 @@ async function clearProbeState(): Promise<void> {
   await cacheDelByPrefix('engines:models:')
   await db
     .delete(appSettingsTable)
-    .where(
-      inArray(appSettingsTable.key, ['probe:engines', 'probe:models']),
-    )
+    .where(inArray(appSettingsTable.key, ['probe:engines', 'probe:models']))
 }
 
 describe('startup probe deep behavior', () => {
