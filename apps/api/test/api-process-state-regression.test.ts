@@ -153,7 +153,7 @@ describe('Delete paths terminate active processes', () => {
     }
   })
 
-  test('issue delete returns 500 when terminateProcess fails', async () => {
+  test('issue delete proceeds even when terminateProcess fails (best-effort)', async () => {
     const issue = expectSuccess(
       await post<Issue>(`/api/projects/${projectId}/issues`, {
         title: 'Issue delete terminate failure',
@@ -175,12 +175,13 @@ describe('Delete paths terminate active processes', () => {
         'DELETE',
         `/api/projects/${projectId}/issues/${issue.id}`,
       )
-      expect(result.status).toBe(500)
+      // Best-effort: terminate failure is logged but deletion proceeds
+      expect(result.status).toBe(200)
 
-      const stillExists = await get<Issue>(
+      const deleted = await get<Issue>(
         `/api/projects/${projectId}/issues/${issue.id}`,
       )
-      expect(stillExists.status).toBe(200)
+      expect(deleted.status).toBe(404)
     } finally {
       ;(issueEngine as any).terminateProcess = originalTerminate
     }
@@ -245,7 +246,7 @@ describe('Delete paths terminate active processes', () => {
     }
   })
 
-  test('project delete returns 500 when terminateProcess fails', async () => {
+  test('project delete proceeds even when terminateProcess fails (best-effort)', async () => {
     const project = expectSuccess(
       await post<{ id: string; alias: string }>('/api/projects', {
         name: `Project delete terminate failure ${Date.now()}`,
@@ -272,10 +273,11 @@ describe('Delete paths terminate active processes', () => {
         'DELETE',
         `/api/projects/${project.id}`,
       )
-      expect(result.status).toBe(500)
+      // Best-effort: terminate failure is logged but deletion proceeds
+      expect(result.status).toBe(200)
 
-      const stillExists = await get<{ id: string }>(`/api/projects/${project.id}`)
-      expect(stillExists.status).toBe(200)
+      const deleted = await get<{ id: string }>(`/api/projects/${project.id}`)
+      expect(deleted.status).toBe(404)
     } finally {
       ;(issueEngine as any).terminateProcess = originalTerminate
     }

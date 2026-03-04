@@ -102,9 +102,16 @@ export function handleTurnCompleted(
             undefined, // metadata
             { skipPersistMessage: true },
           )
-          // Promote only after follow-up is accepted. If follow-up fails, keep
-          // rows pending so the next retry can still consume them.
-          await promotePendingMessages(pendingIds)
+          // Promote only after follow-up is accepted. If follow-up fails
+          // (caught below), rows stay pending so the next retry consumes them.
+          // Promote itself is best-effort: the follow-up is already running,
+          // so a failure here must NOT cause a duplicate dispatch on next turn.
+          await promotePendingMessages(pendingIds).catch((promoteErr) => {
+            logger.error(
+              { issueId, err: promoteErr },
+              'promote_pending_after_followup_failed',
+            )
+          })
           return
         } catch (flushErr) {
           logger.error({ issueId, err: flushErr }, 'auto_flush_pending_failed')

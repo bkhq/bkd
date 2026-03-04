@@ -236,17 +236,28 @@ projects.delete('/:projectId', async (c) => {
     )
     .map((issue) => issue.id)
 
+  // Best-effort terminate with short timeout (5s per issue). Use allSettled
+  // so a single failure doesn't block other terminations or abort the delete.
   if (toTerminate.length > 0) {
-    try {
-      await Promise.all(toTerminate.map((issueId) => issueEngine.terminateProcess(issueId)))
-    } catch (err) {
-      logger.error(
-        { projectId: existing.id, issueCount: toTerminate.length, err },
-        'project_delete_terminate_failed',
-      )
-      return c.json(
-        { success: false, error: 'Failed to terminate active processes' },
-        500,
+    const results = await Promise.allSettled(
+      toTerminate.map((issueId) =>
+        Promise.race([
+          issueEngine.terminateProcess(issueId),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('terminate timeout')), 5_000),
+          ),
+        ]),
+      ),
+    )
+    const failures = results.filter((r) => r.status === 'rejected')
+    if (failures.length > 0) {
+      logger.warn(
+        {
+          projectId: existing.id,
+          total: toTerminate.length,
+          failed: failures.length,
+        },
+        'project_delete_some_terminate_failed_proceeding',
       )
     }
   }

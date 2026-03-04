@@ -161,9 +161,16 @@ export function flushPendingAsFollowUp(
         undefined, // metadata
         { skipPersistMessage: true },
       )
-      // Promote only after follow-up is accepted. If follow-up fails, keep the
-      // rows as pending so the user can retry without message loss.
-      await promotePendingMessages(pendingIds)
+      // Promote only after follow-up is accepted. If follow-up fails (caught
+      // by outer catch), rows stay pending for retry. Promote itself is
+      // best-effort: the follow-up is already running, so a failure here
+      // must NOT cause a duplicate dispatch.
+      await promotePendingMessages(pendingIds).catch((promoteErr) => {
+        logger.error(
+          { issueId, err: promoteErr },
+          'promote_pending_after_followup_failed',
+        )
+      })
       logger.debug(
         { issueId, pendingCount: pendingIds.length },
         'pending_flushed_as_followup',
@@ -319,6 +326,8 @@ export function triggerIssueExecution(
           .update(issuesTable)
           .set({ sessionStatus: 'failed' })
           .where(eq(issuesTable.id, issueId))
+        // Notify frontend so it doesn't stay stuck in "working" state
+        emitIssueUpdated(issueId, { sessionStatus: 'failed' })
       } catch (dbErr) {
         logger.error(
           { issueId, err: dbErr },
