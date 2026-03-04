@@ -150,6 +150,7 @@ export function ChatBody({
   const cancelIssue = useCancelIssue(projectId)
   const deleteIssueMutation = useDeleteIssue(projectId)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
 
   const handleDelete = useCallback(() => {
     setDeleteDialogOpen(true)
@@ -179,6 +180,13 @@ export function ChatBody({
     loadOlderLogs,
     appendServerMessage,
   } = useSessionState(projectId, issueId, issue)
+
+  // Reset cancelling state when the session settles (terminal or no longer thinking)
+  useEffect(() => {
+    if (isCancelling && !isThinking) {
+      setIsCancelling(false)
+    }
+  }, [isCancelling, isThinking])
 
   // Show toast when execution transitions to failed
   const prevStatusRef = useRef(issue.sessionStatus)
@@ -240,8 +248,13 @@ export function ChatBody({
                 scrollRef={scrollRef}
                 isRunning={isThinking}
                 workingStep={workingStep}
-                onCancel={() => cancelIssue.mutate(issueId)}
-                isCancelling={cancelIssue.isPending}
+                onCancel={() => {
+                  setIsCancelling(true)
+                  cancelIssue.mutate(issueId, {
+                    onError: () => setIsCancelling(false),
+                  })
+                }}
+                isCancelling={isCancelling}
                 hasOlderLogs={hasOlderLogs}
                 isLoadingOlder={isLoadingOlder}
                 onLoadOlder={loadOlderLogs}
