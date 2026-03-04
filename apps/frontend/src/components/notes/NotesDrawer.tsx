@@ -117,6 +117,7 @@ function MobileNotesDrawer() {
     return (
       <div className="fixed inset-0 z-40 flex flex-col bg-background">
         <MobileNoteEditor
+          key={selectedNote.id}
           note={selectedNote}
           onUpdate={updateNote.mutate}
           onBack={handleBack}
@@ -660,6 +661,7 @@ function DesktopNotesDrawer() {
           <div className="flex-1 min-w-0 flex flex-col">
             {selectedNote ? (
               <DesktopNoteEditor
+                key={selectedNote.id}
                 note={selectedNote}
                 onUpdate={updateNote.mutate}
                 onPin={() => handlePin(selectedNote.id, !selectedNote.isPinned)}
