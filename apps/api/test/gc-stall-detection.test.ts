@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from 'bun:test'
 import {
   IDLE_TIMEOUT_MS,
+  STALL_PROBE_GRACE_MS,
   STREAM_STALL_TIMEOUT_MS,
 } from '@/engines/issue/constants'
 import type { EngineContext } from '@/engines/issue/context'
@@ -9,10 +10,10 @@ import type { ManagedProcess } from '@/engines/issue/types'
 
 /**
  * GC sweep stall detection tests — verifies:
- * 1. Processes stuck "thinking" (turnInFlight=true, no output) are killed after STREAM_STALL_TIMEOUT_MS
+ * 1. Two-tier stall detection: probe first (interrupt), kill if no response
  * 2. Active processes with recent output are NOT killed
  * 3. Idle processes are killed after IDLE_TIMEOUT_MS (existing behavior)
- * 4. Active processes with turnInFlight=true but recent activity are NOT killed
+ * 4. Stall probe is cleared when activity resumes
  */
 
 // ---------- Mock helpers ----------
@@ -79,13 +80,37 @@ function makeContext(entries: MockEntry[]): {
 // ---------- Tests ----------
 
 describe('gcSweep — stream stall detection', () => {
-  test('kills process stuck thinking for longer than STREAM_STALL_TIMEOUT_MS', () => {
-    const stalledAt = new Date(Date.now() - STREAM_STALL_TIMEOUT_MS - 60_000) // 11 min ago
+  test('Tier 1: sends probe (sets stallProbeAt) but does NOT kill on first detection', () => {
+    const stalledAt = new Date(Date.now() - STREAM_STALL_TIMEOUT_MS - 60_000)
     const managed = makeManagedProcess({
       issueId: 'issue-1',
       executionId: 'exec-1',
       turnInFlight: true,
       lastActivityAt: stalledAt,
+    })
+    const { ctx, forceKillCalls } = makeContext([
+      { id: 'exec-1', meta: managed },
+    ])
+
+    gcSweep(ctx)
+
+    // Should NOT be killed yet — only probed
+    expect(forceKillCalls).not.toContain('exec-1')
+    // stallProbeAt should be set
+    expect(managed.stallProbeAt).toBeDefined()
+  })
+
+  test('Tier 2: kills process if no response after probe grace period', () => {
+    const stalledAt = new Date(
+      Date.now() - STREAM_STALL_TIMEOUT_MS - STALL_PROBE_GRACE_MS - 60_000,
+    )
+    const probeAt = new Date(Date.now() - STALL_PROBE_GRACE_MS - 60_000)
+    const managed = makeManagedProcess({
+      issueId: 'issue-1',
+      executionId: 'exec-1',
+      turnInFlight: true,
+      lastActivityAt: stalledAt,
+      stallProbeAt: probeAt,
     })
     const { ctx, forceKillCalls } = makeContext([
       { id: 'exec-1', meta: managed },
@@ -167,7 +192,7 @@ describe('gcSweep — stream stall detection', () => {
     expect(forceKillCalls).not.toContain('exec-5')
   })
 
-  test('handles multiple processes — kills only stalled ones', () => {
+  test('handles multiple processes — probes stalled, skips active and idle', () => {
     const stalledManaged = makeManagedProcess({
       issueId: 'issue-stalled',
       executionId: 'exec-stalled',
@@ -195,8 +220,67 @@ describe('gcSweep — stream stall detection', () => {
 
     gcSweep(ctx)
 
+    // Tier 1: stalled is probed, not killed
+    expect(forceKillCalls).not.toContain('exec-stalled')
+    expect(stalledManaged.stallProbeAt).toBeDefined()
+    // Others untouched
+    expect(forceKillCalls).not.toContain('exec-active')
+    expect(forceKillCalls).not.toContain('exec-idle')
+  })
+
+  test('handles multiple processes — kills stalled after probe grace, skips others', () => {
+    const stalledManaged = makeManagedProcess({
+      issueId: 'issue-stalled',
+      executionId: 'exec-stalled',
+      turnInFlight: true,
+      lastActivityAt: new Date(
+        Date.now() - STREAM_STALL_TIMEOUT_MS - STALL_PROBE_GRACE_MS - 120_000,
+      ),
+      stallProbeAt: new Date(Date.now() - STALL_PROBE_GRACE_MS - 120_000),
+    })
+    const activeManaged = makeManagedProcess({
+      issueId: 'issue-active',
+      executionId: 'exec-active',
+      turnInFlight: true,
+      lastActivityAt: new Date(), // just now
+    })
+    const idleManaged = makeManagedProcess({
+      issueId: 'issue-idle',
+      executionId: 'exec-idle',
+      turnInFlight: false,
+      lastIdleAt: new Date(Date.now() - 5 * 60_000),
+      lastActivityAt: new Date(Date.now() - 5 * 60_000),
+    })
+    const { ctx, forceKillCalls } = makeContext([
+      { id: 'exec-stalled', meta: stalledManaged },
+      { id: 'exec-active', meta: activeManaged },
+      { id: 'exec-idle', meta: idleManaged },
+    ])
+
+    gcSweep(ctx)
+
+    // Tier 2: stalled is killed after probe grace period
     expect(forceKillCalls).toContain('exec-stalled')
     expect(forceKillCalls).not.toContain('exec-active')
     expect(forceKillCalls).not.toContain('exec-idle')
+  })
+
+  test('does NOT probe or kill process within stall timeout even with probe set', () => {
+    // Edge case: stallProbeAt set but process produced output since then
+    // (probe was sent, process responded — activity cleared stallProbeAt in consumer)
+    const managed = makeManagedProcess({
+      issueId: 'issue-recovered',
+      executionId: 'exec-recovered',
+      turnInFlight: true,
+      lastActivityAt: new Date(Date.now() - 60_000), // 1 min ago — within threshold
+    })
+    const { ctx, forceKillCalls } = makeContext([
+      { id: 'exec-recovered', meta: managed },
+    ])
+
+    gcSweep(ctx)
+
+    expect(forceKillCalls).not.toContain('exec-recovered')
+    expect(managed.stallProbeAt).toBeUndefined()
   })
 })

@@ -22,6 +22,9 @@ export function dispatch(managed: ManagedProcess, action: ManagedAction): void {
       managed.queueCancelRequested = false
       managed.metaTurn = false
       managed.turnSettled = true
+      // cancelledByUser is NOT reset here — it stays true through the full
+      // stream drain cycle so isCancelledNoiseEntry filtering works. It is
+      // reset in START_TURN when the next turn begins.
       break
     case 'SET_EXIT_CODE':
       managed.exitCode = action.exitCode

@@ -27,15 +27,20 @@ export async function cancelIssue(
       })
     }
     if (active.length > 0) {
-      // Persist cancelled immediately so process restarts/stale cleanup
-      // cannot flip this user-initiated cancel into failed.
-      await updateIssueSession(issueId, { sessionStatus: 'cancelled' })
+      // Soft cancel: interrupt sent, process stays alive.
+      // Do NOT set sessionStatus to 'cancelled' here — the turn-completion
+      // flow (handleTurnCompleted) will settle the issue to 'completed' after
+      // the engine responds to the interrupt. Writing 'cancelled' here races
+      // with the turn-completion DB write and can cause the settlement guard
+      // to skip emitIssueSettled, permanently sticking the frontend.
+      // The process remains alive and can accept follow-up messages.
       logger.info(
         { issueId, interruptedCount: active.length },
         'issue_cancel_soft_interrupted',
       )
       return 'interrupted'
     }
+    // No active processes — mark as cancelled in DB
     await updateIssueSession(issueId, { sessionStatus: 'cancelled' })
     logger.info({ issueId, cancelledCount: 0 }, 'issue_cancel_completed')
     return 'cancelled'

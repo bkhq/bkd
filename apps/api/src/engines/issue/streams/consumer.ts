@@ -55,6 +55,8 @@ export async function consumeStream(
       const managed = callbacks.getManaged()
       if (!managed) break
       managed.lastActivityAt = new Date()
+      // Clear stall probe if activity resumed after the GC-sent interrupt
+      if (managed.stallProbeAt) managed.stallProbeAt = undefined
       const turnIdx = callbacks.getTurnIndex()
 
       const entry: NormalizedLogEntry = {
