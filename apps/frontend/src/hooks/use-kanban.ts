@@ -582,6 +582,31 @@ export function useDownloadStatus(enabled = false) {
 export function useRestartWithUpgrade() {
   return useMutation({
     mutationFn: () => kanbanApi.restartWithUpgrade(),
+    onSuccess: () => {
+      // Server is restarting — poll until it comes back, then reload.
+      const poll = async () => {
+        const start = Date.now()
+        const timeout = 60_000
+        const interval = 1_500
+        // Wait a moment for the server to begin shutting down
+        await new Promise((r) => setTimeout(r, 2_000))
+        while (Date.now() - start < timeout) {
+          try {
+            const res = await fetch('/api/upgrade/version')
+            if (res.ok) {
+              window.location.reload()
+              return
+            }
+          } catch {
+            // Server still down — keep polling
+          }
+          await new Promise((r) => setTimeout(r, interval))
+        }
+        // Timeout — reload anyway (server may be up but response changed)
+        window.location.reload()
+      }
+      void poll()
+    },
   })
 }
 
