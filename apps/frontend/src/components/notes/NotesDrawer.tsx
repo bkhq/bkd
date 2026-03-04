@@ -21,8 +21,8 @@ import { cn } from '@/lib/utils'
 import { useNotesStore } from '@/stores/notes-store'
 import type { Note } from '@/types/kanban'
 
-const MIN_WIDTH = 400
-const DEFAULT_WIDTH_RATIO = 0.35
+const MIN_WIDTH = 520
+const DEFAULT_WIDTH_RATIO = 0.38
 const MAX_WIDTH_RATIO = 0.6
 
 function clampWidth(w: number): number {
@@ -54,7 +54,6 @@ function MobileNotesDrawer() {
 
   const selectedNote = notes?.find((n) => n.id === selectedNoteId) ?? null
 
-  // Clear selection if selected note was deleted
   useEffect(() => {
     if (
       selectedNoteId &&
@@ -112,7 +111,6 @@ function MobileNotesDrawer() {
 
   if (!isOpen) return null
 
-  // Editor view — full screen when a note is selected
   if (selectedNote) {
     return (
       <div className="fixed inset-0 z-40 flex flex-col bg-background">
@@ -127,10 +125,8 @@ function MobileNotesDrawer() {
     )
   }
 
-  // List view
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
-      {/* Search bar */}
       <div className="px-4 pt-3 pb-2 shrink-0">
         <div className="flex items-center gap-2 rounded-full bg-muted/60 px-3 py-2">
           <Search className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -152,7 +148,6 @@ function MobileNotesDrawer() {
         </div>
       </div>
 
-      {/* Note cards */}
       <div className="flex-1 overflow-y-auto px-4 pb-24">
         {filteredNotes.length > 0 ? (
           <div className="flex flex-col gap-2">
@@ -199,7 +194,6 @@ function MobileNotesDrawer() {
         )}
       </div>
 
-      {/* FAB — create new note */}
       <button
         type="button"
         onClick={handleCreate}
@@ -254,9 +248,7 @@ function MobileNoteCard({
               onPin()
             }}
             className="p-1 rounded-md text-muted-foreground/50 hover:text-primary transition-colors"
-            aria-label={
-              note.isPinned ? t('notes.unpin') : t('notes.pin')
-            }
+            aria-label={note.isPinned ? t('notes.unpin') : t('notes.pin')}
           >
             {note.isPinned ? (
               <PinOff className="h-3.5 w-3.5" />
@@ -289,11 +281,7 @@ function MobileNoteEditor({
   onPin,
 }: {
   note: Note
-  onUpdate: (data: {
-    id: string
-    title?: string
-    content?: string
-  }) => void
+  onUpdate: (data: { id: string; title?: string; content?: string }) => void
   onBack: () => void
   onDelete: () => void
   onPin: () => void
@@ -350,7 +338,6 @@ function MobileNoteEditor({
 
   return (
     <>
-      {/* Top bar */}
       <div className="flex items-center justify-between px-2 py-1.5 shrink-0">
         <button
           type="button"
@@ -366,13 +353,9 @@ function MobileNoteEditor({
             onClick={onPin}
             className={cn(
               'p-2 rounded-full hover:bg-accent transition-colors',
-              note.isPinned
-                ? 'text-primary'
-                : 'text-muted-foreground',
+              note.isPinned ? 'text-primary' : 'text-muted-foreground',
             )}
-            aria-label={
-              note.isPinned ? t('notes.unpin') : t('notes.pin')
-            }
+            aria-label={note.isPinned ? t('notes.unpin') : t('notes.pin')}
           >
             {note.isPinned ? (
               <PinOff className="h-4.5 w-4.5" />
@@ -391,7 +374,6 @@ function MobileNoteEditor({
         </div>
       </div>
 
-      {/* Title + Content */}
       <div className="flex-1 flex flex-col min-h-0 overflow-y-auto px-4">
         <input
           type="text"
@@ -408,7 +390,6 @@ function MobileNoteEditor({
         />
       </div>
 
-      {/* Bottom bar */}
       <div className="flex items-center justify-center px-4 py-3 border-t border-border shrink-0">
         <span className="text-xs text-muted-foreground">
           {t('notes.lastEdited', { time: lastEdited })}
@@ -419,13 +400,14 @@ function MobileNoteEditor({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Desktop — side panel with list + editor                           */
+/*  Desktop — side panel with search, pinned sections, editor         */
 /* ------------------------------------------------------------------ */
 
 function DesktopNotesDrawer() {
   const { t } = useTranslation()
   const { isOpen, selectedNoteId, close, selectNote } = useNotesStore()
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [width, setWidthRaw] = useState(() =>
     Math.round(
@@ -441,6 +423,26 @@ function DesktopNotesDrawer() {
   const deleteNote = useDeleteNote()
 
   const selectedNote = notes?.find((n) => n.id === selectedNoteId) ?? null
+
+  const filteredNotes = useMemo(() => {
+    if (!notes) return []
+    if (!searchQuery.trim()) return notes
+    const q = searchQuery.toLowerCase()
+    return notes.filter(
+      (n) =>
+        n.title.toLowerCase().includes(q) ||
+        n.content.toLowerCase().includes(q),
+    )
+  }, [notes, searchQuery])
+
+  const pinnedNotes = useMemo(
+    () => filteredNotes.filter((n) => n.isPinned),
+    [filteredNotes],
+  )
+  const unpinnedNotes = useMemo(
+    () => filteredNotes.filter((n) => !n.isPinned),
+    [filteredNotes],
+  )
 
   // Auto-select first note if none selected
   useEffect(() => {
@@ -529,6 +531,11 @@ function DesktopNotesDrawer() {
             <span className="text-xs font-medium text-muted-foreground truncate">
               {t('notes.title')}
             </span>
+            {notes && notes.length > 0 && (
+              <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+                {notes.length}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -555,25 +562,68 @@ function DesktopNotesDrawer() {
         {/* Body */}
         <div className="flex flex-1 min-h-0">
           {/* Note list */}
-          <div className="w-48 shrink-0 border-r border-border overflow-y-auto">
-            {notes && notes.length > 0 ? (
-              notes.map((note) => (
-                <DesktopNoteListItem
-                  key={note.id}
-                  note={note}
-                  isActive={note.id === selectedNoteId}
-                  onClick={() => selectNote(note.id)}
-                  onDelete={() => handleDelete(note.id)}
-                  onPin={() =>
-                    handlePin(note.id, !note.isPinned)
-                  }
+          <div className="w-56 shrink-0 border-r border-border flex flex-col">
+            {/* Search */}
+            <div className="px-2 py-1.5 border-b border-border/50 shrink-0">
+              <div className="flex items-center gap-1.5 rounded-md bg-muted/40 px-2 py-1">
+                <Search className="h-3 w-3 text-muted-foreground shrink-0" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t('notes.searchPlaceholder')}
+                  className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
                 />
-              ))
-            ) : (
-              <div className="p-3 text-xs text-muted-foreground text-center">
-                {t('notes.empty')}
               </div>
-            )}
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto">
+              {filteredNotes.length > 0 ? (
+                <>
+                  {pinnedNotes.length > 0 && (
+                    <>
+                      <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider px-3 pt-2 pb-0.5">
+                        {t('notes.pinned')}
+                      </p>
+                      {pinnedNotes.map((note) => (
+                        <DesktopNoteListItem
+                          key={note.id}
+                          note={note}
+                          isActive={note.id === selectedNoteId}
+                          onClick={() => selectNote(note.id)}
+                          onDelete={() => handleDelete(note.id)}
+                          onPin={() => handlePin(note.id, false)}
+                        />
+                      ))}
+                    </>
+                  )}
+                  {unpinnedNotes.length > 0 && (
+                    <>
+                      {pinnedNotes.length > 0 && (
+                        <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider px-3 pt-2 pb-0.5">
+                          {t('notes.other')}
+                        </p>
+                      )}
+                      {unpinnedNotes.map((note) => (
+                        <DesktopNoteListItem
+                          key={note.id}
+                          note={note}
+                          isActive={note.id === selectedNoteId}
+                          onClick={() => selectNote(note.id)}
+                          onDelete={() => handleDelete(note.id)}
+                          onPin={() => handlePin(note.id, true)}
+                        />
+                      ))}
+                    </>
+                  )}
+                </>
+              ) : (
+                <div className="p-4 text-xs text-muted-foreground text-center">
+                  {t('notes.empty')}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Editor */}
@@ -582,16 +632,13 @@ function DesktopNotesDrawer() {
               <DesktopNoteEditor
                 note={selectedNote}
                 onUpdate={updateNote.mutate}
-                onPin={() =>
-                  handlePin(
-                    selectedNote.id,
-                    !selectedNote.isPinned,
-                  )
-                }
+                onPin={() => handlePin(selectedNote.id, !selectedNote.isPinned)}
+                onDelete={() => handleDelete(selectedNote.id)}
               />
             ) : (
-              <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-                {t('notes.selectOrCreate')}
+              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                <StickyNote className="h-8 w-8 opacity-20" />
+                <p className="text-sm">{t('notes.selectOrCreate')}</p>
               </div>
             )}
           </div>
@@ -616,31 +663,51 @@ function DesktopNoteListItem({
 }) {
   const { t } = useTranslation()
   const title = note.title || t('notes.untitled')
-  const preview = note.content.slice(0, 60).replace(/\n/g, ' ')
+  const preview = note.content.slice(0, 80).replace(/\n/g, ' ')
+
+  const lastEdited = useMemo(() => {
+    const date = new Date(note.updatedAt)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffDays = Math.floor(diffMs / 86400000)
+    if (diffDays > 0) {
+      return date.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      })
+    }
+    return date.toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }, [note.updatedAt])
 
   return (
     <div
       className={cn(
-        'group px-3 py-2 cursor-pointer border-b border-border/50 hover:bg-accent/50 transition-colors',
-        isActive && 'bg-accent',
+        'group mx-1.5 my-0.5 px-2.5 py-2 rounded-lg cursor-pointer transition-colors',
+        isActive ? 'bg-accent' : 'hover:bg-accent/50',
       )}
       onClick={onClick}
     >
-      <div className="flex items-start justify-between gap-1">
+      <div className="flex items-start justify-between gap-1.5">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             {note.isPinned && (
               <Pin className="h-2.5 w-2.5 text-primary shrink-0 -rotate-45" />
             )}
             <p className="text-xs font-medium truncate">{title}</p>
           </div>
           {preview && (
-            <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+            <p className="text-[11px] text-muted-foreground/70 truncate mt-0.5">
               {preview}
             </p>
           )}
+          <p className="text-[10px] text-muted-foreground/50 mt-1 tabular-nums">
+            {lastEdited}
+          </p>
         </div>
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
           <button
             type="button"
             onClick={(e) => {
@@ -653,12 +720,8 @@ function DesktopNoteListItem({
                 ? 'text-primary opacity-100'
                 : 'text-muted-foreground hover:text-primary',
             )}
-            aria-label={
-              note.isPinned ? t('notes.unpin') : t('notes.pin')
-            }
-            title={
-              note.isPinned ? t('notes.unpin') : t('notes.pin')
-            }
+            aria-label={note.isPinned ? t('notes.unpin') : t('notes.pin')}
+            title={note.isPinned ? t('notes.unpin') : t('notes.pin')}
           >
             {note.isPinned ? (
               <PinOff className="h-3 w-3" />
@@ -688,17 +751,18 @@ function DesktopNoteEditor({
   note,
   onUpdate,
   onPin,
+  onDelete,
 }: {
   note: Note
   onUpdate: (data: { id: string; title?: string; content?: string }) => void
   onPin: () => void
+  onDelete: () => void
 }) {
   const { t } = useTranslation()
   const [title, setTitle] = useState(note.title)
   const [content, setContent] = useState(note.content)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Sync state when switching notes
   useEffect(() => {
     setTitle(note.title)
     setContent(note.content)
@@ -714,7 +778,6 @@ function DesktopNoteEditor({
     [note.id, onUpdate],
   )
 
-  // Flush on unmount
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -737,43 +800,70 @@ function DesktopNoteEditor({
     [title, scheduleUpdate],
   )
 
+  const lastEdited = useMemo(() => {
+    const date = new Date(note.updatedAt)
+    return date.toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }, [note.updatedAt])
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex items-center border-b border-border">
+      {/* Editor toolbar */}
+      <div className="flex items-center justify-between px-4 py-1.5 border-b border-border shrink-0">
         <input
           type="text"
           value={title}
           onChange={(e) => handleTitleChange(e.target.value)}
           placeholder={t('notes.titlePlaceholder')}
-          className="flex-1 px-4 py-2 text-sm font-medium bg-transparent outline-none placeholder:text-muted-foreground"
+          className="flex-1 text-sm font-medium bg-transparent outline-none placeholder:text-muted-foreground mr-2"
         />
-        <button
-          type="button"
-          onClick={onPin}
-          className={cn(
-            'p-1.5 mr-2 rounded hover:bg-accent transition-colors',
-            note.isPinned
-              ? 'text-primary'
-              : 'text-muted-foreground hover:text-primary',
-          )}
-          aria-label={
-            note.isPinned ? t('notes.unpin') : t('notes.pin')
-          }
-          title={note.isPinned ? t('notes.unpin') : t('notes.pin')}
-        >
-          {note.isPinned ? (
-            <PinOff className="h-3.5 w-3.5" />
-          ) : (
-            <Pin className="h-3.5 w-3.5" />
-          )}
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            type="button"
+            onClick={onPin}
+            className={cn(
+              'p-1.5 rounded hover:bg-accent transition-colors',
+              note.isPinned
+                ? 'text-primary'
+                : 'text-muted-foreground hover:text-primary',
+            )}
+            aria-label={note.isPinned ? t('notes.unpin') : t('notes.pin')}
+            title={note.isPinned ? t('notes.unpin') : t('notes.pin')}
+          >
+            {note.isPinned ? (
+              <PinOff className="h-3.5 w-3.5" />
+            ) : (
+              <Pin className="h-3.5 w-3.5" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
+            aria-label={t('notes.delete')}
+            title={t('notes.delete')}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
+
+      {/* Content */}
       <textarea
         value={content}
         onChange={(e) => handleContentChange(e.target.value)}
         placeholder={t('notes.contentPlaceholder')}
         className="flex-1 px-4 py-3 text-sm bg-transparent outline-none resize-none placeholder:text-muted-foreground"
       />
+
+      {/* Footer */}
+      <div className="flex items-center justify-center px-4 py-1.5 border-t border-border/50 shrink-0">
+        <span className="text-[10px] text-muted-foreground/60">
+          {t('notes.lastEdited', { time: lastEdited })}
+        </span>
+      </div>
     </div>
   )
 }
