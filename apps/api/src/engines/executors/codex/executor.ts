@@ -347,12 +347,13 @@ export class CodexExecutor implements EngineExecutor {
     // Perform initialize handshake
     await handler.initialize()
 
-    // Create thread
+    // Create thread — bypass approvals and sandbox since BitK manages
+    // its own execution environment (Docker container / worktree isolation).
     await handler.startThread({
       model: options.model,
       cwd: options.workingDir,
-      approvalPolicy: 'on-failure',
-      sandbox: 'workspace-write',
+      approvalPolicy: 'never',
+      sandbox: 'none',
     })
 
     // Start turn with user prompt
