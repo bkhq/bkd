@@ -96,7 +96,8 @@ describe('turn completion pending-flush regression', () => {
 
     const ctx: EngineContext = {
       pm: {
-        get: (id: string) => (id === executionId ? ({ meta: managed } as any) : undefined),
+        get: (id: string) =>
+          id === executionId ? ({ meta: managed } as any) : undefined,
         getActive: () => [],
       } as any,
       issueOpLocks: new Map(),

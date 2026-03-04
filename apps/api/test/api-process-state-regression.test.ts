@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
-import { eq } from 'drizzle-orm'
 import { mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { eq } from 'drizzle-orm'
 import { db } from '../src/db'
 import { issues as issuesTable } from '../src/db/schema'
 import { engineRegistry } from '../src/engines/executors'
@@ -44,7 +44,9 @@ async function createCompletedIssue(title: string): Promise<Issue> {
   )
 
   await waitFor(async () => {
-    const r = await get<Issue>(`/api/projects/${projectId}/issues/${created.id}`)
+    const r = await get<Issue>(
+      `/api/projects/${projectId}/issues/${created.id}`,
+    )
     return expectSuccess(r).statusId === 'review'
   }, 5000)
 
@@ -146,7 +148,9 @@ describe('Delete paths terminate active processes', () => {
       expect(expectSuccess(result).id).toBe(issue.id)
       expect(terminatedIssueIds).toEqual([issue.id])
 
-      const deleted = await get<Issue>(`/api/projects/${projectId}/issues/${issue.id}`)
+      const deleted = await get<Issue>(
+        `/api/projects/${projectId}/issues/${issue.id}`,
+      )
       expect(deleted.status).toBe(404)
     } finally {
       ;(issueEngine as any).terminateProcess = originalTerminate
@@ -239,7 +243,9 @@ describe('Delete paths terminate active processes', () => {
       )
       expect(terminatedIssueIds.includes(idleIssue.id)).toBe(false)
 
-      const projectAfter = await get<{ id: string }>(`/api/projects/${project.id}`)
+      const projectAfter = await get<{ id: string }>(
+        `/api/projects/${project.id}`,
+      )
       expect(projectAfter.status).toBe(404)
     } finally {
       ;(issueEngine as any).terminateProcess = originalTerminate

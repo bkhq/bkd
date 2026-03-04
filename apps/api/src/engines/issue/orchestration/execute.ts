@@ -14,7 +14,11 @@ import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
 import { setIssueDevMode } from '@/engines/issue/utils/visibility'
 import { createWorktree } from '@/engines/issue/utils/worktree'
-import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
+import type {
+  EngineType,
+  PermissionPolicy,
+  SpawnedProcess,
+} from '@/engines/types'
 import { logger } from '@/logger'
 
 export async function executeIssue(
@@ -114,11 +118,12 @@ export async function executeIssue(
         { issueId, executionId, error: spawnError },
         'execute_spawn_failed_reverting_session',
       )
-      await updateIssueSession(issueId, { sessionStatus: 'failed' }).catch((e) =>
-        logger.error(
-          { issueId, error: e },
-          'execute_spawn_failed_revert_session_error',
-        ),
+      await updateIssueSession(issueId, { sessionStatus: 'failed' }).catch(
+        (e) =>
+          logger.error(
+            { issueId, error: e },
+            'execute_spawn_failed_revert_session_error',
+          ),
       )
       emitStateChange(issueId, executionId, 'failed')
       throw spawnError

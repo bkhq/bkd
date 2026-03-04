@@ -102,11 +102,12 @@ export async function restartIssue(
         { issueId, executionId, error: spawnError },
         'restart_spawn_failed_reverting_session',
       )
-      await updateIssueSession(issueId, { sessionStatus: 'failed' }).catch((e) =>
-        logger.error(
-          { issueId, error: e },
-          'restart_spawn_failed_revert_session_error',
-        ),
+      await updateIssueSession(issueId, { sessionStatus: 'failed' }).catch(
+        (e) =>
+          logger.error(
+            { issueId, error: e },
+            'restart_spawn_failed_revert_session_error',
+          ),
       )
       emitStateChange(issueId, executionId, 'failed')
       throw spawnError

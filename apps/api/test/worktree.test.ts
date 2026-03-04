@@ -102,9 +102,7 @@ describe('createWorktree', () => {
   test('creates a worktree directory with the expected path', async () => {
     const issueId = makeIssueId('create')
     const worktreeDir = await createWorktree(gitRoot, TEST_PROJECT_ID, issueId)
-    expect(worktreeDir).toBe(
-      resolveWorktreePath(TEST_PROJECT_ID, issueId),
-    )
+    expect(worktreeDir).toBe(resolveWorktreePath(TEST_PROJECT_ID, issueId))
     expect(existsSync(worktreeDir)).toBe(true)
 
     // Verify it's a valid git worktree (has .git file)
