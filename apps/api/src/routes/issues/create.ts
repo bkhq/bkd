@@ -11,6 +11,7 @@ import {
 import { issues as issuesTable } from '@/db/schema'
 import { engineRegistry } from '@/engines/executors'
 import type { EngineType } from '@/engines/types'
+import { logger } from '@/logger'
 import {
   createIssueSchema,
   serializeIssue,
@@ -157,11 +158,20 @@ create.post(
         shouldExecute ? 202 : 201,
       )
     } catch (error) {
+      logger.warn(
+        {
+          projectId: project.id,
+          error:
+            error instanceof Error
+              ? { message: error.message, stack: error.stack }
+              : error,
+        },
+        'issue_create_failed',
+      )
       return c.json(
         {
           success: false,
-          error:
-            error instanceof Error ? error.message : 'Failed to create issue',
+          error: 'Failed to create issue',
         },
         400,
       )
