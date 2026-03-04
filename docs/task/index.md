@@ -14,6 +14,7 @@
 - [x] **ENG-011 SSE 事件、后台 Job、升级系统改进** `P1` - owner: claude - file: `docs/task/ENG-011.md`
 - [x] **ENG-012 API 路由一致性修复** `P2` - owner: claude - file: `docs/task/ENG-012.md`
 - [x] **ENG-013 Issue 软删除传播 + 数据库一致性** `P2` - owner: claude - file: `docs/task/ENG-013.md`
+- [x] **BUG-090 历史记录无法显示回归 Bug** `P0` - owner: claude - file: `docs/task/BUG-090.md`
 - [x] **BUG-089 修复 Pending 消息以 system-message 重复返回前端** `P0` - owner: claude - file: `docs/task/BUG-089.md`
 - [x] **BUG-082 修复 autoMoveToReview TOCTOU 竞态条件** `P0` - owner: claude - file: `docs/task/BUG-082.md`
 - [x] **BUG-083 修复引擎写入路径缺少 isDeleted 守卫** `P0` - owner: claude - file: `docs/task/BUG-083.md`

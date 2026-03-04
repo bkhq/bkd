@@ -1,4 +1,4 @@
-import { and, eq, ne } from 'drizzle-orm'
+import { and, eq, notInArray } from 'drizzle-orm'
 import { cacheDel } from '@/cache'
 import { db } from '@/db'
 import { issues as issuesTable } from '@/db/schema'
@@ -63,14 +63,14 @@ export async function updateIssueSession(
     const [row] = await db
       .select()
       .from(issuesTable)
-      .where(eq(issuesTable.id, issueId))
+      .where(and(eq(issuesTable.id, issueId), eq(issuesTable.isDeleted, 0)))
     return row
   }
 
   const [row] = await db
     .update(issuesTable)
     .set(updates)
-    .where(eq(issuesTable.id, issueId))
+    .where(and(eq(issuesTable.id, issueId), eq(issuesTable.isDeleted, 0)))
     .returning()
 
   // Invalidate the issue cache so subsequent API reads return fresh data
@@ -86,9 +86,11 @@ export async function updateIssueSession(
  * Auto-move an issue to review when AI execution settles.
  * Moves from any status except done (respects user marking issue as done).
  * Already in review is a no-op.
+ *
+ * Uses a single atomic UPDATE with all conditions in the WHERE clause
+ * to avoid TOCTOU race conditions.
  */
 export async function autoMoveToReview(issueId: string): Promise<void> {
-  // Atomic: single UPDATE with WHERE guards to prevent TOCTOU race
   const [updated] = await db
     .update(issuesTable)
     .set({ statusId: 'review', statusUpdatedAt: new Date() })
@@ -96,15 +98,14 @@ export async function autoMoveToReview(issueId: string): Promise<void> {
       and(
         eq(issuesTable.id, issueId),
         eq(issuesTable.isDeleted, 0),
-        ne(issuesTable.statusId, 'done'),
-        ne(issuesTable.statusId, 'review'),
+        notInArray(issuesTable.statusId, ['done', 'review', 'todo']),
       ),
     )
     .returning()
 
-  if (updated) {
-    await cacheDel(`issue:${updated.projectId}:${issueId}`)
-    emitIssueUpdated(issueId, { statusId: 'review' })
-    logger.info({ issueId, from: 'working' }, 'auto_moved_to_review')
-  }
+  if (!updated) return
+
+  await cacheDel(`issue:${updated.projectId}:${issueId}`)
+  emitIssueUpdated(issueId, { statusId: 'review' })
+  logger.info({ issueId }, 'auto_moved_to_review')
 }

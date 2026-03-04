@@ -57,6 +57,9 @@ export function dispatch(managed: ManagedProcess, action: ManagedAction): void {
     case 'CLEAR_PENDING_INPUTS':
       managed.pendingInputs = []
       break
+    case 'SPLICE_PENDING_INPUTS':
+      managed.pendingInputs = managed.pendingInputs.slice(action.count)
+      break
   }
 }
 
