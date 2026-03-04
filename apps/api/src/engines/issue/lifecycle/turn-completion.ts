@@ -136,15 +136,30 @@ export function handleTurnCompleted(
       // 'done' SSE event and stays stuck in "thinking" state indefinitely
       // (terminal states are filtered from the 'state' subscriber).
       //
-      // Guard: check if a follow-up has reactivated the issue. If so, do NOT
-      // overwrite the new run's 'running'/'pending' status with our stale
-      // finalStatus, and skip the settled event to avoid confusing the frontend.
+      // Guard: skip if a follow-up has reactivated the issue.
+      // Check for a DIFFERENT active PM process for this issue (not our own
+      // executionId). Also check if DB status already diverged to a terminal
+      // state we didn't set.
       try {
         const freshIssue = await getIssueWithSession(issueId)
         const currentStatus = freshIssue?.sessionFields.sessionStatus
-        if (currentStatus === 'running' || currentStatus === 'pending') {
+        const hasOtherActive = ctx.pm
+          .getActive()
+          .some((e) => e.meta.issueId === issueId && e.id !== executionId)
+        if (
+          hasOtherActive ||
+          (currentStatus !== finalStatus &&
+            currentStatus !== 'running' &&
+            currentStatus !== 'pending')
+        ) {
           logger.debug(
-            { issueId, executionId, finalStatus, currentStatus },
+            {
+              issueId,
+              executionId,
+              finalStatus,
+              currentStatus,
+              hasOtherActive,
+            },
             'issue_turn_settle_catch_skipped_reactivated',
           )
           return

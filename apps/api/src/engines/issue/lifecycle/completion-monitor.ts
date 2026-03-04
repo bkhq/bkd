@@ -203,11 +203,24 @@ export function monitorCompletion(
           await settleIssue(ctx, issueId, executionId, 'failed')
         }
       }
-    } catch {
+    } catch (outerErr) {
+      logger.error(
+        { issueId, executionId, err: outerErr },
+        'monitor_completion_outer_error',
+      )
       dispatch(managed, { type: 'MARK_FAILED' })
       syncPmState(ctx, executionId, 'failed')
       emitStateChange(issueId, executionId, 'failed')
-      await settleIssue(ctx, issueId, executionId, 'failed')
+      // settleIssue has its own try-finally that always calls emitIssueSettled,
+      // but wrap in try-catch to prevent unhandled rejection in the void async.
+      try {
+        await settleIssue(ctx, issueId, executionId, 'failed')
+      } catch (settleErr) {
+        logger.error(
+          { issueId, executionId, err: settleErr },
+          'monitor_completion_settle_failed',
+        )
+      }
     }
   })()
 }

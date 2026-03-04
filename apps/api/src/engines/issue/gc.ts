@@ -5,7 +5,11 @@ import {
 } from '@/engines/engine-store'
 import type { ProcessStatus } from '@/engines/types'
 import { logger } from '@/logger'
-import { IDLE_TIMEOUT_MS, STREAM_STALL_TIMEOUT_MS } from './constants'
+import {
+  IDLE_TIMEOUT_MS,
+  STALL_PROBE_GRACE_MS,
+  STREAM_STALL_TIMEOUT_MS,
+} from './constants'
 import type { EngineContext } from './context'
 import { emitIssueSettled, emitStateChange } from './events'
 import { withIssueLock } from './process/lock'
@@ -120,28 +124,60 @@ export function gcSweep(ctx: EngineContext): void {
     }
 
     // --- Check 2: Stream stall detection (turn in-flight but no output) ---
-    // Catches processes stuck in "thinking" state where the engine never emits
-    // a completion entry: turnInFlight stays true, lastIdleAt is never set,
-    // and monitorCompletion() waits forever on subprocess.exited.
-    if (
-      managed.turnInFlight &&
-      now - managed.lastActivityAt.getTime() > STREAM_STALL_TIMEOUT_MS
-    ) {
-      const stallMinutes = Math.round(
-        (now - managed.lastActivityAt.getTime()) / 60000,
-      )
-      logger.warn(
-        {
-          issueId: managed.issueId,
-          executionId: managed.executionId,
-          stallMinutes,
-          lastActivityAt: managed.lastActivityAt.toISOString(),
-        },
-        'stream_stall_terminate',
-      )
-      terminateAndSettle(ctx, entry.id, managed, 'failed')
-      cleaned++
-      continue
+    // Two-tier approach to avoid killing legitimate long-running operations:
+    //   Tier 1 (STREAM_STALL_TIMEOUT_MS): Send interrupt probe to check responsiveness
+    //   Tier 2 (+ STALL_PROBE_GRACE_MS): No response after probe → force kill
+    if (managed.turnInFlight) {
+      const silenceMs = now - managed.lastActivityAt.getTime()
+
+      // Tier 2: probe was sent but process still hasn't responded
+      if (
+        managed.stallProbeAt &&
+        now - managed.stallProbeAt.getTime() > STALL_PROBE_GRACE_MS
+      ) {
+        const stallMinutes = Math.round(silenceMs / 60000)
+        logger.warn(
+          {
+            issueId: managed.issueId,
+            executionId: managed.executionId,
+            stallMinutes,
+            lastActivityAt: managed.lastActivityAt.toISOString(),
+            probeSentAt: managed.stallProbeAt.toISOString(),
+          },
+          'stream_stall_terminate',
+        )
+        managed.stallProbeAt = undefined
+        terminateAndSettle(ctx, entry.id, managed, 'failed')
+        cleaned++
+        continue
+      }
+
+      // Tier 1: no output for STREAM_STALL_TIMEOUT_MS — send interrupt probe
+      if (!managed.stallProbeAt && silenceMs > STREAM_STALL_TIMEOUT_MS) {
+        const stallMinutes = Math.round(silenceMs / 60000)
+        logger.warn(
+          {
+            issueId: managed.issueId,
+            executionId: managed.executionId,
+            stallMinutes,
+            lastActivityAt: managed.lastActivityAt.toISOString(),
+          },
+          'stream_stall_probe_sent',
+        )
+        managed.stallProbeAt = new Date()
+        // Send interrupt to probe process responsiveness. If the process is
+        // alive (e.g. waiting on a slow API call), it will respond with an
+        // error/result entry, which updates lastActivityAt and clears the stall.
+        // Fire-and-forget: Tier 2 will force-kill if no response after grace period.
+        // Use void+catch because the interface types interrupt() as Promise<void>
+        // (Codex's implementation is genuinely async).
+        void managed.process.protocolHandler?.interrupt().catch((err) => {
+          logger.warn(
+            { issueId: managed.issueId, executionId: managed.executionId, err },
+            'stall_probe_interrupt_failed',
+          )
+        })
+      }
     }
   }
 

@@ -37,6 +37,10 @@ export interface ManagedProcess {
   lastIdleAt?: Date
   /** Timestamp of the last stdout/stderr activity (updated on every stream entry) */
   lastActivityAt: Date
+  /** Timestamp when a stall-probe interrupt was sent (set by gcSweep).
+   *  If activity resumes after the probe, this is cleared in consumeStream.
+   *  If still no activity after STALL_PROBE_GRACE_MS, the process is force-killed. */
+  stallProbeAt?: Date
   /** Git repo directory that owns this worktree (needed for `git worktree remove`) */
   worktreeBaseDir?: string
   worktreePath?: string

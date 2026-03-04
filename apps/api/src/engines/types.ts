@@ -146,6 +146,7 @@ export interface SpawnedProcess {
     interrupt: () => Promise<void>
     close: () => void
     sendUserMessage?: (content: string) => void
+    onActivity?: () => void
   }
   /** Override the caller-provided externalSessionId (used by engines that generate their own session IDs, e.g. Codex thread IDs). */
   externalSessionId?: string

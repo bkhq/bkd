@@ -89,6 +89,22 @@ export function register(
       handleStderrEntry(issueId, executionId, entry),
   }
 
+  // Wire up protocol handler activity callback so control_request messages
+  // (filtered from the downstream stdout stream) still update lastActivityAt.
+  // This prevents false stall detection during long-running tool executions
+  // where the process is alive but not producing normal log entries.
+  // Wire once — guard prevents overwriting if register() is called multiple times.
+  if (process.protocolHandler && !process.protocolHandler.onActivity) {
+    const getManagedRef = stdoutCallbacks.getManaged
+    process.protocolHandler.onActivity = () => {
+      const m = getManagedRef()
+      if (m) {
+        m.lastActivityAt = new Date()
+        if (m.stallProbeAt) m.stallProbeAt = undefined
+      }
+    }
+  }
+
   consumeStream(
     executionId,
     issueId,
