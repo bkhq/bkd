@@ -52,7 +52,12 @@ export async function followUpIssue(
     }
 
     const active = getActiveProcessForIssue(ctx, issueId)
-    if (active) {
+    // Skip reuse if the active process was cancelled by the user. The old
+    // subprocess is dying (SIGTERM sent) but PM hasn't transitioned to
+    // terminal yet. Spawning a fresh process avoids sending input to a
+    // dead/dying stdin. spawnFollowUpProcess() calls killExistingSubprocess
+    // to clean up the old entry.
+    if (active && !active.cancelledByUser) {
       await updateIssueSession(issueId, { sessionStatus: 'running' })
       logger.debug(
         {
