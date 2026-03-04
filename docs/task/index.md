@@ -2,10 +2,6 @@
 
 > Updated: 2026-03-05 19:00 UTC
 
-## 前端回归 (2026-03-05)
-
-- [ ] **BUG-090 历史记录无法显示回归 Bug** `P0` - owner: - file: `docs/task/BUG-090.md`
-
 ## 取消流程重构 (2026-03-05)
 
 - [ ] **ENG-014 重构 Issue 取消流程和进程/Issue 状态解耦** `P0` - owner: - file: `docs/task/ENG-014.md`
@@ -21,6 +17,7 @@
 
 ## 已完成
 
+- [x] **BUG-090 历史记录无法显示回归 Bug** `P0` - owner: claude - file: `docs/task/BUG-090.md`
 - [x] **BUG-089 修复 Pending 消息以 system-message 重复返回前端** `P0` - owner: claude - file: `docs/task/BUG-089.md`
 - [x] **BUG-082 修复 autoMoveToReview TOCTOU 竞态条件** `P0` - owner: claude - file: `docs/task/BUG-082.md`
 - [x] **BUG-083 修复引擎写入路径缺少 isDeleted 守卫** `P0` - owner: claude - file: `docs/task/BUG-083.md`
