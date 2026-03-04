@@ -362,7 +362,9 @@ export const kanbanApi = {
   getNotes: () => get<Note[]>('/api/notes'),
   createNote: (data: { title?: string; content?: string }) =>
     post<Note>('/api/notes', data),
-  updateNote: (id: string, data: { title?: string; content?: string }) =>
-    patch<Note>(`/api/notes/${id}`, data),
+  updateNote: (
+    id: string,
+    data: { title?: string; content?: string; isPinned?: boolean },
+  ) => patch<Note>(`/api/notes/${id}`, data),
   deleteNote: (id: string) => del<{ id: string }>(`/api/notes/${id}`),
 }

@@ -104,6 +104,7 @@ export const notes = sqliteTable('notes', {
   id: id(),
   title: text('title').notNull().default(''),
   content: text('content').notNull().default(''),
+  isPinned: integer('is_pinned').notNull().default(0),
   ...commonFields,
 })
 

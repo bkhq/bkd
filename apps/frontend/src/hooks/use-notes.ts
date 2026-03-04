@@ -32,6 +32,7 @@ export function useUpdateNote() {
       id: string
       title?: string
       content?: string
+      isPinned?: boolean
     }) => kanbanApi.updateNote(id, data),
     onMutate: async ({ id, ...data }) => {
       await qc.cancelQueries({ queryKey: notesKeys.all })

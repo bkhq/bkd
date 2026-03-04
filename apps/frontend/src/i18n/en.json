@@ -377,6 +377,10 @@
     "resizePanel": "Resize notes panel",
     "searchPlaceholder": "Search your notes",
     "back": "Back",
-    "lastEdited": "Last edited: {{time}}"
+    "lastEdited": "Last edited: {{time}}",
+    "pin": "Pin note",
+    "unpin": "Unpin note",
+    "pinned": "Pinned",
+    "other": "Other"
   }
 }

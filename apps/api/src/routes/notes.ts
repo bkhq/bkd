@@ -25,7 +25,7 @@ notesRoutes.get('/', async (c) => {
     .select()
     .from(notes)
     .where(eq(notes.isDeleted, 0))
-    .orderBy(desc(notes.updatedAt))
+    .orderBy(desc(notes.isPinned), desc(notes.updatedAt))
   return c.json({ success: true, data: rows })
 })
 
@@ -57,6 +57,7 @@ notesRoutes.patch(
     z.object({
       title: z.string().max(500).optional(),
       content: z.string().max(100_000).optional(),
+      isPinned: z.boolean().optional(),
     }),
     (result, c) => {
       if (!result.success) return validationError(result, c)
@@ -64,10 +65,12 @@ notesRoutes.patch(
   ),
   async (c) => {
     const id = c.req.param('id')
-    const data = c.req.valid('json')
+    const { isPinned, ...rest } = c.req.valid('json')
+    const data: Record<string, unknown> = { ...rest, updatedAt: new Date() }
+    if (isPinned !== undefined) data.isPinned = isPinned ? 1 : 0
     const [row] = await db
       .update(notes)
-      .set({ ...data, updatedAt: new Date() })
+      .set(data)
       .where(eq(notes.id, id))
       .returning()
     if (!row) {

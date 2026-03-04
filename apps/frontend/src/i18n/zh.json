@@ -377,6 +377,10 @@
     "resizePanel": "调整笔记面板大小",
     "searchPlaceholder": "搜索您的笔记",
     "back": "返回",
-    "lastEdited": "上次编辑时间: {{time}}"
+    "lastEdited": "上次编辑时间: {{time}}",
+    "pin": "置顶笔记",
+    "unpin": "取消置顶",
+    "pinned": "已置顶",
+    "other": "其他"
   }
 }
