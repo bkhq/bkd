@@ -51,8 +51,16 @@ export async function withIssueLock<T>(
   if (acquired === 'timeout') {
     release()
     ctx.lockDepth.set(issueId, (ctx.lockDepth.get(issueId) ?? 1) - 1)
+    if ((ctx.lockDepth.get(issueId) ?? 0) <= 0) {
+      ctx.lockDepth.delete(issueId)
+    }
     if (ctx.issueOpLocks.get(issueId) === newTail) {
-      ctx.issueOpLocks.delete(issueId)
+      // Restore the previous tail so an already-running lock holder remains visible.
+      if (currentTail) {
+        ctx.issueOpLocks.set(issueId, currentTail)
+      } else {
+        ctx.issueOpLocks.delete(issueId)
+      }
     }
     throw new Error(
       `Lock acquire timeout for issue ${issueId} after ${LOCK_ACQUIRE_TIMEOUT_MS}ms`,

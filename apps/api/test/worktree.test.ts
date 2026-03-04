@@ -1,6 +1,13 @@
-import { afterAll, describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   cleanupWorktree,
   createWorktree,
@@ -20,35 +27,64 @@ import { ROOT_DIR } from '@/root'
  * These tests use the actual git repo since worktree operations require it.
  */
 
-// Git repo root (2 levels up from apps/api/test/)
-const GIT_ROOT = resolve(import.meta.dir, '../../..')
-const TEST_PROJECT_ID = 'test-project'
-const TEST_ISSUE_ID = `test-wt-${Date.now()}`
+let gitRoot = ''
+const TEST_PROJECT_ID = `test-project-${Date.now()}`
+const issueIds: string[] = []
+
+function makeIssueId(prefix = 'test-wt'): string {
+  const id = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  issueIds.push(id)
+  return id
+}
+
+beforeAll(() => {
+  gitRoot = mkdtempSync(join(tmpdir(), 'bitk-worktree-repo-'))
+  Bun.spawnSync(['git', 'init'], { cwd: gitRoot })
+  Bun.spawnSync(['git', 'config', 'user.email', 'test@example.com'], {
+    cwd: gitRoot,
+  })
+  Bun.spawnSync(['git', 'config', 'user.name', 'BitK Test'], { cwd: gitRoot })
+
+  writeFileSync(join(gitRoot, 'README.md'), 'test repo\n')
+  Bun.spawnSync(['git', 'add', '.'], { cwd: gitRoot })
+  Bun.spawnSync(['git', 'commit', '-m', 'init'], { cwd: gitRoot })
+})
 
 afterAll(() => {
-  // Clean up any leftover worktrees and branches
-  const wtDir = resolveWorktreePath(TEST_PROJECT_ID, TEST_ISSUE_ID)
-  try {
-    if (existsSync(wtDir)) {
-      Bun.spawnSync(['git', 'worktree', 'remove', '--force', wtDir], {
-        cwd: GIT_ROOT,
-      })
+  // Clean up any leftover worktrees and branches created by tests
+  for (const issueId of issueIds) {
+    const wtDir = resolveWorktreePath(TEST_PROJECT_ID, issueId)
+    try {
+      if (existsSync(wtDir)) {
+        Bun.spawnSync(['git', 'worktree', 'remove', '--force', wtDir], {
+          cwd: gitRoot,
+        })
+      }
+    } catch {
+      /* best effort */
     }
-  } catch {
-    /* best effort */
+    try {
+      Bun.spawnSync(['git', 'branch', '-D', `bitk/${issueId}`], {
+        cwd: gitRoot,
+      })
+    } catch {
+      /* best effort */
+    }
   }
-  try {
-    Bun.spawnSync(['git', 'branch', '-D', `bitk/${TEST_ISSUE_ID}`], {
-      cwd: GIT_ROOT,
-    })
-  } catch {
-    /* best effort */
-  }
+
   // Clean up the test project directory under data/worktrees/
   try {
     const projectDir = join(ROOT_DIR, 'data/worktrees', TEST_PROJECT_ID)
     if (existsSync(projectDir)) {
       rmSync(projectDir, { recursive: true, force: true })
+    }
+  } catch {
+    /* best effort */
+  }
+
+  try {
+    if (gitRoot && existsSync(gitRoot)) {
+      rmSync(gitRoot, { recursive: true, force: true })
     }
   } catch {
     /* best effort */
@@ -64,14 +100,9 @@ describe('resolveWorktreePath', () => {
 
 describe('createWorktree', () => {
   test('creates a worktree directory with the expected path', async () => {
-    const worktreeDir = await createWorktree(
-      GIT_ROOT,
-      TEST_PROJECT_ID,
-      TEST_ISSUE_ID,
-    )
-    expect(worktreeDir).toBe(
-      resolveWorktreePath(TEST_PROJECT_ID, TEST_ISSUE_ID),
-    )
+    const issueId = makeIssueId('create')
+    const worktreeDir = await createWorktree(gitRoot, TEST_PROJECT_ID, issueId)
+    expect(worktreeDir).toBe(resolveWorktreePath(TEST_PROJECT_ID, issueId))
     expect(existsSync(worktreeDir)).toBe(true)
 
     // Verify it's a valid git worktree (has .git file)
@@ -79,26 +110,23 @@ describe('createWorktree', () => {
   })
 
   test('retries with existing branch on second call', async () => {
-    // The branch already exists from the first test — createWorktree
-    // should handle this gracefully by retrying without -b
-    const wtDir = resolveWorktreePath(TEST_PROJECT_ID, TEST_ISSUE_ID)
-    await removeWorktree(GIT_ROOT, wtDir)
+    const issueId = makeIssueId('retry')
+    const firstDir = await createWorktree(gitRoot, TEST_PROJECT_ID, issueId)
+    expect(existsSync(firstDir)).toBe(true)
+    await removeWorktree(gitRoot, firstDir)
 
-    const worktreeDir = await createWorktree(
-      GIT_ROOT,
-      TEST_PROJECT_ID,
-      TEST_ISSUE_ID,
-    )
+    const worktreeDir = await createWorktree(gitRoot, TEST_PROJECT_ID, issueId)
     expect(existsSync(worktreeDir)).toBe(true)
   })
 })
 
 describe('removeWorktree', () => {
   test('removes worktree via git command', async () => {
-    const wtDir = resolveWorktreePath(TEST_PROJECT_ID, TEST_ISSUE_ID)
+    const issueId = makeIssueId('remove')
+    const wtDir = await createWorktree(gitRoot, TEST_PROJECT_ID, issueId)
     expect(existsSync(wtDir)).toBe(true)
 
-    await removeWorktree(GIT_ROOT, wtDir)
+    await removeWorktree(gitRoot, wtDir)
     expect(existsSync(wtDir)).toBe(false)
   })
 
@@ -113,24 +141,20 @@ describe('removeWorktree', () => {
     writeFileSync(join(fakeDir, 'test.txt'), 'test')
     expect(existsSync(fakeDir)).toBe(true)
 
-    await removeWorktree(GIT_ROOT, fakeDir)
+    await removeWorktree(gitRoot, fakeDir)
     expect(existsSync(fakeDir)).toBe(false)
   })
 })
 
 describe('cleanupWorktree', () => {
   test('calls removeWorktree as fire-and-forget', async () => {
-    const cleanupIssueId = `test-cleanup-${Date.now()}`
-    const wtDir = await createWorktree(
-      GIT_ROOT,
-      TEST_PROJECT_ID,
-      cleanupIssueId,
-    )
+    const cleanupIssueId = makeIssueId('cleanup')
+    const wtDir = await createWorktree(gitRoot, TEST_PROJECT_ID, cleanupIssueId)
 
     expect(existsSync(wtDir)).toBe(true)
 
     // cleanupWorktree is fire-and-forget — pass baseDir explicitly
-    cleanupWorktree(GIT_ROOT, cleanupIssueId, wtDir)
+    cleanupWorktree(gitRoot, cleanupIssueId, wtDir)
 
     // Wait for the async cleanup to complete
     await Bun.sleep(1000)
@@ -139,7 +163,7 @@ describe('cleanupWorktree', () => {
 
     // Clean up branch
     Bun.spawnSync(['git', 'branch', '-D', `bitk/${cleanupIssueId}`], {
-      cwd: GIT_ROOT,
+      cwd: gitRoot,
     })
   })
 })

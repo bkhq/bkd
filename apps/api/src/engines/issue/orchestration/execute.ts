@@ -2,6 +2,7 @@ import { getEngineDefaultModel } from '@/db/helpers'
 import { getIssueWithSession, updateIssueSession } from '@/engines/engine-store'
 import { engineRegistry } from '@/engines/executors'
 import type { EngineContext } from '@/engines/issue/context'
+import { emitStateChange } from '@/engines/issue/events'
 import { monitorCompletion } from '@/engines/issue/lifecycle/completion-monitor'
 import { handleTurnCompleted } from '@/engines/issue/lifecycle/turn-completion'
 import { ensureNoActiveProcess } from '@/engines/issue/process/guards'
@@ -13,7 +14,11 @@ import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
 import { setIssueDevMode } from '@/engines/issue/utils/visibility'
 import { createWorktree } from '@/engines/issue/utils/worktree'
-import type { EngineType, PermissionPolicy } from '@/engines/types'
+import type {
+  EngineType,
+  PermissionPolicy,
+  SpawnedProcess,
+} from '@/engines/types'
 import { logger } from '@/logger'
 
 export async function executeIssue(
@@ -91,21 +96,38 @@ export async function executeIssue(
     const externalSessionId = crypto.randomUUID()
     const executionId = crypto.randomUUID()
 
-    const spawned = await executor.spawn(
-      {
-        workingDir,
-        prompt: opts.prompt,
-        model,
-        permissionMode: permOptions.permissionMode,
-        externalSessionId,
-      },
-      {
-        vars: {},
-        workingDir,
-        projectId: issue.projectId,
-        issueId,
-      },
-    )
+    let spawned: SpawnedProcess
+    try {
+      spawned = await executor.spawn(
+        {
+          workingDir,
+          prompt: opts.prompt,
+          model,
+          permissionMode: permOptions.permissionMode,
+          externalSessionId,
+        },
+        {
+          vars: {},
+          workingDir,
+          projectId: issue.projectId,
+          issueId,
+        },
+      )
+    } catch (spawnError) {
+      logger.error(
+        { issueId, executionId, error: spawnError },
+        'execute_spawn_failed_reverting_session',
+      )
+      await updateIssueSession(issueId, { sessionStatus: 'failed' }).catch(
+        (e) =>
+          logger.error(
+            { issueId, error: e },
+            'execute_spawn_failed_revert_session_error',
+          ),
+      )
+      emitStateChange(issueId, executionId, 'failed')
+      throw spawnError
+    }
 
     // Allow executor to override the external session ID (e.g. Codex uses server-generated thread IDs)
     const finalExternalSessionId =

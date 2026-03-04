@@ -37,14 +37,25 @@ del.delete('/:id', async (c) => {
     return c.json({ success: false, error: 'Issue not found' }, 404)
   }
 
-  // Cancel any active session before deleting
-  if (
+  // Best-effort terminate: try to kill active processes before soft-delete.
+  // Use a short timeout (5s) so the DELETE request doesn't block on lock
+  // contention. If termination fails or times out, proceed with deletion
+  // anyway — the reconciler will clean up orphaned processes on its next run.
+  const shouldTerminate =
     existing.sessionStatus === 'running' ||
-    existing.sessionStatus === 'pending'
-  ) {
-    void issueEngine.cancelIssue(issueId).catch((err) => {
-      logger.error({ issueId, err }, 'delete_cancel_failed')
-    })
+    existing.sessionStatus === 'pending' ||
+    issueEngine.hasActiveProcessForIssue(issueId)
+  if (shouldTerminate) {
+    try {
+      await Promise.race([
+        issueEngine.terminateProcess(issueId),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('terminate timeout')), 5_000),
+        ),
+      ])
+    } catch (err) {
+      logger.warn({ issueId, err }, 'delete_terminate_failed_proceeding')
+    }
   }
 
   await db.transaction(async (tx) => {

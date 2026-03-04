@@ -1,7 +1,10 @@
 # Plan Index
 
-> Updated: 2026-03-03 04:00 UTC
+> Updated: 2026-03-04 20:42 UTC
 
+- [x] **PLAN-009 深度测试进程与状态编排并产出架构文档** - task: `TEST-003` - owner: codex - file: `docs/plan/PLAN-009.md`
+- [x] **PLAN-008 完善进程与状态管理回归测试** - task: `TEST-002` - owner: codex - file: `docs/plan/PLAN-008.md`
+- [x] **PLAN-007 审计后端进程与 Issue 状态管理** - task: `ENG-015` - owner: codex - file: `docs/plan/PLAN-007.md`
 - [x] **PLAN-006 重构事件引擎：统一事件总线** - task: `ENG-008` - owner: claude - file: `docs/plan/PLAN-006.md`
 - [ ] **PLAN-005 重构 Worktree 系统** - task: `WT-001` - owner: claude - file: `docs/plan/PLAN-005.md`
 - [x] **PLAN-004 GitHub 风格项目文件浏览器** - task: `FILE-001` - owner: claude - file: `docs/plan/PLAN-004.md`

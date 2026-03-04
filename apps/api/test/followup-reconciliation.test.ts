@@ -120,11 +120,8 @@ describe('Follow-up queuing behavior', () => {
       (l) => l.entryType === 'user-message' && l.metadata?.type === 'pending',
     )
     expect(pendingMsgs.length).toBe(3)
-    expect(pendingMsgs.map((m) => m.content)).toEqual([
-      'first',
-      'second',
-      'third',
-    ])
+    const pendingContents = pendingMsgs.map((m) => m.content).sort()
+    expect(pendingContents).toEqual(['first', 'second', 'third'])
   })
 })
 

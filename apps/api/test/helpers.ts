@@ -40,6 +40,10 @@ export function patch<T>(path: string, body: unknown) {
   return api<T>('PATCH', path, body)
 }
 
+export function del<T>(path: string) {
+  return api<T>('DELETE', path)
+}
+
 /** Expect success response */
 export function expectSuccess<T>(result: {
   status: number

@@ -6,6 +6,7 @@ import {
 import { getIssueWithSession, updateIssueSession } from '@/engines/engine-store'
 import { engineRegistry } from '@/engines/executors'
 import type { EngineContext } from '@/engines/issue/context'
+import { emitStateChange } from '@/engines/issue/events'
 import { monitorCompletion } from '@/engines/issue/lifecycle/completion-monitor'
 import { spawnFresh } from '@/engines/issue/lifecycle/spawn'
 import { handleTurnCompleted } from '@/engines/issue/lifecycle/turn-completion'
@@ -19,6 +20,7 @@ import {
 } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { createWorktree } from '@/engines/issue/utils/worktree'
+import type { SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
 
 export async function restartIssue(
@@ -81,18 +83,35 @@ export async function restartIssue(
       permissionMode: permOptions.permissionMode,
       projectId: issue.projectId,
     }
-    const spawned = issue.sessionFields.externalSessionId
-      ? await executor.spawnFollowUp(
-          {
-            workingDir,
-            prompt: spawnOpts.prompt,
-            sessionId: issue.sessionFields.externalSessionId,
-            model: spawnOpts.model,
-            permissionMode: spawnOpts.permissionMode,
-          },
-          { vars: {}, workingDir, projectId: issue.projectId, issueId },
-        )
-      : await spawnFresh(executor, issueId, spawnOpts)
+    let spawned: SpawnedProcess
+    try {
+      spawned = issue.sessionFields.externalSessionId
+        ? await executor.spawnFollowUp(
+            {
+              workingDir,
+              prompt: spawnOpts.prompt,
+              sessionId: issue.sessionFields.externalSessionId,
+              model: spawnOpts.model,
+              permissionMode: spawnOpts.permissionMode,
+            },
+            { vars: {}, workingDir, projectId: issue.projectId, issueId },
+          )
+        : await spawnFresh(executor, issueId, spawnOpts)
+    } catch (spawnError) {
+      logger.error(
+        { issueId, executionId, error: spawnError },
+        'restart_spawn_failed_reverting_session',
+      )
+      await updateIssueSession(issueId, { sessionStatus: 'failed' }).catch(
+        (e) =>
+          logger.error(
+            { issueId, error: e },
+            'restart_spawn_failed_revert_session_error',
+          ),
+      )
+      emitStateChange(issueId, executionId, 'failed')
+      throw spawnError
+    }
 
     const normalizer = await createLogNormalizer(executor)
 
