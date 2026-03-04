@@ -136,24 +136,33 @@ export function handleTurnCompleted(
       // 'done' SSE event and stays stuck in "thinking" state indefinitely
       // (terminal states are filtered from the 'state' subscriber).
       //
-      // Guard: check if a follow-up has reactivated the issue by verifying
-      // BOTH a running/pending status AND an active PM process. If the DB
-      // simply shows 'running' because our updateIssueSession failed (not
-      // because a follow-up started), we must still emit the settled event.
+      // Guard: skip if a follow-up has reactivated the issue.
+      // Check for a DIFFERENT active PM process for this issue (not our own
+      // executionId). Also check if DB status already diverged to a terminal
+      // state we didn't set.
       try {
         const freshIssue = await getIssueWithSession(issueId)
         const currentStatus = freshIssue?.sessionFields.sessionStatus
-        if (currentStatus === 'running' || currentStatus === 'pending') {
-          const hasActiveProcess = ctx.pm
-            .getActive()
-            .some((e) => e.meta.issueId === issueId)
-          if (hasActiveProcess) {
-            logger.debug(
-              { issueId, executionId, finalStatus, currentStatus },
-              'issue_turn_settle_catch_skipped_reactivated',
-            )
-            return
-          }
+        const hasOtherActive = ctx.pm
+          .getActive()
+          .some((e) => e.meta.issueId === issueId && e.id !== executionId)
+        if (
+          hasOtherActive ||
+          (currentStatus !== finalStatus &&
+            currentStatus !== 'running' &&
+            currentStatus !== 'pending')
+        ) {
+          logger.debug(
+            {
+              issueId,
+              executionId,
+              finalStatus,
+              currentStatus,
+              hasOtherActive,
+            },
+            'issue_turn_settle_catch_skipped_reactivated',
+          )
+          return
         }
         await updateIssueSession(issueId, { sessionStatus: finalStatus })
       } catch {

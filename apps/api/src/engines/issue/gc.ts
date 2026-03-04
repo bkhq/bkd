@@ -169,14 +169,14 @@ export function gcSweep(ctx: EngineContext): void {
         // alive (e.g. waiting on a slow API call), it will respond with an
         // error/result entry, which updates lastActivityAt and clears the stall.
         // Fire-and-forget: Tier 2 will force-kill if no response after grace period.
-        try {
-          managed.process.protocolHandler?.interrupt()
-        } catch (err) {
+        // Use void+catch because the interface types interrupt() as Promise<void>
+        // (Codex's implementation is genuinely async).
+        void managed.process.protocolHandler?.interrupt().catch((err) => {
           logger.warn(
             { issueId: managed.issueId, executionId: managed.executionId, err },
             'stall_probe_interrupt_failed',
           )
-        }
+        })
       }
     }
   }
