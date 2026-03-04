@@ -395,7 +395,8 @@ export function SessionMessages({
   })
 
   // Auto-scroll to bottom on new logs appended at the end.
-  // Skip auto-scroll when older logs are prepended (first entry changes).
+  // Skip auto-scroll when older logs are prepended (first entry changes)
+  // or when the user has scrolled up to read history.
   const prevLenRef = useRef(visibleLogs.length)
   const prevFirstIdRef = useRef(visibleLogs[0]?.messageId)
   // biome-ignore lint/correctness/useExhaustiveDependencies: prevLenRef/prevFirstIdRef are stable refs, not needed as dependencies
@@ -406,12 +407,19 @@ export function SessionMessages({
       prevFirstIdRef.current &&
       firstId !== prevFirstIdRef.current
 
+    // Only auto-scroll if user is already near the bottom (within 150px)
+    const el = scrollRef?.current
+    const isNearBottom = el
+      ? el.scrollHeight - el.scrollTop - el.clientHeight < 150
+      : false
+
     if (
       !wasOlderPrepend &&
+      isNearBottom &&
       (visibleLogs.length !== prevLenRef.current || isRunning)
     ) {
-      scrollRef?.current?.scrollTo({
-        top: scrollRef.current.scrollHeight,
+      el?.scrollTo({
+        top: el.scrollHeight,
         behavior: 'smooth',
       })
     }
