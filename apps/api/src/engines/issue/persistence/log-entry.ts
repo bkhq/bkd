@@ -23,7 +23,7 @@ export function persistLogEntry(
         turnIndex,
         entryIndex,
         entryType: entry.entryType,
-        content: entry.content.trim(),
+        content: entry.content,
         metadata: entry.metadata ? JSON.stringify(entry.metadata) : null,
         replyToMessageId,
         timestamp: entry.timestamp ?? null,

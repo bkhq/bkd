@@ -15,14 +15,11 @@ export function handleStreamEntry(
   entry: NormalizedLogEntry,
 ): void {
   const streaming = entry.metadata?.streaming === true
-  const effectiveEntry = streaming
-    ? (() => {
-        const trimmed = entry.content.trim()
-        return trimmed === entry.content
-          ? entry
-          : { ...entry, content: trimmed }
-      })()
-    : entry
+  // Normalize content before it enters the pipeline so every subscriber
+  // (DB persistence, SSE broadcast, ring buffer, etc.) sees the same value.
+  const trimmed = entry.content.trim()
+  const effectiveEntry =
+    trimmed === entry.content ? entry : { ...entry, content: trimmed }
   appEvents.emit('log', {
     issueId,
     executionId,
@@ -38,7 +35,15 @@ export function handleStderrEntry(
   executionId: string,
   entry: NormalizedLogEntry,
 ): void {
-  appEvents.emit('log', { issueId, executionId, entry, streaming: false })
+  const trimmed = entry.content.trim()
+  const effectiveEntry =
+    trimmed === entry.content ? entry : { ...entry, content: trimmed }
+  appEvents.emit('log', {
+    issueId,
+    executionId,
+    entry: effectiveEntry,
+    streaming: false,
+  })
 }
 
 // ---------- Stream error handler ----------
