@@ -116,7 +116,9 @@ export class ClaudeProtocolHandler {
     const isControlReq = this.isControlRequest.bind(this)
     const processControlReq = this.processControlRequest.bind(this)
     const isResultMsg = this.isResultMessage.bind(this)
-    const onResultMsg = this.onResult
+    // Capture `this` reference instead of the callback value so that
+    // onResult can be set after wrapStdout() is called.
+    const self = this
 
     return new ReadableStream<Uint8Array>({
       async pull(controller) {
@@ -151,7 +153,7 @@ export class ClaudeProtocolHandler {
             // The downstream consumeStream detects turnCompleted entries
             // and handles settlement without requiring stream closure.
             if (isResultMsg(line)) {
-              onResultMsg?.(JSON.parse(line))
+              self.onResult?.(JSON.parse(line))
               controller.enqueue(encoder.encode(`${line}\n`))
               return
             }

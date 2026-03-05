@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { CommandBuilder } from '@/engines/command'
 import { safeEnv } from '@/engines/safe-env'
 import type {
@@ -33,16 +35,14 @@ function getBaseCommand(): string {
     _cachedBaseCommand = fromPath
     return _cachedBaseCommand
   }
-  // 2. Check common install locations (not always in PATH inside containers)
-  const { existsSync } = require('node:fs')
+  // 2. Check HOME-relative install locations
   const home = process.env.HOME ?? ''
   if (home) {
-    const { join } = require('node:path')
     const homeCandidates = [
       join(home, '.local/bin/claude'),
       join(home, '.bun/bin/claude'),
     ]
-    const found = homeCandidates.find((p: string) => existsSync(p))
+    const found = homeCandidates.find((p) => existsSync(p))
     if (found) {
       _cachedBaseCommand = found
       return _cachedBaseCommand
@@ -53,7 +53,7 @@ function getBaseCommand(): string {
     _cachedBaseCommand = '/usr/local/bin/claude'
     return _cachedBaseCommand
   }
-  // 3. Fall back to npx
+  // 4. Fall back to npx
   _cachedBaseCommand = NPX_FALLBACK
   return _cachedBaseCommand
 }
