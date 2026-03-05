@@ -1,5 +1,14 @@
 import type { NormalizedLogEntry } from '@/engines/types'
 import type { WriteFilterRule } from '@/engines/write-filter'
+import {
+  buildToolResultRaw,
+  classifyToolAction,
+  classifyToolKind,
+  extractTextContent,
+  generateToolContent,
+  normalizeExecutionError,
+  normalizeToolResultContent,
+} from './normalizer-tool'
 import type {
   ClaudeAssistant,
   ClaudeContentItem,
@@ -14,18 +23,9 @@ import type {
   ClaudeUser,
   ToolCallInfo,
 } from './normalizer-types'
-import {
-  buildToolResultRaw,
-  classifyToolAction,
-  classifyToolKind,
-  extractTextContent,
-  generateToolContent,
-  normalizeExecutionError,
-  normalizeToolResultContent,
-} from './tool-classify'
 
 // Re-export for external consumers
-export { classifyToolAction, extractTextContent } from './tool-classify'
+export { classifyToolAction, extractTextContent } from './normalizer-tool'
 
 // ---------- Normalizer ----------
 
