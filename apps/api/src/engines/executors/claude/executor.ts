@@ -10,6 +10,7 @@ import type {
   ExecutionEnv,
   FollowUpOptions,
   NormalizedLogEntry,
+  PermissionPolicy,
   SpawnedProcess,
   SpawnOptions,
 } from '@/engines/types'
@@ -18,21 +19,44 @@ import { logger } from '@/logger'
 import { ClaudeLogNormalizer } from './normalizer'
 import { ClaudeProtocolHandler } from './protocol'
 
-function findClaude(): string | null {
-  const fromPath = Bun.which('claude')
-  if (fromPath) return fromPath
-  // Common install locations not always in PATH
-  const home = process.env.HOME ?? ''
-  const candidates = [
-    join(home, '.local/bin/claude'),
-    join(home, '.bun/bin/claude'),
-    '/usr/local/bin/claude',
-  ]
-  return candidates.find((p) => existsSync(p)) ?? null
-}
+const NPX_FALLBACK = 'npx -y @anthropic-ai/claude-code'
 
-const CLAUDE_BINARY = findClaude()
-const BASE_COMMAND = CLAUDE_BINARY ?? 'npx -y @anthropic-ai/claude-code'
+/**
+ * Find the `claude` binary, checking PATH and common install locations.
+ * Falls back to npx for environments without a standalone binary.
+ * Result is cached after first call.
+ */
+let _cachedBaseCommand: string | undefined
+function getBaseCommand(): string {
+  if (_cachedBaseCommand) return _cachedBaseCommand
+  // 1. Check PATH
+  const fromPath = Bun.which('claude')
+  if (fromPath) {
+    _cachedBaseCommand = fromPath
+    return _cachedBaseCommand
+  }
+  // 2. Check HOME-relative install locations
+  const home = process.env.HOME ?? ''
+  if (home) {
+    const homeCandidates = [
+      join(home, '.local/bin/claude'),
+      join(home, '.bun/bin/claude'),
+    ]
+    const found = homeCandidates.find((p) => existsSync(p))
+    if (found) {
+      _cachedBaseCommand = found
+      return _cachedBaseCommand
+    }
+  }
+  // 3. Check absolute paths independent of HOME
+  if (existsSync('/usr/local/bin/claude')) {
+    _cachedBaseCommand = '/usr/local/bin/claude'
+    return _cachedBaseCommand
+  }
+  // 4. Fall back to npx
+  _cachedBaseCommand = NPX_FALLBACK
+  return _cachedBaseCommand
+}
 
 // Known Claude models — Claude Code CLI has no `models` subcommand
 // [1m] variants use 1 million context token window
@@ -81,10 +105,12 @@ export class ClaudeCodeExecutor implements EngineExecutor {
     options: FollowUpOptions,
     env: ExecutionEnv,
   ): Promise<SpawnedProcess> {
-    const builder = this.createBaseBuilder(options, env)
-      .param('--resume', options.sessionId)
-      .param('--replay-user-messages')
+    const builder = this.createBaseBuilder(options, env).param(
+      '--resume',
+      options.sessionId,
+    )
 
+    // Truncate conversation history to a specific message and continue from there
     if (options.resetToMessageId) {
       builder.param('--resume-session-at', options.resetToMessageId)
     }
@@ -93,73 +119,37 @@ export class ClaudeCodeExecutor implements EngineExecutor {
   }
 
   async cancel(spawnedProcess: SpawnedProcess): Promise<void> {
-    logger.debug(
-      { pid: (spawnedProcess.subprocess as { pid?: number }).pid },
-      'claude_cancel_requested',
-    )
-    // Send graceful interrupt via protocol handler (fire-and-forget write to stdin)
+    const pid = (spawnedProcess.subprocess as { pid?: number }).pid
+    logger.debug({ pid }, 'claude_cancel_requested')
+
+    // Send graceful interrupt via protocol handler.
+    // Claude will stop the current operation and emit a Result message.
+    // The process stays alive and can accept new user messages.
     if (spawnedProcess.protocolHandler) {
       spawnedProcess.protocolHandler.interrupt()
     } else {
       spawnedProcess.cancel()
     }
 
-    // Wait for process to exit, with 5s timeout before SIGKILL
-    const timeout = setTimeout(() => {
-      try {
-        spawnedProcess.subprocess.kill(9)
-      } catch {
-        /* already dead */
-      }
-    }, 5000)
-
-    try {
-      await spawnedProcess.subprocess.exited
-    } finally {
-      clearTimeout(timeout)
-      spawnedProcess.protocolHandler?.close()
-      logger.debug(
-        { pid: (spawnedProcess.subprocess as { pid?: number }).pid },
-        'claude_cancel_completed',
-      )
-    }
+    logger.debug({ pid }, 'claude_cancel_interrupt_sent')
   }
 
   async getAvailability(): Promise<EngineAvailability> {
     try {
-      let exitCode = -1
-      let stdout = ''
+      const resolved = await CommandBuilder.create(getBaseCommand())
+        .param('--version')
+        .env('NPM_CONFIG_LOGLEVEL', 'error')
+        .resolve()
 
-      if (CLAUDE_BINARY) {
-        const proc = Bun.spawn([CLAUDE_BINARY, '--version'], {
-          stdout: 'pipe',
-          stderr: 'pipe',
-        })
-        exitCode = await proc.exited
-        if (exitCode === 0) {
-          stdout = await new Response(proc.stdout).text()
-        }
-      }
+      const proc = Bun.spawn([resolved.resolvedPath, ...resolved.args], {
+        stdout: 'pipe',
+        stderr: 'pipe',
+        env: safeEnv(resolved.env),
+      })
 
-      if (exitCode !== 0) {
-        // Fall back to npx
-        const proc = Bun.spawn(
-          ['npx', '-y', '@anthropic-ai/claude-code', '--version'],
-          {
-            stdout: 'pipe',
-            stderr: 'pipe',
-            env: safeEnv({ NPM_CONFIG_LOGLEVEL: 'error' }),
-          },
-        )
-
-        const timer = setTimeout(() => proc.kill(), 10000)
-        exitCode = await proc.exited
-        clearTimeout(timer)
-
-        if (exitCode === 0) {
-          stdout = await new Response(proc.stdout).text()
-        }
-      }
+      const timer = setTimeout(() => proc.kill(), 10000)
+      const exitCode = await proc.exited
+      clearTimeout(timer)
 
       if (exitCode !== 0) {
         return {
@@ -169,9 +159,9 @@ export class ClaudeCodeExecutor implements EngineExecutor {
         }
       }
 
+      const stdout = await new Response(proc.stdout).text()
       const versionMatch = stdout.match(/(\d+\.\d+\.\d[\w.-]*)/)
       const version = versionMatch?.[1]
-      const binaryPath = CLAUDE_BINARY ?? undefined
 
       // Check auth - look for ANTHROPIC_API_KEY or ~/.claude.json
       let authStatus: EngineAvailability['authStatus'] = 'unknown'
@@ -191,7 +181,7 @@ export class ClaudeCodeExecutor implements EngineExecutor {
         engineType: 'claude-code',
         installed: true,
         version,
-        binaryPath,
+        binaryPath: resolved.resolvedPath,
         authStatus,
       }
     } catch (error) {
@@ -222,6 +212,127 @@ export class ClaudeCodeExecutor implements EngineExecutor {
     return new ClaudeLogNormalizer(filterRules)
   }
 
+  /**
+   * Discover available slash commands, agents, and plugins by launching
+   * Claude Code with `--max-turns 1 -- /` and reading the system init message.
+   *
+   * This is the same approach as the reference Rust implementation's
+   * `discover_available_command_and_plugins`.
+   */
+  async discoverSlashCommandsAndAgents(
+    workingDir: string,
+  ): Promise<DiscoveryResult> {
+    const resolved = await CommandBuilder.create(getBaseCommand())
+      .params(['-p', '--verbose', '--output-format=stream-json'])
+      .param('--max-turns', '1')
+      .params(['--', '/'])
+      .env('NPM_CONFIG_LOGLEVEL', 'error')
+      .cwd(workingDir)
+      .resolve()
+
+    const proc = Bun.spawn([resolved.resolvedPath, ...resolved.args], {
+      cwd: resolved.cwd ?? workingDir,
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'ignore',
+      env: safeEnv(resolved.env),
+    })
+
+    const result: DiscoveryResult = {
+      slashCommands: [],
+      agents: [],
+      plugins: [],
+      initReceived: false,
+    }
+
+    // Kill the process after DISCOVERY_TIMEOUT_MS regardless of read state.
+    // This prevents orphaned processes when reader.read() hangs (e.g. auth/network).
+    const killTimer = setTimeout(() => {
+      try {
+        proc.kill()
+      } catch {
+        /* already dead */
+      }
+    }, DISCOVERY_TIMEOUT_MS)
+
+    try {
+      const stdout = proc.stdout as ReadableStream<Uint8Array>
+      const reader = stdout.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+
+        // Process complete lines
+        let newlineIdx: number
+        while ((newlineIdx = buffer.indexOf('\n')) !== -1) {
+          const line = buffer.slice(0, newlineIdx).trim()
+          buffer = buffer.slice(newlineIdx + 1)
+
+          if (!line) continue
+
+          try {
+            const data = JSON.parse(line) as {
+              type?: string
+              subtype?: string
+              slash_commands?: string[]
+              plugins?: Array<{ name: string; path: string }>
+              agents?: string[]
+            }
+            if (data.type === 'system' && data.subtype === 'init') {
+              result.slashCommands = data.slash_commands ?? []
+              result.plugins = data.plugins ?? []
+              result.agents = data.agents ?? []
+              result.initReceived = true
+              // Got what we need, stop reading
+              reader.releaseLock()
+              proc.kill()
+              return result
+            }
+          } catch {
+            // Not JSON or not the message we want — skip
+          }
+        }
+      }
+
+      // Process remaining buffer (final line without trailing newline)
+      if (buffer.trim()) {
+        try {
+          const data = JSON.parse(buffer.trim()) as {
+            type?: string
+            subtype?: string
+            slash_commands?: string[]
+            plugins?: Array<{ name: string; path: string }>
+            agents?: string[]
+          }
+          if (data.type === 'system' && data.subtype === 'init') {
+            result.slashCommands = data.slash_commands ?? []
+            result.plugins = data.plugins ?? []
+            result.agents = data.agents ?? []
+            result.initReceived = true
+          }
+        } catch {
+          // Not JSON — ignore
+        }
+      }
+
+      reader.releaseLock()
+    } finally {
+      clearTimeout(killTimer)
+      try {
+        proc.kill()
+      } catch {
+        /* already dead */
+      }
+    }
+
+    return result
+  }
+
   // ---------- Private ----------
 
   /**
@@ -233,7 +344,10 @@ export class ClaudeCodeExecutor implements EngineExecutor {
     options: SpawnOptions,
     env: ExecutionEnv,
   ): CommandBuilder {
-    const builder = CommandBuilder.create(BASE_COMMAND)
+    const permissionMode = options.permissionMode ?? 'auto'
+    const isPlanMode = permissionMode === 'plan'
+
+    const builder = CommandBuilder.create(getBaseCommand())
       .params(['-p', '--output-format=stream-json', '--verbose', '--no-chrome'])
       .param('--input-format', 'stream-json')
       // Enable SDK-based permission handling via stdin/stdout control protocol
@@ -241,15 +355,26 @@ export class ClaudeCodeExecutor implements EngineExecutor {
       .param('--permission-prompt-tool', 'stdio')
       // Include partial messages for better streaming experience
       .param('--include-partial-messages')
+      // Replay user messages during session resume so the model sees full history
+      .param('--replay-user-messages')
       .env('NPM_CONFIG_LOGLEVEL', 'error')
       .env('IS_SANDBOX', '1')
       .cwd(options.workingDir)
+
+    // Plan mode: start CLI with bypassPermissions so we can switch back to it
+    // after ExitPlanMode. SDK protocol then sets the actual mode to "plan".
+    if (isPlanMode) {
+      builder.param('--permission-mode', 'bypassPermissions')
+    }
 
     if (options.model && options.model !== 'auto') {
       builder.param('--model', options.model)
     }
 
-    // Disable interactive questions — the web UI cannot respond to AskUserQuestion
+    // Disable AskUserQuestion in all modes — the web UI cannot respond
+    // to interactive questions. In plan mode, hooks route it to can_use_tool
+    // but the auto-allow would leave Claude waiting for an answer that never
+    // comes, causing the turn to hang.
     builder.param('--disallowedTools', 'AskUserQuestion')
 
     if (options.env) {
@@ -267,19 +392,19 @@ export class ClaudeCodeExecutor implements EngineExecutor {
    * init handshake (initialize → set_permission_mode → send_user_message),
    * and return the SpawnedProcess.
    */
-  private spawnProcess(
+  private async spawnProcess(
     builder: CommandBuilder,
     options: SpawnOptions,
     env: ExecutionEnv,
     mode: 'spawn' | 'followup',
-  ): SpawnedProcess {
-    const cmd = builder.build()
+  ): Promise<SpawnedProcess> {
+    const resolved = await builder.resolve()
     logger.debug(
       {
         issueId: env.issueId,
-        cwd: cmd.cwd ?? options.workingDir,
-        program: cmd.program,
-        args: cmd.args,
+        cwd: resolved.cwd ?? options.workingDir,
+        program: resolved.resolvedPath,
+        args: resolved.args,
         ...(mode === 'followup' && 'sessionId' in options
           ? { resumeSessionId: (options as FollowUpOptions).sessionId }
           : {}),
@@ -287,12 +412,12 @@ export class ClaudeCodeExecutor implements EngineExecutor {
       `claude_${mode}_command`,
     )
 
-    const proc = Bun.spawn([cmd.program, ...cmd.args], {
-      cwd: cmd.cwd ?? options.workingDir,
+    const proc = Bun.spawn([resolved.resolvedPath, ...resolved.args], {
+      cwd: resolved.cwd ?? options.workingDir,
       stdin: 'pipe',
       stdout: 'pipe',
       stderr: 'pipe',
-      env: safeEnv(cmd.env),
+      env: safeEnv(resolved.env),
     })
 
     // Create protocol handler to manage bidirectional control protocol
@@ -300,8 +425,9 @@ export class ClaudeCodeExecutor implements EngineExecutor {
     const handler = new ClaudeProtocolHandler(proc.stdin)
 
     // SDK init handshake: initialize → set_permission_mode → user message
-    handler.initialize()
-    handler.setPermissionMode(options.permissionMode ?? 'auto')
+    const permissionMode = options.permissionMode ?? 'auto'
+    handler.initialize(buildHooks(permissionMode))
+    handler.setPermissionMode(permissionMode)
     handler.sendUserMessage(options.prompt)
 
     logger.debug(
@@ -326,7 +452,66 @@ export class ClaudeCodeExecutor implements EngineExecutor {
       stderr: proc.stderr as ReadableStream<Uint8Array>,
       cancel: () => handler.interrupt(),
       protocolHandler: handler,
-      spawnCommand: [cmd.program, ...cmd.args].join(' '),
+      spawnCommand: [resolved.resolvedPath, ...resolved.args].join(' '),
     }
+  }
+}
+
+// ---------- Types ----------
+
+export interface DiscoveryResult {
+  slashCommands: string[]
+  agents: string[]
+  plugins: Array<{ name: string; path: string }>
+  /** True when the system/init message was actually parsed.
+   *  False means the process exited or timed out before sending init. */
+  initReceived: boolean
+}
+
+// ---------- Constants ----------
+
+const DISCOVERY_TIMEOUT_MS = 120_000
+
+// ---------- Helpers ----------
+
+const AUTO_APPROVE_CALLBACK_ID = 'AUTO_APPROVE_CALLBACK_ID'
+
+/**
+ * Build hooks configuration based on permission mode.
+ *
+ * - **plan**: ExitPlanMode → `tool_approval` callback (routed to can_use_tool
+ *   for mode-switch handling); everything else → auto-approve.
+ *   AskUserQuestion is disabled via --disallowedTools, not hooks.
+ * - **supervised**: Non-read tools → `tool_approval`; read tools auto-approved.
+ * - **auto**: No hooks needed (AskUserQuestion disabled via --disallowedTools).
+ */
+function buildHooks(
+  policy: PermissionPolicy,
+): Record<string, unknown> | undefined {
+  switch (policy) {
+    case 'plan':
+      return {
+        PreToolUse: [
+          {
+            matcher: '^ExitPlanMode$',
+            hookCallbackIds: ['tool_approval'],
+          },
+          {
+            matcher: '^(?!ExitPlanMode$).*',
+            hookCallbackIds: [AUTO_APPROVE_CALLBACK_ID],
+          },
+        ],
+      }
+    case 'supervised':
+      return {
+        PreToolUse: [
+          {
+            matcher: '^(?!(Glob|Grep|NotebookRead|Read|Task|TodoWrite)$).*',
+            hookCallbackIds: ['tool_approval'],
+          },
+        ],
+      }
+    default:
+      return undefined
   }
 }
