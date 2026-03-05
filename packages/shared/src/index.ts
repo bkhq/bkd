@@ -43,6 +43,9 @@ export type Issue = {
   prompt: string | null
   externalSessionId: string | null
   model: string | null
+  totalInputTokens: number
+  totalOutputTokens: number
+  totalCostUsd: string
   devMode: boolean
   statusUpdatedAt: string
   createdAt: string

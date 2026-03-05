@@ -4,12 +4,14 @@ import { registerAutoTitleStage } from './auto-title'
 import { registerFailureDetectStage } from './failure-detect'
 import { registerPersistStage } from './persist'
 import { registerRingBufferStage } from './ring-buffer'
+import { registerTokenUsageStage } from './token-usage'
 
 /**
  * Register all log-entry pipeline stages on the global event bus.
  *
  * Each stage is an independent ordered subscriber:
  *   order 10   — DB persistence + messageId enrichment  (persist.ts)
+ *   order 15   — token usage accumulation               (token-usage.ts)
  *   order 20   — ring buffer push                       (ring-buffer.ts)
  *   order 30   — auto-title extraction                  (auto-title.ts)
  *   order 40   — logical failure detection              (failure-detect.ts)
@@ -29,6 +31,7 @@ export function registerLogPipeline(ctx: EngineContext): void {
   ) => appEvents.on('log', cb, opts)
 
   registerPersistStage(ctx, on)
+  registerTokenUsageStage(ctx, on)
   registerRingBufferStage(ctx, on)
   registerAutoTitleStage(ctx, on)
   registerFailureDetectStage(ctx, on)

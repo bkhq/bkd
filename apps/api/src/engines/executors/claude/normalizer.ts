@@ -17,6 +17,7 @@ import type {
   ClaudeRateLimit,
   ClaudeResult,
   ClaudeStreamEvent,
+  ClaudeStreamEventWrapper,
   ClaudeSystem,
   ClaudeToolResult,
   ClaudeToolUse,
@@ -69,6 +70,8 @@ export class ClaudeLogNormalizer {
         return this.parseResult(data)
       case 'error':
         return this.parseError(data)
+      case 'stream_event':
+        return this.parseStreamEventWrapper(data as ClaudeStreamEventWrapper)
       case 'content_block_delta':
       case 'content_block_start':
       case 'message_start':
@@ -408,6 +411,24 @@ export class ClaudeLogNormalizer {
 
   // ---------- Streaming events ----------
 
+  /** Unwrap `{"type":"stream_event","event":{...}}` wrapper and delegate. */
+  private parseStreamEventWrapper(
+    data: ClaudeStreamEventWrapper,
+  ): NormalizedLogEntry | null {
+    if (!data.event) return null
+    // Merge outer fields (session_id, parent_tool_use_id, uuid, timestamp)
+    // into the inner event so downstream parsers see them.
+    const inner: ClaudeStreamEvent = {
+      ...data.event,
+      session_id: data.event.session_id ?? data.session_id,
+      parent_tool_use_id:
+        data.event.parent_tool_use_id ?? data.parent_tool_use_id ?? undefined,
+      uuid: data.event.uuid ?? data.uuid,
+      timestamp: data.event.timestamp ?? data.timestamp,
+    }
+    return this.parseStreamEvent(inner)
+  }
+
   private parseStreamEvent(data: ClaudeStreamEvent): NormalizedLogEntry | null {
     switch (data.type) {
       case 'content_block_delta':
@@ -423,24 +444,9 @@ export class ClaudeLogNormalizer {
   }
 
   private parseContentBlockDelta(
-    data: ClaudeStreamEvent,
+    _data: ClaudeStreamEvent,
   ): NormalizedLogEntry | null {
-    if (data.delta?.type === 'text_delta' && data.delta.text) {
-      return {
-        entryType: 'assistant-message',
-        content: data.delta.text,
-        timestamp: data.timestamp,
-        metadata: { streaming: true },
-      }
-    }
-    if (data.delta?.type === 'thinking_delta' && data.delta.thinking) {
-      return {
-        entryType: 'thinking',
-        content: data.delta.thinking,
-        timestamp: data.timestamp,
-        metadata: { streaming: true },
-      }
-    }
+    // Ignore streaming deltas — complete assistant messages contain the full content.
     return null
   }
 
