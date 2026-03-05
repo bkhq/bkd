@@ -1,7 +1,11 @@
 import { cacheGet, cacheSet } from '@/cache'
-import { getProbeResults, saveProbeResults } from '@/db/helpers'
+import { getProbeResults, saveProbeResults, setAppSetting } from '@/db/helpers'
+import {
+  refreshSlashCommandsCacheForEngine,
+  slashCommandsKey,
+} from '@/engines/issue/queries'
 import { logger } from '@/logger'
-import { engineRegistry } from './executors'
+import { ClaudeCodeExecutor, engineRegistry } from './executors'
 import type { EngineAvailability, EngineModel, EngineType } from './types'
 
 // Cache keys
@@ -152,7 +156,61 @@ async function runLiveProbe(): Promise<EngineDiscovery> {
     )
   }
 
+  // Discover slash commands & agents for installed engines (fire-and-forget).
+  // Uses a longer timeout since it spawns a real Claude process.
+  const installedEngines = engines.filter((e) => e.installed)
+  void discoverSlashCommands(installedEngines).catch((err: unknown) => {
+    logger.warn({ error: err }, 'probe_slash_commands_discovery_failed')
+  })
+
   return { engines, models }
+}
+
+const DISCOVERY_TIMEOUT_MS = 130_000
+
+/**
+ * Discover slash commands and agents for installed engines.
+ * Currently only Claude Code supports this. Saves results to DB + memory cache.
+ */
+async function discoverSlashCommands(
+  installed: EngineAvailability[],
+): Promise<void> {
+  for (const engine of installed) {
+    if (engine.engineType !== 'claude-code') continue
+
+    const executor = engineRegistry.get('claude-code')
+    if (!(executor instanceof ClaudeCodeExecutor)) continue
+
+    try {
+      const result = await withTimeout(
+        executor.discoverSlashCommandsAndAgents(process.cwd()),
+        DISCOVERY_TIMEOUT_MS,
+        'claude-code:discovery',
+      )
+
+      if (result.slashCommands.length > 0) {
+        await setAppSetting(
+          slashCommandsKey('claude-code'),
+          JSON.stringify(result.slashCommands),
+        )
+        await refreshSlashCommandsCacheForEngine('claude-code')
+      }
+
+      logger.info(
+        {
+          slashCommands: result.slashCommands.length,
+          agents: result.agents.length,
+          plugins: result.plugins.length,
+        },
+        'probe_discovery_completed',
+      )
+    } catch (err) {
+      logger.warn(
+        { engineType: engine.engineType, error: err },
+        'probe_discovery_engine_failed',
+      )
+    }
+  }
 }
 
 // In-flight probe dedup: prevents concurrent live probes from spawning duplicate processes
