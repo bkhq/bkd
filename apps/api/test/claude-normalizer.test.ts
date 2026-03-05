@@ -244,7 +244,7 @@ describe('ClaudeLogNormalizer', () => {
   describe('streaming events', () => {
     const normalizer = new ClaudeLogNormalizer()
 
-    test('content_block_delta text produces assistant-message', () => {
+    test('content_block_delta text is ignored (complete assistant message used instead)', () => {
       const entries = parseAll(
         normalizer,
         line({
@@ -252,13 +252,10 @@ describe('ClaudeLogNormalizer', () => {
           delta: { type: 'text_delta', text: 'Hi' },
         }),
       )
-      expect(entries).toHaveLength(1)
-      expect(entries[0]!.entryType).toBe('assistant-message')
-      expect(entries[0]!.content).toBe('Hi')
-      expect(entries[0]!.metadata?.streaming).toBe(true)
+      expect(entries).toHaveLength(0)
     })
 
-    test('content_block_delta thinking produces thinking entry', () => {
+    test('content_block_delta thinking is ignored (complete assistant message used instead)', () => {
       const entries = parseAll(
         normalizer,
         line({
@@ -266,10 +263,7 @@ describe('ClaudeLogNormalizer', () => {
           delta: { type: 'thinking_delta', thinking: 'pondering...' },
         }),
       )
-      expect(entries).toHaveLength(1)
-      expect(entries[0]!.entryType).toBe('thinking')
-      expect(entries[0]!.content).toBe('pondering...')
-      expect(entries[0]!.metadata?.streaming).toBe(true)
+      expect(entries).toHaveLength(0)
     })
 
     test('message_start with model emits system init', () => {
@@ -756,7 +750,7 @@ describe('ClaudeLogNormalizer', () => {
   describe('content_block_delta', () => {
     const normalizer = new ClaudeLogNormalizer()
 
-    test('text_delta produces assistant-message', () => {
+    test('text_delta is ignored (complete assistant message used instead)', () => {
       const entries = parseAll(
         normalizer,
         line({
@@ -764,12 +758,10 @@ describe('ClaudeLogNormalizer', () => {
           delta: { type: 'text_delta', text: 'Hi' },
         }),
       )
-      expect(entries).toHaveLength(1)
-      expect(entries[0]!.entryType).toBe('assistant-message')
-      expect(entries[0]!.content).toBe('Hi')
+      expect(entries).toHaveLength(0)
     })
 
-    test('thinking_delta produces thinking entry', () => {
+    test('thinking_delta is ignored (complete assistant message used instead)', () => {
       const entries = parseAll(
         normalizer,
         line({
@@ -777,9 +769,7 @@ describe('ClaudeLogNormalizer', () => {
           delta: { type: 'thinking_delta', thinking: 'deep thought' },
         }),
       )
-      expect(entries).toHaveLength(1)
-      expect(entries[0]!.entryType).toBe('thinking')
-      expect(entries[0]!.content).toBe('deep thought')
+      expect(entries).toHaveLength(0)
     })
   })
 

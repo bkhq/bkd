@@ -444,24 +444,9 @@ export class ClaudeLogNormalizer {
   }
 
   private parseContentBlockDelta(
-    data: ClaudeStreamEvent,
+    _data: ClaudeStreamEvent,
   ): NormalizedLogEntry | null {
-    if (data.delta?.type === 'text_delta' && data.delta.text) {
-      return {
-        entryType: 'assistant-message',
-        content: data.delta.text,
-        timestamp: data.timestamp,
-        metadata: { streaming: true },
-      }
-    }
-    if (data.delta?.type === 'thinking_delta' && data.delta.thinking) {
-      return {
-        entryType: 'thinking',
-        content: data.delta.thinking,
-        timestamp: data.timestamp,
-        metadata: { streaming: true },
-      }
-    }
+    // Ignore streaming deltas — complete assistant messages contain the full content.
     return null
   }
 
