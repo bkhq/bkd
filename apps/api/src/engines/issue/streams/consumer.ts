@@ -6,6 +6,7 @@ import {
 import type { ManagedProcess } from '@/engines/issue/types'
 import { normalizeStream } from '@/engines/logs'
 import type { EngineType, NormalizedLogEntry } from '@/engines/types'
+import { logger } from '@/logger'
 import { isCancelledNoiseEntry, isTurnCompletionEntry } from './classification'
 
 async function saveSlashCommandsToSettings(
@@ -44,71 +45,81 @@ function pushStderrEntry(
 // ---------- Stream consumers ----------
 
 export async function consumeStream(
-  _executionId: string,
-  _issueId: string,
+  executionId: string,
+  issueId: string,
   stream: ReadableStream<Uint8Array>,
   parser: (line: string) => NormalizedLogEntry | NormalizedLogEntry[] | null,
   callbacks: StreamCallbacks,
 ): Promise<void> {
   try {
     for await (const rawEntry of normalizeStream(stream, parser)) {
-      const managed = callbacks.getManaged()
-      if (!managed) break
-      managed.lastActivityAt = new Date()
-      // Clear stall probe if activity resumed after the GC-sent interrupt
-      if (managed.stallProbeAt) managed.stallProbeAt = undefined
-      const turnIdx = callbacks.getTurnIndex()
+      try {
+        const managed = callbacks.getManaged()
+        if (!managed) break
+        managed.lastActivityAt = new Date()
+        // Clear stall probe if activity resumed after the GC-sent interrupt
+        if (managed.stallProbeAt) managed.stallProbeAt = undefined
+        const turnIdx = callbacks.getTurnIndex()
 
-      const entry: NormalizedLogEntry = {
-        ...rawEntry,
-        turnIndex: turnIdx,
-        timestamp: rawEntry.timestamp ?? new Date().toISOString(),
-      }
+        const entry: NormalizedLogEntry = {
+          ...rawEntry,
+          turnIndex: turnIdx,
+          timestamp: rawEntry.timestamp ?? new Date().toISOString(),
+        }
 
-      // Extract slash commands from SDK init message
-      if (
-        entry.entryType === 'system-message' &&
-        entry.metadata?.subtype === 'init' &&
-        Array.isArray(entry.metadata.slashCommands)
-      ) {
-        managed.slashCommands = entry.metadata.slashCommands as string[]
-        void saveSlashCommandsToSettings(
-          managed.engineType,
-          managed.slashCommands,
-        )
-      }
+        // Extract slash commands from SDK init message
+        if (
+          entry.entryType === 'system-message' &&
+          entry.metadata?.subtype === 'init' &&
+          Array.isArray(entry.metadata.slashCommands)
+        ) {
+          managed.slashCommands = entry.metadata.slashCommands as string[]
+          void saveSlashCommandsToSettings(
+            managed.engineType,
+            managed.slashCommands,
+          )
+        }
 
-      // Tag all entries in a meta turn so they are hidden from the frontend
-      if (managed.metaTurn) {
-        entry.metadata = { ...entry.metadata, type: 'system' }
-      }
+        // Tag all entries in a meta turn so they are hidden from the frontend
+        if (managed.metaTurn) {
+          entry.metadata = { ...entry.metadata, type: 'system' }
+        }
 
-      // Claude may emit execution noise after interrupt (e.g. request aborted /
-      // rust-analyzer crash). Suppress noise entries within 5s of the last interrupt.
-      const recentInterrupt =
-        managed.lastInterruptAt &&
-        Date.now() - managed.lastInterruptAt.getTime() < 5000
-      if (recentInterrupt && isCancelledNoiseEntry(entry)) {
+        // Claude may emit execution noise after interrupt (e.g. request aborted /
+        // rust-analyzer crash). Suppress noise entries within 5s of the last interrupt.
+        const recentInterrupt =
+          managed.lastInterruptAt &&
+          Date.now() - managed.lastInterruptAt.getTime() < 5000
+        if (recentInterrupt && isCancelledNoiseEntry(entry)) {
+          if (isTurnCompletionEntry(entry)) {
+            callbacks.onTurnCompleted()
+          }
+          continue
+        }
+
+        callbacks.onEntry(entry)
+
         if (isTurnCompletionEntry(entry)) {
           callbacks.onTurnCompleted()
         }
-        continue
-      }
-
-      callbacks.onEntry(entry)
-
-      if (isTurnCompletionEntry(entry)) {
-        callbacks.onTurnCompleted()
+      } catch (entryError) {
+        // Log and skip this entry — do not kill the stream consumer.
+        // The stream is still readable; only the callback processing failed.
+        logger.error(
+          { issueId, executionId, entryError },
+          'consume_stream_entry_processing_error',
+        )
       }
     }
   } catch (error) {
+    // Stream itself errored (reader.read() failed) — not recoverable
     callbacks.onStreamError(error)
   }
 }
 
 export async function consumeStderr(
-  _executionId: string,
-  _issueId: string,
+  executionId: string,
+  issueId: string,
   stream: ReadableStream<Uint8Array>,
   callbacks: Pick<StreamCallbacks, 'getManaged' | 'getTurnIndex' | 'onEntry'>,
 ): Promise<void> {
@@ -127,11 +138,18 @@ export async function consumeStderr(
 
       for (const line of lines) {
         if (!line.trim()) continue
-        const managed = callbacks.getManaged()
-        if (!managed) return
-        managed.lastActivityAt = new Date()
-        if (managed.stallProbeAt) managed.stallProbeAt = undefined
-        pushStderrEntry(line, callbacks.getTurnIndex(), callbacks.onEntry)
+        try {
+          const managed = callbacks.getManaged()
+          if (!managed) return
+          managed.lastActivityAt = new Date()
+          if (managed.stallProbeAt) managed.stallProbeAt = undefined
+          pushStderrEntry(line, callbacks.getTurnIndex(), callbacks.onEntry)
+        } catch (entryError) {
+          logger.error(
+            { issueId, executionId, entryError },
+            'consume_stderr_entry_processing_error',
+          )
+        }
       }
     }
 
