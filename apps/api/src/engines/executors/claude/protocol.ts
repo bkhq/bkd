@@ -63,6 +63,13 @@ function shouldSkipStdoutIoLog(line: string): boolean {
   ) {
     return true
   }
+  // Skip input_json_delta — extremely high frequency, no debug value
+  if (
+    line.includes('"type":"stream_event"') &&
+    line.includes('"input_json_delta"')
+  ) {
+    return true
+  }
   return (
     line.includes('"type":"assistant"') &&
     line.includes('"role":"assistant"') &&
@@ -381,7 +388,10 @@ export class ClaudeProtocolHandler {
   }
 
   private writeJson(data: unknown): void {
-    if (this.closed) return
+    if (this.closed) {
+      logger.warn({ data }, 'stdin_write_dropped_closed')
+      return
+    }
     try {
       const json = JSON.stringify(data)
       if (IO_LOG_ENABLED) {

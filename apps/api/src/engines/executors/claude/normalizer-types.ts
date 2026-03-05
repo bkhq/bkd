@@ -8,6 +8,7 @@ export type ClaudeJson =
   | ClaudeToolUse
   | ClaudeToolResult
   | ClaudeStreamEvent
+  | ClaudeStreamEventWrapper
   | ClaudeResult
   | ClaudeError
   | ClaudeRateLimit
@@ -87,6 +88,16 @@ export interface ClaudeStreamEvent {
   usage?: ClaudeUsage
   parent_tool_use_id?: string
   session_id?: string
+  uuid?: string
+  timestamp?: string
+}
+
+/** Wrapper format: `{"type":"stream_event","event":{...actual event...}}` */
+export interface ClaudeStreamEventWrapper {
+  type: 'stream_event'
+  event: ClaudeStreamEvent
+  session_id?: string
+  parent_tool_use_id?: string | null
   uuid?: string
   timestamp?: string
 }

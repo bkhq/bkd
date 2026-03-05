@@ -9,6 +9,14 @@ import type { EngineType, NormalizedLogEntry } from '@/engines/types'
 import { logger } from '@/logger'
 import { isCancelledNoiseEntry, isTurnCompletionEntry } from './classification'
 
+const MAX_IO_LOG_CHARS = 1200
+const IO_LOG_ENABLED = (process.env.LOG_EXECUTOR_IO ?? '1') !== '0'
+
+function clipForLog(input: string): string {
+  if (input.length <= MAX_IO_LOG_CHARS) return input
+  return `${input.slice(0, MAX_IO_LOG_CHARS)}...<truncated:${input.length - MAX_IO_LOG_CHARS}>`
+}
+
 async function saveSlashCommandsToSettings(
   engineType: EngineType,
   commands: string[],
@@ -138,6 +146,12 @@ export async function consumeStderr(
 
       for (const line of lines) {
         if (!line.trim()) continue
+        if (IO_LOG_ENABLED) {
+          logger.debug(
+            { stream: 'stderr', line: clipForLog(line) },
+            'claude_protocol_io',
+          )
+        }
         try {
           const managed = callbacks.getManaged()
           if (!managed) return
@@ -154,6 +168,12 @@ export async function consumeStderr(
     }
 
     if (buffer.trim()) {
+      if (IO_LOG_ENABLED) {
+        logger.debug(
+          { stream: 'stderr', line: clipForLog(buffer) },
+          'claude_protocol_io',
+        )
+      }
       const managed = callbacks.getManaged()
       if (managed) {
         pushStderrEntry(buffer, callbacks.getTurnIndex(), callbacks.onEntry)
