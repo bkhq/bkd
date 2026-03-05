@@ -34,20 +34,24 @@ function getBaseCommand(): string {
     return _cachedBaseCommand
   }
   // 2. Check common install locations (not always in PATH inside containers)
+  const { existsSync } = require('node:fs')
   const home = process.env.HOME ?? ''
   if (home) {
-    const { existsSync } = require('node:fs')
     const { join } = require('node:path')
-    const candidates = [
+    const homeCandidates = [
       join(home, '.local/bin/claude'),
       join(home, '.bun/bin/claude'),
-      '/usr/local/bin/claude',
     ]
-    const found = candidates.find((p: string) => existsSync(p))
+    const found = homeCandidates.find((p: string) => existsSync(p))
     if (found) {
       _cachedBaseCommand = found
       return _cachedBaseCommand
     }
+  }
+  // 3. Check absolute paths independent of HOME
+  if (existsSync('/usr/local/bin/claude')) {
+    _cachedBaseCommand = '/usr/local/bin/claude'
+    return _cachedBaseCommand
   }
   // 3. Fall back to npx
   _cachedBaseCommand = NPX_FALLBACK
@@ -238,6 +242,7 @@ export class ClaudeCodeExecutor implements EngineExecutor {
       slashCommands: [],
       agents: [],
       plugins: [],
+      initReceived: false,
     }
 
     // Kill the process after DISCOVERY_TIMEOUT_MS regardless of read state.
@@ -282,6 +287,7 @@ export class ClaudeCodeExecutor implements EngineExecutor {
               result.slashCommands = data.slash_commands ?? []
               result.plugins = data.plugins ?? []
               result.agents = data.agents ?? []
+              result.initReceived = true
               // Got what we need, stop reading
               reader.releaseLock()
               proc.kill()
@@ -436,6 +442,9 @@ export interface DiscoveryResult {
   slashCommands: string[]
   agents: string[]
   plugins: Array<{ name: string; path: string }>
+  /** True when the system/init message was actually parsed.
+   *  False means the process exited or timed out before sending init. */
+  initReceived: boolean
 }
 
 // ---------- Constants ----------

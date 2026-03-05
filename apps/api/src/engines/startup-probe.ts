@@ -188,8 +188,17 @@ async function discoverSlashCommands(
         'claude-code:discovery',
       )
 
-      // Always persist discovery results (including empty lists) so stale
-      // commands from a previous discovery are cleared when they no longer exist.
+      // Only persist when init was actually received. If the process timed
+      // out or exited before sending the init message, the empty arrays are
+      // not authoritative and should not overwrite previously valid data.
+      if (!result.initReceived) {
+        logger.warn(
+          { engineType: engine.engineType },
+          'probe_discovery_no_init_received',
+        )
+        continue
+      }
+
       await setAppSetting(
         slashCommandsKey('claude-code'),
         JSON.stringify(result.slashCommands),
