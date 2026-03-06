@@ -1,8 +1,5 @@
 import { classifyCommand } from '@/engines/logs'
-import type {
-  NormalizedLogEntry,
-  ToolAction,
-} from '@/engines/types'
+import type { NormalizedLogEntry, ToolAction } from '@/engines/types'
 
 // ---------- Types for Codex event protocol ----------
 
@@ -282,7 +279,11 @@ export class CodexLogNormalizer {
             toolAction,
           })
         }
-        return entries.length === 1 ? entries[0] : entries.length > 0 ? entries : null
+        return entries.length === 1
+          ? entries[0]
+          : entries.length > 0
+            ? entries
+            : null
       }
 
       // --- File patch end ---
@@ -291,7 +292,9 @@ export class CodexLogNormalizer {
         const callId = msg.call_id as string | undefined
         return {
           entryType: 'tool-use',
-          content: success ? 'Patch applied successfully' : 'Patch apply failed',
+          content: success
+            ? 'Patch applied successfully'
+            : 'Patch apply failed',
           timestamp: now,
           metadata: {
             toolName: 'Edit',
@@ -347,17 +350,23 @@ export class CodexLogNormalizer {
             toolAction: { kind: 'file-edit', path },
           })
         }
-        return entries.length === 1 ? entries[0] : entries.length > 0 ? entries : null
+        return entries.length === 1
+          ? entries[0]
+          : entries.length > 0
+            ? entries
+            : null
       }
 
       // --- MCP tool call begin ---
       case 'mcp_tool_call_begin': {
         this.resetStreamingState()
-        const invocation = msg.invocation as {
-          server?: string
-          tool?: string
-          arguments?: unknown
-        } | undefined
+        const invocation = msg.invocation as
+          | {
+              server?: string
+              tool?: string
+              arguments?: unknown
+            }
+          | undefined
         if (!invocation) return null
         const toolName = `mcp:${invocation.server ?? 'unknown'}:${invocation.tool ?? 'unknown'}`
         return {
@@ -379,11 +388,15 @@ export class CodexLogNormalizer {
 
       // --- MCP tool call end ---
       case 'mcp_tool_call_end': {
-        const invocation = msg.invocation as {
-          server?: string
-          tool?: string
-        } | undefined
-        const result = msg.result as { content?: unknown[]; is_error?: boolean } | undefined
+        const invocation = msg.invocation as
+          | {
+              server?: string
+              tool?: string
+            }
+          | undefined
+        const result = msg.result as
+          | { content?: unknown[]; is_error?: boolean }
+          | undefined
         const toolName = `mcp:${invocation?.server ?? 'unknown'}:${invocation?.tool ?? 'unknown'}`
         const isError = result?.is_error ?? false
         // Extract text content from MCP result
@@ -394,12 +407,17 @@ export class CodexLogNormalizer {
               const b = block as Record<string, unknown>
               return b?.type === 'text'
             })
-            .map((block: unknown) => (block as Record<string, unknown>).text as string)
+            .map(
+              (block: unknown) =>
+                (block as Record<string, unknown>).text as string,
+            )
             .join('\n')
         }
         return {
           entryType: 'tool-use',
-          content: resultText || (isError ? 'MCP tool call failed' : 'MCP tool call completed'),
+          content:
+            resultText ||
+            (isError ? 'MCP tool call failed' : 'MCP tool call completed'),
           timestamp: now,
           metadata: {
             toolName,
@@ -475,10 +493,14 @@ export class CodexLogNormalizer {
 
       // --- Plan update (todo-like step list) ---
       case 'plan_update': {
-        const plan = msg.plan as Array<{ step: string; status: string }> | undefined
+        this.resetStreamingState()
+        const plan = msg.plan as
+          | Array<{ step: string; status: string }>
+          | undefined
         const explanation = msg.explanation as string | undefined
         if (!plan) return null
-        const content = explanation?.trim() || `Plan updated (${plan.length} steps)`
+        const content =
+          explanation?.trim() || `Plan updated (${plan.length} steps)`
         return {
           entryType: 'system-message',
           content,
@@ -531,10 +553,12 @@ export class CodexLogNormalizer {
 
       // --- Token count / context usage ---
       case 'token_count': {
-        const info = msg.info as {
-          last_token_usage?: { total_tokens?: number }
-          model_context_window?: number
-        } | undefined
+        const info = msg.info as
+          | {
+              last_token_usage?: { total_tokens?: number }
+              model_context_window?: number
+            }
+          | undefined
         if (!info?.last_token_usage) return null
         const totalTokens = info.last_token_usage.total_tokens ?? 0
         const contextWindow = info.model_context_window ?? 0
@@ -593,9 +617,15 @@ export class CodexLogNormalizer {
         }
       }
 
-      // --- Turn complete (within codex/event — new name) ---
+      // --- Turn complete (within codex/event — v2 protocol) ---
       case 'turn_complete': {
-        return null // Handled by the raw turn/completed notification
+        this.resetStreamingState()
+        return {
+          entryType: 'system-message',
+          content: 'Turn completed',
+          timestamp: now,
+          metadata: { turnCompleted: true },
+        }
       }
 
       // --- Item started (plan item) ---
@@ -772,8 +802,7 @@ export class CodexLogNormalizer {
       const stdout = (item.stdout as string) ?? ''
       const stderr = (item.stderr as string) ?? ''
       const aggregated = (item.aggregatedOutput as string) ?? ''
-      const combined =
-        aggregated || [stdout, stderr].filter(Boolean).join('\n')
+      const combined = aggregated || [stdout, stderr].filter(Boolean).join('\n')
       const exitCode = item.exitCode as number | undefined
       const duration = (item.durationMs ?? item.duration) as number | undefined
       const commandStr = extractCommandString(item)

@@ -698,7 +698,6 @@ describe('CodexLogNormalizer (codex/event/*)', () => {
       'mcp_startup_complete',
       'user_message',
       'turn_diff',
-      'turn_complete',
       'shutdown_complete',
       'turn_aborted',
     ]
@@ -730,6 +729,30 @@ describe('CodexLogNormalizer (codex/event/*)', () => {
       const r = n.parse(codexEvent('agent_reasoning_delta', { delta: 'fresh' }))
       expect(r!.content).toBe('fresh')
     })
+
+    test('plan_update resets assistant buffer so next delta starts fresh', () => {
+      const n = new CodexLogNormalizer()
+      n.parse(codexEvent('plan_delta', { delta: 'Step 1: do X' }))
+      n.parse(
+        codexEvent('plan_update', {
+          plan: [{ step: 'Step 1', status: 'done' }],
+        }),
+      )
+      // Next agent_message_delta should NOT include stale plan text
+      const r = n.parse(codexEvent('agent_message_delta', { delta: 'Answer' }))
+      expect(r!.content).toBe('Answer')
+    })
+
+    test('turn_complete resets streaming state', () => {
+      const n = new CodexLogNormalizer()
+      n.parse(codexEvent('agent_message_delta', { delta: 'partial' }))
+      n.parse(codexEvent('turn_complete'))
+      // Next delta should start fresh
+      const r = n.parse(
+        codexEvent('agent_message_delta', { delta: 'New turn' }),
+      )
+      expect(r!.content).toBe('New turn')
+    })
   })
 
   // ------------------------------------------------------------------
@@ -751,6 +774,20 @@ describe('CodexLogNormalizer (codex/event/*)', () => {
     test('response without thread returns null', () => {
       const n = new CodexLogNormalizer()
       expect(n.parse(JSON.stringify({ id: 1, result: {} }))).toBeNull()
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // Turn complete (v2 codex/event)
+  // ------------------------------------------------------------------
+  describe('turn_complete event', () => {
+    test('emits completion entry with turnCompleted metadata', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(codexEvent('turn_complete'))
+      expect(r).not.toBeNull()
+      expect(r!.entryType).toBe('system-message')
+      expect(r!.content).toBe('Turn completed')
+      expect(r!.metadata?.turnCompleted).toBe(true)
     })
   })
 
