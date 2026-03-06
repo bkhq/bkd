@@ -30,6 +30,7 @@
     "newProject": "New Project",
     "issueCount": "{{count}} issues",
     "statusCount": "{{count}} statuses",
+    "projectId": "ID",
     "copyId": "Click to copy ID",
     "copyPath": "Click to copy path",
     "browseDirectories": "Browse directories",

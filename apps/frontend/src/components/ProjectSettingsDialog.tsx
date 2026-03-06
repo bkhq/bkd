@@ -337,7 +337,7 @@ export function ProjectSettingsDialog({
         sidebarFooter={
           <div className="flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5">
             <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
-              ID
+              {t('project.projectId')}
             </span>
             <CopyableId value={project.id} />
           </div>
