@@ -24,6 +24,7 @@ import { terminateProcess } from './process/cancel'
 import {
   cancelAll,
   getActiveProcessesList,
+  getCategorizedCommands,
   getLogs,
   getProcess,
   getSlashCommands,
@@ -187,6 +188,13 @@ export class IssueEngine {
 
   getSlashCommands(issueId: string, engineType?: EngineType): string[] {
     return getSlashCommands(this.ctx, issueId, engineType)
+  }
+
+  getCategorizedCommands(
+    issueId: string,
+    engineType?: EngineType,
+  ): import('@bitk/shared').CategorizedCommands {
+    return getCategorizedCommands(this.ctx, issueId, engineType)
   }
 
   getActiveProcesses(): ManagedProcess[] {

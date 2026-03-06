@@ -68,6 +68,8 @@ export function ChatInput({
   isThinking = false,
   onMessageSent,
   slashCommands = [],
+  agentCommands = [],
+  pluginCommands = [],
 }: {
   projectId?: string
   issueId?: string
@@ -85,6 +87,8 @@ export function ChatInput({
     metadata?: Record<string, unknown>,
   ) => void
   slashCommands?: string[]
+  agentCommands?: string[]
+  pluginCommands?: Array<{ name: string; path: string }>
 }) {
   const { t } = useTranslation()
   const draftKey = issueId ? `bitk:draft:${issueId}` : null
@@ -178,10 +182,27 @@ export function ChatInput({
       : busyAction
     : undefined
 
-  // Commands from SDK may or may not have "/" prefix — normalize
+  // Build tagged command list with category labels
+  type TaggedCommand = {
+    value: string
+    category: 'command' | 'agent' | 'plugin'
+  }
+  const allCommands: TaggedCommand[] = useMemo(() => {
+    const norm = (cmd: string) => (cmd.startsWith('/') ? cmd : `/${cmd}`)
+    const items: TaggedCommand[] = []
+    for (const cmd of slashCommands)
+      items.push({ value: norm(cmd), category: 'command' })
+    for (const a of agentCommands)
+      items.push({ value: norm(a), category: 'agent' })
+    for (const p of pluginCommands)
+      items.push({ value: norm(p.name), category: 'plugin' })
+    return items
+  }, [slashCommands, agentCommands, pluginCommands])
+
+  // Keep normalizedCommands for command detection in handleSend
   const normalizedCommands = useMemo(
-    () => slashCommands.map((cmd) => (cmd.startsWith('/') ? cmd : `/${cmd}`)),
-    [slashCommands],
+    () => allCommands.map((c) => c.value),
+    [allCommands],
   )
 
   // Inline command menu: show when input starts with "/" and has no spaces yet
@@ -193,10 +214,11 @@ export function ChatInput({
   }, [input])
 
   const filteredCommands = useMemo(() => {
-    if (commandQuery === null || normalizedCommands.length === 0) return []
-    if (commandQuery === '') return normalizedCommands
-    return normalizedCommands.filter((cmd) => {
-      const target = cmd.toLowerCase()
+    if (commandQuery === null || allCommands.length === 0)
+      return [] as TaggedCommand[]
+    if (commandQuery === '') return allCommands
+    return allCommands.filter((item) => {
+      const target = item.value.toLowerCase()
       let ti = 0
       for (let qi = 0; qi < commandQuery.length; qi++) {
         ti = target.indexOf(commandQuery[qi], ti)
@@ -205,7 +227,7 @@ export function ChatInput({
       }
       return true
     })
-  }, [commandQuery, normalizedCommands])
+  }, [commandQuery, allCommands])
 
   const showCommandMenu = filteredCommands.length > 0
   const [commandIndex, setCommandIndex] = useState(0)
@@ -368,9 +390,9 @@ export function ChatInput({
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault()
-        const cmd = filteredCommands[commandIndex]
-        if (cmd) {
-          setInput(`${cmd} `)
+        const item = filteredCommands[commandIndex]
+        if (item) {
+          setInput(`${item.value} `)
           textareaRef.current?.focus()
         }
         return
@@ -554,22 +576,27 @@ export function ChatInput({
         {showCommandMenu ? (
           <div className="mx-2 mt-1 rounded-lg border border-border/40 bg-popover shadow-md overflow-hidden">
             <div className="max-h-[200px] overflow-y-auto py-1">
-              {filteredCommands.map((cmd, i) => (
+              {filteredCommands.map((item, i) => (
                 <button
-                  key={cmd}
+                  key={`${item.category}:${item.value}`}
                   type="button"
                   onMouseDown={(e) => {
                     e.preventDefault()
-                    setInput(`${cmd} `)
+                    setInput(`${item.value} `)
                     textareaRef.current?.focus()
                   }}
-                  className={`w-full text-left px-3 py-1.5 text-xs font-mono transition-colors ${
+                  className={`w-full flex items-center gap-2 text-left px-3 py-1.5 text-xs transition-colors ${
                     i === commandIndex
                       ? 'bg-primary/10 text-primary'
                       : 'text-foreground/80 hover:bg-muted/50'
                   }`}
                 >
-                  {cmd}
+                  <code className="font-mono">{item.value}</code>
+                  {item.category !== 'command' ? (
+                    <span className="ml-auto text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+                      {item.category}
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </div>

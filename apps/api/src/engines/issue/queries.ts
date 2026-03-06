@@ -1,3 +1,4 @@
+import type { CategorizedCommands } from '@bitk/shared'
 import { cacheDel } from '@/cache'
 import { getAppSetting, setAppSetting } from '@/db/helpers'
 import type { EngineType, NormalizedLogEntry } from '@/engines/types'
@@ -10,6 +11,12 @@ import { isVisibleForMode, setIssueDevMode } from './utils/visibility'
 
 const SLASH_COMMANDS_PREFIX = 'engine:slashCommands'
 
+const EMPTY_CATEGORIZED: CategorizedCommands = {
+  commands: [],
+  agents: [],
+  plugins: [],
+}
+
 /** All known engine types for cache loading. */
 const ALL_ENGINE_TYPES: EngineType[] = [
   'claude-code',
@@ -18,28 +25,56 @@ const ALL_ENGINE_TYPES: EngineType[] = [
   'echo',
 ]
 
-/** Per-engine in-memory cache for slash commands from DB. */
-const cachedSlashCommands = new Map<EngineType, string[]>()
+/** Per-engine in-memory cache for categorized commands from DB. */
+const cachedCommands = new Map<EngineType, CategorizedCommands>()
 
 /** DB key for engine-specific slash commands. */
 export function slashCommandsKey(engineType: EngineType): string {
   return `${SLASH_COMMANDS_PREFIX}:${engineType}`
 }
 
-/** Load slash commands from DB into memory cache for all engines. Called on startup and after probe. */
+/**
+ * Parse raw DB value into CategorizedCommands.
+ * Handles both legacy format (string[]) and new format (CategorizedCommands).
+ */
+function parseCategorized(raw: string): CategorizedCommands | null {
+  try {
+    const parsed = JSON.parse(raw)
+    // Legacy format: plain string[]
+    if (Array.isArray(parsed)) {
+      return parsed.length > 0
+        ? { commands: parsed as string[], agents: [], plugins: [] }
+        : null
+    }
+    // New format: { commands, agents, plugins }
+    const cat = parsed as CategorizedCommands
+    if (
+      cat.commands?.length > 0 ||
+      cat.agents?.length > 0 ||
+      cat.plugins?.length > 0
+    ) {
+      return {
+        commands: cat.commands ?? [],
+        agents: cat.agents ?? [],
+        plugins: cat.plugins ?? [],
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/** Load categorized commands from DB into memory cache for all engines. */
 export async function refreshSlashCommandsCache(): Promise<void> {
   await Promise.all(
     ALL_ENGINE_TYPES.map(async (et) => {
       const raw = await getAppSetting(slashCommandsKey(et))
-      try {
-        const commands = raw ? (JSON.parse(raw) as string[]) : null
-        if (commands && commands.length > 0) {
-          cachedSlashCommands.set(et, commands)
-        } else {
-          cachedSlashCommands.delete(et)
-        }
-      } catch {
-        cachedSlashCommands.delete(et)
+      const cat = raw ? parseCategorized(raw) : null
+      if (cat) {
+        cachedCommands.set(et, cat)
+      } else {
+        cachedCommands.delete(et)
       }
     }),
   )
@@ -50,26 +85,31 @@ export async function refreshSlashCommandsCacheForEngine(
   engineType: EngineType,
 ): Promise<void> {
   const raw = await getAppSetting(slashCommandsKey(engineType))
-  try {
-    const commands = raw ? (JSON.parse(raw) as string[]) : null
-    if (commands && commands.length > 0) {
-      cachedSlashCommands.set(engineType, commands)
-    } else {
-      cachedSlashCommands.delete(engineType)
-    }
-  } catch {
-    cachedSlashCommands.delete(engineType)
+  const cat = raw ? parseCategorized(raw) : null
+  if (cat) {
+    cachedCommands.set(engineType, cat)
+  } else {
+    cachedCommands.delete(engineType)
   }
 }
 
-export function getCachedSlashCommands(engineType?: EngineType): string[] {
-  if (engineType) return cachedSlashCommands.get(engineType) ?? []
-  // Fallback: merge all engines (for backwards compat with global endpoint without engine param)
-  const all: string[] = []
-  for (const cmds of cachedSlashCommands.values()) {
-    all.push(...cmds)
+export function getCachedCategorizedCommands(
+  engineType?: EngineType,
+): CategorizedCommands {
+  if (engineType) return cachedCommands.get(engineType) ?? EMPTY_CATEGORIZED
+  // Fallback: merge all engines
+  const merged: CategorizedCommands = { commands: [], agents: [], plugins: [] }
+  for (const cat of cachedCommands.values()) {
+    merged.commands.push(...cat.commands)
+    merged.agents.push(...cat.agents)
+    merged.plugins.push(...cat.plugins)
   }
-  return all
+  return merged
+}
+
+/** @deprecated Use getCachedCategorizedCommands instead. Kept for callers that only need command names. */
+export function getCachedSlashCommands(engineType?: EngineType): string[] {
+  return getCachedCategorizedCommands(engineType).commands
 }
 
 /**
@@ -191,16 +231,35 @@ export function isTurnInFlight(ctx: EngineContext, issueId: string): boolean {
   return !!active && active.turnInFlight
 }
 
+export function getCategorizedCommands(
+  ctx: EngineContext,
+  issueId: string,
+  engineType?: EngineType,
+): CategorizedCommands {
+  const active = getActiveProcessForIssue(ctx, issueId)
+  if (
+    active &&
+    (active.slashCommands.length > 0 ||
+      active.agents.length > 0 ||
+      active.plugins.length > 0)
+  ) {
+    return {
+      commands: active.slashCommands,
+      agents: active.agents,
+      plugins: active.plugins,
+    }
+  }
+  const et = active?.engineType ?? engineType
+  return getCachedCategorizedCommands(et)
+}
+
+/** @deprecated Use getCategorizedCommands instead. */
 export function getSlashCommands(
   ctx: EngineContext,
   issueId: string,
   engineType?: EngineType,
 ): string[] {
-  const active = getActiveProcessForIssue(ctx, issueId)
-  if (active && active.slashCommands.length > 0) return active.slashCommands
-  // Use the active process's engine type, or the caller-supplied one, for cache lookup
-  const et = active?.engineType ?? engineType
-  return getCachedSlashCommands(et)
+  return getCategorizedCommands(ctx, issueId, engineType).commands
 }
 
 export async function cancelAll(ctx: EngineContext): Promise<void> {

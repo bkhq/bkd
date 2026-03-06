@@ -5,6 +5,7 @@ import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import * as z from 'zod'
 import { getAppSetting, setAppSetting } from '@/db/helpers'
+import { getCachedCategorizedCommands } from '@/engines/issue/queries'
 import type { WriteFilterRule } from '@/engines/write-filter'
 import {
   DEFAULT_FILTER_RULES,
@@ -197,20 +198,20 @@ general.get('/slash-commands', async (c) => {
     )
   }
   const engine = rawEngine as import('@/engines/types').EngineType | undefined
-  const key = engine ? `engine:slashCommands:${engine}` : undefined
-
-  let commands: string[] = []
-  if (key) {
-    const raw = await getAppSetting(key)
-    if (raw) {
-      try {
-        commands = JSON.parse(raw) as string[]
-      } catch {
-        commands = []
-      }
-    }
+  let categorized = getCachedCategorizedCommands(engine)
+  // If cache is cold (empty result), try refreshing from DB before responding
+  if (
+    categorized.commands.length === 0 &&
+    categorized.agents.length === 0 &&
+    categorized.plugins.length === 0
+  ) {
+    const { refreshSlashCommandsCache } = await import(
+      '@/engines/issue/queries'
+    )
+    await refreshSlashCommandsCache()
+    categorized = getCachedCategorizedCommands(engine)
   }
-  return c.json({ success: true, data: { commands } })
+  return c.json({ success: true, data: categorized })
 })
 
 export default general

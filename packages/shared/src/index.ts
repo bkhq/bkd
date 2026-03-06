@@ -15,6 +15,14 @@ export type Project = {
 }
 
 export type EngineType = 'claude-code' | 'codex' | 'gemini' | 'echo'
+
+export type PluginInfo = { name: string; path: string }
+
+export type CategorizedCommands = {
+  commands: string[]
+  agents: string[]
+  plugins: PluginInfo[]
+}
 export type PermissionMode = 'auto' | 'supervised' | 'plan'
 export type BusyAction = 'queue' | 'cancel'
 export type SessionStatus =

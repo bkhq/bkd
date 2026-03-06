@@ -49,6 +49,8 @@ export function register(
     metaTurn,
     lastActivityAt: new Date(),
     slashCommands: [],
+    agents: [],
+    plugins: [],
     spawnCommand: process.spawnCommand,
     worktreeBaseDir,
     worktreePath,

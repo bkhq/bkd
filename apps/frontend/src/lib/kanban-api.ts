@@ -1,6 +1,7 @@
 import type {
   ApiResponse,
   BusyAction,
+  CategorizedCommands,
   EngineDiscoveryResult,
   EngineProfile,
   EngineSettings,
@@ -224,7 +225,7 @@ export const kanbanApi = {
     )
   },
   getSlashCommands: (projectId: string, issueId: string) =>
-    get<{ commands: string[] }>(
+    get<CategorizedCommands>(
       `/api/projects/${projectId}/issues/${issueId}/slash-commands`,
     ),
   getIssueChanges: (projectId: string, issueId: string) =>
@@ -257,7 +258,7 @@ export const kanbanApi = {
 
   // App Settings
   getSlashCommandSettings: (engine?: string) =>
-    get<{ commands: string[] }>(
+    get<CategorizedCommands>(
       `/api/settings/slash-commands${engine ? `?engine=${encodeURIComponent(engine)}` : ''}`,
     ),
   getWorkspacePath: () => get<{ path: string }>('/api/settings/workspace-path'),
