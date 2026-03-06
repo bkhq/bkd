@@ -71,7 +71,6 @@ systemLogs.post('/system-logs/clear', async (c) => {
   }
 
   await truncate(LOG_FILE, 0)
-  logger.info('system_logs_cleared')
   return c.json({ success: true, data: { cleared: true } })
 })
 
