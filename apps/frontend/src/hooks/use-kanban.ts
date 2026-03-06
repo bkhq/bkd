@@ -44,6 +44,7 @@ export const queryKeys = {
   systemLogs: () => ['settings', 'systemLogs'] as const,
   cleanupStats: () => ['settings', 'cleanupStats'] as const,
   deletedIssues: () => ['settings', 'deletedIssues'] as const,
+  systemInfo: () => ['settings', 'systemInfo'] as const,
 }
 
 export function useProjects() {
@@ -571,6 +572,17 @@ export function useRestoreDeletedIssue() {
   })
 }
 
+// --- About / System Info hooks ---
+
+export function useSystemInfo(enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.systemInfo(),
+    queryFn: () => kanbanApi.getSystemInfo(),
+    enabled,
+    staleTime: 30_000,
+  })
+}
+
 // --- Upgrade hooks ---
 
 export function useVersionInfo(enabled = false) {
@@ -666,7 +678,7 @@ export function useRestartWithUpgrade() {
         await new Promise((r) => setTimeout(r, 2_000))
         while (Date.now() - start < timeout) {
           try {
-            const res = await fetch('/api/upgrade/version')
+            const res = await fetch('/api/settings/upgrade/version')
             if (res.ok) {
               window.location.reload()
               return

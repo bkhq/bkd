@@ -6,7 +6,6 @@ import { httpLogger, logger } from './logger'
 import { apiRoutes, engineRoutes, eventRoutes, settingsRoutes } from './routes'
 import notesRoutes from './routes/notes'
 import terminalRoute from './routes/terminal'
-import upgradeRoutes from './routes/upgrade'
 
 const app = new Hono()
 
@@ -31,7 +30,6 @@ app.route('/api/events', eventRoutes)
 app.route('/api/settings', settingsRoutes)
 app.route('/api/notes', notesRoutes)
 app.route('/api', terminalRoute)
-app.route('/api/upgrade', upgradeRoutes)
 
 // --- 404 handler ---
 app.all('/api/*', (c) => {

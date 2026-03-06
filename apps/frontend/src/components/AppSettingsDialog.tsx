@@ -52,6 +52,7 @@ import {
   useRunCleanup,
   useSetUpgradeEnabled,
   useSetWorktreeAutoCleanup,
+  useSystemInfo,
   useSystemLogs,
   useUpdateDefaultEngine,
   useUpdateEngineModelSetting,
@@ -93,6 +94,7 @@ export function AppSettingsDialog({
       { id: 'logs', label: t('settings.tabLogs'), icon: FileText },
       { id: 'cleanup', label: t('settings.tabCleanup'), icon: Trash2 },
       { id: 'recycleBin', label: t('settings.tabRecycleBin'), icon: Trash },
+      { id: 'upgrade', label: t('settings.tabUpgrade'), icon: ArrowDownToLine },
       { id: 'about', label: t('settings.tabAbout'), icon: Info },
     ],
     [t],
@@ -113,6 +115,7 @@ export function AppSettingsDialog({
           {active === 'logs' && <LogsSection open={open} />}
           {active === 'cleanup' && <CleanupSection open={open} />}
           {active === 'recycleBin' && <RecycleBinSection open={open} />}
+          {active === 'upgrade' && <UpgradeSection open={open} />}
           {active === 'about' && <AboutSection open={open} />}
         </>
       )}
@@ -807,7 +810,122 @@ function ModelsSection({ open }: { open: boolean }) {
   )
 }
 
+function formatUptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  const parts: string[] = []
+  if (d > 0) parts.push(`${d}d`)
+  if (h > 0) parts.push(`${h}h`)
+  if (m > 0) parts.push(`${m}m`)
+  if (parts.length === 0) parts.push(`${s}s`)
+  return parts.join(' ')
+}
+
+function InfoRow({
+  label,
+  value,
+  mono,
+}: {
+  label: string
+  value: React.ReactNode
+  mono?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-between py-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span
+        className={cn(
+          'text-xs text-right max-w-[60%] truncate',
+          mono && 'font-mono',
+        )}
+        title={typeof value === 'string' ? value : undefined}
+      >
+        {value}
+      </span>
+    </div>
+  )
+}
+
 function AboutSection({ open }: { open: boolean }) {
+  const { t } = useTranslation()
+  const { data, isLoading, isError } = useSystemInfo(open)
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+        <Loader2 className="size-3.5 animate-spin" />
+        {t('settings.aboutLoading')}
+      </div>
+    )
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="py-4 text-sm text-muted-foreground">
+        {t('settings.aboutLoadError')}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* App Info */}
+      <div>
+        <h4 className="text-xs font-medium mb-1">{t('settings.aboutApp')}</h4>
+        <div className="rounded-md border px-3 py-1 divide-y divide-border">
+          <InfoRow
+            label={t('settings.aboutVersion')}
+            value={
+              <span className="flex items-center gap-1.5">
+                <Badge variant="outline" className="font-mono text-[10px] py-0">
+                  {data.app.version === 'dev' ? 'dev' : `v${data.app.version}`}
+                </Badge>
+                {data.app.isPackageMode ? (
+                  <Badge variant="secondary" className="text-[10px] py-0">
+                    pkg
+                  </Badge>
+                ) : null}
+              </span>
+            }
+          />
+          <InfoRow
+            label={t('settings.aboutCommit')}
+            value={data.app.commit}
+            mono
+          />
+          <InfoRow
+            label={t('settings.aboutUptime')}
+            value={formatUptime(data.app.uptime)}
+          />
+          <InfoRow
+            label={t('settings.aboutStartedAt')}
+            value={new Date(data.app.startedAt).toLocaleString()}
+          />
+          <InfoRow label="PID" value={data.process.pid} mono />
+        </div>
+      </div>
+
+      {/* Runtime */}
+      <div>
+        <h4 className="text-xs font-medium mb-1">
+          {t('settings.aboutRuntime')}
+        </h4>
+        <div className="rounded-md border px-3 py-1 divide-y divide-border">
+          <InfoRow label="Bun" value={data.runtime.bun} mono />
+          <InfoRow
+            label={t('settings.aboutPlatform')}
+            value={`${data.runtime.platform} / ${data.runtime.arch}`}
+          />
+          <InfoRow label="Node.js" value={data.runtime.nodeVersion} mono />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function UpgradeSection({ open }: { open: boolean }) {
   const { t } = useTranslation()
   const { data: versionInfo } = useVersionInfo(open)
   const { data: upgradeEnabledData } = useUpgradeEnabled(open)

@@ -308,6 +308,28 @@ export const kanbanApi = {
   clearSystemLogs: () =>
     post<{ cleared: boolean }>('/api/settings/system-logs/clear', {}),
 
+  // About / System Info
+  getSystemInfo: () =>
+    get<{
+      app: {
+        version: string
+        commit: string
+        isCompiled: boolean
+        isPackageMode: boolean
+        startedAt: string
+        uptime: number
+      }
+      runtime: {
+        bun: string
+        platform: string
+        arch: string
+        nodeVersion: string
+      }
+      process: {
+        pid: number
+      }
+    }>('/api/settings/system-info'),
+
   // Upgrade
   getVersionInfo: () =>
     get<{
@@ -315,10 +337,11 @@ export const kanbanApi = {
       commit: string
       isCompiled: boolean
       isPackageMode: boolean
-    }>('/api/upgrade/version'),
-  getUpgradeEnabled: () => get<{ enabled: boolean }>('/api/upgrade/enabled'),
+    }>('/api/settings/upgrade/version'),
+  getUpgradeEnabled: () =>
+    get<{ enabled: boolean }>('/api/settings/upgrade/enabled'),
   setUpgradeEnabled: (enabled: boolean) =>
-    patch<{ enabled: boolean }>('/api/upgrade/enabled', { enabled }),
+    patch<{ enabled: boolean }>('/api/settings/upgrade/enabled', { enabled }),
   getUpgradeCheck: () =>
     get<{
       hasUpdate: boolean
@@ -333,7 +356,7 @@ export const kanbanApi = {
       assetSize: number | null
       downloadFileName: string | null
       checkedAt: string
-    } | null>('/api/upgrade/check'),
+    } | null>('/api/settings/upgrade/check'),
   checkForUpdates: () =>
     post<{
       hasUpdate: boolean
@@ -348,13 +371,16 @@ export const kanbanApi = {
       assetSize: number | null
       downloadFileName: string | null
       checkedAt: string
-    }>('/api/upgrade/check', {}),
+    }>('/api/settings/upgrade/check', {}),
   downloadUpdate: (url: string, fileName: string, checksumUrl?: string) =>
-    post<{ status: string; fileName: string }>('/api/upgrade/download', {
-      url,
-      fileName,
-      ...(checksumUrl ? { checksumUrl } : {}),
-    }),
+    post<{ status: string; fileName: string }>(
+      '/api/settings/upgrade/download',
+      {
+        url,
+        fileName,
+        ...(checksumUrl ? { checksumUrl } : {}),
+      },
+    ),
   getDownloadStatus: () =>
     get<{
       status:
@@ -369,9 +395,9 @@ export const kanbanApi = {
       filePath: string | null
       error: string | null
       checksumMatch: boolean | null
-    }>('/api/upgrade/download/status'),
+    }>('/api/settings/upgrade/download/status'),
   restartWithUpgrade: () =>
-    post<{ status: string }>('/api/upgrade/restart', {}),
+    post<{ status: string }>('/api/settings/upgrade/restart', {}),
 
   // File Browser
   listFiles: (projectId: string, path?: string, hideIgnored?: boolean) => {
