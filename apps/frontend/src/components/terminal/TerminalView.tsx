@@ -125,7 +125,7 @@ function getOrCreateTerminal(): { terminal: Terminal; fitAddon: FitAddon } {
   const terminal = new Terminal({
     cursorBlink: true,
     fontSize: 14,
-    fontFamily: 'Maple Mono, Menlo, Monaco, Consolas, monospace',
+    fontFamily: 'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace',
     theme: getTerminalTheme(),
     allowProposedApi: true,
   })
