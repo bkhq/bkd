@@ -51,7 +51,6 @@ export function validateFiles(
         error: `File "${file.name}" exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`,
       }
     }
-
   }
   return { ok: true }
 }

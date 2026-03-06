@@ -630,7 +630,9 @@ export function SessionMessages({
   }
 
   return (
-    <div className={`flex flex-col py-2 px-5${fullWidthChat ? '' : ' max-w-4xl'}`}>
+    <div
+      className={`flex flex-col py-2 px-5${fullWidthChat ? '' : ' max-w-4xl'}`}
+    >
       {hasOlderLogs && onLoadOlder ? (
         <div className="flex justify-center py-2">
           <button

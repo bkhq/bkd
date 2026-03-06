@@ -188,7 +188,10 @@ export class CodexProtocolHandler {
     threadId: string
     model?: string
   }> {
-    const result = (await this.sendRequest('thread/start', threadParamsToRpc(params))) as {
+    const result = (await this.sendRequest(
+      'thread/start',
+      threadParamsToRpc(params),
+    )) as {
       thread?: { id?: string }
       model?: string
     }

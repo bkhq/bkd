@@ -9,11 +9,11 @@ import {
 } from '@/engines/engine-store'
 import type { EngineContext } from '@/engines/issue/context'
 import { emitIssueSettled, emitStateChange } from '@/engines/issue/events'
-import { emitIssueLogUpdated } from '@/events/issue-events'
 import { dispatch } from '@/engines/issue/state'
 import type { ManagedProcess } from '@/engines/issue/types'
 import { sendInputToRunningProcess } from '@/engines/issue/user-message'
 import type { ProcessStatus } from '@/engines/types'
+import { emitIssueLogUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
 
 // ---------- Turn completion ----------
