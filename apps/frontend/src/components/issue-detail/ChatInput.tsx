@@ -184,7 +184,13 @@ export function ChatInput({
       : busyAction
     : undefined
 
-  // Build tagged command list with category labels
+  // Normalized slash commands only (for CommandPicker button + command detection)
+  const normalizedSlashCommands = useMemo(
+    () => slashCommands.map((cmd) => (cmd.startsWith('/') ? cmd : `/${cmd}`)),
+    [slashCommands],
+  )
+
+  // Build tagged command list with category labels (for inline menu)
   type TaggedCommand = {
     value: string
     category: 'command' | 'agent' | 'plugin'
@@ -201,7 +207,7 @@ export function ChatInput({
     return items
   }, [slashCommands, agentCommands, pluginCommands])
 
-  // Keep normalizedCommands for command detection in handleSend
+  // All command values for command detection in handleSend
   const normalizedCommands = useMemo(
     () => allCommands.map((c) => c.value),
     [allCommands],
@@ -686,9 +692,9 @@ export function ChatInput({
             >
               <Paperclip className="size-4" />
             </Button>
-            {normalizedCommands.length > 0 ? (
+            {normalizedSlashCommands.length > 0 ? (
               <CommandPicker
-                commands={normalizedCommands}
+                commands={normalizedSlashCommands}
                 onSelect={(cmd) => selectSlashCommand(cmd)}
               />
             ) : null}
