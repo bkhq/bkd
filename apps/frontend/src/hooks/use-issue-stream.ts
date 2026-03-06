@@ -82,6 +82,8 @@ export function useIssueStream({
   const activeExecutionRef = useRef<string | null>(null)
   const streamScopeRef = useRef<string | null>(null)
   const olderCursorRef = useRef<string | null>(null)
+  const liveLogsRef = useRef<NormalizedLogEntry[]>([])
+  const olderLogsRef = useRef<NormalizedLogEntry[]>([])
 
   // ---- MessageId-based dedup tracking ----
   // O(1) lookup instead of scanning the entire array on every append.
@@ -113,6 +115,8 @@ export function useIssueStream({
   }, [olderLogs, liveLogs])
 
   const clearLogs = useCallback(() => {
+    liveLogsRef.current = []
+    olderLogsRef.current = []
     setLiveLogs([])
     setOlderLogs([])
     setHasOlderLogs(false)
@@ -149,13 +153,54 @@ export function useIssueStream({
         const next = [...prev, incoming]
         if (next.length > MAX_LIVE_LOGS) {
           const trimmed = next.slice(next.length - MAX_LIVE_LOGS)
+          liveLogsRef.current = trimmed
           setHasOlderLogs(true)
           return trimmed
         }
+        liveLogsRef.current = next
         return next
       })
     },
     [isSeen, markSeen],
+  )
+
+  /** Replace an existing entry by messageId; append if the entry is not present yet. */
+  const upsertEntry = useCallback(
+    (incoming: NormalizedLogEntry) => {
+      if (!incoming.messageId) {
+        appendEntry(incoming)
+        return
+      }
+
+      if (
+        olderLogsRef.current.some((entry) => entry.messageId === incoming.messageId)
+      ) {
+        setOlderLogs((prev) => {
+          const next = prev.map((entry) =>
+            entry.messageId === incoming.messageId ? incoming : entry,
+          )
+          olderLogsRef.current = next
+          return next
+        })
+        return
+      }
+
+      if (
+        liveLogsRef.current.some((entry) => entry.messageId === incoming.messageId)
+      ) {
+        setLiveLogs((prev) => {
+          const next = prev.map((entry) =>
+            entry.messageId === incoming.messageId ? incoming : entry,
+          )
+          liveLogsRef.current = next
+          return next
+        })
+        return
+      }
+
+      appendEntry(incoming)
+    },
+    [appendEntry],
   )
 
   /** Append a user message with a server-assigned messageId */
@@ -206,7 +251,9 @@ export function useIssueStream({
             if (e.messageId) seenIdsRef.current.add(e.messageId)
             return true
           })
-          return [...newEntries, ...prev].sort(compareByMessageId)
+          const next = [...newEntries, ...prev].sort(compareByMessageId)
+          olderLogsRef.current = next
+          return next
         })
       })
       .catch((err) => {
@@ -267,6 +314,7 @@ export function useIssueStream({
 
           if (prev.length === 0) {
             // Fast path: no SSE entries arrived yet, just use the DB snapshot
+            liveLogsRef.current = data.logs
             return data.logs
           }
 
@@ -280,13 +328,17 @@ export function useIssueStream({
 
           if (sseOnly.length === 0) {
             // All SSE entries are already in the DB snapshot
+            liveLogsRef.current = data.logs
             return data.logs
           }
 
           // Merge + sort by ULID to ensure correct chronological order
-          return [...data.logs, ...sseOnly].sort(compareByMessageId)
+          const next = [...data.logs, ...sseOnly].sort(compareByMessageId)
+          liveLogsRef.current = next
+          return next
         })
 
+        olderLogsRef.current = []
         setOlderLogs([])
         setHasOlderLogs(data.hasMore)
         olderCursorRef.current = data.nextCursor
@@ -317,6 +369,9 @@ export function useIssueStream({
       onLog: (entry) => {
         if (doneReceivedRef.current) return
         appendEntry(entry)
+      },
+      onLogUpdated: (entry) => {
+        upsertEntry(entry)
       },
       onState: (data) => {
         if (data.state === 'running' || data.state === 'pending') {
@@ -357,7 +412,7 @@ export function useIssueStream({
     return () => {
       cleanup.unsub()
     }
-  }, [projectId, issueId, enabled, queryClient, appendEntry])
+  }, [projectId, issueId, enabled, queryClient, appendEntry, upsertEntry])
 
   return {
     logs,

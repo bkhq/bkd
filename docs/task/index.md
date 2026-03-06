@@ -1,10 +1,10 @@
 # Task Index
 
-> Updated: 2026-03-04 20:42 UTC
+> Updated: 2026-03-06 19:31 UTC
 
 ## 待处理
 
-- [ ] （暂无）
+- [-] **BUG-091 调查 pending 消息消费后前端未即时感知** `P0` - owner: codex - file: `docs/task/BUG-091.md`
 
 ## 已完成
 
