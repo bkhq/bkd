@@ -46,19 +46,19 @@ const upgradeFileNameSchema = z
 
 const upgrade = new Hono()
 
-// GET /api/upgrade/version — current version info
+// GET /api/settings/upgrade/version — current version info
 upgrade.get('/version', (c) => {
   const info = getVersionInfo()
   return c.json({ success: true, data: info })
 })
 
-// GET /api/upgrade/enabled — whether upgrade is enabled
+// GET /api/settings/upgrade/enabled — whether upgrade is enabled
 upgrade.get('/enabled', async (c) => {
   const enabled = await isUpgradeEnabled()
   return c.json({ success: true, data: { enabled } })
 })
 
-// PATCH /api/upgrade/enabled — toggle upgrade on/off
+// PATCH /api/settings/upgrade/enabled — toggle upgrade on/off
 upgrade.patch(
   '/enabled',
   zValidator('json', z.object({ enabled: z.boolean() }), (result, c) => {
@@ -79,19 +79,19 @@ upgrade.patch(
   },
 )
 
-// GET /api/upgrade/check — check for updates (uses cache if recent)
+// GET /api/settings/upgrade/check — check for updates (uses cache if recent)
 upgrade.get('/check', async (c) => {
   const result = await getLastCheckResult()
   return c.json({ success: true, data: result })
 })
 
-// POST /api/upgrade/check — force-check for updates
+// POST /api/settings/upgrade/check — force-check for updates
 upgrade.post('/check', async (c) => {
   const result = await checkForUpdates()
   return c.json({ success: true, data: result })
 })
 
-// POST /api/upgrade/download — download an update
+// POST /api/settings/upgrade/download — download an update
 upgrade.post(
   '/download',
   zValidator(
@@ -137,13 +137,13 @@ upgrade.post(
   },
 )
 
-// GET /api/upgrade/download/status — check download progress
+// GET /api/settings/upgrade/download/status — check download progress
 upgrade.get('/download/status', (c) => {
   const status = getDownloadStatus()
   return c.json({ success: true, data: status })
 })
 
-// POST /api/upgrade/restart — apply downloaded upgrade and restart
+// POST /api/settings/upgrade/restart — apply downloaded upgrade and restart
 upgrade.post('/restart', async (c) => {
   try {
     await applyUpgradeAndRestart()
@@ -163,13 +163,13 @@ upgrade.post('/restart', async (c) => {
   }
 })
 
-// GET /api/upgrade/downloads — list downloaded update files
+// GET /api/settings/upgrade/downloads — list downloaded update files
 upgrade.get('/downloads', async (c) => {
   const files = await listDownloadedUpdates()
   return c.json({ success: true, data: files })
 })
 
-// DELETE /api/upgrade/downloads/:fileName — delete a downloaded update
+// DELETE /api/settings/upgrade/downloads/:fileName — delete a downloaded update
 upgrade.delete(
   '/downloads/:fileName',
   zValidator(
