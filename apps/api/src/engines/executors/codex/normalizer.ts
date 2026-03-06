@@ -32,8 +32,6 @@ interface CodexEventParams {
 export class CodexLogNormalizer {
   private assistantText = ''
   private thinkingText = ''
-  private hasAssistant = false
-  private hasThinking = false
 
   /**
    * Parse a single stdout line and return normalized log entries.
@@ -131,9 +129,7 @@ export class CodexLogNormalizer {
         const delta = (msg.delta as string) ?? ''
         if (!delta) return null
         this.thinkingText = ''
-        this.hasThinking = false
         this.assistantText += delta
-        this.hasAssistant = true
         return {
           entryType: 'assistant-message',
           content: this.assistantText,
@@ -146,9 +142,7 @@ export class CodexLogNormalizer {
       case 'agent_message': {
         const message = (msg.message as string) ?? ''
         this.thinkingText = ''
-        this.hasThinking = false
         this.assistantText = message
-        this.hasAssistant = true
         const entry: NormalizedLogEntry = {
           entryType: 'assistant-message',
           content: message,
@@ -156,7 +150,6 @@ export class CodexLogNormalizer {
         }
         // Reset for next message
         this.assistantText = ''
-        this.hasAssistant = false
         return entry
       }
 
@@ -165,9 +158,7 @@ export class CodexLogNormalizer {
         const delta = (msg.delta as string) ?? ''
         if (!delta) return null
         this.assistantText = ''
-        this.hasAssistant = false
         this.thinkingText += delta
-        this.hasThinking = true
         return {
           entryType: 'thinking',
           content: this.thinkingText,
@@ -180,25 +171,20 @@ export class CodexLogNormalizer {
       case 'agent_reasoning': {
         const text = (msg.text as string) ?? ''
         this.assistantText = ''
-        this.hasAssistant = false
         this.thinkingText = text
-        this.hasThinking = true
         const entry: NormalizedLogEntry = {
           entryType: 'thinking',
           content: text,
           timestamp: now,
         }
         this.thinkingText = ''
-        this.hasThinking = false
         return entry
       }
 
       // --- Reasoning section break ---
       case 'agent_reasoning_section_break': {
         this.assistantText = ''
-        this.hasAssistant = false
         this.thinkingText = ''
-        this.hasThinking = false
         return null
       }
 
@@ -478,9 +464,7 @@ export class CodexLogNormalizer {
         const delta = (msg.delta as string) ?? ''
         if (!delta) return null
         this.thinkingText = ''
-        this.hasThinking = false
         this.assistantText += delta
-        this.hasAssistant = true
         return {
           entryType: 'assistant-message',
           content: this.assistantText,
@@ -986,9 +970,7 @@ export class CodexLogNormalizer {
 
   private resetStreamingState(): void {
     this.assistantText = ''
-    this.hasAssistant = false
     this.thinkingText = ''
-    this.hasThinking = false
   }
 }
 

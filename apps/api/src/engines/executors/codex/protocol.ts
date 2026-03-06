@@ -82,6 +82,21 @@ export interface ThreadForkParams extends ThreadStartParams {
   threadId: string
 }
 
+/** Convert ThreadStartParams to a plain RPC params object, omitting undefined values. */
+function threadParamsToRpc(params: ThreadStartParams): Record<string, unknown> {
+  const rpc: Record<string, unknown> = {}
+  if (params.model) rpc.model = params.model
+  if (params.cwd) rpc.cwd = params.cwd
+  if (params.approvalPolicy) rpc.approvalPolicy = params.approvalPolicy
+  if (params.sandbox) rpc.sandbox = params.sandbox
+  if (params.config) rpc.config = params.config
+  if (params.baseInstructions) rpc.baseInstructions = params.baseInstructions
+  if (params.developerInstructions)
+    rpc.developerInstructions = params.developerInstructions
+  if (params.modelProvider) rpc.modelProvider = params.modelProvider
+  return rpc
+}
+
 /**
  * Manages the Codex app-server JSON-RPC protocol over stdio (JSONL, no
  * `"jsonrpc":"2.0"`). Uses a push-based approach: a background reader
@@ -96,6 +111,7 @@ export class CodexProtocolHandler {
   private readonly stdin: FileSink
   private readonly pending = new Map<number | string, PendingRequest>()
   private readonly requestTimeout: number
+  private readonly encoder = new TextEncoder()
   private notificationController:
     | ReadableStreamDefaultController<Uint8Array>
     | undefined
@@ -172,19 +188,7 @@ export class CodexProtocolHandler {
     threadId: string
     model?: string
   }> {
-    const rpcParams: Record<string, unknown> = {}
-    if (params.model) rpcParams.model = params.model
-    if (params.cwd) rpcParams.cwd = params.cwd
-    if (params.approvalPolicy) rpcParams.approvalPolicy = params.approvalPolicy
-    if (params.sandbox) rpcParams.sandbox = params.sandbox
-    if (params.config) rpcParams.config = params.config
-    if (params.baseInstructions)
-      rpcParams.baseInstructions = params.baseInstructions
-    if (params.developerInstructions)
-      rpcParams.developerInstructions = params.developerInstructions
-    if (params.modelProvider) rpcParams.modelProvider = params.modelProvider
-
-    const result = (await this.sendRequest('thread/start', rpcParams)) as {
+    const result = (await this.sendRequest('thread/start', threadParamsToRpc(params))) as {
       thread?: { id?: string }
       model?: string
     }
@@ -210,19 +214,10 @@ export class CodexProtocolHandler {
     threadId: string
     model?: string
   }> {
-    const rpcParams: Record<string, unknown> = {
+    const rpcParams = {
+      ...threadParamsToRpc(params),
       threadId: params.threadId,
     }
-    if (params.model) rpcParams.model = params.model
-    if (params.cwd) rpcParams.cwd = params.cwd
-    if (params.approvalPolicy) rpcParams.approvalPolicy = params.approvalPolicy
-    if (params.sandbox) rpcParams.sandbox = params.sandbox
-    if (params.config) rpcParams.config = params.config
-    if (params.baseInstructions)
-      rpcParams.baseInstructions = params.baseInstructions
-    if (params.developerInstructions)
-      rpcParams.developerInstructions = params.developerInstructions
-    if (params.modelProvider) rpcParams.modelProvider = params.modelProvider
 
     const result = (await this.sendRequest('thread/fork', rpcParams)) as {
       thread?: { id?: string }
@@ -351,14 +346,13 @@ export class CodexProtocolHandler {
       )
     }
 
-    const encoder = new TextEncoder()
     let msg: Record<string, unknown>
     try {
       msg = JSON.parse(line)
     } catch {
       // Non-JSON line — push through as-is
       try {
-        this.notificationController?.enqueue(encoder.encode(`${line}\n`))
+        this.notificationController?.enqueue(this.encoder.encode(`${line}\n`))
       } catch {
         /* controller closed */
       }
@@ -379,7 +373,7 @@ export class CodexProtocolHandler {
       case 'notification':
         this.trackNotification(msg as unknown as JsonRpcNotification)
         try {
-          this.notificationController?.enqueue(encoder.encode(`${line}\n`))
+          this.notificationController?.enqueue(this.encoder.encode(`${line}\n`))
         } catch {
           /* controller closed */
         }
@@ -387,7 +381,7 @@ export class CodexProtocolHandler {
 
       default:
         try {
-          this.notificationController?.enqueue(encoder.encode(`${line}\n`))
+          this.notificationController?.enqueue(this.encoder.encode(`${line}\n`))
         } catch {
           /* controller closed */
         }
@@ -435,10 +429,9 @@ export class CodexProtocolHandler {
     if (!pending) {
       logger.warn({ id: response.id }, 'codex_protocol_orphan_response')
       // Push orphan response through for downstream processing
-      const encoder = new TextEncoder()
       try {
         this.notificationController?.enqueue(
-          encoder.encode(`${JSON.stringify(response)}\n`),
+          this.encoder.encode(`${JSON.stringify(response)}\n`),
         )
       } catch {
         /* controller closed */
@@ -461,14 +454,13 @@ export class CodexProtocolHandler {
       pending.resolve(response.result)
 
       // Push matched responses through for downstream session ID / model extraction
-      const encoder = new TextEncoder()
       try {
         const responseJson = JSON.stringify({
           id: response.id,
           result: response.result,
         })
         this.notificationController?.enqueue(
-          encoder.encode(`${responseJson}\n`),
+          this.encoder.encode(`${responseJson}\n`),
         )
       } catch {
         /* controller closed */
