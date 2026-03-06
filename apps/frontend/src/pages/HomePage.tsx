@@ -102,9 +102,7 @@ function ProjectCard({
                 title={t('project.copyPath')}
               >
                 <FolderOpen className="h-3 w-3 shrink-0" />
-                <span className="truncate font-mono">
-                  {project.directory}
-                </span>
+                <span className="truncate font-mono">{project.directory}</span>
                 {copied ? (
                   <Check className="h-3 w-3 shrink-0 text-green-500" />
                 ) : (
@@ -389,10 +387,7 @@ export default function HomePage() {
         )}
       </section>
 
-      <CreateProjectDialog
-        open={showCreate}
-        onOpenChange={setShowCreate}
-      />
+      <CreateProjectDialog open={showCreate} onOpenChange={setShowCreate} />
       <AppSettingsDialog open={showSettings} onOpenChange={setShowSettings} />
     </main>
   )
