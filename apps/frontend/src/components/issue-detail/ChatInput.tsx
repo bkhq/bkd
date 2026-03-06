@@ -396,7 +396,7 @@ export function ChatInput({
         setCommandIndex((i) => (i > 0 ? i - 1 : filteredCommands.length - 1))
         return
       }
-      if (e.key === 'Enter' || e.key === 'Tab') {
+      if ((e.key === 'Enter' && !e.metaKey && !e.ctrlKey) || e.key === 'Tab') {
         e.preventDefault()
         const item = filteredCommands[commandIndex]
         if (item) {
@@ -602,7 +602,9 @@ export function ChatInput({
                   <code className="font-mono">{item.value}</code>
                   {item.category !== 'command' ? (
                     <span className="ml-auto text-[10px] text-muted-foreground/60 uppercase tracking-wider">
-                      {item.category}
+                      {t(
+                        `chat.${item.category === 'agent' ? 'agents' : 'plugins'}`,
+                      )}
                     </span>
                   ) : null}
                 </button>
