@@ -184,6 +184,38 @@ export function ChatInput({
     [slashCommands],
   )
 
+  // Inline command menu: show when input starts with "/" and has no spaces yet
+  const commandQuery = useMemo(() => {
+    const trimmed = input.trimStart()
+    if (!trimmed.startsWith('/')) return null
+    if (trimmed.includes(' ')) return null
+    return trimmed.slice(1).toLowerCase()
+  }, [input])
+
+  const filteredCommands = useMemo(() => {
+    if (commandQuery === null || normalizedCommands.length === 0) return []
+    if (commandQuery === '') return normalizedCommands
+    return normalizedCommands.filter((cmd) => {
+      const target = cmd.toLowerCase()
+      let ti = 0
+      for (let qi = 0; qi < commandQuery.length; qi++) {
+        ti = target.indexOf(commandQuery[qi], ti)
+        if (ti === -1) return false
+        ti++
+      }
+      return true
+    })
+  }, [commandQuery, normalizedCommands])
+
+  const showCommandMenu = filteredCommands.length > 0
+  const [commandIndex, setCommandIndex] = useState(0)
+  // Reset selection when filtered list changes
+  const prevFilteredRef = useRef(filteredCommands)
+  if (prevFilteredRef.current !== filteredCommands) {
+    prevFilteredRef.current = filteredCommands
+    if (commandIndex !== 0) setCommandIndex(0)
+  }
+
   const normalizedPrompt = normalizePrompt(input)
   const canSend =
     (normalizedPrompt.length > 0 || attachedFiles.length > 0) &&
@@ -323,6 +355,33 @@ export function ChatInput({
   }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showCommandMenu) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setCommandIndex((i) => (i < filteredCommands.length - 1 ? i + 1 : 0))
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setCommandIndex((i) => (i > 0 ? i - 1 : filteredCommands.length - 1))
+        return
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        const cmd = filteredCommands[commandIndex]
+        if (cmd) {
+          setInput(`${cmd} `)
+          textareaRef.current?.focus()
+        }
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        // Add a space to dismiss the menu while keeping the text
+        setInput((prev) => `${prev} `)
+        return
+      }
+    }
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault()
       void handleSend()
@@ -488,6 +547,32 @@ export function ChatInput({
         {sendError ? (
           <div className="mx-2 mt-2 rounded-lg bg-destructive/10 border border-destructive/20 px-2 py-2 text-xs text-destructive">
             {sendError}
+          </div>
+        ) : null}
+
+        {/* Inline command menu */}
+        {showCommandMenu ? (
+          <div className="mx-2 mt-1 rounded-lg border border-border/40 bg-popover shadow-md overflow-hidden">
+            <div className="max-h-[200px] overflow-y-auto py-1">
+              {filteredCommands.map((cmd, i) => (
+                <button
+                  key={cmd}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    setInput(`${cmd} `)
+                    textareaRef.current?.focus()
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-xs font-mono transition-colors ${
+                    i === commandIndex
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-foreground/80 hover:bg-muted/50'
+                  }`}
+                >
+                  {cmd}
+                </button>
+              ))}
+            </div>
           </div>
         ) : null}
 
