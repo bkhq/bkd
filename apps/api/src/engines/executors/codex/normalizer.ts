@@ -847,12 +847,9 @@ export class CodexLogNormalizer {
       }
     }
 
+    // Skip legacy agentMessage — handled by codex/event/agent_message (v2)
     if (itemType === 'agentMessage') {
-      return {
-        entryType: 'assistant-message',
-        content: (item.text as string) ?? '',
-        timestamp: now,
-      }
+      return null
     }
 
     if (itemType === 'reasoning') return null

@@ -3,6 +3,7 @@ import { appEvents } from '@/events'
 import { logger } from '@/logger'
 import type { EngineContext } from './context'
 import { emitStateChange } from './events'
+import { getNextTurnIndex } from './persistence/queries'
 import { dispatch } from './state'
 import type { ManagedProcess } from './types'
 import { getPidFromManaged } from './utils/pid'
@@ -75,6 +76,11 @@ export function sendInputToRunningProcess(
   // If send throws (e.g. stdin closed in a race), caller may fallback to spawn
   // a new process. Persisting before send would duplicate this message across turns.
   handler.sendUserMessage(prompt)
+
+  // Advance turnIndex for interactive follow-ups so logs are properly grouped.
+  const nextTurn = getNextTurnIndex(issueId)
+  ctx.turnIndexes.set(managed.executionId, nextTurn)
+
   dispatch(managed, {
     type: 'START_TURN',
     metaTurn: metadata?.type === 'system',
