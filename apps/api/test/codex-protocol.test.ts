@@ -95,8 +95,8 @@ describe('CodexProtocolHandler', () => {
       JSON.stringify({ id: req.id, result: { thread: { id: 'thread-abc' } } }),
     )
 
-    const threadId = await threadPromise
-    expect(threadId).toBe('thread-abc')
+    const result = await threadPromise
+    expect(result.threadId).toBe('thread-abc')
     expect(handler.threadId).toBe('thread-abc')
 
     handler.close()
@@ -436,6 +436,244 @@ describe('CodexProtocolHandler', () => {
       }),
     )
     await tick()
+
+    handler.close()
+    stdout.close()
+  })
+
+  // ------------------------------------------------------------------
+  // New protocol features: forkThread, getAccount, toolRequestUserInput
+  // ------------------------------------------------------------------
+
+  test('forkThread sends thread/fork with threadId and returns new threadId', async () => {
+    const { sink, written } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+
+    const forkPromise = handler.forkThread({
+      threadId: 'original-thread',
+      model: 'gpt-5.3',
+      sandbox: 'danger-full-access',
+    })
+    await tick()
+
+    const req = JSON.parse(written[0]!)
+    expect(req.method).toBe('thread/fork')
+    expect(req.params.threadId).toBe('original-thread')
+    expect(req.params.model).toBe('gpt-5.3')
+    expect(req.params.sandbox).toBe('danger-full-access')
+
+    stdout.push(
+      JSON.stringify({
+        id: req.id,
+        result: { thread: { id: 'forked-thread' }, model: 'gpt-5.3' },
+      }),
+    )
+
+    const result = await forkPromise
+    expect(result.threadId).toBe('forked-thread')
+    expect(result.model).toBe('gpt-5.3')
+    expect(handler.threadId).toBe('forked-thread')
+
+    handler.close()
+    stdout.close()
+  })
+
+  test('forkThread throws when thread.id is missing', async () => {
+    const { sink } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+
+    const forkPromise = handler.forkThread({ threadId: 'orig' })
+    await tick()
+
+    stdout.push(JSON.stringify({ id: 1, result: {} }))
+
+    await expect(forkPromise).rejects.toThrow(
+      'thread/fork response missing thread.id',
+    )
+
+    handler.close()
+    stdout.close()
+  })
+
+  test('getAccount sends account/read and returns auth status', async () => {
+    const { sink, written } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+
+    const accountPromise = handler.getAccount()
+    await tick()
+
+    const req = JSON.parse(written[0]!)
+    expect(req.method).toBe('account/read')
+    expect(req.params.refreshToken).toBe(false)
+
+    stdout.push(
+      JSON.stringify({
+        id: req.id,
+        result: { requiresOpenaiAuth: false, account: { name: 'test' } },
+      }),
+    )
+
+    const account = await accountPromise
+    expect(account.requiresOpenaiAuth).toBe(false)
+    expect(account.account).toEqual({ name: 'test' })
+
+    handler.close()
+    stdout.close()
+  })
+
+  test('getAccount handles snake_case response', async () => {
+    const { sink } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+
+    const accountPromise = handler.getAccount()
+    await tick()
+
+    stdout.push(
+      JSON.stringify({
+        id: 1,
+        result: { requires_openai_auth: true, account: null },
+      }),
+    )
+
+    const account = await accountPromise
+    expect(account.requiresOpenaiAuth).toBe(true)
+    expect(account.account).toBeNull()
+
+    handler.close()
+    stdout.close()
+  })
+
+  test('auto-approves toolRequestUserInput', async () => {
+    const { sink, written } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+    await tick()
+
+    stdout.push(
+      JSON.stringify({
+        id: 300,
+        method: 'toolRequestUserInput',
+        params: { prompt: 'Enter value' },
+      }),
+    )
+    await tick()
+
+    const approvalResp = written.find((w) => {
+      try {
+        const p = JSON.parse(w)
+        return p.id === 300 && p.result?.decision === 'accept'
+      } catch {
+        return false
+      }
+    })
+    expect(approvalResp).toBeTruthy()
+
+    handler.close()
+    stdout.close()
+  })
+
+  test('startThread returns model from response', async () => {
+    const { sink, written } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+
+    const threadPromise = handler.startThread({
+      model: 'gpt-5.3-codex',
+      sandbox: 'danger-full-access',
+      approvalPolicy: 'never',
+    })
+    await tick()
+
+    const req = JSON.parse(written[0]!)
+    expect(req.params.sandbox).toBe('danger-full-access')
+    expect(req.params.approvalPolicy).toBe('never')
+
+    stdout.push(
+      JSON.stringify({
+        id: req.id,
+        result: { thread: { id: 'thr-new' }, model: 'gpt-5.3-codex' },
+      }),
+    )
+
+    const result = await threadPromise
+    expect(result.threadId).toBe('thr-new')
+    expect(result.model).toBe('gpt-5.3-codex')
+
+    handler.close()
+    stdout.close()
+  })
+
+  test('thread/started notification sets threadId if not already set', async () => {
+    const { sink } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+    const reader = handler.notifications.getReader()
+
+    await tick()
+    expect(handler.threadId).toBeUndefined()
+
+    stdout.push(
+      JSON.stringify({
+        method: 'thread/started',
+        params: { thread: { id: 'notif-thread' } },
+      }),
+    )
+    await tick()
+    await reader.read()
+
+    expect(handler.threadId).toBe('notif-thread')
+
+    reader.releaseLock()
+    handler.close()
+    stdout.close()
+  })
+
+  test('interrupt sends turn/interrupt request', async () => {
+    const { sink, written } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+
+    const interruptPromise = handler.interrupt('thr-1', 'turn-1')
+    await tick()
+
+    const req = JSON.parse(written[0]!)
+    expect(req.method).toBe('turn/interrupt')
+    expect(req.params.threadId).toBe('thr-1')
+    expect(req.params.turnId).toBe('turn-1')
+
+    stdout.push(JSON.stringify({ id: req.id, result: {} }))
+    await interruptPromise
+
+    handler.close()
+    stdout.close()
+  })
+
+  test('initialize sends experimental_api capability', async () => {
+    const { sink, written } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+
+    const initPromise = handler.initialize()
+    await tick()
+
+    const req = JSON.parse(written[0]!)
+    expect(req.params.capabilities.experimental_api).toBe(true)
+
+    stdout.push(JSON.stringify({ id: 1, result: { userAgent: 'codex/2.0' } }))
+    await initPromise
 
     handler.close()
     stdout.close()
