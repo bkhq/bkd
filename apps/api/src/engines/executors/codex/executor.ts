@@ -13,8 +13,8 @@ import type {
 import type { WriteFilterRule } from '@/engines/write-filter'
 import { logger } from '@/logger'
 import { CodexLogNormalizer } from './normalizer'
-import { CodexProtocolHandler } from './protocol'
 import type { ThreadStartParams } from './protocol'
+import { CodexProtocolHandler } from './protocol'
 
 const CODEX_CMD = ['npx', '-y', '@openai/codex']
 const JSONRPC_TIMEOUT = 15000
@@ -278,9 +278,7 @@ async function queryCodexModels(): Promise<EngineModel[]> {
 /**
  * Build the common thread start params used by both spawn and spawnFollowUp.
  */
-function buildThreadParams(
-  options: SpawnOptions,
-): ThreadStartParams {
+function buildThreadParams(options: SpawnOptions): ThreadStartParams {
   const params: ThreadStartParams = {
     model: options.model,
     cwd: options.workingDir,
@@ -340,8 +338,7 @@ export class CodexExecutor implements EngineExecutor {
       }
     } catch (authErr) {
       // account/read may not be supported on older versions — log and continue
-      const msg =
-        authErr instanceof Error ? authErr.message : String(authErr)
+      const msg = authErr instanceof Error ? authErr.message : String(authErr)
       if (msg.includes('authentication required')) throw authErr
       logger.debug({ error: msg }, 'codex_account_read_skipped')
     }
@@ -411,29 +408,10 @@ export class CodexExecutor implements EngineExecutor {
 
     await handler.initialize()
 
-    // Use thread/fork instead of thread/resume — creates a new thread
-    // forked from the existing one, which is more reliable and allows
-    // passing updated params (model, sandbox, etc.)
-    const threadParams = buildThreadParams(options)
-    let threadId: string
-
-    try {
-      const forkResult = await handler.forkThread({
-        ...threadParams,
-        threadId: options.sessionId,
-      })
-      threadId = forkResult.threadId
-    } catch (forkErr) {
-      // Fallback to thread/resume if fork fails (older codex versions)
-      const msg =
-        forkErr instanceof Error ? forkErr.message : String(forkErr)
-      logger.warn(
-        { sessionId: options.sessionId, error: msg },
-        'codex_fork_failed_fallback_to_resume',
-      )
-      await handler.resumeThread(options.sessionId)
-      threadId = handler.threadId!
-    }
+    // Resume the existing thread — appends new turns to the same conversation.
+    // This keeps the thread ID stable so follow-up chains work correctly.
+    await handler.resumeThread(options.sessionId)
+    const threadId = options.sessionId
 
     // Start a new turn with the follow-up prompt
     await handler.startTurn(threadId, options.prompt)
@@ -443,7 +421,7 @@ export class CodexExecutor implements EngineExecutor {
         issueId: env.issueId,
         pid: (proc as { pid?: number }).pid,
         threadId: handler.threadId,
-        forkedFrom: options.sessionId,
+        resumedFrom: options.sessionId,
         model: options.model,
       },
       'codex_followup_complete',
