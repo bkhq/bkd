@@ -19,7 +19,7 @@ export function PriorityIcon({
   className?: string
 }) {
   const { t } = useTranslation()
-  const config = priorityConfig[priority]
+  const config = priorityConfig[priority] ?? priorityConfig.medium
   const Icon = config.icon
   return (
     <Icon

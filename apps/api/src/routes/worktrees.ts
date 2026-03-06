@@ -2,10 +2,8 @@ import { readdir, stat } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { Hono } from 'hono'
 import { findProject } from '@/db/helpers'
-import { WORKTREE_DIR } from '@/engines/issue/constants'
-import { removeWorktree } from '@/engines/issue/utils/worktree'
+import { removeWorktree, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
 import { logger } from '@/logger'
-import { ROOT_DIR } from '@/root'
 
 /** Only accept IDs that match the nanoid/ULID patterns used in the project */
 const VALID_ID = /^[a-zA-Z0-9_-]{4,32}$/
@@ -19,7 +17,7 @@ interface WorktreeEntry {
 async function listProjectWorktrees(
   projectId: string,
 ): Promise<WorktreeEntry[]> {
-  const projectDir = join(ROOT_DIR, WORKTREE_DIR, projectId)
+  const projectDir = join(WORKTREE_BASE, projectId)
   let entries: string[]
   try {
     entries = await readdir(projectDir)
@@ -94,7 +92,7 @@ worktrees.delete('/:issueId', async (c) => {
     return c.json({ success: false, error: 'Invalid issueId' }, 400)
   }
 
-  const baseWorktreeDir = resolve(join(ROOT_DIR, WORKTREE_DIR, project.id))
+  const baseWorktreeDir = resolve(join(WORKTREE_BASE, project.id))
   const worktreePath = resolve(join(baseWorktreeDir, issueId))
 
   // Ensure resolved path stays within the project worktree directory

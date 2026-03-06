@@ -4,10 +4,8 @@ import { and, eq, inArray, isNull, lte, notInArray, or } from 'drizzle-orm'
 import { db } from '@/db'
 import { getAppSetting } from '@/db/helpers'
 import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
-import { WORKTREE_DIR } from '@/engines/issue/constants'
-import { removeWorktree } from '@/engines/issue/utils/worktree'
+import { removeWorktree, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
 import { logger } from '@/logger'
-import { ROOT_DIR } from '@/root'
 
 export const WORKTREE_AUTO_CLEANUP_KEY = 'worktree:autoCleanup'
 
@@ -28,7 +26,7 @@ async function isAutoCleanupEnabled(): Promise<boolean> {
 async function runWorktreeCleanup(): Promise<void> {
   if (!(await isAutoCleanupEnabled())) return
 
-  const worktreeBaseDir = join(ROOT_DIR, WORKTREE_DIR)
+  const worktreeBaseDir = WORKTREE_BASE
   let projectEntries: import('node:fs').Dirent[]
   try {
     projectEntries = await readdir(worktreeBaseDir, { withFileTypes: true })

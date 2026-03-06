@@ -4,19 +4,24 @@ import { WORKTREE_DIR } from '@/engines/issue/constants'
 import { logger } from '@/logger'
 import { ROOT_DIR } from '@/root'
 
+/** Resolve WORKTREE_DIR — absolute paths used as-is, relative resolved from ROOT_DIR */
+export const WORKTREE_BASE = WORKTREE_DIR.startsWith('/')
+  ? WORKTREE_DIR
+  : join(ROOT_DIR, WORKTREE_DIR)
+
 /** Safe root for rm fallback — never delete outside this directory */
-const WORKTREE_SAFE_ROOT = join(ROOT_DIR, WORKTREE_DIR)
+const WORKTREE_SAFE_ROOT = WORKTREE_BASE
 
 // ---------- Git worktree helpers ----------
 
 /**
- * Deterministic worktree path: `<ROOT_DIR>/data/worktrees/<projectId>/<issueId>/`
+ * Deterministic worktree path: `<WORKTREE_BASE>/<projectId>/<issueId>/`
  */
 export function resolveWorktreePath(
   projectId: string,
   issueId: string,
 ): string {
-  return join(ROOT_DIR, WORKTREE_DIR, projectId, issueId)
+  return join(WORKTREE_BASE, projectId, issueId)
 }
 
 export async function createWorktree(
@@ -26,7 +31,7 @@ export async function createWorktree(
 ): Promise<string> {
   const branchName = `bitk/${issueId}`
   const worktreeDir = resolveWorktreePath(projectId, issueId)
-  await mkdir(join(ROOT_DIR, WORKTREE_DIR, projectId), { recursive: true })
+  await mkdir(join(WORKTREE_BASE, projectId), { recursive: true })
 
   // Create worktree with a new branch off HEAD
   const proc = Bun.spawn(

@@ -10,4 +10,4 @@ export const STREAM_STALL_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes — send inter
 export const STALL_PROBE_GRACE_MS = 2 * 60 * 1000 // 2 minutes — kill process if no response after interrupt probe
 export const CANCEL_RESPONSE_TIMEOUT_MS = 5_000 // 5s — wait for turn completion after each interrupt retry
 export const CANCEL_MAX_RETRIES = 3 // send interrupt up to 3 times before hard kill (worst case: 3 × 5s = 15s)
-export const WORKTREE_DIR = 'data/worktrees'
+export const WORKTREE_DIR = process.env.WORKTREE_DIR || 'data/worktrees'
