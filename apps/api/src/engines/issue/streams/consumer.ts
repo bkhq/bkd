@@ -1,3 +1,4 @@
+import type { CategorizedCommands } from '@bitk/shared'
 import { setAppSetting } from '@/db/helpers'
 import {
   refreshSlashCommandsCacheForEngine,
@@ -17,12 +18,17 @@ function clipForLog(input: string): string {
   return `${input.slice(0, MAX_IO_LOG_CHARS)}...<truncated:${input.length - MAX_IO_LOG_CHARS}>`
 }
 
-async function saveSlashCommandsToSettings(
+async function saveCategorizedCommandsToSettings(
   engineType: EngineType,
-  commands: string[],
+  categorized: CategorizedCommands,
 ): Promise<void> {
-  if (commands.length === 0) return
-  await setAppSetting(slashCommandsKey(engineType), JSON.stringify(commands))
+  if (
+    categorized.commands.length === 0 &&
+    categorized.agents.length === 0 &&
+    categorized.plugins.length === 0
+  )
+    return
+  await setAppSetting(slashCommandsKey(engineType), JSON.stringify(categorized))
   await refreshSlashCommandsCacheForEngine(engineType)
 }
 
@@ -75,17 +81,26 @@ export async function consumeStream(
           timestamp: rawEntry.timestamp ?? new Date().toISOString(),
         }
 
-        // Extract slash commands from SDK init message
+        // Extract categorized commands from SDK init message
         if (
           entry.entryType === 'system-message' &&
-          entry.metadata?.subtype === 'init' &&
-          Array.isArray(entry.metadata.slashCommands)
+          entry.metadata?.subtype === 'init'
         ) {
-          managed.slashCommands = entry.metadata.slashCommands as string[]
-          void saveSlashCommandsToSettings(
-            managed.engineType,
-            managed.slashCommands,
-          )
+          const meta = entry.metadata
+          managed.slashCommands = Array.isArray(meta.slashCommands)
+            ? (meta.slashCommands as string[])
+            : []
+          managed.agents = Array.isArray(meta.agents)
+            ? (meta.agents as string[])
+            : []
+          managed.plugins = Array.isArray(meta.plugins)
+            ? (meta.plugins as Array<{ name: string; path: string }>)
+            : []
+          void saveCategorizedCommandsToSettings(managed.engineType, {
+            commands: managed.slashCommands,
+            agents: managed.agents,
+            plugins: managed.plugins,
+          })
         }
 
         // Tag all entries in a meta turn so they are hidden from the frontend

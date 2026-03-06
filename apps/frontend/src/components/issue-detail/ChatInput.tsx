@@ -1,8 +1,10 @@
 import {
+  Bot,
   FileText,
   Image as ImageIcon,
   Loader2,
   Paperclip,
+  Plug,
   SlashSquare,
   X,
 } from 'lucide-react'
@@ -68,6 +70,8 @@ export function ChatInput({
   isThinking = false,
   onMessageSent,
   slashCommands = [],
+  agentCommands = [],
+  pluginCommands = [],
 }: {
   projectId?: string
   issueId?: string
@@ -85,6 +89,8 @@ export function ChatInput({
     metadata?: Record<string, unknown>,
   ) => void
   slashCommands?: string[]
+  agentCommands?: string[]
+  pluginCommands?: Array<{ name: string; path: string }>
 }) {
   const { t } = useTranslation()
   const draftKey = issueId ? `bitk:draft:${issueId}` : null
@@ -178,11 +184,67 @@ export function ChatInput({
       : busyAction
     : undefined
 
-  // Commands from SDK may or may not have "/" prefix — normalize
-  const normalizedCommands = useMemo(
+  // Normalized slash commands only (for CommandPicker button + command detection)
+  const normalizedSlashCommands = useMemo(
     () => slashCommands.map((cmd) => (cmd.startsWith('/') ? cmd : `/${cmd}`)),
     [slashCommands],
   )
+
+  // Build tagged command list with category labels (for inline menu)
+  type TaggedCommand = {
+    value: string
+    category: 'command' | 'agent' | 'plugin'
+  }
+  const allCommands: TaggedCommand[] = useMemo(() => {
+    const norm = (cmd: string) => (cmd.startsWith('/') ? cmd : `/${cmd}`)
+    const items: TaggedCommand[] = []
+    for (const cmd of slashCommands)
+      items.push({ value: norm(cmd), category: 'command' })
+    for (const a of agentCommands)
+      items.push({ value: norm(a), category: 'agent' })
+    for (const p of pluginCommands)
+      items.push({ value: norm(p.name), category: 'plugin' })
+    return items
+  }, [slashCommands, agentCommands, pluginCommands])
+
+  // All command values for command detection in handleSend
+  const normalizedCommands = useMemo(
+    () => allCommands.map((c) => c.value),
+    [allCommands],
+  )
+
+  // Inline command menu: show when input starts with "/" and has no spaces yet
+  const commandQuery = useMemo(() => {
+    const trimmed = input.trimStart()
+    if (!trimmed.startsWith('/')) return null
+    if (trimmed.includes(' ')) return null
+    return trimmed.slice(1).toLowerCase()
+  }, [input])
+
+  const filteredCommands = useMemo(() => {
+    if (commandQuery === null || allCommands.length === 0)
+      return [] as TaggedCommand[]
+    if (commandQuery === '') return allCommands
+    return allCommands.filter((item) => {
+      const target = item.value.toLowerCase()
+      let ti = 0
+      for (let qi = 0; qi < commandQuery.length; qi++) {
+        ti = target.indexOf(commandQuery[qi], ti)
+        if (ti === -1) return false
+        ti++
+      }
+      return true
+    })
+  }, [commandQuery, allCommands])
+
+  const showCommandMenu = filteredCommands.length > 0
+  const [commandIndex, setCommandIndex] = useState(0)
+  // Reset selection when filtered list changes
+  const prevFilteredRef = useRef(filteredCommands)
+  if (prevFilteredRef.current !== filteredCommands) {
+    prevFilteredRef.current = filteredCommands
+    if (commandIndex !== 0) setCommandIndex(0)
+  }
 
   const normalizedPrompt = normalizePrompt(input)
   const canSend =
@@ -323,6 +385,33 @@ export function ChatInput({
   }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showCommandMenu) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setCommandIndex((i) => (i < filteredCommands.length - 1 ? i + 1 : 0))
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setCommandIndex((i) => (i > 0 ? i - 1 : filteredCommands.length - 1))
+        return
+      }
+      if ((e.key === 'Enter' && !e.metaKey && !e.ctrlKey) || e.key === 'Tab') {
+        e.preventDefault()
+        const item = filteredCommands[commandIndex]
+        if (item) {
+          setInput(`${item.value} `)
+          textareaRef.current?.focus()
+        }
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        // Add a space to dismiss the menu while keeping the text
+        setInput((prev) => `${prev} `)
+        return
+      }
+    }
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault()
       void handleSend()
@@ -491,6 +580,39 @@ export function ChatInput({
           </div>
         ) : null}
 
+        {/* Inline command menu */}
+        {showCommandMenu ? (
+          <div className="mx-2 mt-1 rounded-lg border border-border/40 bg-popover shadow-md overflow-hidden">
+            <div className="max-h-[200px] overflow-y-auto py-1">
+              {filteredCommands.map((item, i) => (
+                <button
+                  key={`${item.category}:${item.value}`}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    setInput(`${item.value} `)
+                    textareaRef.current?.focus()
+                  }}
+                  className={`w-full flex items-center gap-2 text-left px-3 py-1.5 text-xs transition-colors ${
+                    i === commandIndex
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-foreground/80 hover:bg-muted/50'
+                  }`}
+                >
+                  <code className="font-mono">{item.value}</code>
+                  {item.category !== 'command' ? (
+                    <span className="ml-auto text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+                      {t(
+                        `chat.${item.category === 'agent' ? 'agents' : 'plugins'}`,
+                      )}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {/* Textarea — shadcn Textarea, style overrides to match original */}
         <div className="px-2 py-2">
           <Textarea
@@ -572,10 +694,26 @@ export function ChatInput({
             >
               <Paperclip className="size-4" />
             </Button>
-            {normalizedCommands.length > 0 ? (
+            {normalizedSlashCommands.length > 0 ? (
               <CommandPicker
-                commands={normalizedCommands}
+                commands={normalizedSlashCommands}
                 onSelect={(cmd) => selectSlashCommand(cmd)}
+              />
+            ) : null}
+            {agentCommands.length > 0 ? (
+              <AgentPicker
+                agents={agentCommands}
+                onSelect={(a) =>
+                  selectSlashCommand(a.startsWith('/') ? a : `/${a}`)
+                }
+              />
+            ) : null}
+            {pluginCommands.length > 0 ? (
+              <PluginPicker
+                plugins={pluginCommands}
+                onSelect={(p) =>
+                  selectSlashCommand(p.startsWith('/') ? p : `/${p}`)
+                }
               />
             ) : null}
           </div>
@@ -843,6 +981,113 @@ function CommandPicker({
                 className="text-xs px-3 py-1.5"
               >
                 <code className="font-mono text-foreground/80">{cmd}</code>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// ─── AgentPicker ─────────────────────────────────────────────────────────────
+
+function AgentPicker({
+  agents,
+  onSelect,
+}: {
+  agents: string[]
+  onSelect: (agent: string) => void
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={<Button variant="ghost" size="icon" title={t('chat.agents')} />}
+      >
+        <Bot className="size-4" />
+      </PopoverTrigger>
+      <PopoverContent side="top" align="start" className="w-[260px] p-0">
+        <Command>
+          <CommandInput
+            placeholder={t('chat.agentSearch')}
+            className="text-xs h-8"
+          />
+          <CommandList className="max-h-[240px]">
+            <CommandEmpty className="text-xs text-muted-foreground/50 px-3 py-2">
+              {t('chat.noAgents')}
+            </CommandEmpty>
+            {agents.map((agent) => (
+              <CommandItem
+                key={agent}
+                value={agent}
+                onSelect={() => {
+                  onSelect(agent)
+                  setOpen(false)
+                }}
+                className="text-xs px-3 py-1.5"
+              >
+                <code className="font-mono text-foreground/80">{agent}</code>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// ─── PluginPicker ────────────────────────────────────────────────────────────
+
+function PluginPicker({
+  plugins,
+  onSelect,
+}: {
+  plugins: Array<{ name: string; path: string }>
+  onSelect: (name: string) => void
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button variant="ghost" size="icon" title={t('chat.plugins')} />
+        }
+      >
+        <Plug className="size-4" />
+      </PopoverTrigger>
+      <PopoverContent side="top" align="start" className="w-[280px] p-0">
+        <Command>
+          <CommandInput
+            placeholder={t('chat.pluginSearch')}
+            className="text-xs h-8"
+          />
+          <CommandList className="max-h-[240px]">
+            <CommandEmpty className="text-xs text-muted-foreground/50 px-3 py-2">
+              {t('chat.noPlugins')}
+            </CommandEmpty>
+            {plugins.map((plugin) => (
+              <CommandItem
+                key={plugin.name}
+                value={plugin.name}
+                onSelect={() => {
+                  onSelect(plugin.name)
+                  setOpen(false)
+                }}
+                className="text-xs px-3 py-1.5"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <code className="font-mono text-foreground/80">
+                    {plugin.name}
+                  </code>
+                  <span className="text-[10px] text-muted-foreground/50 truncate">
+                    {plugin.path}
+                  </span>
+                </div>
               </CommandItem>
             ))}
           </CommandList>

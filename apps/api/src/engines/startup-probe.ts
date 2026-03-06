@@ -213,7 +213,11 @@ async function discoverSlashCommands(
 
       await setAppSetting(
         slashCommandsKey('claude-code'),
-        JSON.stringify(result.slashCommands),
+        JSON.stringify({
+          commands: result.slashCommands,
+          agents: result.agents,
+          plugins: result.plugins,
+        }),
       )
       await refreshSlashCommandsCacheForEngine('claude-code')
 

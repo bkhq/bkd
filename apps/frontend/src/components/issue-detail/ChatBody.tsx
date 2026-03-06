@@ -168,8 +168,14 @@ export function ChatBody({
   const hasSession = !!issue.sessionStatus
   const { data: globalCmds } = useGlobalSlashCommands(issue.engineType)
   const { data: liveCmds } = useSlashCommands(projectId, issueId, hasSession)
-  const slashCommands =
-    (liveCmds?.commands.length ? liveCmds.commands : globalCmds?.commands) ?? []
+  const hasLive =
+    (liveCmds?.commands?.length ?? 0) > 0 ||
+    (liveCmds?.agents?.length ?? 0) > 0 ||
+    (liveCmds?.plugins?.length ?? 0) > 0
+  const activeCmds = hasLive ? liveCmds : globalCmds
+  const slashCommands = activeCmds?.commands ?? []
+  const agentCommands = activeCmds?.agents ?? []
+  const pluginCommands = activeCmds?.plugins ?? []
 
   const {
     logs,
@@ -323,6 +329,8 @@ export function ChatBody({
         statusId={issue.statusId}
         isThinking={isThinking}
         slashCommands={slashCommands}
+        agentCommands={agentCommands}
+        pluginCommands={pluginCommands}
         onMessageSent={(messageId, prompt, metadata) => {
           appendServerMessage(messageId, prompt, metadata)
         }}

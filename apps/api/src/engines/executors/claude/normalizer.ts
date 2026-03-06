@@ -103,6 +103,8 @@ export class ClaudeLogNormalizer {
             slashCommands: Array.isArray(data.slash_commands)
               ? data.slash_commands
               : [],
+            agents: Array.isArray(data.agents) ? data.agents : [],
+            plugins: Array.isArray(data.plugins) ? data.plugins : [],
           },
         }
       case 'compact_boundary':

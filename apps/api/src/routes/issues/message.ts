@@ -285,12 +285,15 @@ message.post('/:id/follow-up', async (c) => {
     const { prompt: effectivePrompt, pendingIds } =
       await collectPendingMessages(issueId, fullPrompt)
     const firstWord = prompt.split(/\s/)[0] ?? ''
-    const knownCommands = issueEngine
-      .getSlashCommands(
-        issueId,
-        (issue.engineType as import('@/engines/types').EngineType) ?? undefined,
-      )
-      .map((cmd) => (cmd.startsWith('/') ? cmd : `/${cmd}`))
+    const categorized = issueEngine.getCategorizedCommands(
+      issueId,
+      (issue.engineType as import('@/engines/types').EngineType) ?? undefined,
+    )
+    const knownCommands = [
+      ...categorized.commands,
+      ...categorized.agents,
+      ...categorized.plugins.map((p) => p.name),
+    ].map((cmd) => (cmd.startsWith('/') ? cmd : `/${cmd}`))
     const isCommand =
       firstWord.startsWith('/') &&
       knownCommands.some((cmd) => cmd === firstWord)

@@ -266,8 +266,8 @@ command.get('/:id/slash-commands', async (c) => {
 
   const engineType =
     (issue.engineType as import('@/engines/types').EngineType) ?? undefined
-  const commands = issueEngine.getSlashCommands(issueId, engineType)
-  return c.json({ success: true, data: { commands } })
+  const categorized = issueEngine.getCategorizedCommands(issueId, engineType)
+  return c.json({ success: true, data: categorized })
 })
 
 export default command
