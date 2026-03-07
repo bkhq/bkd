@@ -1,0 +1,217 @@
+import { stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { resolve } from 'node:path'
+import { zValidator } from '@hono/zod-validator'
+import { Hono } from 'hono'
+import * as z from 'zod'
+import { getAppSetting, setAppSetting } from '@/db/helpers'
+import { getCachedCategorizedCommands } from '@/engines/issue/queries'
+import type { WriteFilterRule } from '@/engines/write-filter'
+import {
+  DEFAULT_FILTER_RULES,
+  WRITE_FILTER_RULES_KEY,
+} from '@/engines/write-filter'
+import { WORKTREE_AUTO_CLEANUP_KEY } from '@/jobs/worktree-cleanup'
+
+const general = new Hono()
+
+const WORKSPACE_PATH_KEY = 'workspace:defaultPath'
+
+// GET /api/settings/workspace-path
+general.get('/workspace-path', async (c) => {
+  const value = await getAppSetting(WORKSPACE_PATH_KEY)
+  return c.json({ success: true, data: { path: value ?? homedir() } })
+})
+
+// PATCH /api/settings/workspace-path
+general.patch(
+  '/workspace-path',
+  zValidator(
+    'json',
+    z.object({ path: z.string().min(1).max(1024) }),
+    (result, c) => {
+      if (!result.success) {
+        return c.json(
+          {
+            success: false,
+            error: result.error.issues.map((i) => i.message).join(', '),
+          },
+          400,
+        )
+      }
+    },
+  ),
+  async (c) => {
+    const { path } = c.req.valid('json')
+    const resolved = resolve(path)
+
+    // Validate the path exists and is a directory
+    try {
+      const s = await stat(resolved)
+      if (!s.isDirectory()) {
+        return c.json({ success: false, error: 'Path is not a directory' }, 400)
+      }
+    } catch {
+      return c.json({ success: false, error: 'Path does not exist' }, 400)
+    }
+
+    await setAppSetting(WORKSPACE_PATH_KEY, resolved)
+    return c.json({ success: true, data: { path: resolved } })
+  },
+)
+
+// --- Write Filter Rules ---
+
+const writeFilterRuleSchema = z.object({
+  id: z.string().min(1).max(64),
+  type: z.literal('tool-name'),
+  match: z.string().min(1).max(128),
+  enabled: z.boolean(),
+})
+
+// GET /api/settings/write-filter-rules
+general.get('/write-filter-rules', async (c) => {
+  const raw = await getAppSetting(WRITE_FILTER_RULES_KEY)
+  let rules: WriteFilterRule[]
+  if (raw) {
+    try {
+      rules = JSON.parse(raw) as WriteFilterRule[]
+    } catch {
+      rules = []
+    }
+  } else {
+    rules = DEFAULT_FILTER_RULES
+  }
+  return c.json({ success: true, data: rules })
+})
+
+// PUT /api/settings/write-filter-rules
+general.put(
+  '/write-filter-rules',
+  zValidator(
+    'json',
+    z.object({ rules: z.array(writeFilterRuleSchema) }),
+    (result, c) => {
+      if (!result.success) {
+        return c.json(
+          {
+            success: false,
+            error: result.error.issues.map((i) => i.message).join(', '),
+          },
+          400,
+        )
+      }
+    },
+  ),
+  async (c) => {
+    const { rules } = c.req.valid('json')
+    await setAppSetting(WRITE_FILTER_RULES_KEY, JSON.stringify(rules))
+    return c.json({ success: true, data: rules })
+  },
+)
+
+// PATCH /api/settings/write-filter-rules/:id
+general.patch(
+  '/write-filter-rules/:id',
+  zValidator('json', z.object({ enabled: z.boolean() }), (result, c) => {
+    if (!result.success) {
+      return c.json(
+        {
+          success: false,
+          error: result.error.issues.map((i) => i.message).join(', '),
+        },
+        400,
+      )
+    }
+  }),
+  async (c) => {
+    const ruleId = c.req.param('id')
+    const { enabled } = c.req.valid('json')
+
+    const raw = await getAppSetting(WRITE_FILTER_RULES_KEY)
+    let rules: WriteFilterRule[]
+    if (raw) {
+      try {
+        rules = JSON.parse(raw) as WriteFilterRule[]
+      } catch {
+        rules = []
+      }
+    } else {
+      rules = [...DEFAULT_FILTER_RULES]
+    }
+
+    const rule = rules.find((r) => r.id === ruleId)
+    if (!rule) {
+      return c.json({ success: false, error: `Rule not found: ${ruleId}` }, 404)
+    }
+
+    const updatedRules = rules.map((r) =>
+      r.id === ruleId ? { ...r, enabled } : r,
+    )
+    await setAppSetting(WRITE_FILTER_RULES_KEY, JSON.stringify(updatedRules))
+    return c.json({
+      success: true,
+      data: updatedRules.find((r) => r.id === ruleId),
+    })
+  },
+)
+
+// --- Worktree Auto-Cleanup ---
+
+// GET /api/settings/worktree-auto-cleanup
+general.get('/worktree-auto-cleanup', async (c) => {
+  const value = await getAppSetting(WORKTREE_AUTO_CLEANUP_KEY)
+  return c.json({ success: true, data: { enabled: value === 'true' } })
+})
+
+// PATCH /api/settings/worktree-auto-cleanup
+general.patch(
+  '/worktree-auto-cleanup',
+  zValidator('json', z.object({ enabled: z.boolean() }), (result, c) => {
+    if (!result.success) {
+      return c.json(
+        {
+          success: false,
+          error: result.error.issues.map((i) => i.message).join(', '),
+        },
+        400,
+      )
+    }
+  }),
+  async (c) => {
+    const { enabled } = c.req.valid('json')
+    await setAppSetting(WORKTREE_AUTO_CLEANUP_KEY, String(enabled))
+    return c.json({ success: true, data: { enabled } })
+  },
+)
+
+// --- Slash Commands (cached from engine init, per-engine) ---
+
+// GET /api/settings/slash-commands?engine=claude-code
+general.get('/slash-commands', async (c) => {
+  const validEngines = ['claude-code', 'codex', 'gemini', 'echo']
+  const rawEngine = c.req.query('engine')
+  if (rawEngine && !validEngines.includes(rawEngine)) {
+    return c.json(
+      { success: false, error: `Invalid engine type: ${rawEngine}` },
+      400,
+    )
+  }
+  const engine = rawEngine as import('@/engines/types').EngineType | undefined
+  let categorized = getCachedCategorizedCommands(engine)
+  // If cache is cold (empty result), try refreshing from DB before responding
+  if (
+    categorized.commands.length === 0 &&
+    categorized.agents.length === 0 &&
+    categorized.plugins.length === 0
+  ) {
+    const { refreshSlashCommandsCache } = await import(
+      '@/engines/issue/queries'
+    )
+    await refreshSlashCommandsCache()
+    categorized = getCachedCategorizedCommands(engine)
+  }
+  return c.json({ success: true, data: categorized })
+})
+
+export default general

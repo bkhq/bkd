@@ -1,0 +1,40 @@
+{
+  "name": "@bkd/root",
+  "private": true,
+  "type": "module",
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
+    "catalog": {
+      "typescript": "^5.9.3",
+      "zod": "^4.3.6"
+    }
+  },
+  "scripts": {
+    "dev": "bun --filter @bkd/api --filter @bkd/frontend dev",
+    "dev:api": "bun --filter @bkd/api dev",
+    "dev:frontend": "bun --filter @bkd/frontend dev",
+    "build": "bun --filter @bkd/frontend build",
+    "start": "bun --filter @bkd/api start",
+    "test": "bun --parallel --filter '*' test",
+    "test:api": "bun --filter @bkd/api test",
+    "test:frontend": "bun --filter @bkd/frontend test",
+    "lint": "biome check .",
+    "lint:fix": "biome check . --fix",
+    "format": "biome format . --write",
+    "format:check": "biome check . --formatter-enabled=true --linter-enabled=false",
+    "db:generate": "bun --filter @bkd/api db:generate",
+    "db:migrate": "bun --filter @bkd/api db:migrate",
+    "db:reset": "bun apps/api/src/db/reset.ts",
+    "compile": "bun scripts/compile.ts",
+    "compile:launcher": "bun scripts/compile.ts --mode launcher",
+    "package": "bun scripts/package.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.4",
+    "@bkd/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

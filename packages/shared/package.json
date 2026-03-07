@@ -1,0 +1,20 @@
+{
+  "name": "@bkd/shared",
+  "type": "module",
+  "version": "0.0.6",
+  "private": true,
+  "description": "Shared code and utilities for the BKD workspace.",
+  "homepage": "https://github.com/bkhq",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bkhq/bkd.git",
+    "directory": "packages/shared"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "devDependencies": {
+    "@bkd/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

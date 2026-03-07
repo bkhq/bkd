@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.0.0). Leave empty for dry-run (artifacts only).'
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  VERSION: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  validate:
+    name: Validate version
+    runs-on: ubuntu-latest
+    # Only enforce for real releases (tag push or explicit tag input)
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.tag != ''
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - name: Check version format
+        id: check
+        run: |
+          if [[ ! "${VERSION}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: Invalid version format: '${VERSION}'"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: Build app package
+    needs: validate
+    if: ${{ !cancelled() && (needs.validate.result == 'success' || needs.validate.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - name: Build app package
+        run: |
+          bun install
+          VERSION_NUM="${VERSION#v}"
+          bun scripts/package.ts --version "${VERSION_NUM}"
+          ls -lh dist/bkd-app-v${VERSION_NUM}.tar.gz && cat dist/checksums.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bkd-app-package
+          path: |
+            dist/bkd-app-*.tar.gz
+            dist/checksums.txt
+          retention-days: 7
+
+  release:
+    name: Create Release
+    needs: [package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.tag != ''
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Prepare assets
+        run: |
+          mkdir -p release/
+          # Copy app package
+          cp artifacts/bkd-app-package/bkd-* release/
+          # Merge checksums
+          cat artifacts/*/checksums.txt > release/checksums.txt
+          # Verify checksums before publishing
+          cd release
+          echo "--- Verifying checksums ---"
+          sha256sum -c checksums.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: ${{ env.VERSION }}
+          generate_release_notes: true
+          append_body: true
+          body: |
+            ---
+            ### Package Mode
+            First-time setup requires the launcher binary (one-time download, ~90 MB):
+            **[Download Launcher](https://github.com/${{ github.repository }}/releases/tag/launcher-v1)**
+          files: release/*

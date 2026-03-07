@@ -1,0 +1,298 @@
+// @bkd/shared — Types shared between @bkd/api and @bkd/frontend
+// Re-exported from packages/shared for cross-workspace consumption.
+
+export type Project = {
+  id: string
+  alias: string
+  name: string
+  description?: string
+  directory?: string
+  repositoryUrl?: string
+  systemPrompt?: string
+  envVars?: Record<string, string>
+  createdAt: string
+  updatedAt: string
+}
+
+export type EngineType = 'claude-code' | 'codex' | 'gemini' | 'echo'
+
+export type PluginInfo = { name: string; path: string }
+
+export type CategorizedCommands = {
+  commands: string[]
+  agents: string[]
+  plugins: PluginInfo[]
+}
+export type PermissionMode = 'auto' | 'supervised' | 'plan'
+export type BusyAction = 'queue' | 'cancel'
+export type SessionStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export type Issue = {
+  id: string
+  projectId: string
+  statusId: string
+  issueNumber: number
+  title: string
+  tags: string[] | null
+  sortOrder: number
+  parentIssueId: string | null
+  useWorktree: boolean
+  childCount?: number
+  children?: Issue[]
+  engineType: EngineType | null
+  sessionStatus: SessionStatus | null
+  prompt: string | null
+  externalSessionId: string | null
+  model: string | null
+  totalInputTokens: number
+  totalOutputTokens: number
+  totalCostUsd: string
+  devMode: boolean
+  statusUpdatedAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ApiResponse<T> =
+  | { success: true; data: T }
+  | { success: false; error: string }
+
+export type LogEntryType =
+  | 'user-message'
+  | 'assistant-message'
+  | 'tool-use'
+  | 'system-message'
+  | 'error-message'
+  | 'thinking'
+  | 'loading'
+  | 'token-usage'
+export type CommandCategory = 'read' | 'search' | 'edit' | 'fetch' | 'other'
+
+export interface FileChange {
+  oldText: string
+  newText: string
+}
+
+export type ToolAction =
+  | { kind: 'file-read'; path: string }
+  | { kind: 'file-edit'; path: string; changes?: FileChange[] }
+  | {
+      kind: 'command-run'
+      command: string
+      result?: string
+      category?: CommandCategory
+    }
+  | { kind: 'search'; query: string }
+  | { kind: 'web-fetch'; url: string }
+  | { kind: 'tool'; toolName: string; arguments?: unknown; result?: unknown }
+  | { kind: 'other'; description: string }
+
+export interface ToolDetail {
+  kind: string
+  toolName: string
+  toolCallId?: string
+  isResult: boolean
+  raw?: Record<string, unknown>
+}
+
+export interface NormalizedLogEntry {
+  messageId?: string
+  replyToMessageId?: string
+  timestamp?: string
+  turnIndex?: number
+  entryType: LogEntryType
+  content: string
+  metadata?: Record<string, unknown>
+  toolAction?: ToolAction
+  toolDetail?: ToolDetail
+}
+
+export interface ExecuteIssueRequest {
+  engineType: EngineType
+  prompt: string
+  model?: string
+  permissionMode?: PermissionMode
+}
+
+export interface ExecuteIssueResponse {
+  executionId?: string
+  issueId: string
+  messageId?: string
+  queued?: boolean
+}
+
+export interface IssueLogsResponse {
+  issue: Issue
+  logs: NormalizedLogEntry[]
+  hasMore: boolean
+  nextCursor: string | null
+}
+
+export interface IssueChangedFile {
+  path: string
+  status: string
+  type: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'unknown'
+  staged: boolean
+  unstaged: boolean
+  additions?: number
+  deletions?: number
+}
+
+export interface IssueChangesResponse {
+  root: string
+  gitRepo: boolean
+  files: IssueChangedFile[]
+  additions: number
+  deletions: number
+}
+
+export interface IssueFilePatchResponse {
+  path: string
+  patch: string
+  oldText?: string
+  newText?: string
+  truncated: boolean
+  type?: IssueChangedFile['type']
+  status?: string
+}
+
+export interface EngineAvailability {
+  engineType: EngineType
+  installed: boolean
+  executable?: boolean
+  version?: string
+  binaryPath?: string
+  authStatus: 'authenticated' | 'unauthenticated' | 'unknown'
+  error?: string
+}
+
+export interface EngineModel {
+  id: string
+  name: string
+  isDefault?: boolean
+}
+
+export interface EngineDiscoveryResult {
+  engines: EngineAvailability[]
+  models: Record<string, EngineModel[]>
+}
+
+export interface EngineProfile {
+  engineType: EngineType
+  name: string
+  baseCommand: string
+  protocol: string
+  capabilities: string[]
+  defaultModel?: string
+  permissionPolicy: string
+}
+
+export interface EngineSettings {
+  defaultEngine: string | null
+  engines: Record<string, { defaultModel?: string }>
+}
+
+export interface ProbeResult {
+  engines: EngineAvailability[]
+  models: Record<string, EngineModel[]>
+  duration: number
+}
+
+// ── Event Bus ────────────────────────────────────────────
+
+export interface ChangesSummary {
+  issueId: string
+  fileCount: number
+  additions: number
+  deletions: number
+}
+
+/** SSE wire format — what the frontend receives via EventSource. */
+export interface SSEEventMap {
+  log: { issueId: string; entry: NormalizedLogEntry }
+  'log-updated': { issueId: string; entry: NormalizedLogEntry }
+  state: { issueId: string; executionId: string; state: string }
+  done: { issueId: string; finalStatus: string }
+  'issue-updated': { issueId: string; changes: Record<string, unknown> }
+  'changes-summary': ChangesSummary
+  heartbeat: { ts: string }
+}
+
+/** Internal bus format — superset of SSEEventMap, carries engine context. */
+export interface AppEventMap {
+  log: {
+    issueId: string
+    executionId: string
+    entry: NormalizedLogEntry
+    streaming: boolean
+  }
+  'log-updated': { issueId: string; entry: NormalizedLogEntry }
+  state: { issueId: string; executionId: string; state: string }
+  done: { issueId: string; executionId: string; finalStatus: string }
+  'issue-updated': { issueId: string; changes: Record<string, unknown> }
+  'changes-summary': ChangesSummary
+  heartbeat: { ts: string }
+}
+
+// ── File Browser ──────────────────────────────────────────
+
+export interface FileEntry {
+  name: string
+  type: 'file' | 'directory'
+  size: number
+  modifiedAt: string
+}
+
+export interface DirectoryListing {
+  path: string
+  type: 'directory'
+  entries: FileEntry[]
+}
+
+export interface FileContent {
+  path: string
+  type: 'file'
+  content: string
+  size: number
+  isTruncated: boolean
+  isBinary: boolean
+}
+
+export type FileListingResult = DirectoryListing | FileContent
+
+// ── Process Manager ─────────────────────────────────────
+
+export interface ProcessInfo {
+  executionId: string
+  issueId: string
+  issueTitle: string
+  issueNumber: number
+  engineType: string
+  processState: string
+  model: string | null
+  startedAt: string
+  turnInFlight: boolean
+  spawnCommand: string | null
+  lastIdleAt: string | null
+  pid: number | null
+}
+
+export interface ProjectProcessesResponse {
+  processes: ProcessInfo[]
+}
+
+// ── Notes ───────────────────────────────────────────────
+
+export interface Note {
+  id: string
+  title: string
+  content: string
+  isPinned: boolean
+  createdAt: string
+  updatedAt: string
+}

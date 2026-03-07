@@ -1,0 +1,75 @@
+# dependencies
+node_modules/
+
+# build output
+dist
+out
+*.tgz
+
+# coverage
+coverage
+*.lcov
+.nyc_output
+
+# logs
+logs
+*.log
+*.log*
+
+# runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# TypeScript
+*.tsbuildinfo
+
+# caches
+.cache
+.eslintcache
+.stylelintcache
+
+# dotenv
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# OS
+.DS_Store
+
+# IDEs
+.idea
+.vscode
+
+# database
+data/
+
+# Claude Code
+.claude.json
+.claude/
+.bkd/
+
+# Superpowers plugin docs
+docs/superpowers/
+docs/tmp/
+
+# npm cache (leaked via ~/ symlink)
+~/
+
+# build analysis
+apps/frontend/stats.html
+
+# generated assets
+apps/api/src/_static-assets.generated.ts
+
+# package build staging
+.package-staging/
+
+# core dumps
+core
+
+# temp
+tmp/
