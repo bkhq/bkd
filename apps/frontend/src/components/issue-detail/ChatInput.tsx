@@ -393,6 +393,15 @@ export function ChatInput({
     textareaRef.current?.focus()
   }, [])
 
+  /** Resolve the text to insert for a tagged command item. */
+  const resolveCommandInput = useCallback((item: TaggedCommand): string => {
+    if (item.category === 'agent') {
+      const name = item.value.startsWith('/') ? item.value.slice(1) : item.value
+      return `use agent ${name} `
+    }
+    return `${item.value} `
+  }, [])
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (showCommandMenu) {
       if (e.key === 'ArrowDown') {
@@ -409,7 +418,7 @@ export function ChatInput({
         e.preventDefault()
         const item = filteredCommands[commandIndex]
         if (item) {
-          setInput(`${item.value} `)
+          setInput(resolveCommandInput(item))
           textareaRef.current?.focus()
         }
         return
@@ -599,7 +608,7 @@ export function ChatInput({
                   type="button"
                   onMouseDown={(e) => {
                     e.preventDefault()
-                    setInput(`${item.value} `)
+                    setInput(resolveCommandInput(item))
                     textareaRef.current?.focus()
                   }}
                   className={`w-full flex items-center gap-2 text-left px-3 py-1.5 text-xs transition-colors ${
@@ -712,9 +721,11 @@ export function ChatInput({
             {agentCommands.length > 0 ? (
               <AgentPicker
                 agents={agentCommands}
-                onSelect={(a) =>
-                  selectSlashCommand(a.startsWith('/') ? a : `/${a}`)
-                }
+                onSelect={(a) => {
+                  const name = a.startsWith('/') ? a.slice(1) : a
+                  setInput(`use agent ${name} `)
+                  textareaRef.current?.focus()
+                }}
               />
             ) : null}
             <Button
