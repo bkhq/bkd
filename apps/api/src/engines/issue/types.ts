@@ -42,9 +42,12 @@ export interface ManagedProcess {
   lastIdleAt?: Date
   /** Timestamp of the last stdout/stderr activity (updated on every stream entry) */
   lastActivityAt: Date
+  /** Timestamp when stall was first detected (non-destructive liveness check).
+   *  If activity resumes, this is cleared in consumeStream. */
+  stallDetectedAt?: Date
   /** Timestamp when a stall-probe interrupt was sent (set by gcSweep).
    *  If activity resumes after the probe, this is cleared in consumeStream.
-   *  If still no activity after STALL_PROBE_GRACE_MS, the process is force-killed. */
+   *  If still no activity after STALL_INTERRUPT_GRACE_MS, the process is force-killed. */
   stallProbeAt?: Date
   /** Unique ID for the current cancel escalation. Set when cancelIssue fires
    *  the async escalation loop, cleared when a new turn starts (START_TURN).

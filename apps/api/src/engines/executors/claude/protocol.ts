@@ -97,9 +97,10 @@ interface ControlRequest {
 export class ClaudeProtocolHandler {
   private stdin: FileSink
   private closed = false
-  /** Called when a control_request is received, signaling the process is alive.
-   *  Used by the engine layer to update lastActivityAt during tool execution
-   *  (when no normal stdout entries are emitted). */
+  /** Called when ANY stdout data is received from the process, signaling it is alive.
+   *  Used by the engine layer to update lastActivityAt at the earliest possible point,
+   *  before downstream consumers (consumeStream) process the data. This prevents
+   *  false stall detection when downstream processing (DB writes, etc.) is slow. */
   onActivity?: () => void
   /** Called when a Result message is received, signaling turn completion. */
   onResult?: (data: unknown) => void
@@ -124,7 +125,7 @@ export class ClaudeProtocolHandler {
     const processControlReq = this.processControlRequest.bind(this)
     const isResultMsg = this.isResultMessage.bind(this)
     // Capture `this` reference instead of the callback value so that
-    // onResult can be set after wrapStdout() is called.
+    // onResult/onActivity can be set after wrapStdout() is called.
     const self = this
 
     return new ReadableStream<Uint8Array>({
@@ -185,6 +186,11 @@ export class ClaudeProtocolHandler {
             return
           }
 
+          // Signal activity at the earliest point — raw data received from process.
+          // This fires before line parsing and downstream consumption, ensuring
+          // lastActivityAt is updated even if downstream processing is slow.
+          self.onActivity?.()
+
           buffer += decoder.decode(value, { stream: true })
         }
       },
@@ -232,9 +238,9 @@ export class ClaudeProtocolHandler {
           'claude_protocol_control_request',
         )
       }
-      // Signal activity so the stall detector knows the process is alive
-      // (control_requests are filtered from the downstream stdout stream,
-      // so consumeStream's lastActivityAt update doesn't fire for them).
+      // onActivity is already called in the pull() loop when raw data arrives,
+      // but control_requests are filtered from the downstream stream — fire again
+      // to ensure the timestamp is fresh for the completed control_request.
       this.onActivity?.()
       this.handleControlRequest(request_id, request)
     } catch (error) {

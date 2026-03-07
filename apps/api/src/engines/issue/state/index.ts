@@ -16,6 +16,8 @@ export function dispatch(managed: ManagedProcess, action: ManagedAction): void {
       managed.logicalFailureReason = undefined
       managed.lastInterruptAt = undefined
       managed.cancelEscalationId = undefined // Invalidate stale cancel escalation
+      managed.stallDetectedAt = undefined
+      managed.stallProbeAt = undefined
       managed.metaTurn = action.metaTurn
       break
     case 'TURN_COMPLETED':

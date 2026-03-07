@@ -7,7 +7,8 @@ import type { ProcessStatus } from '@/engines/types'
 import { logger } from '@/logger'
 import {
   IDLE_TIMEOUT_MS,
-  STALL_PROBE_GRACE_MS,
+  STALL_INTERRUPT_GRACE_MS,
+  STALL_LIVENESS_GRACE_MS,
   STREAM_STALL_TIMEOUT_MS,
 } from './constants'
 import type { EngineContext } from './context'
@@ -74,6 +75,17 @@ function terminateAndSettle(
   })
 }
 
+/** Check if a process is still alive via kill(pid, 0). */
+function isProcessAlive(pid: number | undefined): boolean {
+  if (!pid) return false
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
 // ---------- Domain GC sweep ----------
 
 export function gcSweep(ctx: EngineContext): void {
@@ -124,16 +136,18 @@ export function gcSweep(ctx: EngineContext): void {
     }
 
     // --- Check 2: Stream stall detection (turn in-flight but no output) ---
-    // Two-tier approach to avoid killing legitimate long-running operations:
-    //   Tier 1 (STREAM_STALL_TIMEOUT_MS): Send interrupt probe to check responsiveness
-    //   Tier 2 (+ STALL_PROBE_GRACE_MS): No response after probe → force kill
+    // Three-tier approach: give the CLI time to retry internally before we intervene.
+    //   Tier 1 (STREAM_STALL_TIMEOUT_MS): Non-destructive liveness check via OS
+    //   Tier 2 (+ STALL_LIVENESS_GRACE_MS): Process alive but still silent → send interrupt
+    //   Tier 3 (+ STALL_INTERRUPT_GRACE_MS): No response after interrupt → force kill
     if (managed.turnInFlight) {
       const silenceMs = now - managed.lastActivityAt.getTime()
+      const pid = (managed.process.subprocess as { pid?: number }).pid
 
-      // Tier 2: probe was sent but process still hasn't responded
+      // Tier 3: interrupt was sent but process still hasn't responded
       if (
         managed.stallProbeAt &&
-        now - managed.stallProbeAt.getTime() > STALL_PROBE_GRACE_MS
+        now - managed.stallProbeAt.getTime() > STALL_INTERRUPT_GRACE_MS
       ) {
         const stallMinutes = Math.round(silenceMs / 60000)
         logger.warn(
@@ -146,15 +160,37 @@ export function gcSweep(ctx: EngineContext): void {
           },
           'stream_stall_terminate',
         )
+        managed.stallDetectedAt = undefined
         managed.stallProbeAt = undefined
         terminateAndSettle(ctx, entry.id, managed, 'failed')
         cleaned++
         continue
       }
 
-      // Tier 1: no output for STREAM_STALL_TIMEOUT_MS — send interrupt probe
-      if (!managed.stallProbeAt && silenceMs > STREAM_STALL_TIMEOUT_MS) {
+      // Tier 2: stall detected for STALL_LIVENESS_GRACE_MS, process still alive → send interrupt
+      if (
+        managed.stallDetectedAt &&
+        !managed.stallProbeAt &&
+        now - managed.stallDetectedAt.getTime() > STALL_LIVENESS_GRACE_MS
+      ) {
         const stallMinutes = Math.round(silenceMs / 60000)
+        const alive = isProcessAlive(pid)
+        if (!alive) {
+          // Process already dead — skip interrupt, just terminate
+          logger.warn(
+            {
+              issueId: managed.issueId,
+              executionId: managed.executionId,
+              stallMinutes,
+              pid,
+            },
+            'stream_stall_process_dead',
+          )
+          managed.stallDetectedAt = undefined
+          terminateAndSettle(ctx, entry.id, managed, 'failed')
+          cleaned++
+          continue
+        }
         logger.warn(
           {
             issueId: managed.issueId,
@@ -165,10 +201,8 @@ export function gcSweep(ctx: EngineContext): void {
           'stream_stall_probe_sent',
         )
         managed.stallProbeAt = new Date()
-        // Send interrupt to probe process responsiveness. If the process is
-        // alive (e.g. waiting on a slow API call), it will respond with an
-        // error/result entry, which updates lastActivityAt and clears the stall.
-        // Fire-and-forget: Tier 2 will force-kill if no response after grace period.
+        // Send interrupt to probe process responsiveness. The CLI had
+        // STALL_LIVENESS_GRACE_MS to recover on its own — now we intervene.
         // Fire-and-forget: use Promise.resolve() to normalize void | Promise<void>
         // since Codex's implementation is genuinely async while Claude's is sync.
         void Promise.resolve(
@@ -179,6 +213,37 @@ export function gcSweep(ctx: EngineContext): void {
             'stall_probe_interrupt_failed',
           )
         })
+        continue
+      }
+
+      // Tier 1: no output for STREAM_STALL_TIMEOUT_MS — non-destructive liveness check
+      if (
+        !managed.stallDetectedAt &&
+        !managed.stallProbeAt &&
+        silenceMs > STREAM_STALL_TIMEOUT_MS
+      ) {
+        const alive = isProcessAlive(pid)
+        const stallMinutes = Math.round(silenceMs / 60000)
+        logger.warn(
+          {
+            issueId: managed.issueId,
+            executionId: managed.executionId,
+            stallMinutes,
+            lastActivityAt: managed.lastActivityAt.toISOString(),
+            pid,
+            processAlive: alive,
+          },
+          'stream_stall_detected',
+        )
+        if (!alive) {
+          // Process already dead — terminate immediately
+          terminateAndSettle(ctx, entry.id, managed, 'failed')
+          cleaned++
+          continue
+        }
+        // Process is alive — likely retrying API connection internally.
+        // Mark stall detected and give CLI time to recover on its own.
+        managed.stallDetectedAt = new Date()
       }
     }
   }

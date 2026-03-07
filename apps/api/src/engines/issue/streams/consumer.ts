@@ -71,7 +71,8 @@ export async function consumeStream(
         const managed = callbacks.getManaged()
         if (!managed) break
         managed.lastActivityAt = new Date()
-        // Clear stall probe if activity resumed after the GC-sent interrupt
+        // Clear stall state if activity resumed (CLI recovered on its own or after interrupt)
+        if (managed.stallDetectedAt) managed.stallDetectedAt = undefined
         if (managed.stallProbeAt) managed.stallProbeAt = undefined
         const turnIdx = callbacks.getTurnIndex()
 
@@ -171,6 +172,7 @@ export async function consumeStderr(
           const managed = callbacks.getManaged()
           if (!managed) return
           managed.lastActivityAt = new Date()
+          if (managed.stallDetectedAt) managed.stallDetectedAt = undefined
           if (managed.stallProbeAt) managed.stallProbeAt = undefined
           pushStderrEntry(line, callbacks.getTurnIndex(), callbacks.onEntry)
         } catch (entryError) {
