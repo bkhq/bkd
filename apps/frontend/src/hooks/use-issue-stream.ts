@@ -196,7 +196,9 @@ export function useIssueStream({
       }
 
       if (
-        olderLogsRef.current.some((entry) => entry.messageId === incoming.messageId)
+        olderLogsRef.current.some(
+          (entry) => entry.messageId === incoming.messageId,
+        )
       ) {
         setOlderLogs((prev) => {
           const next = prev.map((entry) =>
@@ -209,7 +211,9 @@ export function useIssueStream({
       }
 
       if (
-        liveLogsRef.current.some((entry) => entry.messageId === incoming.messageId)
+        liveLogsRef.current.some(
+          (entry) => entry.messageId === incoming.messageId,
+        )
       ) {
         setLiveLogs((prev) => {
           const next = prev.map((entry) =>

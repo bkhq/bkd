@@ -2,9 +2,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useIssueStream } from '@/hooks/use-issue-stream'
 import type { IssueEventHandler } from '@/lib/event-bus'
 import type { NormalizedLogEntry } from '@/types/kanban'
-import { useIssueStream } from '@/hooks/use-issue-stream'
 
 const subscribeMock = vi.fn()
 const getIssueLogsMock = vi.fn()

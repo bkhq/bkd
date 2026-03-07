@@ -1,12 +1,12 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
+import { promotePendingMessages } from '@/db/pending-messages'
 import {
   issueLogs,
   issues as issuesTable,
   projects as projectsTable,
 } from '@/db/schema'
-import { promotePendingMessages } from '@/db/pending-messages'
 // We import the shared helpers directly
 import {
   getPendingMessages,
