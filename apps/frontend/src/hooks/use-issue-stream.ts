@@ -102,7 +102,7 @@ export function useIssueStream({
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
   const queryClient = useQueryClient()
 
-  const [refreshCounter, setRefreshCounter] = useState(0)
+  const [_refreshCounter, setRefreshCounter] = useState(0)
 
   const doneReceivedRef = useRef(false)
   const activeExecutionRef = useRef<string | null>(null)
