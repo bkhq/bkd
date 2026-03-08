@@ -57,13 +57,19 @@ function ts(): string {
   return new Date().toISOString()
 }
 
-/** Create an IssueDebugLog if LOG_LEVEL=debug|trace, otherwise return a no-op. */
+/** Create an IssueDebugLog if LOG_LEVEL=debug|trace, otherwise return a no-op.
+ *  Fails open: if directory creation or initial write fails, returns no-op
+ *  so debug instrumentation never breaks the execution path. */
 export function createIssueDebugLog(
   issueId: string,
   executionId: string,
 ): IssueDebugLog {
   if (!ENABLED) return NOOP_LOG
-  return new IssueDebugLog(issueId, executionId)
+  try {
+    return new IssueDebugLog(issueId, executionId)
+  } catch {
+    return NOOP_LOG
+  }
 }
 
 /** Create a tee'd ReadableStream that writes each chunk to the debug log. */

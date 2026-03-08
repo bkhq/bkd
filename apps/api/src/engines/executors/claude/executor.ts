@@ -370,12 +370,16 @@ export class ClaudeCodeExecutor implements EngineExecutor {
     // tool execution, permission decisions, etc.) to the specified path.
     const logLevel = process.env.LOG_LEVEL ?? 'info'
     if (env.issueId && (logLevel === 'debug' || logLevel === 'trace')) {
-      const issueLogDir = join(ISSUE_LOG_DIR, env.issueId)
-      mkdirSync(issueLogDir, { recursive: true })
-      const debugFile = join(issueLogDir, 'claude-debug.log')
-      builder.param('--debug')
-      builder.env('CLAUDE_LOG_FILE', debugFile)
-      builder.env('CLAUDE_LOG_LEVEL', 'debug')
+      try {
+        const issueLogDir = join(ISSUE_LOG_DIR, env.issueId)
+        mkdirSync(issueLogDir, { recursive: true })
+        const debugFile = join(issueLogDir, 'claude-debug.log')
+        builder.param('--debug')
+        builder.env('CLAUDE_LOG_FILE', debugFile)
+        builder.env('CLAUDE_LOG_LEVEL', 'debug')
+      } catch {
+        // Fail open — debug logging is best-effort
+      }
     }
 
     // Plan mode: start CLI with bypassPermissions so we can switch back to it
