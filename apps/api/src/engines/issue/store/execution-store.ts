@@ -35,7 +35,11 @@ function entryToRow(entry: NormalizedLogEntry): Omit<EntryRow, 'idx'> {
     tool_call_id: detail?.toolCallId ?? null,
     tool_name: detail?.toolName ?? null,
     tool_kind: detail?.kind ?? null,
-    is_result: detail?.isResult ? 1 : 0,
+    is_result:
+      detail?.isResult ||
+      (entry.metadata?.isResult as boolean | undefined) === true
+        ? 1
+        : 0,
     timestamp: entry.timestamp ?? null,
   }
 }

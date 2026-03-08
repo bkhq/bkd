@@ -209,6 +209,41 @@ describe('ExecutionStore', () => {
     store.destroy()
   })
 
+  test('metadata.isResult fallback round-trips correctly', () => {
+    const store = new ExecutionStore('exec-isresult')
+    // Entry with isResult only in metadata, no toolDetail
+    store.append(
+      makeEntry({
+        entryType: 'tool-use',
+        content: 'result via metadata',
+        metadata: { isResult: true, toolCallId: 'tc-meta', toolName: 'Read' },
+      }),
+    )
+    // Entry with isResult in toolDetail (normal path)
+    store.append(
+      makeToolEntry('tc-detail', true, { turnIndex: 0 }),
+    )
+
+    const entries = store.getAllEntries()
+    expect(entries).toHaveLength(2)
+    // Both should survive the round-trip as result entries
+    // The metadata fallback entry preserves isResult in metadata
+    expect(entries[0].metadata?.isResult).toBe(true)
+    // The toolDetail entry has isResult on toolDetail
+    expect(entries[1].toolDetail?.isResult).toBe(true)
+
+    // getToolPairs should NOT include metadata-only results as actions
+    const pairs = store.getToolPairs(0)
+    // Only the toolDetail action (tc-detail has no action counterpart here)
+    // but the metadata-only entry should not appear as an action
+    for (const pair of pairs) {
+      // No pair should have content 'result via metadata' as an action
+      expect(pair.action.content).not.toBe('result via metadata')
+    }
+
+    store.destroy()
+  })
+
   test('toolAction round-trips through store', () => {
     const store = new ExecutionStore('exec-11')
     store.append(
