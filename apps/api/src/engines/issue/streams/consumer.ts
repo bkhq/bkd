@@ -139,10 +139,7 @@ export async function consumeStream(
     logger.info({ issueId, executionId }, 'consume_stream_ended')
   } catch (error) {
     // Stream itself errored (reader.read() failed) — not recoverable
-    logger.warn(
-      { issueId, executionId, err: error },
-      'consume_stream_error',
-    )
+    logger.warn({ issueId, executionId, err: error }, 'consume_stream_error')
     callbacks.onStreamError(error)
   }
 }
