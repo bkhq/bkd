@@ -287,10 +287,33 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
 
 // ---------- Hook ----------
 
+interface ChatMessagesResult {
+  messages: ChatMessage[]
+  pendingMessages: ChatMessage[]
+}
+
 /**
  * Transform flat NormalizedLogEntry[] into grouped ChatMessage[].
  * Frontend equivalent of the backend MessageRebuilder.
+ * Pending messages are extracted and returned separately for bottom-pinned display.
  */
-export function useChatMessages(logs: NormalizedLogEntry[]): ChatMessage[] {
-  return useMemo(() => rebuildMessages(logs), [logs])
+export function useChatMessages(
+  logs: NormalizedLogEntry[],
+): ChatMessagesResult {
+  return useMemo(() => {
+    const all = rebuildMessages(logs)
+    const messages: ChatMessage[] = []
+    const pendingMessages: ChatMessage[] = []
+    for (const msg of all) {
+      if (
+        msg.type === 'user' &&
+        (msg.status === 'pending' || msg.status === 'done')
+      ) {
+        pendingMessages.push(msg)
+      } else {
+        messages.push(msg)
+      }
+    }
+    return { messages, pendingMessages }
+  }, [logs])
 }

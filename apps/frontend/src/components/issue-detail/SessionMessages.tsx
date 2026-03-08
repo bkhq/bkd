@@ -502,6 +502,7 @@ export function SessionMessages({
   isRunning = false,
   workingStep,
   onCancel,
+  onEditPending,
   isCancelling = false,
   hasOlderLogs = false,
   isLoadingOlder = false,
@@ -512,6 +513,7 @@ export function SessionMessages({
   isRunning?: boolean
   workingStep?: string | null
   onCancel?: () => void
+  onEditPending?: () => void
   isCancelling?: boolean
   hasOlderLogs?: boolean
   isLoadingOlder?: boolean
@@ -521,7 +523,7 @@ export function SessionMessages({
   const fullWidthChat = useViewModeStore((s) => s.fullWidthChat)
 
   // Transform flat entries → grouped ChatMessage[]
-  const messages = useChatMessages(logs)
+  const { messages, pendingMessages } = useChatMessages(logs)
 
   // Auto-scroll to bottom on new messages appended at the end.
   const nearBottomRef = useRef(true)
@@ -619,6 +621,24 @@ export function SessionMessages({
               {isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
             </button>
           ) : null}
+        </div>
+      ) : null}
+      {pendingMessages.length > 0 ? (
+        <div className="mt-1 border-t border-border/30 pt-2">
+          {pendingMessages.map((msg) => (
+            <div key={msg.id} className="group relative">
+              <ChatMessageRow message={msg} />
+              {onEditPending ? (
+                <button
+                  type="button"
+                  onClick={onEditPending}
+                  className="absolute right-2 top-2 hidden rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground group-hover:inline-flex"
+                >
+                  {t('common.edit')}
+                </button>
+              ) : null}
+            </div>
+          ))}
         </div>
       ) : null}
     </div>

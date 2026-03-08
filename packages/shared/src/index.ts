@@ -322,6 +322,7 @@ export interface ChangesSummary {
 export interface SSEEventMap {
   log: { issueId: string; entry: NormalizedLogEntry }
   'log-updated': { issueId: string; entry: NormalizedLogEntry }
+  'log-removed': { issueId: string; messageIds: string[] }
   'tool-progress': ToolProgressEvent
   'tool-group': ToolGroupEvent
   state: { issueId: string; executionId: string; state: string }
@@ -340,6 +341,7 @@ export interface AppEventMap {
     streaming: boolean
   }
   'log-updated': { issueId: string; entry: NormalizedLogEntry }
+  'log-removed': { issueId: string; messageIds: string[] }
   state: { issueId: string; executionId: string; state: string }
   done: { issueId: string; executionId: string; finalStatus: string }
   'issue-updated': { issueId: string; changes: Record<string, unknown> }

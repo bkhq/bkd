@@ -3,7 +3,8 @@
     "cancel": "Cancel",
     "loading": "Loading...",
     "search": "Search...",
-    "select": "Select"
+    "select": "Select",
+    "edit": "Edit"
   },
   "project": {
     "projects": "Projects",

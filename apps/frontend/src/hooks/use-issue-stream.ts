@@ -20,6 +20,7 @@ interface UseIssueStreamReturn {
   loadOlderLogs: () => void
   clearLogs: () => void
   refreshLogs: () => void
+  removeEntries: (messageIds: string[]) => void
   appendServerMessage: (
     messageId: string,
     content: string,
@@ -266,6 +267,26 @@ export function useIssueStream({
     [appendEntry],
   )
 
+  /** Remove entries by messageId (used when pending messages are consumed or recalled). */
+  const removeEntries = useCallback((messageIds: string[]) => {
+    if (messageIds.length === 0) return
+    const idSet = new Set(messageIds)
+    setLiveLogs((prev) => {
+      const next = prev.filter((e) => !e.messageId || !idSet.has(e.messageId))
+      liveLogsRef.current = next
+      return next
+    })
+    setOlderLogs((prev) => {
+      const next = prev.filter((e) => !e.messageId || !idSet.has(e.messageId))
+      olderLogsRef.current = next
+      return next
+    })
+    // Also clear from seen sets so they can be re-added if needed
+    for (const id of messageIds) {
+      seenIdsRef.current.delete(id)
+    }
+  }, [])
+
   /** Load older logs into the separate olderLogs array (no cap) */
   const loadOlderLogs = useCallback(() => {
     if (!issueId || !olderCursorRef.current || isLoadingOlder) return
@@ -328,6 +349,7 @@ export function useIssueStream({
 
   // Fetch latest historical logs from DB (reverse mode — newest first).
   // Merges with any SSE entries that may have arrived before the HTTP response.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: _refreshCounter intentionally triggers re-fetch
   useEffect(() => {
     if (!issueId || !enabled) return
 
@@ -398,6 +420,9 @@ export function useIssueStream({
       onLogUpdated: (entry) => {
         upsertEntry(entry)
       },
+      onLogRemoved: (messageIds) => {
+        removeEntries(messageIds)
+      },
       onState: (data) => {
         if (data.state === 'running' || data.state === 'pending') {
           // New execution started — track its ID and accept logs
@@ -437,7 +462,15 @@ export function useIssueStream({
     return () => {
       cleanup.unsub()
     }
-  }, [projectId, issueId, enabled, queryClient, appendEntry, upsertEntry])
+  }, [
+    projectId,
+    issueId,
+    enabled,
+    queryClient,
+    appendEntry,
+    upsertEntry,
+    removeEntries,
+  ])
 
   return {
     logs,
@@ -447,6 +480,7 @@ export function useIssueStream({
     loadOlderLogs,
     clearLogs,
     refreshLogs,
+    removeEntries,
     appendServerMessage,
   }
 }

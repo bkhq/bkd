@@ -208,6 +208,19 @@ export const kanbanApi = {
       {},
     ),
 
+  deletePendingMessage: (projectId: string, issueId: string) =>
+    del<{
+      id: string
+      content: string
+      metadata: Record<string, unknown>
+      attachments: Array<{
+        id: string
+        originalName: string
+        mimeType: string
+        size: number
+      }>
+    }>(`/api/projects/${projectId}/issues/${issueId}/pending`),
+
   autoTitleIssue: async (projectId: string, issueId: string) => {
     const res = await fetch(
       `/api/projects/${projectId}/issues/${issueId}/auto-title`,

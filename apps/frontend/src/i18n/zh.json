@@ -3,7 +3,8 @@
     "cancel": "取消",
     "loading": "加载中...",
     "search": "搜索...",
-    "select": "选择"
+    "select": "选择",
+    "edit": "编辑"
   },
   "project": {
     "projects": "项目",

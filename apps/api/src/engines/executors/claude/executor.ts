@@ -371,8 +371,7 @@ export class ClaudeCodeExecutor implements EngineExecutor {
         mkdirSync(issueLogDir, { recursive: true })
         const debugFile = join(issueLogDir, 'claude-debug.log')
         builder.param('--debug')
-        builder.env('CLAUDE_LOG_FILE', debugFile)
-        builder.env('CLAUDE_LOG_LEVEL', 'debug')
+        builder.param('--debug-file', debugFile)
       } catch {
         // Fail open — debug logging is best-effort
       }

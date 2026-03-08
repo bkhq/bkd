@@ -62,6 +62,10 @@
 
 - [x] **CHAT-003 历史消息分页按会话消息计数** `P1` - owner: claude - plan: `PLAN-004` - file: `docs/task/CHAT-003.md`
 
+## Pending Message
+
+- [x] **FEAT-002 Pending 消息改造** `P1` - owner: claude - plan: `PLAN-005` - file: `docs/task/FEAT-002.md`
+
 ## Bug Fix
 
 - [x] **BUG-001 未指定 root 目录时以自身所在目录为 root** `P1` - file: `docs/task/BUG-001.md`
