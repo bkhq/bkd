@@ -4,3 +4,4 @@
 > Markers: `[ ]` drafted, `[-]` implementing, `[x]` completed, `[~]` closed
 
 - [x] **PLAN-001 添加 server_name 和 server_url 环境变量** - task: `FEAT-001` - file: `docs/plan/PLAN-001.md`
+- [x] **PLAN-002 完善 Webhook 通知元信息** - task: `WEBHOOK-001` - file: `docs/plan/PLAN-002.md`

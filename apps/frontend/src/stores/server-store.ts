@@ -9,11 +9,15 @@ interface ServerStore {
 export const useServerStore = create<ServerStore>((set) => ({
   name: null,
   url: null,
-  setServerInfo: (name, url) => set({ name, url }),
+  setServerInfo: (name, url) =>
+    set({
+      name: name?.trim() || null,
+      url: url?.trim() || null,
+    }),
 }))
 
-/** Build an external issue URL using server_url (if set) or window.location.origin as fallback. */
+/** Build an issue URL using the current browser origin. */
 export function getIssueUrl(projectId: string, issueId: string): string {
-  const base = useServerStore.getState().url || window.location.origin
-  return `${base.replace(/\/+$/, '')}/projects/${projectId}/issues/${issueId}`
+  const base = window.location.origin
+  return `${base}/projects/${projectId}/issues/${issueId}`
 }
