@@ -333,6 +333,10 @@ export const kanbanApi = {
         arch: string
         nodeVersion: string
       }
+      server: {
+        name: string | null
+        url: string | null
+      }
       process: {
         pid: number
       }
