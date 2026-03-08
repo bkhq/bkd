@@ -122,7 +122,6 @@ const createSchema = z
   })
 
 const updateSchema = z.object({
-  channel: z.enum(NOTIFICATION_CHANNELS as [string, ...string[]]).optional(),
   url: z.string().min(1).optional(),
   secret: z.string().max(256).nullable().optional(),
   events: eventsArray.optional(),
@@ -200,7 +199,8 @@ webhooksRoute.patch(
     const body = c.req.valid('json')
 
     // Validate channel-specific rules against effective (merged) values
-    const effectiveChannel = body.channel ?? existing.channel
+    // Channel is immutable after creation — always use existing value
+    const effectiveChannel = existing.channel
     const effectiveUrl = body.url ?? existing.url
     const effectiveSecret =
       body.secret !== undefined && body.secret !== SECRET_MASK
@@ -247,7 +247,6 @@ webhooksRoute.patch(
 
     const updates: Record<string, unknown> = {}
 
-    if (body.channel !== undefined) updates.channel = body.channel
     if (body.url !== undefined) updates.url = body.url
     // Skip masked secret (means "unchanged"); null means "clear"; otherwise set new value
     if (body.secret !== undefined && body.secret !== SECRET_MASK) {

@@ -1,7 +1,13 @@
 import type { WebhookEventType } from '@bkd/shared'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from '@/db'
-import { webhookDeliveries, webhooks } from '@/db/schema'
+import {
+  issueLogs,
+  issues as issuesTable,
+  projects as projectsTable,
+  webhookDeliveries,
+  webhooks,
+} from '@/db/schema'
 import { appEvents } from '@/events'
 import { logger } from '@/logger'
 
@@ -14,8 +20,112 @@ interface WebhookRow {
   isActive: boolean
 }
 
+// ── Helpers ──────────────────────────────────────────────
+
+interface IssueMetadata {
+  issueId: string
+  issueNumber: number
+  title: string
+  projectId: string
+  projectName: string
+  engineType: string | null
+  model: string | null
+  issueUrl?: string
+}
+
+async function getIssueMetadata(
+  issueId: string,
+): Promise<IssueMetadata | null> {
+  try {
+    const [row] = await db
+      .select({
+        id: issuesTable.id,
+        issueNumber: issuesTable.issueNumber,
+        title: issuesTable.title,
+        projectId: issuesTable.projectId,
+        engineType: issuesTable.engineType,
+        model: issuesTable.model,
+        projectName: projectsTable.name,
+      })
+      .from(issuesTable)
+      .leftJoin(projectsTable, eq(issuesTable.projectId, projectsTable.id))
+      .where(eq(issuesTable.id, issueId))
+    if (!row) return null
+
+    const result: IssueMetadata = {
+      issueId: row.id,
+      issueNumber: row.issueNumber,
+      title: row.title,
+      projectId: row.projectId,
+      projectName: row.projectName ?? row.projectId,
+      engineType: row.engineType,
+      model: row.model,
+    }
+
+    const serverUrl = process.env.SERVER_URL
+    if (serverUrl) {
+      result.issueUrl = buildIssueUrl(serverUrl, row.projectId, row.id)
+    }
+
+    return result
+  } catch (err) {
+    logger.warn({ err, issueId }, 'webhook_get_issue_metadata_failed')
+    return null
+  }
+}
+
+export function buildIssueUrl(
+  serverUrl: string,
+  projectId: string,
+  issueId: string,
+): string {
+  return `${serverUrl.replace(/\/+$/, '')}/projects/${projectId}/issues/${issueId}`
+}
+
+async function getLastAgentLog(issueId: string): Promise<string | null> {
+  try {
+    const [row] = await db
+      .select({ content: issueLogs.content })
+      .from(issueLogs)
+      .where(
+        and(
+          eq(issueLogs.issueId, issueId),
+          eq(issueLogs.entryType, 'assistant-message'),
+          eq(issueLogs.isDeleted, 0),
+        ),
+      )
+      .orderBy(desc(issueLogs.createdAt))
+      .limit(1)
+    if (!row?.content) return null
+    return row.content.length > 500
+      ? `${row.content.slice(0, 500)}...`
+      : row.content
+  } catch (err) {
+    logger.warn({ err, issueId }, 'webhook_get_last_log_failed')
+    return null
+  }
+}
+
+function buildMetadataPayload(meta: IssueMetadata): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    issueId: meta.issueId,
+    issueNumber: meta.issueNumber,
+    projectId: meta.projectId,
+    projectName: meta.projectName,
+    title: meta.title,
+  }
+  if (meta.issueUrl) payload.issueUrl = meta.issueUrl
+  return payload
+}
+
+// ── Telegram formatting ─────────────────────────────────
+
 function escapeTelegramHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
 }
 
 function formatTelegramMessage(
@@ -34,24 +144,60 @@ function formatTelegramMessage(
   const icon = emoji[event] ?? '\u{1F4CC}'
   const lines = [`${icon} <b>${escapeTelegramHtml(event)}</b>`]
 
-  if (payload.issueId)
-    lines.push(
-      `Issue: <code>${escapeTelegramHtml(String(payload.issueId))}</code>`,
-    )
-  if (payload.title)
-    lines.push(`Title: ${escapeTelegramHtml(String(payload.title))}`)
-  if (payload.finalStatus)
-    lines.push(`Status: ${escapeTelegramHtml(String(payload.finalStatus))}`)
-  if (payload.statusId)
+  // Project
+  if (payload.projectName)
+    lines.push(`Project: ${escapeTelegramHtml(String(payload.projectName))}`)
+
+  // Issue line: #number title (with link if available)
+  const issueNumber = payload.issueNumber
+  const title = payload.title ? String(payload.title) : null
+  const issueUrl = payload.issueUrl ? String(payload.issueUrl) : null
+  if (issueNumber && title) {
+    const label = `#${issueNumber} ${escapeTelegramHtml(title)}`
+    lines.push(`Issue: ${label}`)
+  }
+
+  // Status info
+  if (payload.newStatus) {
+    let statusLine = `Status: → ${escapeTelegramHtml(String(payload.newStatus))}`
+    if (payload.newStatus === 'review') {
+      statusLine += ' (session completed)'
+    }
+    lines.push(statusLine)
+  } else if (payload.statusId) {
     lines.push(`Status: ${escapeTelegramHtml(String(payload.statusId))}`)
+  }
+
+  // Engine + model for session/create events
+  if (payload.engineType) {
+    let engineLine = `Engine: ${escapeTelegramHtml(String(payload.engineType))}`
+    if (payload.model)
+      engineLine += ` | Model: ${escapeTelegramHtml(String(payload.model))}`
+    lines.push(engineLine)
+  }
+
+  // Changed fields for issue.updated
   if (payload.changes && typeof payload.changes === 'object') {
     const keys = Object.keys(payload.changes as Record<string, unknown>)
     if (keys.length > 0)
       lines.push(`Changed: ${escapeTelegramHtml(keys.join(', '))}`)
   }
 
+  // Last log for session.failed
+  if (payload.lastLog) {
+    lines.push('')
+    lines.push(`\u{1F4AC} ${escapeTelegramHtml(String(payload.lastLog))}`)
+  }
+
+  // Link
+  if (issueUrl) {
+    lines.push(`\u{1F517} <a href="${escapeTelegramHtml(issueUrl)}">Open</a>`)
+  }
+
   return lines.join('\n')
 }
+
+// ── Delivery ────────────────────────────────────────────
 
 async function deliverWebhook(
   webhook: WebhookRow,
@@ -197,6 +343,8 @@ export async function dispatch(
   }
 }
 
+// ── Event listeners ─────────────────────────────────────
+
 export function initWebhookDispatcher() {
   // Issue lifecycle events — dispatch status_changed OR updated, not both
   appEvents.on(
@@ -205,20 +353,48 @@ export function initWebhookDispatcher() {
       const changes = data.changes as Record<string, unknown>
 
       if (changes.statusId) {
-        // Fire status_changed instead of updated when status changes
-        void dispatch('issue.status_changed', {
-          event: 'issue.status_changed',
-          issueId: data.issueId,
-          changes,
-          timestamp: new Date().toISOString(),
-        })
+        const newStatus = String(changes.statusId)
+        // Only notify for meaningful status changes: todo, review, done
+        if (!['todo', 'review', 'done'].includes(newStatus)) return
+
+        void (async () => {
+          try {
+            const meta = await getIssueMetadata(data.issueId)
+            const payload: Record<string, unknown> = {
+              event: 'issue.status_changed',
+              timestamp: new Date().toISOString(),
+              ...(meta
+                ? buildMetadataPayload(meta)
+                : { issueId: data.issueId }),
+              newStatus,
+            }
+            await dispatch('issue.status_changed', payload)
+          } catch (err) {
+            logger.warn(
+              { err, issueId: data.issueId },
+              'webhook_status_changed_failed',
+            )
+          }
+        })()
       } else {
-        void dispatch('issue.updated', {
-          event: 'issue.updated',
-          issueId: data.issueId,
-          changes,
-          timestamp: new Date().toISOString(),
-        })
+        void (async () => {
+          try {
+            const meta = await getIssueMetadata(data.issueId)
+            await dispatch('issue.updated', {
+              event: 'issue.updated',
+              timestamp: new Date().toISOString(),
+              ...(meta
+                ? buildMetadataPayload(meta)
+                : { issueId: data.issueId }),
+              changes,
+            })
+          } catch (err) {
+            logger.warn(
+              { err, issueId: data.issueId },
+              'webhook_updated_failed',
+            )
+          }
+        })()
       }
     },
     { order: 200 },
@@ -228,18 +404,36 @@ export function initWebhookDispatcher() {
   appEvents.on(
     'done',
     (data) => {
-      const event: WebhookEventType =
-        data.finalStatus === 'completed'
-          ? 'session.completed'
-          : 'session.failed'
+      void (async () => {
+        try {
+          const eventType: WebhookEventType =
+            data.finalStatus === 'completed'
+              ? 'session.completed'
+              : 'session.failed'
 
-      void dispatch(event, {
-        event,
-        issueId: data.issueId,
-        executionId: data.executionId,
-        finalStatus: data.finalStatus,
-        timestamp: new Date().toISOString(),
-      })
+          const meta = await getIssueMetadata(data.issueId)
+          const payload: Record<string, unknown> = {
+            event: eventType,
+            timestamp: new Date().toISOString(),
+            ...(meta ? buildMetadataPayload(meta) : { issueId: data.issueId }),
+            executionId: data.executionId,
+            finalStatus: data.finalStatus,
+          }
+
+          if (meta?.engineType) payload.engineType = meta.engineType
+          if (meta?.model) payload.model = meta.model
+
+          // Attach last agent log for failed sessions
+          if (eventType === 'session.failed') {
+            const lastLog = await getLastAgentLog(data.issueId)
+            if (lastLog) payload.lastLog = lastLog
+          }
+
+          await dispatch(eventType, payload)
+        } catch (err) {
+          logger.warn({ err, issueId: data.issueId }, 'webhook_done_failed')
+        }
+      })()
     },
     { order: 200 },
   )
@@ -249,12 +443,25 @@ export function initWebhookDispatcher() {
     'state',
     (data) => {
       if (data.state === 'running') {
-        void dispatch('session.started', {
-          event: 'session.started',
-          issueId: data.issueId,
-          executionId: data.executionId,
-          timestamp: new Date().toISOString(),
-        })
+        void (async () => {
+          try {
+            const meta = await getIssueMetadata(data.issueId)
+            const payload: Record<string, unknown> = {
+              event: 'session.started',
+              timestamp: new Date().toISOString(),
+              ...(meta
+                ? buildMetadataPayload(meta)
+                : { issueId: data.issueId }),
+              executionId: data.executionId,
+            }
+            if (meta?.engineType) payload.engineType = meta.engineType
+            if (meta?.model) payload.model = meta.model
+
+            await dispatch('session.started', payload)
+          } catch (err) {
+            logger.warn({ err, issueId: data.issueId }, 'webhook_state_failed')
+          }
+        })()
       }
     },
     { order: 200 },

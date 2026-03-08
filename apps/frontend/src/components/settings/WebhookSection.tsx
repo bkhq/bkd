@@ -154,7 +154,6 @@ function WebhookForm({
       updateWebhook.mutate(
         {
           id: webhook.id,
-          channel,
           url,
           secret: secret || null,
           events,
@@ -174,27 +173,44 @@ function WebhookForm({
     <div className="rounded-md border bg-card p-4 space-y-3">
       <div className="space-y-1.5">
         <Label className="text-xs">{t('settings.webhooksChannelType')}</Label>
-        <div className="flex gap-1.5">
-          {CHANNEL_OPTIONS.map((opt) => {
-            const Icon = opt.icon
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setChannel(opt.value)}
-                className={cn(
-                  'inline-flex items-center rounded-md border px-3 py-1.5 text-xs transition-colors cursor-pointer gap-1.5',
-                  channel === opt.value
-                    ? 'border-primary/30 bg-primary/10 text-primary'
-                    : 'border-border bg-muted/50 text-muted-foreground hover:bg-muted',
-                )}
-              >
-                <Icon className="size-3.5" />
-                {t(opt.labelKey)}
-              </button>
-            )
-          })}
-        </div>
+        {isEditing ? (
+          <div className="flex gap-1.5">
+            {(() => {
+              const opt =
+                CHANNEL_OPTIONS.find((o) => o.value === channel) ??
+                CHANNEL_OPTIONS[0]
+              const Icon = opt.icon
+              return (
+                <span className="inline-flex items-center rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs text-primary gap-1.5">
+                  <Icon className="size-3.5" />
+                  {t(opt.labelKey)}
+                </span>
+              )
+            })()}
+          </div>
+        ) : (
+          <div className="flex gap-1.5">
+            {CHANNEL_OPTIONS.map((opt) => {
+              const Icon = opt.icon
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setChannel(opt.value)}
+                  className={cn(
+                    'inline-flex items-center rounded-md border px-3 py-1.5 text-xs transition-colors cursor-pointer gap-1.5',
+                    channel === opt.value
+                      ? 'border-primary/30 bg-primary/10 text-primary'
+                      : 'border-border bg-muted/50 text-muted-foreground hover:bg-muted',
+                  )}
+                >
+                  <Icon className="size-3.5" />
+                  {t(opt.labelKey)}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {isTelegram ? (

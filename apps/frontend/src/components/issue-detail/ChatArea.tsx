@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useAutoTitleIssue, useIssue, useUpdateIssue } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { getIssueUrl } from '@/stores/server-store'
 import { ChatBody } from './ChatBody'
 import { SubIssueDialog } from './SubIssueDialog'
 
@@ -225,9 +226,8 @@ export function ChatArea({
             className={`h-7 w-7 shrink-0 transition-all duration-200 ${copied ? 'text-emerald-500 scale-110' : 'text-muted-foreground hover:text-foreground'}`}
             title={t('issue.copyLink')}
             onClick={() => {
-              const url = `${window.location.origin}/projects/${projectId}/issues/${issueId}`
               navigator.clipboard
-                .writeText(url)
+                .writeText(getIssueUrl(projectId, issueId))
                 .then(() => {
                   setCopied(true)
                   setTimeout(() => setCopied(false), 2000)

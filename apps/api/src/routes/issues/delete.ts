@@ -6,7 +6,10 @@ import { findProject } from '@/db/helpers'
 import { issues as issuesTable } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
 import { logger } from '@/logger'
-import { dispatch as webhookDispatch } from '@/webhooks/dispatcher'
+import {
+  buildIssueUrl,
+  dispatch as webhookDispatch,
+} from '@/webhooks/dispatcher'
 
 const del = new Hono()
 
@@ -90,13 +93,20 @@ del.delete('/:id', async (c) => {
 
   logger.info({ projectId: project.id, issueId }, 'issue_deleted')
 
-  void webhookDispatch('issue.deleted', {
+  const webhookPayload: Record<string, unknown> = {
     event: 'issue.deleted',
     issueId,
+    issueNumber: existing.issueNumber,
     projectId: project.id,
+    projectName: project.name,
     title: existing.title,
     timestamp: new Date().toISOString(),
-  })
+  }
+  const serverUrl = process.env.SERVER_URL
+  if (serverUrl) {
+    webhookPayload.issueUrl = buildIssueUrl(serverUrl, project.id, issueId)
+  }
+  void webhookDispatch('issue.deleted', webhookPayload)
 
   return c.json({ success: true, data: { id: issueId } })
 })

@@ -12,7 +12,7 @@ CHAT-001 Phase 4 完成：回归验证 + 代码审查修复
 
 全部 377 后端 + 28 前端测试通过。CHAT-001 标记完成。
 
-关联方案：PLAN-001
+关联方案：PLAN-003
 
 ## 2026-03-08 17:10 [progress]
 
@@ -24,7 +24,7 @@ CHAT-001 Phase 3 完成：前端适配
 - `apps/frontend/src/hooks/use-chat-messages.ts` — 新增 useChatMessages hook（entries → ChatMessage[]）
 - `apps/frontend/src/components/issue-detail/SessionMessages.tsx` — 重写为 ChatMessage 类型驱动渲染 + ToolGroupMessage 组件
 
-关联方案：PLAN-001
+关联方案：PLAN-003
 
 ## 2026-03-08 16:00 [progress]
 
@@ -40,7 +40,7 @@ CHAT-001 Phase 2 完成：后端 Pipeline 切换
 - `apps/api/src/engines/issue/engine.ts` — 注册 onRemove 自动销毁 ExecutionStore
 - `apps/api/test/claude-normalizer.test.ts` — 更新测试
 
-关联方案：PLAN-001
+关联方案：PLAN-003
 
 ## 2026-03-08 14:30 [progress]
 
@@ -53,7 +53,16 @@ CHAT-001 Phase 1 完成：聊天界面 UI 优化后端基础设施
 - `apps/api/test/execution-store.test.ts` — 10 个测试
 - `apps/api/test/message-rebuilder.test.ts` — 10 个测试
 
-关联方案：PLAN-001
+关联方案：PLAN-003
+
+## 2026-03-08 [progress]
+
+- FEAT-001: 添加 `SERVER_NAME` 和 `SERVER_URL` 环境变量支持
+  - 后端 `/api/settings/system-info` 新增 `server.name` / `server.url` 字段
+  - 前端页面标题动态显示 `SERVER_NAME`（未设置时保持 "BKD"）
+  - 复制链接使用 `SERVER_URL` 拼接外部 URL（未设置时回退 `window.location.origin`）
+  - Webhook payload 自动注入 `issueUrl` 和 `projectId`（当 `SERVER_URL` 设置时）
+  - 新增 `server-store.ts` Zustand store 和 `getIssueUrl()` 工具函数
 
 ## 2026-03-08 10:30 [progress]
 

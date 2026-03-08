@@ -27,6 +27,10 @@ about.get('/system-info', async (c) => {
         arch: arch(),
         nodeVersion: process.version,
       },
+      server: {
+        name: process.env.SERVER_NAME?.trim() || null,
+        url: process.env.SERVER_URL?.trim() || null,
+      },
       process: {
         pid: process.pid,
       },
