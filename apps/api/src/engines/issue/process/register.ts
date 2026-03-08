@@ -1,8 +1,5 @@
 import type { EngineContext } from '@/engines/issue/context'
-import {
-  createIssueDebugLog,
-  teeStreamToDebug,
-} from '@/engines/issue/debug-log'
+import { createIssueDebugLog, teeStreamToDebug } from '@/engines/issue/debug-log'
 import { emitStateChange } from '@/engines/issue/events'
 import { ExecutionStore } from '@/engines/issue/store/execution-store'
 import type { StreamCallbacks } from '@/engines/issue/streams/consumer'
@@ -14,11 +11,7 @@ import {
 } from '@/engines/issue/streams/handlers'
 import type { ManagedProcess } from '@/engines/issue/types'
 import { getPidFromManaged } from '@/engines/issue/utils/pid'
-import type {
-  EngineType,
-  NormalizedLogEntry,
-  SpawnedProcess,
-} from '@/engines/types'
+import type { EngineType, NormalizedLogEntry, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
 
 // ---------- Process registration ----------
@@ -83,14 +76,12 @@ export function register(
     getTurnIndex: () => ctx.turnIndexes.get(executionId) ?? 0,
     onEntry: (entry) => handleStreamEntry(issueId, executionId, entry),
     onTurnCompleted,
-    onStreamError: (error) =>
-      handleStreamError(ctx, issueId, executionId, error),
+    onStreamError: (error) => handleStreamError(ctx, issueId, executionId, error),
   }
   const stderrCallbacks = {
     getManaged: () => ctx.pm.get(executionId)?.meta,
     getTurnIndex: () => ctx.turnIndexes.get(executionId) ?? 0,
-    onEntry: (entry: NormalizedLogEntry) =>
-      handleStderrEntry(issueId, executionId, entry),
+    onEntry: (entry: NormalizedLogEntry) => handleStderrEntry(issueId, executionId, entry),
   }
 
   // Wire up protocol handler activity callback. This fires at two points:
@@ -122,23 +113,14 @@ export function register(
   const stdoutStream = teeStreamToDebug(process.stdout, debugLog, 'stdout')
   const stderrStream = teeStreamToDebug(process.stderr, debugLog, 'stderr')
 
-  void consumeStream(
-    executionId,
-    issueId,
-    stdoutStream,
-    logParser,
-    stdoutCallbacks,
-  )
+  void consumeStream(executionId, issueId, stdoutStream, logParser, stdoutCallbacks)
     .then(() => {
       debugLog.event('stdout_stream_ended')
       logger.debug({ issueId, executionId }, 'consume_stream_promise_resolved')
     })
     .catch((err) => {
       debugLog.event(`stdout_stream_error: ${err}`)
-      logger.error(
-        { issueId, executionId, err },
-        'consume_stream_unhandled_error',
-      )
+      logger.error({ issueId, executionId, err }, 'consume_stream_unhandled_error')
     })
   void consumeStderr(executionId, issueId, stderrStream, stderrCallbacks)
     .then(() => {
@@ -147,10 +129,7 @@ export function register(
     })
     .catch((err) => {
       debugLog.event(`stderr_stream_error: ${err}`)
-      logger.error(
-        { issueId, executionId, err },
-        'consume_stderr_unhandled_error',
-      )
+      logger.error({ issueId, executionId, err }, 'consume_stderr_unhandled_error')
     })
   logger.debug(
     { issueId, executionId, pid: getPidFromManaged(managed), turnIndex },
