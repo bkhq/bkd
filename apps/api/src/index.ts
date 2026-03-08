@@ -29,6 +29,10 @@ import {
   registerShutdownForUpgrade,
   stopPeriodicCheck,
 } from './upgrade/service'
+import {
+  initWebhookDispatcher,
+  startDeliveryCleanup,
+} from './webhooks/dispatcher'
 
 // Migrate legacy global slash commands key to per-engine format, then load cache
 void migrateSlashCommandsKey()
@@ -51,6 +55,12 @@ startPeriodicReconciliation()
 
 // Start watching for file changes to push summaries via SSE
 startChangesSummaryWatcher()
+
+// Initialize webhook dispatcher (subscribes to event bus)
+initWebhookDispatcher()
+
+// Start periodic webhook delivery cleanup (keeps last 100 per webhook)
+const stopDeliveryCleanup = startDeliveryCleanup()
 
 const listenHost = process.env.API_HOST ?? '0.0.0.0'
 const listenPort = Number(process.env.API_PORT ?? 3000)
@@ -126,6 +136,7 @@ registerShutdownForUpgrade(async () => {
   stopUploadCleanup()
   stopWorktreeCleanup()
   stopPeriodicCheck()
+  stopDeliveryCleanup()
   await issueEngine.cancelAll()
   http.stop()
   logger.info('server_stopped_for_upgrade')
@@ -153,6 +164,7 @@ async function shutdown(signal: string) {
   stopUploadCleanup()
   stopWorktreeCleanup()
   stopPeriodicCheck()
+  stopDeliveryCleanup()
 
   // Cancel all active engine processes before shutting down
   await issueEngine.cancelAll()
