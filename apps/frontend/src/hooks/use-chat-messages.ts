@@ -165,12 +165,17 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
       (item) => !isTodoWriteEntry(item.action),
     )
 
+    // Save thinking before task-plan flush so non-todo tools can still use it
+    const savedThinking = pendingThinking
+
     if (todoItems.length > 0) {
       const lastTodo = todoItems[todoItems.length - 1]
       const todos = extractTodos(lastTodo.action)
       if (todos) {
-        // Thinking is not relevant for task-plan; flush it before
-        flushPendingThinking()
+        if (nonTodoItems.length === 0) {
+          // No other tools to absorb thinking — flush it as standalone
+          flushPendingThinking()
+        }
         messages.push({
           type: 'task-plan',
           id: entryId(lastTodo.action, nextId('tp')),
@@ -183,10 +188,10 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
 
     if (nonTodoItems.length > 0) {
       // Consume deferred thinking as tool group description
-      const desc = pendingThinking?.content
+      const desc = savedThinking?.content
       pendingThinking = null
       messages.push(buildToolGroup(nonTodoItems, desc))
-    } else {
+    } else if (pendingThinking) {
       // No tool items consumed the thinking — flush it as standalone
       flushPendingThinking()
     }
