@@ -85,8 +85,8 @@ npm install -g @google/gemini-cli
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `API_PORT` | 服务端口 | `3000` |
-| `API_HOST` | 监听地址 | `0.0.0.0` |
+| `PORT` | 服务端口 | `3000` |
+| `HOST` | 监听地址 | `0.0.0.0` |
 | `DB_PATH` | SQLite 数据库路径 | `data/db/bkd.db` |
 | `MAX_CONCURRENT_EXECUTIONS` | 最大并行代理会话数 | `5` |
 | `LOG_LEVEL` | 日志级别（`trace` / `debug` / `info` / `warn` / `error`） | `info` |

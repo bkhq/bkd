@@ -3,6 +3,10 @@
 > Format: `- [ ] **PREFIX-NNN Title** \`P1\` - owner: name - file: \`docs/task/PREFIX-NNN.md\``
 > Markers: `[ ]` pending, `[-]` in progress, `[x]` completed, `[~]` closed
 
+## Chat UI
+
+- [-] **CHAT-001 聊天界面 UI 优化（对标 Claude Code）** `P1` - owner: claude - file: `docs/task/CHAT-001.md`
+
 ## Backend Audit — CRITICAL
 
 - [ ] **AUDIT-001 升级系统路径穿越漏洞** `P0` - file: `docs/task/AUDIT-001.md`
