@@ -188,6 +188,7 @@
     "emptyFile": "No file content available",
     "truncated": "Patch output is truncated",
     "copyPath": "Copy file path",
+    "openFiles": "Open file browser",
     "fileType": {
       "new": "New",
       "deleted": "Del",
@@ -224,7 +225,8 @@
       "search": "Search",
       "webFetch": "Fetch URL",
       "taskPlan": "Task Plan",
-      "fullCommand": "Full Command"
+      "fullCommand": "Full Command",
+      "showLess": "Show less"
     },
     "restart": "Restart",
     "restarting": "Restarting...",
