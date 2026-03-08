@@ -14,6 +14,6 @@ export const useServerStore = create<ServerStore>((set) => ({
 
 /** Build an external issue URL using server_url (if set) or window.location.origin as fallback. */
 export function getIssueUrl(projectId: string, issueId: string): string {
-  const base = useServerStore.getState().url ?? window.location.origin
+  const base = useServerStore.getState().url || window.location.origin
   return `${base.replace(/\/+$/, '')}/projects/${projectId}/issues/${issueId}`
 }

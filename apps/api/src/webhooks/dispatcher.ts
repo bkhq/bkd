@@ -162,7 +162,7 @@ export async function deliver(
 async function enrichPayload(
   payload: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const serverUrl = process.env.SERVER_URL
+  const serverUrl = process.env.SERVER_URL?.trim()
   if (!serverUrl || !payload.issueId) return payload
 
   try {
@@ -207,6 +207,9 @@ export async function dispatch(
     return
   }
 
+  // Enrich once outside the loop to avoid repeated DB lookups
+  const enriched = await enrichPayload(payload)
+
   for (const row of rows) {
     let subscribed: string[]
     try {
@@ -217,11 +220,9 @@ export async function dispatch(
     if (!subscribed.includes(event)) continue
 
     // Fire and forget — don't block the event bus
-    void enrichPayload(payload)
-      .then((enriched) => deliver(row, event, enriched))
-      .catch((err) => {
-        logger.warn({ err, webhookId: row.id, event }, 'webhook_deliver_error')
-      })
+    void deliver(row, event, enriched).catch((err) => {
+      logger.warn({ err, webhookId: row.id, event }, 'webhook_deliver_error')
+    })
   }
 }
 
