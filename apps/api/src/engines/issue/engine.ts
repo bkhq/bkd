@@ -1,9 +1,5 @@
 import { ProcessManager } from '@/engines/process-manager'
-import type {
-  EngineType,
-  NormalizedLogEntry,
-  PermissionPolicy,
-} from '@/engines/types'
+import type { EngineType, PermissionPolicy } from '@/engines/types'
 import { logger } from '@/logger'
 import {
   AUTO_CLEANUP_DELAY_MS,
@@ -19,6 +15,7 @@ import {
   restartIssue,
   restartStaleSessions,
 } from './orchestration'
+import type { PaginatedLogResult } from './persistence/queries'
 import { registerLogPipeline } from './pipeline'
 import { terminateProcess } from './process/cancel'
 import {
@@ -167,7 +164,7 @@ export class IssueEngine {
       before?: string // ULID id — fetch entries before this
       limit?: number
     },
-  ): NormalizedLogEntry[] {
+  ): PaginatedLogResult {
     return getLogs(this.ctx, issueId, devMode, opts)
   }
 
