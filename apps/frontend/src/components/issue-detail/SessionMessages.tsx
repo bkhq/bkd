@@ -1,6 +1,6 @@
 import type { ChatMessage, NormalizedLogEntry, TaskPlanChatMessage } from '@bkd/shared'
 import { CheckCircle2, ChevronUp, Circle, ListTodo, Loader2 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useChatMessages } from '@/hooks/use-chat-messages'
 import { useViewModeStore } from '@/stores/view-mode-store'
@@ -40,7 +40,7 @@ function ChatMessageRow({ message }: { message: ChatMessage }) {
       return <ToolGroupMessage message={message} />
 
     case 'task-plan':
-      return null
+      return <TaskPlanMessage message={message as TaskPlanChatMessage} />
 
     case 'thinking':
     case 'system':
@@ -52,9 +52,9 @@ function ChatMessageRow({ message }: { message: ChatMessage }) {
   }
 }
 
-// ── Sticky Task Plan Status Bar ──────────────────────────
+// ── Task Plan ────────────────────────────────────────────
 
-function StickyTaskPlan({ message }: { message: TaskPlanChatMessage }) {
+function TaskPlanMessage({ message }: { message: TaskPlanChatMessage }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const { todos, completedCount } = message
@@ -63,8 +63,8 @@ function StickyTaskPlan({ message }: { message: TaskPlanChatMessage }) {
   const statusText = inProgressItem ? inProgressItem.activeForm || inProgressItem.content : null
 
   return (
-    <div className="sticky bottom-0 z-10 animate-message-enter">
-      <div className="rounded-lg border border-border/40 bg-background/95 backdrop-blur-sm shadow-sm">
+    <div className="animate-message-enter">
+      <div className="rounded-lg border border-border/40 bg-background/95 shadow-sm">
         {/* Expandable detail panel — opens upward */}
         {expanded ? (
           <div className="px-3 pt-2 pb-1 space-y-0.5 border-b border-border/20">
@@ -147,15 +147,6 @@ export function SessionMessages({
   // Transform flat entries → grouped ChatMessage[]
   const { messages, pendingMessages } = useChatMessages(logs)
 
-  const latestTaskPlan = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].type === 'task-plan') {
-        return messages[i] as TaskPlanChatMessage
-      }
-    }
-    return null
-  }, [messages])
-
   // Auto-scroll to bottom on new messages
   const nearBottomRef = useRef(true)
   useEffect(() => {
@@ -172,10 +163,16 @@ export function SessionMessages({
   useEffect(() => {
     if (initialScrollDone.current || messages.length === 0) return
     const el = scrollRef?.current
-    if (el) {
-      el.scrollTo({ top: el.scrollHeight })
-      initialScrollDone.current = true
-    }
+    if (!el) return
+    // Double-rAF ensures the lazy-loaded content has been painted before
+    // we measure scrollHeight.  A single rAF fires before the browser
+    // composites the first meaningful paint of the Suspense child.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.scrollTo({ top: el.scrollHeight })
+        initialScrollDone.current = true
+      })
+    })
   }, [messages.length, scrollRef])
 
   const prevLenRef = useRef(messages.length)
@@ -267,9 +264,6 @@ export function SessionMessages({
             </div>
           ))}
         </div>
-      ) : null}
-      {latestTaskPlan && latestTaskPlan.todos.length > 0 ? (
-        <StickyTaskPlan message={latestTaskPlan} />
       ) : null}
     </div>
   )

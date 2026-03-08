@@ -8,3 +8,4 @@
 - [x] **PLAN-004 历史消息分页按会话消息计数** - task: `CHAT-003` - file: `docs/plan/PLAN-004.md`
 - [x] **PLAN-005 Pending 消息改造** - task: `FEAT-002` - file: `docs/plan/PLAN-005.md`
 - [x] **PLAN-006 Migrate from Biome to ESLint + Prettier** - task: `LINT-001` - owner: claude - file: `docs/plan/PLAN-006.md`
+- [x] **PLAN-006b stdout 断裂后 fallback 到 transcript JSONL** - task: `STALL-001` - owner: claude - file: `docs/plan/PLAN-006.md`

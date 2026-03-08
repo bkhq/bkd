@@ -309,6 +309,8 @@
     "packageMode": "包模式",
     "fullWidthChat": "全宽聊天",
     "fullWidthChatHint": "移除聊天消息区域的最大宽度限制",
+    "logPageSize": "消息加载数量",
+    "logPageSizeHint": "每次加载的对话消息数量（用户和助手消息）",
     "worktreeAutoCleanup": "自动清理工作区",
     "worktreeAutoCleanupHint": "自动清理已完成超过 1 天的工作区",
     "upgradeEnabled": "自动检查更新",

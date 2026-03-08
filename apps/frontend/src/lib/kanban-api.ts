@@ -260,6 +260,9 @@ export const kanbanApi = {
   getWorkspacePath: () => get<{ path: string }>('/api/settings/workspace-path'),
   updateWorkspacePath: (path: string) =>
     patch<{ path: string }>('/api/settings/workspace-path', { path }),
+  getLogPageSize: () => get<{ size: number }>('/api/settings/log-page-size'),
+  setLogPageSize: (size: number) =>
+    patch<{ size: number }>('/api/settings/log-page-size', { size }),
   getWorktreeAutoCleanup: () => get<{ enabled: boolean }>('/api/settings/worktree-auto-cleanup'),
   setWorktreeAutoCleanup: (enabled: boolean) =>
     patch<{ enabled: boolean }>('/api/settings/worktree-auto-cleanup', {
