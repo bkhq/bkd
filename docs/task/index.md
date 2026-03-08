@@ -6,6 +6,10 @@
 - [x] **CRASH-001 BKD 服务崩溃检测与关键日志记录** `P0` - owner: — - file: `docs/task/CRASH-001.md`
 - [x] **CRASH-002 修复永久卡死根本原因** `P0` - owner: claude - file: `docs/task/CRASH-002.md`
 
+## Feature
+
+- [x] **FEAT-001 添加 server_name 和 server_url 环境变量** `P2` - file: `docs/task/FEAT-001.md`
+
 ## Backend Audit — CRITICAL
 
 - [ ] **AUDIT-001 升级系统路径穿越漏洞** `P0` - file: `docs/task/AUDIT-001.md`
