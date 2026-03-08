@@ -83,7 +83,7 @@ export async function cleanupStaleSessions(): Promise<number> {
 
 // --- App Settings helpers ---
 
-const SETTINGS_CACHE_TTL = 300 // seconds
+const SETTINGS_CACHE_TTL = 3600 // seconds
 
 export async function getAppSetting(key: string): Promise<string | null> {
   return cacheGetOrSet(`app_setting:${key}`, SETTINGS_CACHE_TTL, async () => {
