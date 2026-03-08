@@ -3,6 +3,10 @@
 > Format: `- [ ] **PREFIX-NNN Title** \`P1\` - owner: name - file: \`docs/task/PREFIX-NNN.md\``
 > Markers: `[ ]` pending, `[-]` in progress, `[x]` completed, `[~]` closed
 
+## Feature
+
+- [x] **FEAT-001 添加 server_name 和 server_url 环境变量** `P2` - file: `docs/task/FEAT-001.md`
+
 ## Backend Audit — CRITICAL
 
 - [ ] **AUDIT-001 升级系统路径穿越漏洞** `P0` - file: `docs/task/AUDIT-001.md`

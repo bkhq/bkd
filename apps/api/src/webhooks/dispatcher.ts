@@ -1,7 +1,7 @@
 import type { WebhookEventType } from '@bkd/shared'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from '@/db'
-import { webhookDeliveries, webhooks } from '@/db/schema'
+import { issues as issuesTable, webhookDeliveries, webhooks } from '@/db/schema'
 import { appEvents } from '@/events'
 import { logger } from '@/logger'
 
@@ -159,6 +159,32 @@ export async function deliver(
   }
 }
 
+async function enrichPayload(
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const serverUrl = process.env.SERVER_URL
+  if (!serverUrl || !payload.issueId) return payload
+
+  try {
+    const row = db
+      .select({ projectId: issuesTable.projectId })
+      .from(issuesTable)
+      .where(eq(issuesTable.id, String(payload.issueId)))
+      .get()
+    if (row) {
+      const base = serverUrl.replace(/\/+$/, '')
+      return {
+        ...payload,
+        projectId: row.projectId,
+        issueUrl: `${base}/projects/${row.projectId}/issues/${payload.issueId}`,
+      }
+    }
+  } catch {
+    // Non-critical — proceed without enrichment
+  }
+  return payload
+}
+
 export async function dispatch(
   event: WebhookEventType,
   payload: Record<string, unknown>,
@@ -191,9 +217,11 @@ export async function dispatch(
     if (!subscribed.includes(event)) continue
 
     // Fire and forget — don't block the event bus
-    void deliver(row, event, payload).catch((err) => {
-      logger.warn({ err, webhookId: row.id, event }, 'webhook_deliver_error')
-    })
+    void enrichPayload(payload)
+      .then((enriched) => deliver(row, event, enriched))
+      .catch((err) => {
+        logger.warn({ err, webhookId: row.id, event }, 'webhook_deliver_error')
+      })
   }
 }
 
