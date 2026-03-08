@@ -1,8 +1,7 @@
 import type { ToolGroupChatMessage, ToolGroupItem } from '@bkd/shared'
-import { ChevronDown, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getCommandPreview } from '@/lib/command-preview'
+import { formatFileSize } from '@/lib/format'
 import {
   CodeBlock,
   detectCodeLanguage,
@@ -95,8 +94,7 @@ export function FileToolItem({ item }: { item: ToolGroupItem }) {
       item.result?.toolDetail?.raw?.isError === true ||
       item.result?.entryType === 'error-message'
     const lineCount = countLines(resultContent)
-    const showResultText =
-      resultContent && (isResultError || (lineCount !== null && lineCount <= 3))
+    const showResultText = resultContent && isResultError
 
     const summary = (
       <div className="flex items-center gap-2 text-xs">
@@ -117,12 +115,18 @@ export function FileToolItem({ item }: { item: ToolGroupItem }) {
       )
     }
 
+    const sizeInfo = lineCount
+      ? `Read ${lineCount} lines`
+      : resultContent
+        ? `${formatFileSize(resultContent.length)}`
+        : null
+
     return (
       <div className="py-0.5">
         {summary}
-        {lineCount ? (
+        {sizeInfo ? (
           <div className="ml-0.5 mt-0.5 text-[11px] text-muted-foreground/60">
-            Read {lineCount} lines
+            {sizeInfo}
           </div>
         ) : null}
       </div>
@@ -362,8 +366,6 @@ function getGroupSummaryLabel(
   return parts.length > 0 ? parts.join(', ') : `${count} tool calls`
 }
 
-const INITIAL_VISIBLE = 3
-
 function ToolItemRenderer({ item, idx }: { item: ToolGroupItem; idx: number }) {
   const kind = item.action.toolAction?.kind
   const toolName = getItemToolName(item)
@@ -398,60 +400,32 @@ export function ToolGroupMessage({
   message: ToolGroupChatMessage
 }) {
   const { t } = useTranslation()
-  const [expanded, setExpanded] = useState(false)
-  const [showAll, setShowAll] = useState(false)
   const { items, stats, count, description } = message
   const statsLabel = getGroupSummaryLabel(stats, count, t)
-  const hasMore = items.length > INITIAL_VISIBLE
-  const visibleItems =
-    expanded && !showAll && hasMore ? items.slice(0, INITIAL_VISIBLE) : items
-  const hiddenCount = items.length - INITIAL_VISIBLE
 
   return (
     <div className="py-0.5 animate-message-enter">
       <div className="rounded-lg border border-border/30 bg-card/50">
         {/* Header */}
-        <button
-          type="button"
-          onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted/20 rounded-lg"
-        >
-          {expanded ? (
-            <ChevronDown className="h-3 w-3 shrink-0" />
-          ) : (
-            <ChevronRight className="h-3 w-3 shrink-0" />
-          )}
+        <div className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
           <span className="truncate">{description || statsLabel}</span>
           {description ? (
             <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/50">
               {statsLabel}
             </span>
           ) : null}
-        </button>
+        </div>
 
         {/* Tree items */}
-        {expanded ? (
-          <div className="mx-3 mb-2 border-l border-border/40 pl-4 space-y-1">
-            {visibleItems.map((item, idx) => (
-              <ToolItemRenderer
-                key={item.action.messageId ?? `ti-${idx}`}
-                item={item}
-                idx={idx}
-              />
-            ))}
-            {hasMore ? (
-              <button
-                type="button"
-                onClick={() => setShowAll(!showAll)}
-                className="text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
-              >
-                {showAll
-                  ? t('session.tool.showLess', 'Show less')
-                  : `Show ${hiddenCount} more`}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="mx-3 mb-2 border-l border-border/40 pl-4 space-y-1">
+          {items.map((item, idx) => (
+            <ToolItemRenderer
+              key={item.action.messageId ?? `ti-${idx}`}
+              item={item}
+              idx={idx}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )
