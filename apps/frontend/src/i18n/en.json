@@ -224,7 +224,8 @@
       "search": "Search",
       "webFetch": "Fetch URL",
       "taskPlan": "Task Plan",
-      "fullCommand": "Full Command"
+      "fullCommand": "Full Command",
+      "showLess": "Show less"
     },
     "restart": "Restart",
     "restarting": "Restarting...",

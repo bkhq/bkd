@@ -224,7 +224,8 @@
       "search": "搜索",
       "webFetch": "获取 URL",
       "taskPlan": "任务计划",
-      "fullCommand": "完整命令"
+      "fullCommand": "完整命令",
+      "showLess": "收起"
     },
     "restart": "重启",
     "restarting": "重启中...",
