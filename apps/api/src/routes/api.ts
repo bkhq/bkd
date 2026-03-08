@@ -98,8 +98,8 @@ function getRuntimeInfo() {
       platform: process.platform,
       arch: process.arch,
       env: {
-        API_HOST: process.env.API_HOST ?? null,
-        API_PORT: process.env.API_PORT ?? null,
+        HOST: process.env.HOST ?? null,
+        PORT: process.env.PORT ?? null,
       },
     },
     timestamp: new Date().toISOString(),

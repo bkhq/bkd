@@ -78,8 +78,8 @@ initWebhookDispatcher()
 // Start periodic webhook delivery cleanup (keeps last 100 per webhook)
 const stopDeliveryCleanup = startDeliveryCleanup()
 
-const listenHost = process.env.API_HOST ?? '0.0.0.0'
-const listenPort = Number(process.env.API_PORT ?? 3000)
+const listenHost = process.env.HOST ?? '0.0.0.0'
+const listenPort = Number(process.env.PORT ?? 3000)
 
 // --- Static file serving ---
 // In compiled mode, static-assets.ts is replaced at build time with

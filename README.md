@@ -85,8 +85,8 @@ All configuration is done via environment variables. Create a `.env` file in the
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `API_PORT` | Server port | `3000` |
-| `API_HOST` | Listen address | `0.0.0.0` |
+| `PORT` | Server port | `3000` |
+| `HOST` | Listen address | `0.0.0.0` |
 | `DB_PATH` | SQLite database path | `data/db/bkd.db` |
 | `MAX_CONCURRENT_EXECUTIONS` | Max parallel agent sessions | `5` |
 | `LOG_LEVEL` | Log level (`trace` / `debug` / `info` / `warn` / `error`) | `info` |

@@ -112,6 +112,112 @@ export interface NormalizedLogEntry {
   toolDetail?: ToolDetail
 }
 
+// ── ChatMessage (rebuilt from NormalizedLogEntry[]) ───────
+
+export interface AttachmentMeta {
+  id: string
+  name: string
+  mimeType: string
+  size: number
+}
+
+export interface ToolGroupItem {
+  /** The tool invocation entry (isResult: false) */
+  action: NormalizedLogEntry
+  /** The matching tool result entry, if available */
+  result: NormalizedLogEntry | null
+}
+
+export interface UserChatMessage {
+  type: 'user'
+  id: string
+  entry: NormalizedLogEntry
+  attachments: AttachmentMeta[]
+  status: 'normal' | 'pending' | 'done' | 'command'
+  commandOutput?: NormalizedLogEntry
+}
+
+export interface AssistantChatMessage {
+  type: 'assistant'
+  id: string
+  entry: NormalizedLogEntry
+  durationMs?: number
+}
+
+export interface ToolGroupChatMessage {
+  type: 'tool-group'
+  id: string
+  /** Paired tool call items in this group */
+  items: ToolGroupItem[]
+  /** Count by tool kind: { 'file-read': 3, 'file-edit': 2, ... } */
+  stats: Record<string, number>
+  /** Total operations (including hidden) */
+  count: number
+  /** Number of operations hidden by write filter rules */
+  hiddenCount: number
+}
+
+export interface TaskPlanChatMessage {
+  type: 'task-plan'
+  id: string
+  entry: NormalizedLogEntry
+  todos: Array<{ content: string; status: string; activeForm?: string }>
+  completedCount: number
+}
+
+export interface ThinkingChatMessage {
+  type: 'thinking'
+  id: string
+  entry: NormalizedLogEntry
+}
+
+export interface SystemChatMessage {
+  type: 'system'
+  id: string
+  entry: NormalizedLogEntry
+  subtype: string
+}
+
+export interface ErrorChatMessage {
+  type: 'error'
+  id: string
+  entry: NormalizedLogEntry
+}
+
+export type ChatMessage =
+  | UserChatMessage
+  | AssistantChatMessage
+  | ToolGroupChatMessage
+  | TaskPlanChatMessage
+  | ThinkingChatMessage
+  | SystemChatMessage
+  | ErrorChatMessage
+
+// ── Tool Progress (lightweight real-time SSE event) ──────
+
+export interface ToolProgressEntry {
+  toolName: string
+  toolKind: string
+  path?: string
+  command?: string
+}
+
+export interface ToolProgressEvent {
+  issueId: string
+  executionId: string
+  /** Accumulated tool calls in the current group so far */
+  items: ToolProgressEntry[]
+  stats: Record<string, number>
+  count: number
+}
+
+export interface ToolGroupEvent {
+  issueId: string
+  executionId: string
+  /** The completed tool group as a ChatMessage */
+  message: ToolGroupChatMessage
+}
+
 export interface ExecuteIssueRequest {
   engineType: EngineType
   prompt: string
@@ -216,6 +322,8 @@ export interface ChangesSummary {
 export interface SSEEventMap {
   log: { issueId: string; entry: NormalizedLogEntry }
   'log-updated': { issueId: string; entry: NormalizedLogEntry }
+  'tool-progress': ToolProgressEvent
+  'tool-group': ToolGroupEvent
   state: { issueId: string; executionId: string; state: string }
   done: { issueId: string; finalStatus: string }
   'issue-updated': { issueId: string; changes: Record<string, unknown> }
