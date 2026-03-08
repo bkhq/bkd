@@ -4,8 +4,8 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { projects as projectsTable } from '@/db/schema'
 import type { EngineType, PermissionPolicy } from '@/engines/types'
-import { ROOT_DIR } from '@/root'
 import { BUILT_IN_PROFILES } from '@/engines/types'
+import { ROOT_DIR } from '@/root'
 
 // ---------- Error classification ----------
 
