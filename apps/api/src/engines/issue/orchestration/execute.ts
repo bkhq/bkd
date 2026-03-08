@@ -21,6 +21,7 @@ import type {
   SpawnedProcess,
 } from '@/engines/types'
 import { logger } from '@/logger'
+import { ROOT_DIR } from '@/root'
 
 export async function executeIssue(
   ctx: EngineContext,
@@ -75,7 +76,7 @@ export async function executeIssue(
       model,
     })
 
-    const baseDir = opts.workingDir ?? process.cwd()
+    const baseDir = opts.workingDir ?? ROOT_DIR
     let workingDir = baseDir
     let worktreePath: string | undefined
 

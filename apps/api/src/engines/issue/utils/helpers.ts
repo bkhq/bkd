@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { projects as projectsTable } from '@/db/schema'
 import type { EngineType, PermissionPolicy } from '@/engines/types'
+import { ROOT_DIR } from '@/root'
 import { BUILT_IN_PROFILES } from '@/engines/types'
 
 // ---------- Error classification ----------
@@ -38,7 +39,7 @@ export async function resolveWorkingDir(projectId: string): Promise<string> {
     .select({ directory: projectsTable.directory })
     .from(projectsTable)
     .where(eq(projectsTable.id, projectId))
-  const dir = project?.directory ? resolve(project.directory) : process.cwd()
+  const dir = project?.directory ? resolve(project.directory) : ROOT_DIR
   await mkdir(dir, { recursive: true })
   const s = await stat(dir)
   if (!s.isDirectory()) {

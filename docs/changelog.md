@@ -63,6 +63,9 @@ CHAT-001 Phase 1 完成：聊天界面 UI 优化后端基础设施
   - 复制链接使用 `SERVER_URL` 拼接外部 URL（未设置时回退 `window.location.origin`）
   - Webhook payload 自动注入 `issueUrl` 和 `projectId`（当 `SERVER_URL` 设置时）
   - 新增 `server-store.ts` Zustand store 和 `getIssueUrl()` 工具函数
+- fix: 未配置项目目录时 fallback 从 `process.cwd()` 改为 `ROOT_DIR`（BUG-001）
+- fix: ChatInput 刷新按钮不触发日志重新拉取，补充 `_refreshCounter` 到 effect 依赖数组（BUG-002）
+- fix: 升级系统移除自动下载，改为仅检查并提示新版本（BUG-003）
 
 ## 2026-03-08 10:30 [progress]
 
