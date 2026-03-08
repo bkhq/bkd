@@ -6,7 +6,10 @@ import { findProject } from '@/db/helpers'
 import { issues as issuesTable } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
 import { logger } from '@/logger'
-import { dispatch as webhookDispatch } from '@/webhooks/dispatcher'
+import {
+  buildIssueUrl,
+  dispatch as webhookDispatch,
+} from '@/webhooks/dispatcher'
 
 const del = new Hono()
 
@@ -101,7 +104,7 @@ del.delete('/:id', async (c) => {
   }
   const serverUrl = process.env.SERVER_URL
   if (serverUrl) {
-    webhookPayload.issueUrl = `${serverUrl.replace(/\/+$/, '')}/projects/${project.id}/issues/${issueId}`
+    webhookPayload.issueUrl = buildIssueUrl(serverUrl, project.id, issueId)
   }
   void webhookDispatch('issue.deleted', webhookPayload)
 

@@ -12,7 +12,10 @@ import { issues as issuesTable } from '@/db/schema'
 import { engineRegistry } from '@/engines/executors'
 import type { EngineType } from '@/engines/types'
 import { logger } from '@/logger'
-import { dispatch as webhookDispatch } from '@/webhooks/dispatcher'
+import {
+  buildIssueUrl,
+  dispatch as webhookDispatch,
+} from '@/webhooks/dispatcher'
 import {
   createIssueSchema,
   parseProjectEnvVars,
@@ -156,7 +159,11 @@ create.post(
       }
       const serverUrl = process.env.SERVER_URL
       if (serverUrl) {
-        webhookPayload.issueUrl = `${serverUrl.replace(/\/+$/, '')}/projects/${project.id}/issues/${newIssue!.id}`
+        webhookPayload.issueUrl = buildIssueUrl(
+          serverUrl,
+          project.id,
+          newIssue!.id,
+        )
       }
       void webhookDispatch('issue.created', webhookPayload)
 

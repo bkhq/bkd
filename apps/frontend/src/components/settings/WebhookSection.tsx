@@ -176,7 +176,9 @@ function WebhookForm({
         {isEditing ? (
           <div className="flex gap-1.5">
             {(() => {
-              const opt = CHANNEL_OPTIONS.find((o) => o.value === channel)!
+              const opt =
+                CHANNEL_OPTIONS.find((o) => o.value === channel) ??
+                CHANNEL_OPTIONS[0]
               const Icon = opt.icon
               return (
                 <span className="inline-flex items-center rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs text-primary gap-1.5">

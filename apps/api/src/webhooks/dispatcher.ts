@@ -45,29 +45,26 @@ async function getIssueMetadata(
         projectId: issuesTable.projectId,
         engineType: issuesTable.engineType,
         model: issuesTable.model,
+        projectName: projectsTable.name,
       })
       .from(issuesTable)
+      .leftJoin(projectsTable, eq(issuesTable.projectId, projectsTable.id))
       .where(eq(issuesTable.id, issueId))
     if (!row) return null
-
-    const [project] = await db
-      .select({ name: projectsTable.name })
-      .from(projectsTable)
-      .where(eq(projectsTable.id, row.projectId))
 
     const result: IssueMetadata = {
       issueId: row.id,
       issueNumber: row.issueNumber,
       title: row.title,
       projectId: row.projectId,
-      projectName: project?.name ?? row.projectId,
+      projectName: row.projectName ?? row.projectId,
       engineType: row.engineType,
       model: row.model,
     }
 
     const serverUrl = process.env.SERVER_URL
     if (serverUrl) {
-      result.issueUrl = `${serverUrl.replace(/\/+$/, '')}/projects/${row.projectId}/issues/${row.id}`
+      result.issueUrl = buildIssueUrl(serverUrl, row.projectId, row.id)
     }
 
     return result
@@ -75,6 +72,14 @@ async function getIssueMetadata(
     logger.warn({ err, issueId }, 'webhook_get_issue_metadata_failed')
     return null
   }
+}
+
+export function buildIssueUrl(
+  serverUrl: string,
+  projectId: string,
+  issueId: string,
+): string {
+  return `${serverUrl.replace(/\/+$/, '')}/projects/${projectId}/issues/${issueId}`
 }
 
 async function getLastAgentLog(issueId: string): Promise<string | null> {
@@ -86,6 +91,7 @@ async function getLastAgentLog(issueId: string): Promise<string | null> {
         and(
           eq(issueLogs.issueId, issueId),
           eq(issueLogs.entryType, 'assistant-message'),
+          eq(issueLogs.isDeleted, 0),
         ),
       )
       .orderBy(desc(issueLogs.createdAt))
@@ -115,7 +121,11 @@ function buildMetadataPayload(meta: IssueMetadata): Record<string, unknown> {
 // ── Telegram formatting ─────────────────────────────────
 
 function escapeTelegramHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
 }
 
 function formatTelegramMessage(
@@ -148,10 +158,10 @@ function formatTelegramMessage(
   }
 
   // Status info
-  if (payload.oldStatus && payload.newStatus) {
-    let statusLine = `Status: ${escapeTelegramHtml(String(payload.oldStatus))} → ${escapeTelegramHtml(String(payload.newStatus))}`
+  if (payload.newStatus) {
+    let statusLine = `Status: → ${escapeTelegramHtml(String(payload.newStatus))}`
     if (payload.newStatus === 'review') {
-      statusLine += ' (会话已完成)'
+      statusLine += ' (session completed)'
     }
     lines.push(statusLine)
   } else if (payload.statusId) {
@@ -358,12 +368,7 @@ export function initWebhookDispatcher() {
                 : { issueId: data.issueId }),
               newStatus,
             }
-            // Try to extract oldStatus from changes context
-            if (changes.statusUpdatedAt && meta) {
-              // statusUpdatedAt is set alongside statusId, oldStatus not directly available
-              // but we can note it was changed
-            }
-            void dispatch('issue.status_changed', payload)
+            await dispatch('issue.status_changed', payload)
           } catch (err) {
             logger.warn(
               { err, issueId: data.issueId },
@@ -375,7 +380,7 @@ export function initWebhookDispatcher() {
         void (async () => {
           try {
             const meta = await getIssueMetadata(data.issueId)
-            void dispatch('issue.updated', {
+            await dispatch('issue.updated', {
               event: 'issue.updated',
               timestamp: new Date().toISOString(),
               ...(meta
@@ -424,7 +429,7 @@ export function initWebhookDispatcher() {
             if (lastLog) payload.lastLog = lastLog
           }
 
-          void dispatch(eventType, payload)
+          await dispatch(eventType, payload)
         } catch (err) {
           logger.warn({ err, issueId: data.issueId }, 'webhook_done_failed')
         }
@@ -452,7 +457,7 @@ export function initWebhookDispatcher() {
             if (meta?.engineType) payload.engineType = meta.engineType
             if (meta?.model) payload.model = meta.model
 
-            void dispatch('session.started', payload)
+            await dispatch('session.started', payload)
           } catch (err) {
             logger.warn({ err, issueId: data.issueId }, 'webhook_state_failed')
           }
