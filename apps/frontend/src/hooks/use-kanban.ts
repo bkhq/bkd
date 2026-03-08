@@ -51,6 +51,7 @@ export const queryKeys = {
     ['projects', projectId, 'processes'] as const,
   projectWorktrees: (projectId: string) =>
     ['projects', projectId, 'worktrees'] as const,
+  logPageSize: () => ['settings', 'logPageSize'] as const,
   worktreeAutoCleanup: () => ['settings', 'worktreeAutoCleanup'] as const,
   upgradeVersion: () => ['upgrade', 'version'] as const,
   upgradeEnabled: () => ['upgrade', 'enabled'] as const,
@@ -510,6 +511,27 @@ export function useUpdateWorkspacePath() {
 }
 
 // --- Worktree Auto-Cleanup hooks ---
+
+export function useLogPageSize(enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.logPageSize(),
+    queryFn: () => kanbanApi.getLogPageSize(),
+    enabled,
+    staleTime: Infinity,
+  })
+}
+
+export function useSetLogPageSize() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (size: number) => kanbanApi.setLogPageSize(size),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.logPageSize(),
+      })
+    },
+  })
+}
 
 export function useWorktreeAutoCleanup(enabled = false) {
   return useQuery({

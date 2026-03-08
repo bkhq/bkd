@@ -49,11 +49,13 @@ import {
   useEngineAvailability,
   useEngineProfiles,
   useEngineSettings,
+  useLogPageSize,
   useProbeEngines,
   useRestartWithUpgrade,
   useRestoreDeletedIssue,
   useRunCleanup,
   useServerInfo,
+  useSetLogPageSize,
   useSetUpgradeEnabled,
   useSetWorktreeAutoCleanup,
   useSystemInfo,
@@ -139,6 +141,8 @@ function GeneralSection({ open }: { open: boolean }) {
   const [dirPickerOpen, setDirPickerOpen] = useState(false)
   const fullWidthChat = useViewModeStore((s) => s.fullWidthChat)
   const setFullWidthChat = useViewModeStore((s) => s.setFullWidthChat)
+  const { data: logPageSizeData } = useLogPageSize(open)
+  const setLogPageSize = useSetLogPageSize()
   const { data: serverData } = useServerInfo(open)
   const updateServerInfo = useUpdateServerInfo()
   const [serverName, setServerName] = useState('')
@@ -306,6 +310,28 @@ function GeneralSection({ open }: { open: boolean }) {
           onCheckedChange={setFullWidthChat}
         />
       </div>
+
+      <Field>
+        <Label>{t('settings.logPageSize')}</Label>
+        <Select
+          value={String(logPageSizeData?.size ?? 10)}
+          onValueChange={(value) => setLogPageSize.mutate(Number(value))}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {[5, 10, 20, 50, 100, 200].map((n) => (
+              <SelectItem key={n} value={String(n)}>
+                {n}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground">
+          {t('settings.logPageSizeHint')}
+        </p>
+      </Field>
     </div>
   )
 }

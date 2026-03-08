@@ -231,7 +231,9 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
       continue
     }
 
-    // task_progress: display inline but do NOT break the current tool group
+    // ── Inline entries that do NOT break the current tool group ──
+
+    // task_progress: display inline, never breaks tool groups
     if (
       entry.entryType === 'system-message' &&
       entry.metadata?.subtype === 'task_progress'
@@ -245,12 +247,53 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
       continue
     }
 
-    // Non-tool entry → flush pending tool buffer + any unconsumed thinking
+    // error-message: display inline, never breaks tool groups
+    if (entry.entryType === 'error-message') {
+      messages.push({
+        type: 'error',
+        id: entryId(entry, nextId('err')),
+        entry,
+      } satisfies ErrorChatMessage)
+      continue
+    }
+
+    // thinking: defer for next tool group description, never breaks tool groups
+    if (entry.entryType === 'thinking') {
+      flushPendingThinking()
+      pendingThinking = entry.content ? { content: entry.content, entry } : null
+      if (!pendingThinking) {
+        messages.push({
+          type: 'thinking',
+          id: entryId(entry, nextId('th')),
+          entry,
+        } satisfies ThinkingChatMessage)
+      }
+      continue
+    }
+
+    // system-message (non-task_progress): display inline, never breaks tool groups
+    if (entry.entryType === 'system-message') {
+      if (consumedOutputIdx.has(i)) continue
+      messages.push({
+        type: 'system',
+        id: entryId(entry, nextId('sys')),
+        entry,
+        subtype: (entry.metadata?.subtype as string | undefined) ?? 'info',
+      } satisfies SystemChatMessage)
+      continue
+    }
+
+    // Skip non-visible entries
+    if (entry.entryType === 'token-usage' || entry.entryType === 'loading') {
+      continue
+    }
+
+    // ── Conversation messages flush the tool group ──
     flushToolBuffer()
+    flushPendingThinking()
 
     switch (entry.entryType) {
       case 'user-message': {
-        flushPendingThinking()
         const metaType = entry.metadata?.type as string | undefined
         const attachments = (entry.metadata?.attachments ?? []) as Array<{
           id: string
@@ -285,55 +328,12 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
       }
 
       case 'assistant-message':
-        flushPendingThinking()
         messages.push({
           type: 'assistant',
           id: entryId(entry, nextId('am')),
           entry,
           durationMs: turnDuration.get(entry.turnIndex ?? 0),
         } satisfies AssistantChatMessage)
-        break
-
-      case 'thinking':
-        // Defer: if the next entries are tool calls, this becomes the tool group
-        // description; otherwise it will be flushed as a standalone thinking message
-        flushPendingThinking()
-        pendingThinking = entry.content
-          ? { content: entry.content, entry }
-          : null
-        if (!pendingThinking) {
-          messages.push({
-            type: 'thinking',
-            id: entryId(entry, nextId('th')),
-            entry,
-          } satisfies ThinkingChatMessage)
-        }
-        break
-
-      case 'system-message': {
-        // Skip command_output entries consumed by command user-messages
-        if (consumedOutputIdx.has(i)) break
-        flushPendingThinking()
-        messages.push({
-          type: 'system',
-          id: entryId(entry, nextId('sys')),
-          entry,
-          subtype: (entry.metadata?.subtype as string | undefined) ?? 'info',
-        } satisfies SystemChatMessage)
-        break
-      }
-
-      case 'error-message':
-        flushPendingThinking()
-        messages.push({
-          type: 'error',
-          id: entryId(entry, nextId('err')),
-          entry,
-        } satisfies ErrorChatMessage)
-        break
-
-      case 'token-usage':
-      case 'loading':
         break
 
       default:
