@@ -176,7 +176,11 @@ export class ProcessManager<TMeta> {
       try {
         entry.subprocess.kill(9)
         this.log.info?.(
-          { pm: this.name, id, pid: (entry.subprocess as { pid?: number }).pid },
+          {
+            pm: this.name,
+            id,
+            pid: (entry.subprocess as { pid?: number }).pid,
+          },
           'pm_sigkill_sent',
         )
       } catch {
@@ -230,10 +234,7 @@ export class ProcessManager<TMeta> {
         'pm_force_kill',
       )
     } catch {
-      this.log.debug?.(
-        { pm: this.name, id, pid },
-        'pm_force_kill_already_dead',
-      )
+      this.log.debug?.({ pm: this.name, id, pid }, 'pm_force_kill_already_dead')
     }
     if (!TERMINAL_STATES.has(entry.state)) {
       this.transitionState(id, 'cancelled')

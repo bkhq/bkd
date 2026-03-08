@@ -72,7 +72,9 @@ export function createIssueDebugLog(
   }
 }
 
-/** Create a tee'd ReadableStream that writes each chunk to the debug log. */
+/** Pipe stream through a TransformStream that logs each chunk to the debug file.
+ *  Uses TransformStream for proper backpressure — downstream pull rate controls
+ *  how fast upstream is read, preventing unbounded in-memory buffering. */
 export function teeStreamToDebug(
   stream: ReadableStream<Uint8Array>,
   log: IssueDebugLog,
@@ -83,36 +85,23 @@ export function teeStreamToDebug(
 
   const decoder = new TextDecoder()
   let buffer = ''
+  const writer =
+    label === 'stdout' ? log.stdout.bind(log) : log.stderr.bind(log)
 
-  return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const reader = stream.getReader()
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) {
-            if (buffer) {
-              if (label === 'stdout') log.stdout(buffer)
-              else log.stderr(buffer)
-            }
-            controller.close()
-            break
-          }
-          controller.enqueue(value)
-
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() ?? ''
-          for (const line of lines) {
-            if (!line) continue
-            if (label === 'stdout') log.stdout(line)
-            else log.stderr(line)
-          }
-        }
-      } catch (err) {
-        log.event(`${label}_stream_error: ${err}`)
-        controller.error(err)
+  const transform = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      controller.enqueue(chunk)
+      buffer += decoder.decode(chunk, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        if (line) writer(line)
       }
     },
+    flush() {
+      if (buffer) writer(buffer)
+    },
   })
+
+  return stream.pipeThrough(transform)
 }
