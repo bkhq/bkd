@@ -142,14 +142,23 @@ create.post(
       await cacheDelByPrefix(`childCounts:${project.id}`)
       await cacheDel(`projectIssueIds:${project.id}`)
 
-      void webhookDispatch('issue.created', {
+      const webhookPayload: Record<string, unknown> = {
         event: 'issue.created',
         issueId: newIssue!.id,
+        issueNumber: newIssue!.issueNumber,
         projectId: project.id,
+        projectName: project.name,
         title: body.title,
         statusId: effectiveStatusId,
+        engineType: resolvedEngine,
+        model: resolvedModel,
         timestamp: new Date().toISOString(),
-      })
+      }
+      const externalUrl = process.env.EXTERNAL_URL
+      if (externalUrl) {
+        webhookPayload.issueUrl = `${externalUrl.replace(/\/+$/, '')}/projects/${project.id}/issues/${newIssue!.id}`
+      }
+      void webhookDispatch('issue.created', webhookPayload)
 
       // Only auto-execute when created directly in working
       if (shouldExecute) {

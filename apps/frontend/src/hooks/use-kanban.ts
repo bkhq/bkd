@@ -790,7 +790,6 @@ export function useUpdateWebhook() {
   return useMutation({
     mutationFn: (data: {
       id: string
-      channel?: string
       url?: string
       secret?: string | null
       events?: WebhookEventType[]

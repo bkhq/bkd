@@ -3,4 +3,4 @@
 > Format: `- [ ] **PLAN-NNN Title** - task: \`PREFIX-NNN\` - owner: name - file: \`docs/plan/PLAN-NNN.md\``
 > Markers: `[ ]` drafted, `[-]` implementing, `[x]` completed, `[~]` closed
 
-(none)
+- [x] **PLAN-002 完善 Webhook 通知元信息** - task: `WEBHOOK-001` - file: `docs/plan/PLAN-002.md`
