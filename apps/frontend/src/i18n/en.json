@@ -188,6 +188,7 @@
     "emptyFile": "No file content available",
     "truncated": "Patch output is truncated",
     "copyPath": "Copy file path",
+    "openFiles": "Open file browser",
     "fileType": {
       "new": "New",
       "deleted": "Del",

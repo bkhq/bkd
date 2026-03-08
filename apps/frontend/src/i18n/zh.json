@@ -188,6 +188,7 @@
     "emptyFile": "该文件当前没有可显示的完整内容",
     "truncated": "补丁内容过长，已截断显示",
     "copyPath": "复制文件路径",
+    "openFiles": "打开文件管理器",
     "fileType": {
       "new": "新",
       "deleted": "删",
