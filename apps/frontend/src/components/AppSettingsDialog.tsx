@@ -50,12 +50,14 @@ import {
   useEngineProfiles,
   useEngineSettings,
   useLogPageSize,
+  useMaxConcurrentExecutions,
   useProbeEngines,
   useRestartWithUpgrade,
   useRestoreDeletedIssue,
   useRunCleanup,
   useServerInfo,
   useSetLogPageSize,
+  useSetMaxConcurrentExecutions,
   useSetUpgradeEnabled,
   useSetWorktreeAutoCleanup,
   useSystemInfo,
@@ -144,6 +146,17 @@ function GeneralSection({ open }: { open: boolean }) {
   const [serverName, setServerName] = useState('')
   const [serverUrl, setServerUrl] = useState('')
   const [serverInfoLoaded, setServerInfoLoaded] = useState(false)
+  const { data: maxConcurrentData } = useMaxConcurrentExecutions(open)
+  const setMaxConcurrent = useSetMaxConcurrentExecutions()
+  const [maxConcurrentInput, setMaxConcurrentInput] = useState('')
+  const maxConcurrentLoaded = useRef(false)
+
+  useEffect(() => {
+    if (maxConcurrentData && !maxConcurrentLoaded.current) {
+      setMaxConcurrentInput(String(maxConcurrentData.value))
+      maxConcurrentLoaded.current = true
+    }
+  }, [maxConcurrentData])
 
   const handleSelectWorkspace = (path: string) => {
     updateWsPath.mutate(path)
@@ -159,7 +172,10 @@ function GeneralSection({ open }: { open: boolean }) {
 
   // Reset loaded flag when dialog closes
   useEffect(() => {
-    if (!open) setServerInfoLoaded(false)
+    if (!open) {
+      setServerInfoLoaded(false)
+      maxConcurrentLoaded.current = false
+    }
   }, [open])
 
   const serverInfoDirty =
@@ -301,6 +317,29 @@ function GeneralSection({ open }: { open: boolean }) {
           </SelectContent>
         </Select>
         <p className="text-[11px] text-muted-foreground">{t('settings.logPageSizeHint')}</p>
+      </Field>
+
+      <Field>
+        <Label>{t('settings.maxConcurrentExecutions')}</Label>
+        <Input
+          type="number"
+          min={1}
+          max={20}
+          className="w-24"
+          value={maxConcurrentInput}
+          onChange={(e) => setMaxConcurrentInput(e.target.value)}
+          onBlur={() => {
+            const v = Number.parseInt(maxConcurrentInput, 10)
+            if (v >= 1 && v <= 20) {
+              setMaxConcurrent.mutate(v)
+            } else {
+              setMaxConcurrentInput(String(maxConcurrentData?.value ?? 5))
+            }
+          }}
+        />
+        <p className="text-[11px] text-muted-foreground">
+          {t('settings.maxConcurrentExecutionsHint')}
+        </p>
       </Field>
     </div>
   )
