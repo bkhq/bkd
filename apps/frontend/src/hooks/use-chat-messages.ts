@@ -156,7 +156,7 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
     const savedThinking = pendingThinking
 
     if (todoItems.length > 0) {
-      const lastTodo = todoItems.at(-1)
+      const lastTodo = todoItems.at(-1)!
       const todos = extractTodos(lastTodo.action)
       if (todos) {
         if (nonTodoItems.length === 0) {
