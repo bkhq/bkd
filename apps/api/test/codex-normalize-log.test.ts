@@ -503,7 +503,10 @@ describe('CodexLogNormalizer (codex/event/*)', () => {
       const n = new CodexLogNormalizer()
       const r = n.parse(
         codexEvent('patch_apply_begin', {
-          changes: { '/app/a.ts': '+line', '/app/b.ts': '-line' },
+          changes: {
+            '/app/a.ts': { type: 'add', content: 'new file content' },
+            '/app/b.ts': { type: 'update', unified_diff: '--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new' },
+          },
           call_id: 'patch-1',
         }),
       )
@@ -511,18 +514,44 @@ describe('CodexLogNormalizer (codex/event/*)', () => {
       const entries = r as any[]
       expect(entries.length).toBe(2)
       expect(entries[0].metadata?.path).toBe('/app/a.ts')
+      expect(entries[0].metadata?.input).toEqual({ file_path: '/app/a.ts', content: 'new file content' })
       expect(entries[1].metadata?.path).toBe('/app/b.ts')
+      expect(entries[1].metadata?.input).toEqual({
+        file_path: '/app/b.ts',
+        unified_diff: '--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new',
+      })
     })
 
     test('single file returns single entry (not array)', () => {
       const n = new CodexLogNormalizer()
       const r = n.parse(
         codexEvent('patch_apply_begin', {
-          changes: { '/app/x.ts': '+line' },
+          changes: { '/app/x.ts': { type: 'add', content: 'hello' } },
         }),
       )
       expect(Array.isArray(r)).toBe(false)
       expect((r as any).metadata?.path).toBe('/app/x.ts')
+      expect((r as any).metadata?.input?.content).toBe('hello')
+    })
+
+    test('delete type sets deleted flag', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('patch_apply_begin', {
+          changes: { '/app/del.ts': { type: 'delete', content: 'old content' } },
+        }),
+      )
+      expect((r as any).metadata?.input).toEqual({ file_path: '/app/del.ts', deleted: true })
+    })
+
+    test('non-object fileChange falls back to path-only input', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('patch_apply_begin', {
+          changes: { '/app/x.ts': '+line' },
+        }),
+      )
+      expect((r as any).metadata?.input).toEqual({ file_path: '/app/x.ts' })
     })
   })
 

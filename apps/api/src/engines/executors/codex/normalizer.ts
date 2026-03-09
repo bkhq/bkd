@@ -261,7 +261,8 @@ export class CodexLogNormalizer {
         const callId = msg.call_id as string | undefined
         if (!changes) return null
         const entries: NormalizedLogEntry[] = []
-        for (const path of Object.keys(changes)) {
+        for (const [path, fileChange] of Object.entries(changes)) {
+          const input = codexFileChangeToInput(path, fileChange)
           const toolAction: ToolAction = {
             kind: 'file-edit',
             path,
@@ -274,7 +275,7 @@ export class CodexLogNormalizer {
               toolName: 'Edit',
               toolCallId: callId,
               path,
-              input: { file_path: path },
+              input,
             },
             toolAction,
           })
@@ -330,7 +331,8 @@ export class CodexLogNormalizer {
         const callId = msg.call_id as string | undefined
         if (!changes) return null
         const entries: NormalizedLogEntry[] = []
-        for (const path of Object.keys(changes)) {
+        for (const [path, fileChange] of Object.entries(changes)) {
+          const input = codexFileChangeToInput(path, fileChange)
           entries.push({
             entryType: 'tool-use',
             content: `Tool: Edit`,
@@ -339,7 +341,7 @@ export class CodexLogNormalizer {
               toolName: 'Edit',
               toolCallId: callId,
               path,
-              input: { file_path: path },
+              input,
             },
             toolAction: { kind: 'file-edit', path },
           })
@@ -958,6 +960,43 @@ export class CodexLogNormalizer {
     this.assistantText = ''
     this.thinkingText = ''
   }
+}
+
+/**
+ * Map a Codex FileChange value to a frontend-compatible input object.
+ *
+ * Codex FileChange types:
+ * - { type: "add", content: string }        → new file (Write-like)
+ * - { type: "update", unified_diff: string } → file edit with unified diff
+ * - { type: "delete", content: string }      → file deletion
+ */
+function codexFileChangeToInput(
+  path: string,
+  fileChange: unknown,
+): Record<string, unknown> {
+  const base: Record<string, unknown> = { file_path: path }
+  if (!fileChange || typeof fileChange !== 'object') return base
+
+  const fc = fileChange as Record<string, unknown>
+  const changeType = fc.type as string | undefined
+
+  switch (changeType) {
+    case 'add':
+      if (typeof fc.content === 'string') {
+        base.content = fc.content
+      }
+      break
+    case 'update':
+      if (typeof fc.unified_diff === 'string') {
+        base.unified_diff = fc.unified_diff
+      }
+      break
+    case 'delete':
+      base.deleted = true
+      break
+  }
+
+  return base
 }
 
 /**
