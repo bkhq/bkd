@@ -1,5 +1,6 @@
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { runCommand } from '@/engines/spawn'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { findProject } from '@/db/helpers'
@@ -12,15 +13,7 @@ export type { ChangesSummary } from '@bkd/shared'
 // --- Git helpers ---
 
 async function runGit(args: string[], cwd: string): Promise<{ code: number, stdout: string }> {
-  const proc = Bun.spawn(['git', ...args], {
-    cwd,
-    stdout: 'pipe',
-    stderr: 'ignore',
-    signal: AbortSignal.timeout(10_000),
-  })
-  const stdout = proc.stdout ? await new Response(proc.stdout).text() : ''
-  const code = await proc.exited
-  return { code, stdout }
+  return runCommand(['git', ...args], { cwd, timeout: 10_000 })
 }
 
 async function computeAndEmit(issueId: string): Promise<void> {

@@ -1,5 +1,6 @@
 import { stat } from 'node:fs/promises'
 import { resolve, sep } from 'node:path'
+import { runCommand } from '@/engines/spawn'
 import { Hono } from 'hono'
 import { cacheGetOrSet } from '@/cache'
 import { findProject } from '@/db/helpers'
@@ -70,13 +71,7 @@ async function runGit(
   args: string[],
   cwd: string,
 ): Promise<{ code: number, stdout: string, stderr: string }> {
-  const proc = Bun.spawn(['git', ...args], {
-    cwd,
-    stdout: 'pipe',
-    stderr: 'ignore',
-  })
-  const stdout = proc.stdout ? await new Response(proc.stdout).text() : ''
-  const code = await proc.exited
+  const { code, stdout } = await runCommand(['git', ...args], { cwd })
   return { code, stdout, stderr: '' }
 }
 

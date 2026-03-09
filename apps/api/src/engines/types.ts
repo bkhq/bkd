@@ -1,3 +1,5 @@
+import type { Subprocess } from '@/engines/spawn'
+
 // ---------- Enums / Literal Unions ----------
 
 // Supported AI engine types
@@ -122,9 +124,6 @@ export interface CommandParts {
 export interface ResolvedCommand extends CommandParts {
   resolvedPath: string
 }
-
-// We use the Bun Subprocess type
-type Subprocess = ReturnType<typeof Bun.spawn>
 
 // Spawned process wrapper
 export interface SpawnedProcess {

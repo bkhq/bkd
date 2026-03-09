@@ -1,5 +1,6 @@
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { runCommand } from '@/engines/spawn'
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import * as z from 'zod'
@@ -9,14 +10,7 @@ const detectRemoteSchema = z.object({
 })
 
 async function runGit(args: string[], cwd: string): Promise<{ code: number, stdout: string }> {
-  const proc = Bun.spawn(['git', ...args], {
-    cwd,
-    stdout: 'pipe',
-    stderr: 'ignore',
-  })
-  const stdout = proc.stdout ? await new Response(proc.stdout).text() : ''
-  const code = await proc.exited
-  return { code, stdout }
+  return runCommand(['git', ...args], { cwd })
 }
 
 const git = new Hono()

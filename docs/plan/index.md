@@ -10,3 +10,4 @@
 - [x] **PLAN-006 Migrate from Biome to ESLint + Prettier** - task: `LINT-001` - owner: claude - file: `docs/plan/PLAN-006.md`
 - [x] **PLAN-006b stdout 断裂后 fallback 到 transcript JSONL** - task: `STALL-001` - owner: claude - file: `docs/plan/PLAN-006.md`
 - [x] **PLAN-007 Fix tool group grouping + visibility + collapsible UI** - task: `UI-001` - owner: claude - file: `docs/plan/PLAN-007.md`
+- [x] **PLAN-008 Replace all Bun.spawn with node:child_process** - task: `SPAWN-001` - owner: claude - file: `docs/plan/PLAN-008.md`

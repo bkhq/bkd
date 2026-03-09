@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-03-09 06:00 [progress]
+
+SPAWN-001: Replace all remaining Bun.spawn with node:child_process
+
+- Extended `engines/spawn.ts` with `Subprocess` interface, `spawnNodeSync()`, `runCommand()`, `resolveCommand()`
+- Migrated all engine executors: codex, gemini, echo (claude was done in PIPE-001)
+- Migrated process-manager.ts type import to use generic `Subprocess` from spawn.ts
+- Migrated utility callers: worktree.ts, changes-summary.ts, files.ts, git.ts, changes.ts, apply.ts, terminal.ts
+- Migrated command.ts: `Bun.which()` → `resolveCommand()`
+- Migrated echo executor: `Bun.sleep()` → `setTimeout` promise
+- Only remaining Bun.spawn: PTY terminal (requires Bun-specific `terminal` option, no Node.js equivalent without node-pty)
+- All tests pass (357/357, 7 pre-existing failures unrelated to this change)
+
+Related plan: PLAN-008
+
 ## 2026-03-09 05:00 [BUG-P0]
 
 PIPE-001: Replace Bun.spawn with node:child_process for Claude executor

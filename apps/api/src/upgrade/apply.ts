@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { rename, rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { runCommand, spawnNode } from '@/engines/spawn'
 import { logger } from '@/logger'
 import { isPathWithinDir, parseVersionFromFileName } from '@/upgrade/utils'
 import { APP_BASE, isPackageMode, UPDATES_DIR, VERSION_FILE } from './constants'
@@ -24,13 +25,11 @@ async function extractArchive(archivePath: string, destDir: string): Promise<voi
   mkdirSync(tmpDir, { recursive: true })
 
   try {
-    const proc = Bun.spawn(
+    const { code: exitCode, stdout: stderr } = await runCommand(
       ['tar', '-xzf', archivePath, '-C', tmpDir, '--no-same-owner', '--no-overwrite-dir'],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
+      { stderr: 'pipe' },
     )
-    const exitCode = await proc.exited
     if (exitCode !== 0) {
-      const stderr = await new Response(proc.stderr).text()
       throw new Error(`Failed to extract archive (exit ${exitCode}): ${stderr}`)
     }
 
@@ -115,7 +114,7 @@ export async function applyUpgradeAndRestart(): Promise<void> {
       await extractArchive(status.filePath, versionDir)
 
       // Activate the new version
-      await Bun.write(
+      writeFileSync(
         VERSION_FILE,
         JSON.stringify({
           version,
@@ -132,11 +131,13 @@ export async function applyUpgradeAndRestart(): Promise<void> {
       }
 
       // Re-exec the launcher binary (process.execPath is the launcher)
-      const child = Bun.spawn([process.execPath], {
-        env: { ...process.env },
-        stdio: ['ignore', 'ignore', 'ignore'],
+      const child = spawnNode([process.execPath], {
+        env: { ...process.env } as Record<string, string>,
+        stdin: 'ignore',
+        stdout: 'ignore',
+        stderr: 'ignore',
       })
-      child.unref()
+      child.unref?.()
 
       logger.info('upgrade_shutting_down_for_restart')
       process.exit(0)
@@ -159,11 +160,13 @@ export async function applyUpgradeAndRestart(): Promise<void> {
       }
 
       // Spawn the new binary as a detached process after port is released
-      const child = Bun.spawn([upgradeBinary], {
-        env: { ...process.env },
-        stdio: ['ignore', 'ignore', 'ignore'],
+      const child = spawnNode([upgradeBinary], {
+        env: { ...process.env } as Record<string, string>,
+        stdin: 'ignore',
+        stdout: 'ignore',
+        stderr: 'ignore',
       })
-      child.unref()
+      child.unref?.()
 
       logger.info('upgrade_shutting_down_for_restart')
       process.exit(0)

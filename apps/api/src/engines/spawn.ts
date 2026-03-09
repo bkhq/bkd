@@ -1,9 +1,37 @@
-import { spawn as nodeSpawn } from 'node:child_process'
+import {
+  spawn as nodeSpawn,
+  spawnSync as nodeSpawnSync,
+} from 'node:child_process'
 import { Readable } from 'node:stream'
+
+// ---------- Generic Subprocess type ----------
+
+/**
+ * Generic subprocess interface replacing `import type { Subprocess } from 'bun'`.
+ * Compatible with both Bun.spawn results and spawnNode() results.
+ */
+export interface Subprocess {
+  readonly pid: number | undefined
+  readonly stdin: StdinWriter
+  readonly stdout: ReadableStream<Uint8Array>
+  readonly stderr: ReadableStream<Uint8Array>
+  readonly exited: Promise<number>
+  readonly kill: (signal?: number) => void
+  /** Bun PTY terminal handle — only present for Bun.spawn with terminal option */
+  readonly terminal?: {
+    write: (data: string) => void
+    resize: (cols: number, rows: number) => void
+    close: () => void
+  }
+  /** Allow Bun.spawn to attach unref */
+  unref?: () => void
+}
+
+// ---------- StdinWriter ----------
 
 /**
  * Writable interface compatible with Bun's FileSink.
- * Used by ClaudeProtocolHandler to write JSON to stdin.
+ * Used by protocol handlers to write JSON to stdin.
  */
 export interface StdinWriter {
   write: (data: string | Uint8Array) => void
@@ -11,14 +39,7 @@ export interface StdinWriter {
   flush?: () => void
 }
 
-interface SpawnResult {
-  pid: number | undefined
-  stdin: StdinWriter
-  stdout: ReadableStream<Uint8Array>
-  stderr: ReadableStream<Uint8Array>
-  exited: Promise<number>
-  kill: (signal?: number) => void
-}
+// ---------- Spawn options ----------
 
 interface SpawnOptions {
   cwd?: string
@@ -26,12 +47,16 @@ interface SpawnOptions {
   stdout?: 'pipe' | 'ignore'
   stderr?: 'pipe' | 'ignore'
   env?: Record<string, string | undefined>
+  /** Create a new process group (default: true). Set false for simple utility commands. */
+  detached?: boolean
 }
+
+// ---------- spawnNode ----------
 
 /**
  * Spawn a child process using node:child_process instead of Bun.spawn.
  *
- * Returns an object compatible with Bun's Subprocess interface so that
+ * Returns an object compatible with the generic Subprocess interface so that
  * ProcessManager and other consumers work without changes.
  *
  * Motivation: Bun.spawn has a known stdout pipe breakage bug where the
@@ -41,9 +66,9 @@ interface SpawnOptions {
 export function spawnNode(
   cmd: string[],
   options?: SpawnOptions,
-): SpawnResult {
+): Subprocess {
   const [program, ...args] = cmd
-  const child = nodeSpawn(program, args, {
+  const child = nodeSpawn(program!, args, {
     cwd: options?.cwd,
     stdio: [
       options?.stdin ?? 'pipe',
@@ -52,9 +77,9 @@ export function spawnNode(
     ],
     env: options?.env as NodeJS.ProcessEnv,
     // Create a new process group so that kill(-pid) terminates the entire
-    // tree (claude + MCP servers + any other children) instead of only the
+    // tree (engine + MCP servers + any other children) instead of only the
     // top-level process, which would orphan grandchildren.
-    detached: true,
+    detached: options?.detached ?? true,
   })
 
   // Wrap stdin as StdinWriter (compatible with Bun FileSink interface)
@@ -111,10 +136,10 @@ export function spawnNode(
     exited,
     kill(signal?: number) {
       // Kill the entire process group (negative PID) so that child processes
-      // spawned by claude (MCP servers, tools, etc.) are also terminated.
+      // spawned by engine (MCP servers, tools, etc.) are also terminated.
       // Falls back to killing just the child if group kill fails.
       const pid = child.pid
-      if (pid) {
+      if (pid && (options?.detached ?? true)) {
         try {
           process.kill(-pid, signal ?? 9)
           return
@@ -128,8 +153,112 @@ export function spawnNode(
         // already dead
       }
     },
+    unref() {
+      child.unref()
+    },
   }
 }
+
+// ---------- spawnNodeSync ----------
+
+export interface SyncResult {
+  exitCode: number
+  stdout: string
+  stderr: string
+}
+
+/**
+ * Synchronous spawn using node:child_process.spawnSync.
+ * Replaces Bun.spawnSync for simple command executions.
+ */
+export function spawnNodeSync(
+  cmd: string[],
+  options?: { cwd?: string, env?: Record<string, string | undefined> },
+): SyncResult {
+  const [program, ...args] = cmd
+  const result = nodeSpawnSync(program!, args, {
+    cwd: options?.cwd,
+    env: options?.env as NodeJS.ProcessEnv,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    encoding: 'utf-8',
+  })
+  return {
+    exitCode: result.status ?? 1,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+  }
+}
+
+// ---------- runCommand ----------
+
+export interface CommandResult {
+  code: number
+  stdout: string
+}
+
+/**
+ * Convenience wrapper: spawn, capture stdout, wait for exit.
+ * Replaces the common pattern:
+ *   const proc = Bun.spawn([...], { stdout: 'pipe', stderr: 'ignore' })
+ *   const stdout = await new Response(proc.stdout).text()
+ *   const code = await proc.exited
+ */
+export async function runCommand(
+  cmd: string[],
+  options?: {
+    cwd?: string
+    env?: Record<string, string | undefined>
+    stderr?: 'pipe' | 'ignore'
+    timeout?: number
+  },
+): Promise<CommandResult> {
+  const [program, ...args] = cmd
+  const child = nodeSpawn(program!, args, {
+    cwd: options?.cwd,
+    stdio: ['ignore', 'pipe', options?.stderr ?? 'ignore'],
+    env: options?.env as NodeJS.ProcessEnv,
+  })
+
+  // Set up timeout via AbortController pattern
+  let killTimer: ReturnType<typeof setTimeout> | undefined
+  if (options?.timeout) {
+    killTimer = setTimeout(() => {
+      try {
+        child.kill()
+      } catch { /* already dead */ }
+    }, options.timeout)
+  }
+
+  const chunks: Buffer[] = []
+  child.stdout?.on('data', (chunk: Buffer) => chunks.push(chunk))
+
+  const code = await new Promise<number>((resolve, reject) => {
+    child.on('exit', code => resolve(code ?? 1))
+    child.on('error', reject)
+  })
+
+  if (killTimer) clearTimeout(killTimer)
+
+  return { code, stdout: Buffer.concat(chunks).toString('utf-8') }
+}
+
+// ---------- resolveCommand ----------
+
+/**
+ * Resolve a command name to its full path, replacing Bun.which().
+ */
+export function resolveCommand(name: string): string | null {
+  const result = nodeSpawnSync('which', [name], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    encoding: 'utf-8',
+  })
+  if (result.status === 0 && result.stdout) {
+    return result.stdout.trim()
+  }
+  return null
+}
+
+// ---------- Internal helpers ----------
 
 const SIGNAL_NUMBERS: Record<string, number> = {
   SIGHUP: 1,

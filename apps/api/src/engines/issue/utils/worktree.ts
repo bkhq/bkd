@@ -1,6 +1,7 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { WORKTREE_DIR } from '@/engines/issue/constants'
+import { runCommand } from '@/engines/spawn'
 import { logger } from '@/logger'
 import { ROOT_DIR } from '@/root'
 
@@ -31,24 +32,18 @@ export async function createWorktree(
   await mkdir(join(WORKTREE_BASE, projectId), { recursive: true })
 
   // Create worktree with a new branch off HEAD
-  const proc = Bun.spawn(['git', 'worktree', 'add', '-b', branchName, worktreeDir], {
-    cwd: baseDir,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
-  const code = await proc.exited
+  const { code } = await runCommand(
+    ['git', 'worktree', 'add', '-b', branchName, worktreeDir],
+    { cwd: baseDir, stderr: 'pipe' },
+  )
   if (code !== 0) {
-    const stderr = await new Response(proc.stderr).text()
     // Branch may already exist from a previous run — try without -b
-    const retry = Bun.spawn(['git', 'worktree', 'add', worktreeDir, branchName], {
-      cwd: baseDir,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
-    const retryCode = await retry.exited
-    if (retryCode !== 0) {
-      const retryErr = await new Response(retry.stderr).text()
-      throw new Error(`Failed to create worktree: ${stderr.trim()} / ${retryErr.trim()}`)
+    const retry = await runCommand(
+      ['git', 'worktree', 'add', worktreeDir, branchName],
+      { cwd: baseDir, stderr: 'pipe' },
+    )
+    if (retry.code !== 0) {
+      throw new Error(`Failed to create worktree (exit ${code} / ${retry.code})`)
     }
   }
   logger.debug({ issueId, worktreeDir, branchName }, 'worktree_created')
@@ -58,12 +53,10 @@ export async function createWorktree(
 export async function removeWorktree(baseDir: string, worktreeDir: string): Promise<void> {
   const resolved = resolve(worktreeDir)
   try {
-    const proc = Bun.spawn(['git', 'worktree', 'remove', '--force', resolved], {
-      cwd: baseDir,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
-    const code = await proc.exited
+    const { code } = await runCommand(
+      ['git', 'worktree', 'remove', '--force', resolved],
+      { cwd: baseDir, stderr: 'pipe' },
+    )
     if (code !== 0) {
       throw new Error(`git worktree remove exited with code ${code}`)
     }
@@ -93,14 +86,11 @@ export async function removeWorktree(baseDir: string, worktreeDir: string): Prom
  */
 export async function isWorktreeRegistered(baseDir: string, worktreeDir: string): Promise<boolean> {
   try {
-    const proc = Bun.spawn(['git', 'worktree', 'list', '--porcelain'], {
-      cwd: baseDir,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
-    // Read stdout concurrently with waiting for exit to avoid pipe buffer deadlock
-    const [output] = await Promise.all([new Response(proc.stdout).text(), proc.exited])
-    if (proc.exitCode !== 0) return false
+    const { code, stdout: output } = await runCommand(
+      ['git', 'worktree', 'list', '--porcelain'],
+      { cwd: baseDir, stderr: 'pipe' },
+    )
+    if (code !== 0) return false
     // Each worktree block starts with "worktree <absolute-path>"
     for (const line of output.split('\n')) {
       if (line.startsWith('worktree ') && line.slice(9) === worktreeDir) {

@@ -85,6 +85,10 @@
 
 - [x] **PIPE-001 Claude executor 替换 Bun.spawn 为 node:child_process** `P0` - owner: claude - file: `docs/task/PIPE-001.md`
 
+## Spawn Migration
+
+- [x] **SPAWN-001 Replace all Bun.spawn with node:child_process** `P1` - owner: claude - plan: `PLAN-008` - file: `docs/task/SPAWN-001.md`
+
 ## Bug Fix
 
 - [x] **BUG-001 未指定 root 目录时以自身所在目录为 root** `P1` - file: `docs/task/BUG-001.md`

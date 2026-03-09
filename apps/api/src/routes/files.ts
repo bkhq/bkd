@@ -1,5 +1,6 @@
 import { readdir, stat } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
+import { runCommand } from '@/engines/spawn'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 
@@ -31,13 +32,10 @@ async function getGitIgnoredNames(dir: string, names: string[]): Promise<Set<str
   if (names.length === 0) return new Set()
   try {
     const paths = names.map(n => resolve(dir, n))
-    const proc = Bun.spawn(['git', 'check-ignore', '--', ...paths], {
-      cwd: dir,
-      stdout: 'pipe',
-      stderr: 'ignore',
-    })
-    const stdout = await new Response(proc.stdout).text()
-    const exitCode = await proc.exited
+    const { code: exitCode, stdout } = await runCommand(
+      ['git', 'check-ignore', '--', ...paths],
+      { cwd: dir },
+    )
     // exit code 1 means none matched
     if (exitCode !== 0 && exitCode !== 1) return new Set()
     const ignored = new Set<string>()

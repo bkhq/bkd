@@ -1,4 +1,4 @@
-import type { FileSink } from 'bun'
+import type { StdinWriter } from '@/engines/spawn'
 import { logger } from '@/logger'
 
 const MAX_IO_LOG_CHARS = 1200
@@ -107,7 +107,7 @@ export class CodexProtocolHandler {
   /** Stream of notification lines (JSONL) for downstream normalizeLog consumption. */
   readonly notifications: ReadableStream<Uint8Array>
 
-  private readonly stdin: FileSink
+  private readonly stdin: StdinWriter
   private readonly pending = new Map<number | string, PendingRequest>()
   private readonly requestTimeout: number
   private readonly encoder = new TextEncoder()
@@ -118,7 +118,7 @@ export class CodexProtocolHandler {
   private _turnId: string | undefined
 
   constructor(
-    stdin: FileSink,
+    stdin: StdinWriter,
     stdout: ReadableStream<Uint8Array>,
     requestTimeout = DEFAULT_REQUEST_TIMEOUT,
   ) {

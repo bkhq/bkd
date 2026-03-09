@@ -1,4 +1,4 @@
-import type { Subprocess } from 'bun'
+import type { Subprocess } from '@/engines/spawn'
 
 // ---------- Types ----------
 
