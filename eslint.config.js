@@ -57,6 +57,7 @@ export default antfu({
     'ts/no-this-alias': 'off',
     'unicorn/no-new-array': 'off',
     'style/multiline-ternary': 'off',
+    'style/operator-linebreak': 'off',
     'react-hooks-extra/no-direct-set-state-in-use-effect': 'off',
     'react-naming-convention/ref-name': 'off',
     'react-dom/no-dangerously-set-innerhtml': 'off',
