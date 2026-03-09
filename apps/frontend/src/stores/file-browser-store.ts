@@ -20,6 +20,8 @@ interface FileBrowserStore {
   isFullscreen: boolean
   /** When true, an inline panel handles rendering (suppresses the global drawer) */
   inlineMode: boolean
+  /** When true, force drawer rendering even if inlineMode is on */
+  forceDrawer: boolean
   width: number
   projectId: string | null
   rootPath: string | null
@@ -29,6 +31,8 @@ interface FileBrowserStore {
   openFullscreen: (projectId: string, rootPath?: string) => void
   close: () => void
   toggle: (projectId: string) => void
+  /** Toggle as drawer, overriding inlineMode so the global drawer renders. */
+  toggleDrawer: (projectId: string, rootPath?: string) => void
   minimize: () => void
   restore: () => void
   toggleFullscreen: () => void
@@ -46,6 +50,7 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
   isMinimized: false,
   isFullscreen: false,
   inlineMode: false,
+  forceDrawer: false,
   width: Math.round(getViewportWidth() * DEFAULT_WIDTH_RATIO),
   projectId: null,
   rootPath: null,
@@ -71,7 +76,7 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
       currentPath:
         s.projectId === projectId && s.rootPath === (rootPath ?? null) ? s.currentPath : '.',
     })),
-  close: () => set({ isOpen: false }),
+  close: () => set({ isOpen: false, forceDrawer: false }),
   toggle: projectId =>
     set((s) => {
       if (s.isMinimized) {
@@ -91,6 +96,20 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
         projectId,
         rootPath: s.projectId === projectId ? s.rootPath : null,
         currentPath: s.projectId === projectId ? s.currentPath : '.',
+      }
+    }),
+  toggleDrawer: (projectId, rootPath) =>
+    set((s) => {
+      if (s.isOpen && s.forceDrawer && s.projectId === projectId) {
+        return { isOpen: false, forceDrawer: false }
+      }
+      return {
+        isOpen: true,
+        isMinimized: false,
+        forceDrawer: true,
+        projectId,
+        rootPath: rootPath ?? (s.projectId === projectId ? s.rootPath : null),
+        currentPath: s.projectId === projectId && s.rootPath === (rootPath ?? null) ? s.currentPath : '.',
       }
     }),
   minimize: () => set({ isOpen: false, isMinimized: true, isFullscreen: false }),
