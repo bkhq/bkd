@@ -2,7 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { CommandBuilder } from '@/engines/command'
 import { safeEnv } from '@/engines/safe-env'
-import { spawnNode } from '@/engines/spawn'
+import { resolveCommand, spawnNode } from '@/engines/spawn'
 import type {
   EngineAvailability,
   EngineCapability,
@@ -35,7 +35,7 @@ let _cachedBaseCommand: string | undefined
 function getBaseCommand(): string {
   if (_cachedBaseCommand) return _cachedBaseCommand
   // 1. Check PATH
-  const fromPath = Bun.which('claude')
+  const fromPath = resolveCommand('claude')
   if (fromPath) {
     _cachedBaseCommand = fromPath
     return _cachedBaseCommand

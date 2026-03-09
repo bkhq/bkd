@@ -1,17 +1,18 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { ProcessState } from './process-manager'
 import { ProcessManager } from './process-manager'
+import { spawnNode } from './spawn'
 
 // ---------- Helpers ----------
 
 /** Spawn a real `sleep` subprocess that we can control */
 function spawnSleep(seconds = 60) {
-  return Bun.spawn(['sleep', String(seconds)])
+  return spawnNode(['sleep', String(seconds)], { detached: false })
 }
 
 /** Spawn a process that exits immediately with the given code */
 function spawnExit(code = 0) {
-  return Bun.spawn(['sh', '-c', `exit ${code}`])
+  return spawnNode(['sh', '-c', `exit ${code}`], { detached: false })
 }
 
 interface TestMeta {
@@ -299,7 +300,7 @@ describe('ProcessManager', () => {
       // Wait for process to exit
       await proc.exited
       // Small delay for async handler
-      await Bun.sleep(50)
+      await new Promise(r => setTimeout(r, 50))
 
       expect(exits.length).toBe(1)
       expect(exits[0]!.code).toBe(0)
@@ -315,7 +316,7 @@ describe('ProcessManager', () => {
       pm.register('a', proc, { label: 'test' }, { startAsRunning: true })
 
       await proc.exited
-      await Bun.sleep(50)
+      await new Promise(r => setTimeout(r, 50))
 
       expect(exits.length).toBe(1)
       expect(exits[0]!.code).toBe(42)
@@ -332,7 +333,7 @@ describe('ProcessManager', () => {
       const proc = spawnExit(0)
       pm.register('a', proc, { label: 'test' }, { startAsRunning: true })
       await proc.exited
-      await Bun.sleep(50)
+      await new Promise(r => setTimeout(r, 50))
 
       expect(exits.length).toBe(0)
     })
@@ -342,7 +343,7 @@ describe('ProcessManager', () => {
       pm.register('a', proc, { label: 'test' }, { startAsRunning: true })
 
       await proc.exited
-      await Bun.sleep(50)
+      await new Promise(r => setTimeout(r, 50))
 
       expect(pm.get('a')?.state).toBe('completed')
       expect(pm.get('a')?.exitCode).toBe(0)
@@ -353,7 +354,7 @@ describe('ProcessManager', () => {
       pm.register('a', proc, { label: 'test' }, { startAsRunning: true })
 
       await proc.exited
-      await Bun.sleep(50)
+      await new Promise(r => setTimeout(r, 50))
 
       expect(pm.get('a')?.state).toBe('failed')
       expect(pm.get('a')?.exitCode).toBe(1)
@@ -367,7 +368,7 @@ describe('ProcessManager', () => {
       pm.markFailed('a')
 
       await proc.exited
-      await Bun.sleep(50)
+      await new Promise(r => setTimeout(r, 50))
 
       // Should stay failed (terminal state is sticky)
       expect(pm.get('a')?.state).toBe('failed')
@@ -397,7 +398,7 @@ describe('ProcessManager', () => {
       pm2.markCompleted('a')
       expect(pm2.has('a')).toBe(true)
 
-      await Bun.sleep(200)
+      await new Promise(r => setTimeout(r, 200))
       expect(pm2.has('a')).toBe(false)
       await pm2.dispose()
     })
@@ -426,7 +427,7 @@ describe('ProcessManager', () => {
       expect(pm3.has('a')).toBe(true)
 
       // Wait for GC cycle
-      await Bun.sleep(200)
+      await new Promise(r => setTimeout(r, 200))
       expect(pm3.has('a')).toBe(false)
       await pm3.dispose()
     })

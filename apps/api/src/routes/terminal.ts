@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { upgradeWebSocket } from 'hono/bun'
 import * as z from 'zod'
 import { ProcessManager } from '@/engines/process-manager'
+import { spawnNodeSync } from '@/engines/spawn'
 import { logger } from '@/logger'
 
 // Server-internal secrets that must never be forwarded to terminal PTY processes
@@ -22,8 +23,8 @@ const TERMINAL_STRIP_KEYS = new Set([
 function getDefaultShell(): string {
   try {
     const user = process.env.USER || 'root'
-    const result = Bun.spawnSync(['getent', 'passwd', user])
-    const entry = new TextDecoder().decode(result.stdout).trim()
+    const result = spawnNodeSync(['getent', 'passwd', user])
+    const entry = result.stdout.trim()
     const shell = entry.split(':').pop()
     if (shell && shell.startsWith('/')) return shell
   } catch {

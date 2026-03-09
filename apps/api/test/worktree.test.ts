@@ -8,6 +8,7 @@ import {
   removeWorktree,
   resolveWorktreePath,
 } from '@/engines/issue/utils/worktree'
+import { spawnNodeSync } from '@/engines/spawn'
 import { ROOT_DIR } from '@/root'
 
 /**
@@ -31,17 +32,19 @@ function makeIssueId(prefix = 'test-wt'): string {
   return id
 }
 
+function gitSync(args: string[], cwd: string): void {
+  spawnNodeSync(['git', ...args], { cwd })
+}
+
 beforeAll(() => {
   gitRoot = mkdtempSync(join(tmpdir(), 'bkd-worktree-repo-'))
-  Bun.spawnSync(['git', 'init'], { cwd: gitRoot })
-  Bun.spawnSync(['git', 'config', 'user.email', 'test@example.com'], {
-    cwd: gitRoot,
-  })
-  Bun.spawnSync(['git', 'config', 'user.name', 'BitK Test'], { cwd: gitRoot })
+  gitSync(['init'], gitRoot)
+  gitSync(['config', 'user.email', 'test@example.com'], gitRoot)
+  gitSync(['config', 'user.name', 'BitK Test'], gitRoot)
 
   writeFileSync(join(gitRoot, 'README.md'), 'test repo\n')
-  Bun.spawnSync(['git', 'add', '.'], { cwd: gitRoot })
-  Bun.spawnSync(['git', 'commit', '-m', 'init'], { cwd: gitRoot })
+  gitSync(['add', '.'], gitRoot)
+  gitSync(['commit', '-m', 'init'], gitRoot)
 })
 
 afterAll(() => {
@@ -50,17 +53,13 @@ afterAll(() => {
     const wtDir = resolveWorktreePath(TEST_PROJECT_ID, issueId)
     try {
       if (existsSync(wtDir)) {
-        Bun.spawnSync(['git', 'worktree', 'remove', '--force', wtDir], {
-          cwd: gitRoot,
-        })
+        gitSync(['worktree', 'remove', '--force', wtDir], gitRoot)
       }
     } catch {
       /* best effort */
     }
     try {
-      Bun.spawnSync(['git', 'branch', '-D', `bkd/${issueId}`], {
-        cwd: gitRoot,
-      })
+      gitSync(['branch', '-D', `bkd/${issueId}`], gitRoot)
     } catch {
       /* best effort */
     }
@@ -146,13 +145,11 @@ describe('cleanupWorktree', () => {
     cleanupWorktree(gitRoot, cleanupIssueId, wtDir)
 
     // Wait for the async cleanup to complete
-    await Bun.sleep(1000)
+    await new Promise(r => setTimeout(r, 1000))
 
     expect(existsSync(wtDir)).toBe(false)
 
     // Clean up branch
-    Bun.spawnSync(['git', 'branch', '-D', `bkd/${cleanupIssueId}`], {
-      cwd: gitRoot,
-    })
+    gitSync(['branch', '-D', `bkd/${cleanupIssueId}`], gitRoot)
   })
 })

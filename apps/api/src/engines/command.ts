@@ -1,3 +1,4 @@
+import { resolveCommand } from '@/engines/spawn'
 import type { CommandParts, ResolvedCommand } from './types'
 
 /**
@@ -89,7 +90,7 @@ export class CommandBuilder {
 
   async resolve(): Promise<ResolvedCommand> {
     const parts = this.build()
-    const resolvedPath = Bun.which(parts.program) ?? parts.program
+    const resolvedPath = resolveCommand(parts.program) ?? parts.program
     return { ...parts, resolvedPath }
   }
 }

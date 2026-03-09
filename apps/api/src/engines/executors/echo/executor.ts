@@ -43,7 +43,7 @@ function createMockProcess(prompt: string): SpawnedProcess {
         }),
       )
 
-      await Bun.sleep(100)
+      await new Promise(r => setTimeout(r, 100))
       if (cancelled) {
         controller.close()
         resolveExit(1)
@@ -61,7 +61,7 @@ function createMockProcess(prompt: string): SpawnedProcess {
         }),
       )
 
-      await Bun.sleep(50)
+      await new Promise(r => setTimeout(r, 50))
 
       controller.enqueue(
         jsonLine({

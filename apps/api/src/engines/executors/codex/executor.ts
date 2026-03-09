@@ -1,4 +1,7 @@
+import { existsSync } from 'node:fs'
 import { safeEnv } from '@/engines/safe-env'
+import type { StdinWriter, Subprocess } from '@/engines/spawn'
+import { runCommand, spawnNode } from '@/engines/spawn'
 import type {
   EngineAvailability,
   EngineCapability,
@@ -29,8 +32,10 @@ class JsonRpcSession {
   private decoder = new TextDecoder()
   private buffer = ''
   private done = false
+  private stdin: StdinWriter
 
-  constructor(private proc: ReturnType<typeof Bun.spawn>) {
+  constructor(private proc: Subprocess) {
+    this.stdin = proc.stdin
     this.reader = (
       proc.stdout as ReadableStream<Uint8Array>
     ).getReader() as ReadableStreamDefaultReader<Uint8Array>
@@ -39,7 +44,7 @@ class JsonRpcSession {
   async call(method: string, params: Record<string, unknown>, id: number): Promise<unknown> {
     const request = JSON.stringify({ method, id, params })
     logger.debug({ method, id, request }, 'codex_rpc_send')
-    ;(this.proc.stdin as import('bun').FileSink).write(`${request}\n`)
+    this.stdin.write(`${request}\n`)
 
     const deadline = Date.now() + JSONRPC_TIMEOUT
 
@@ -106,7 +111,7 @@ class JsonRpcSession {
   notify(method: string, params: Record<string, unknown>): void {
     const msg = JSON.stringify({ method, params })
     logger.debug({ method }, 'codex_rpc_notify')
-    ;(this.proc.stdin as import('bun').FileSink).write(`${msg}\n`)
+    this.stdin.write(`${msg}\n`)
   }
 
   /** Try to extract and return the response matching `id` from buffered lines. */
@@ -173,13 +178,15 @@ interface CodexModelListResponse {
 async function queryCodexModels(): Promise<EngineModel[]> {
   logger.debug({ cmd: [...CODEX_CMD, 'app-server'].join(' ') }, 'codex_models_start')
 
-  const proc = Bun.spawn([...CODEX_CMD, 'app-server'], {
+  const proc = spawnNode([...CODEX_CMD, 'app-server'], {
     stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',
     env: safeEnv({ NPM_CONFIG_LOGLEVEL: 'error' }),
+    detached: false,
   })
 
+  // Drain stderr to prevent pipe from filling up and blocking the process
   const stderrReader = new Response(proc.stderr).text()
 
   const killTimer = setTimeout(() => {
@@ -234,7 +241,7 @@ async function queryCodexModels(): Promise<EngineModel[]> {
     logger.error(
       {
         error: error instanceof Error ? error.message : String(error),
-        stderr: typeof stderr === 'string' ? stderr.slice(0, 1000) : '',
+        stderr: stderr.slice(0, 1000),
       },
       'codex_models_error',
     )
@@ -279,7 +286,7 @@ export class CodexExecutor implements EngineExecutor {
   async spawn(options: SpawnOptions, env: ExecutionEnv): Promise<SpawnedProcess> {
     const cmd = [...CODEX_CMD, 'app-server']
 
-    const proc = Bun.spawn(cmd, {
+    const proc = spawnNode(cmd, {
       cwd: options.workingDir,
       stdin: 'pipe',
       stdout: 'pipe',
@@ -288,7 +295,7 @@ export class CodexExecutor implements EngineExecutor {
     })
 
     // Create protocol handler — starts reading stdout immediately
-    const handler = new CodexProtocolHandler(proc.stdin, proc.stdout as ReadableStream<Uint8Array>)
+    const handler = new CodexProtocolHandler(proc.stdin, proc.stdout)
 
     // Perform initialize handshake
     await handler.initialize()
@@ -318,7 +325,7 @@ export class CodexExecutor implements EngineExecutor {
     logger.info(
       {
         issueId: env.issueId,
-        pid: (proc as { pid?: number }).pid,
+        pid: proc.pid,
         threadId: handler.threadId,
         model: options.model,
       },
@@ -328,7 +335,7 @@ export class CodexExecutor implements EngineExecutor {
     return {
       subprocess: proc,
       stdout: handler.notifications,
-      stderr: proc.stderr as ReadableStream<Uint8Array>,
+      stderr: proc.stderr,
       cancel: () => {
         if (handler.threadId && handler.turnId) {
           void handler.interrupt(handler.threadId, handler.turnId).catch(() => {})
@@ -353,7 +360,7 @@ export class CodexExecutor implements EngineExecutor {
   async spawnFollowUp(options: FollowUpOptions, env: ExecutionEnv): Promise<SpawnedProcess> {
     const cmd = [...CODEX_CMD, 'app-server']
 
-    const proc = Bun.spawn(cmd, {
+    const proc = spawnNode(cmd, {
       cwd: options.workingDir,
       stdin: 'pipe',
       stdout: 'pipe',
@@ -361,7 +368,7 @@ export class CodexExecutor implements EngineExecutor {
       env: safeEnv({ NPM_CONFIG_LOGLEVEL: 'error', ...env.vars }),
     })
 
-    const handler = new CodexProtocolHandler(proc.stdin, proc.stdout as ReadableStream<Uint8Array>)
+    const handler = new CodexProtocolHandler(proc.stdin, proc.stdout)
 
     await handler.initialize()
 
@@ -376,7 +383,7 @@ export class CodexExecutor implements EngineExecutor {
     logger.info(
       {
         issueId: env.issueId,
-        pid: (proc as { pid?: number }).pid,
+        pid: proc.pid,
         threadId: handler.threadId,
         resumedFrom: options.sessionId,
         model: options.model,
@@ -387,7 +394,7 @@ export class CodexExecutor implements EngineExecutor {
     return {
       subprocess: proc,
       stdout: handler.notifications,
-      stderr: proc.stderr as ReadableStream<Uint8Array>,
+      stderr: proc.stderr,
       cancel: () => {
         if (handler.threadId && handler.turnId) {
           void handler.interrupt(handler.threadId, handler.turnId).catch(() => {})
@@ -411,7 +418,7 @@ export class CodexExecutor implements EngineExecutor {
 
   async cancel(spawnedProcess: SpawnedProcess): Promise<void> {
     logger.debug(
-      { pid: (spawnedProcess.subprocess as { pid?: number }).pid },
+      { pid: spawnedProcess.subprocess.pid },
       'codex_cancel_requested',
     )
 
@@ -435,7 +442,7 @@ export class CodexExecutor implements EngineExecutor {
       clearTimeout(timeout)
       spawnedProcess.protocolHandler?.close()
       logger.debug(
-        { pid: (spawnedProcess.subprocess as { pid?: number }).pid },
+        { pid: spawnedProcess.subprocess.pid },
         'codex_cancel_completed',
       )
     }
@@ -443,20 +450,15 @@ export class CodexExecutor implements EngineExecutor {
 
   async getAvailability(): Promise<EngineAvailability> {
     try {
-      const proc = Bun.spawn([...CODEX_CMD, '--version'], {
-        stdout: 'pipe',
+      const { code: exitCode, stdout } = await runCommand([...CODEX_CMD, '--version'], {
+        timeout: 10000,
         stderr: 'pipe',
       })
-
-      const timer = setTimeout(() => proc.kill(), 10000)
-      const exitCode = await proc.exited
-      clearTimeout(timer)
 
       if (exitCode !== 0) {
         return { engineType: 'codex', installed: false, authStatus: 'unknown' }
       }
 
-      const stdout = await new Response(proc.stdout).text()
       const versionMatch = stdout.match(/(\d+\.\d+\.\d[\w.-]*)/)
       const version = versionMatch?.[1]
 
@@ -465,8 +467,7 @@ export class CodexExecutor implements EngineExecutor {
         authStatus = 'authenticated'
       } else {
         const home = process.env.HOME ?? '/root'
-        const configFile = Bun.file(`${home}/.codex/config.toml`)
-        if (await configFile.exists()) {
+        if (existsSync(`${home}/.codex/config.toml`)) {
           authStatus = 'authenticated'
         } else {
           authStatus = 'unauthenticated'

@@ -1,4 +1,6 @@
+import { existsSync } from 'node:fs'
 import { safeEnv } from '@/engines/safe-env'
+import { runCommand } from '@/engines/spawn'
 import type {
   EngineAvailability,
   EngineCapability,
@@ -56,21 +58,19 @@ export class GeminiExecutor implements EngineExecutor {
 
   async getAvailability(): Promise<EngineAvailability> {
     try {
-      const proc = Bun.spawn(['npx', '-y', '@google/gemini-cli', '--version'], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-        env: safeEnv({ NPM_CONFIG_LOGLEVEL: 'error' }),
-      })
-
-      const timer = setTimeout(() => proc.kill(), 10000)
-      const exitCode = await proc.exited
-      clearTimeout(timer)
+      const { code: exitCode, stdout } = await runCommand(
+        ['npx', '-y', '@google/gemini-cli', '--version'],
+        {
+          env: safeEnv({ NPM_CONFIG_LOGLEVEL: 'error' }),
+          stderr: 'pipe',
+          timeout: 10000,
+        },
+      )
 
       if (exitCode !== 0) {
         return { engineType: 'gemini', installed: false, authStatus: 'unknown' }
       }
 
-      const stdout = await new Response(proc.stdout).text()
       const versionMatch = stdout.match(/(\d+\.\d+\.\d[\w.-]*)/)
       const version = versionMatch?.[1]
 
@@ -80,8 +80,7 @@ export class GeminiExecutor implements EngineExecutor {
         authStatus = 'authenticated'
       } else {
         const home = process.env.HOME ?? '/root'
-        const configFile = Bun.file(`${home}/.gemini/oauth_creds.json`)
-        if (await configFile.exists()) {
+        if (existsSync(`${home}/.gemini/oauth_creds.json`)) {
           authStatus = 'authenticated'
         } else {
           authStatus = 'unauthenticated'
@@ -108,23 +107,19 @@ export class GeminiExecutor implements EngineExecutor {
 
   async getModels(): Promise<EngineModel[]> {
     try {
-      // Gemini CLI — query via `gemini --list-models` or Google API
-      // TODO: Implement proper model discovery when Gemini CLI supports it
-      const proc = Bun.spawn(['npx', '-y', '@google/gemini-cli', '--list-models'], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-        env: safeEnv({ NPM_CONFIG_LOGLEVEL: 'error' }),
-      })
-
-      const timer = setTimeout(() => proc.kill(), 10000)
-      const exitCode = await proc.exited
-      clearTimeout(timer)
+      const { code: exitCode, stdout } = await runCommand(
+        ['npx', '-y', '@google/gemini-cli', '--list-models'],
+        {
+          env: safeEnv({ NPM_CONFIG_LOGLEVEL: 'error' }),
+          stderr: 'pipe',
+          timeout: 10000,
+        },
+      )
 
       if (exitCode !== 0) {
         return []
       }
 
-      const stdout = await new Response(proc.stdout).text()
       const models: EngineModel[] = []
       for (const line of stdout.split('\n')) {
         const trimmed = line.trim()

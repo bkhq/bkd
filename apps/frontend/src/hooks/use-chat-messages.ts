@@ -215,11 +215,12 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
 
     // ── Inline entries that do NOT break the current tool group ──
 
-    // task_progress / stop_hook_summary: skip — no user-facing value, must not break tool groups
+    // task_progress / stop_hook_summary / task_notification: skip — no user-facing value, must not break tool groups
     if (
       entry.entryType === 'system-message'
       && (entry.metadata?.subtype === 'task_progress'
-        || entry.metadata?.subtype === 'stop_hook_summary')
+        || entry.metadata?.subtype === 'stop_hook_summary'
+        || entry.metadata?.subtype === 'task_notification')
     ) {
       continue
     }

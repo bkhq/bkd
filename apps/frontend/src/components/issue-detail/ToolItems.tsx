@@ -70,7 +70,7 @@ function ToolLabel({ label, icon: Icon }: { label: string, icon: React.Component
 /** Badge component for file path */
 function PathBadge({ path }: { path: string }) {
   return (
-    <code className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono truncate">{path}</code>
+    <code className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono overflow-x-auto whitespace-nowrap scrollbar-none">{path}</code>
   )
 }
 
