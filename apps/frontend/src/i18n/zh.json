@@ -4,7 +4,8 @@
     "loading": "加载中...",
     "search": "搜索...",
     "select": "选择",
-    "edit": "编辑"
+    "edit": "编辑",
+    "copy": "复制"
   },
   "project": {
     "projects": "项目",

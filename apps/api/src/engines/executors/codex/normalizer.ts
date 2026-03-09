@@ -192,6 +192,10 @@ export class CodexLogNormalizer {
         const commandStr = command?.join(' ') ?? ''
         if (!commandStr) return null
         const callId = msg.call_id as string | undefined
+        const cwd = msg.cwd as string | undefined
+        const source = msg.source as string | undefined
+        const parsedCmd = msg.parsed_cmd as unknown[] | undefined
+        const description = extractParsedCmdDescription(parsedCmd)
         const toolAction: ToolAction = {
           kind: 'command-run',
           command: commandStr,
@@ -204,7 +208,12 @@ export class CodexLogNormalizer {
           metadata: {
             toolName: 'Bash',
             toolCallId: callId,
-            input: { command: commandStr },
+            input: {
+              command: commandStr,
+              ...(description && { description }),
+            },
+            ...(cwd && { cwd }),
+            ...(source && { source }),
           },
           toolAction,
         }
@@ -234,6 +243,7 @@ export class CodexLogNormalizer {
         const exitCode = msg.exit_code as number | undefined
         const formattedOutput = (msg.formatted_output as string) ?? ''
         const callId = msg.call_id as string | undefined
+        const duration = msg.duration as string | undefined
         const toolAction: ToolAction = {
           kind: 'command-run',
           command: commandStr,
@@ -249,6 +259,7 @@ export class CodexLogNormalizer {
             isResult: true,
             toolCallId: callId,
             exitCode,
+            ...(duration && { duration }),
           },
           toolAction,
         }
@@ -259,10 +270,11 @@ export class CodexLogNormalizer {
         this.resetStreamingState()
         const changes = msg.changes as Record<string, unknown> | undefined
         const callId = msg.call_id as string | undefined
+        const autoApproved = msg.auto_approved as boolean | undefined
         if (!changes) return null
         const entries: NormalizedLogEntry[] = []
-        for (const [path, patchValue] of Object.entries(changes)) {
-          const patch = typeof patchValue === 'string' ? patchValue : undefined
+        for (const [path, fileChange] of Object.entries(changes)) {
+          const input = codexFileChangeToInput(path, fileChange)
           const toolAction: ToolAction = {
             kind: 'file-edit',
             path,
@@ -275,7 +287,8 @@ export class CodexLogNormalizer {
               toolName: 'Edit',
               toolCallId: callId,
               path,
-              input: { file_path: path, ...(patch ? { patch } : {}) },
+              input,
+              ...(autoApproved !== undefined && { autoApproved }),
             },
             toolAction,
           })
@@ -287,15 +300,28 @@ export class CodexLogNormalizer {
       case 'patch_apply_end': {
         const success = msg.success as boolean | undefined
         const callId = msg.call_id as string | undefined
+        const stdout = (msg.stdout as string) ?? ''
+        const stderr = (msg.stderr as string) ?? ''
+        const changes = msg.changes as Record<string, unknown> | undefined
+        // Build result content from stdout/stderr if available
+        const resultParts: string[] = []
+        if (stdout) resultParts.push(stdout)
+        if (stderr) resultParts.push(stderr)
+        const resultContent = resultParts.length > 0
+          ? resultParts.join('\n')
+          : (success ? 'Patch applied successfully' : 'Patch apply failed')
+        // Extract changed file paths for metadata
+        const changedPaths = changes ? Object.keys(changes) : undefined
         return {
           entryType: 'tool-use',
-          content: success ? 'Patch applied successfully' : 'Patch apply failed',
+          content: resultContent,
           timestamp: now,
           metadata: {
             toolName: 'Edit',
             isResult: true,
             toolCallId: callId,
             exitCode: success ? 0 : 1,
+            ...(changedPaths && { changedPaths }),
           },
         }
       }
@@ -306,6 +332,10 @@ export class CodexLogNormalizer {
         const command = msg.command as string[] | undefined
         const commandStr = command?.join(' ') ?? ''
         const callId = msg.call_id as string | undefined
+        const cwd = msg.cwd as string | undefined
+        const reason = msg.reason as string | null | undefined
+        const parsedCmd = msg.parsed_cmd as unknown[] | undefined
+        const description = extractParsedCmdDescription(parsedCmd)
         const toolAction: ToolAction = {
           kind: 'command-run',
           command: commandStr,
@@ -318,7 +348,12 @@ export class CodexLogNormalizer {
           metadata: {
             toolName: 'Bash',
             toolCallId: callId,
-            input: { command: commandStr },
+            input: {
+              command: commandStr,
+              ...(description && { description }),
+            },
+            ...(cwd && { cwd }),
+            ...(reason && { reason }),
           },
           toolAction,
         }
@@ -329,10 +364,11 @@ export class CodexLogNormalizer {
         this.resetStreamingState()
         const changes = msg.changes as Record<string, unknown> | undefined
         const callId = msg.call_id as string | undefined
+        const reason = msg.reason as string | null | undefined
         if (!changes) return null
         const entries: NormalizedLogEntry[] = []
-        for (const [path, patchValue] of Object.entries(changes)) {
-          const patch = typeof patchValue === 'string' ? patchValue : undefined
+        for (const [path, fileChange] of Object.entries(changes)) {
+          const input = codexFileChangeToInput(path, fileChange)
           entries.push({
             entryType: 'tool-use',
             content: `Tool: Edit`,
@@ -341,7 +377,8 @@ export class CodexLogNormalizer {
               toolName: 'Edit',
               toolCallId: callId,
               path,
-              input: { file_path: path, ...(patch ? { patch } : {}) },
+              input,
+              ...(reason && { reason }),
             },
             toolAction: { kind: 'file-edit', path },
           })
@@ -379,6 +416,8 @@ export class CodexLogNormalizer {
       }
 
       // --- MCP tool call end ---
+      // Schema: result is { Ok: CallToolResult } | { Err: string }
+      // CallToolResult = { content: Array<{type,text,...}>, isError?: boolean }
       case 'mcp_tool_call_end': {
         const invocation = msg.invocation as
           | {
@@ -386,13 +425,30 @@ export class CodexLogNormalizer {
             tool?: string
           } |
           undefined
-        const result = msg.result as { content?: unknown[], is_error?: boolean } | undefined
+        const rawResult = msg.result as Record<string, unknown> | undefined
         const toolName = `mcp:${invocation?.server ?? 'unknown'}:${invocation?.tool ?? 'unknown'}`
-        const isError = result?.is_error ?? false
+        const duration = msg.duration as string | undefined
+
+        // Unwrap Ok/Err envelope (schema: { Ok: CallToolResult } | { Err: string })
+        let callToolResult: { content?: unknown[], isError?: boolean, is_error?: boolean } | undefined
+        let isError = false
+        if (rawResult && 'Ok' in rawResult) {
+          callToolResult = rawResult.Ok as typeof callToolResult
+        } else if (rawResult && 'Err' in rawResult) {
+          isError = true
+        } else {
+          // Fallback: treat raw result as CallToolResult directly (backwards compat)
+          callToolResult = rawResult as typeof callToolResult
+        }
+
+        if (callToolResult) {
+          isError = callToolResult.isError ?? callToolResult.is_error ?? isError
+        }
+
         // Extract text content from MCP result
         let resultText = ''
-        if (Array.isArray(result?.content)) {
-          resultText = result.content
+        if (callToolResult && Array.isArray(callToolResult.content)) {
+          resultText = callToolResult.content
             .filter((block: unknown) => {
               const b = block as Record<string, unknown>
               return b?.type === 'text'
@@ -400,6 +456,12 @@ export class CodexLogNormalizer {
             .map((block: unknown) => (block as Record<string, unknown>).text as string)
             .join('\n')
         }
+
+        // If it was an Err string, use that as content
+        if (isError && !resultText && rawResult && 'Err' in rawResult) {
+          resultText = String(rawResult.Err)
+        }
+
         return {
           entryType: 'tool-use',
           content: resultText || (isError ? 'MCP tool call failed' : 'MCP tool call completed'),
@@ -409,6 +471,7 @@ export class CodexLogNormalizer {
             isResult: true,
             toolCallId: msg.call_id as string | undefined,
             exitCode: isError ? 1 : 0,
+            ...(duration && { duration }),
           },
           toolAction: {
             kind: 'tool',
@@ -436,6 +499,10 @@ export class CodexLogNormalizer {
       // --- Web search end ---
       case 'web_search_end': {
         const query = (msg.query as string) ?? ''
+        const action = msg.action as string | Record<string, unknown> | undefined
+        const actionType = typeof action === 'string'
+          ? action
+          : (action as Record<string, unknown> | undefined)?.type as string | undefined
         return {
           entryType: 'tool-use',
           content: query || 'Web search completed',
@@ -444,6 +511,7 @@ export class CodexLogNormalizer {
             toolName: 'WebSearch',
             isResult: true,
             toolCallId: msg.call_id as string | undefined,
+            ...(actionType && { actionType }),
           },
           toolAction: { kind: 'web-fetch', url: query },
         }
@@ -504,10 +572,15 @@ export class CodexLogNormalizer {
       // --- Error ---
       case 'error': {
         const message = (msg.message as string) ?? 'Unknown error'
+        const errorInfo = msg.codex_error_info as string | Record<string, unknown> | null | undefined
+        const errorType = extractCodexErrorType(errorInfo)
         return {
           entryType: 'error-message',
           content: `Error: ${message}`,
           timestamp: now,
+          metadata: {
+            ...(errorType && { errorType }),
+          },
         }
       }
 
@@ -537,10 +610,11 @@ export class CodexLogNormalizer {
       case 'token_count': {
         const info = msg.info as
           | {
-            last_token_usage?: { total_tokens?: number }
+            last_token_usage?: { total_tokens?: number, input_tokens?: number, output_tokens?: number }
             model_context_window?: number
           } |
           undefined
+        const rateLimits = msg.rate_limits as Record<string, unknown> | null | undefined
         if (!info?.last_token_usage) return null
         const totalTokens = info.last_token_usage.total_tokens ?? 0
         const contextWindow = info.model_context_window ?? 0
@@ -551,6 +625,9 @@ export class CodexLogNormalizer {
           metadata: {
             totalTokens,
             contextWindow,
+            ...(info.last_token_usage.input_tokens != null && { inputTokens: info.last_token_usage.input_tokens }),
+            ...(info.last_token_usage.output_tokens != null && { outputTokens: info.last_token_usage.output_tokens }),
+            ...(rateLimits && { rateLimits }),
           },
         }
       }
@@ -568,13 +645,30 @@ export class CodexLogNormalizer {
       case 'session_configured': {
         const model = (msg.model as string) ?? ''
         const sessionId = (msg.session_id as string) ?? ''
+        const modelProviderId = msg.model_provider_id as string | undefined
+        const cwd = msg.cwd as string | undefined
+        const approvalPolicy = msg.approval_policy as string | undefined
+        const reasoningEffort = msg.reasoning_effort as string | null | undefined
+        const forkedFromId = msg.forked_from_id as string | null | undefined
+        const threadName = msg.thread_name as string | undefined
         const parts: string[] = []
         if (model) parts.push(`model: ${model}`)
+        if (modelProviderId) parts.push(`provider: ${modelProviderId}`)
         return {
           entryType: 'system-message',
           content: parts.length > 0 ? parts.join('  ') : 'Session configured',
           timestamp: now,
-          metadata: { subtype: 'session_configured', sessionId, model },
+          metadata: {
+            subtype: 'session_configured',
+            sessionId,
+            model,
+            ...(modelProviderId && { modelProviderId }),
+            ...(cwd && { cwd }),
+            ...(approvalPolicy && { approvalPolicy }),
+            ...(reasoningEffort && { reasoningEffort }),
+            ...(forkedFromId && { forkedFromId }),
+            ...(threadName && { threadName }),
+          },
         }
       }
 
@@ -589,31 +683,48 @@ export class CodexLogNormalizer {
         }
       }
 
-      // --- Turn started (within codex/event) ---
-      case 'turn_started': {
+      // --- Turn started (v2 codex/event) ---
+      // Schema type discriminant is "task_started" in EventMsg but "turn_started" in our events
+      case 'turn_started':
+      case 'task_started': {
+        const turnId = msg.turn_id as string | undefined
+        const contextWindow = msg.model_context_window as number | null | undefined
+        const collabMode = msg.collaboration_mode_kind as string | undefined
         return {
           entryType: 'system-message',
           content: 'Turn started',
           timestamp: now,
-          metadata: { subtype: 'turn_started' },
+          metadata: {
+            subtype: 'turn_started',
+            ...(turnId && { turnId }),
+            ...(contextWindow != null && { contextWindow }),
+            ...(collabMode && { collabMode }),
+          },
         }
       }
 
-      // --- Turn complete (within codex/event — v2 protocol) ---
-      case 'turn_complete': {
+      // --- Turn complete (v2 codex/event) ---
+      // Schema type discriminant is "task_complete" in EventMsg but "turn_complete" in our events
+      case 'turn_complete':
+      case 'task_complete': {
         this.resetStreamingState()
+        const turnId = msg.turn_id as string | undefined
+        const lastMessage = msg.last_agent_message as string | null | undefined
         return {
           entryType: 'system-message',
-          content: 'Turn completed',
+          content: lastMessage || 'Turn completed',
           timestamp: now,
-          metadata: { turnCompleted: true },
+          metadata: {
+            turnCompleted: true,
+            ...(turnId && { turnId }),
+          },
         }
       }
 
       // --- Item started (plan item) ---
       case 'item_started': {
         const item = msg.item as Record<string, unknown> | undefined
-        if (item?.type === 'plan') {
+        if (item?.type === 'plan' || item?.type === 'Plan') {
           this.resetStreamingState()
           return {
             entryType: 'system-message',
@@ -628,7 +739,7 @@ export class CodexLogNormalizer {
       // --- Item completed (plan item) ---
       case 'item_completed': {
         const item = msg.item as Record<string, unknown> | undefined
-        if (item?.type === 'plan') {
+        if (item?.type === 'plan' || item?.type === 'Plan') {
           const text = (item.text as string) ?? ''
           if (text) {
             return {
@@ -642,7 +753,185 @@ export class CodexLogNormalizer {
         return null
       }
 
-      // --- MCP startup events (skip) ---
+      // --- Request user input (interactive questions) ---
+      case 'request_user_input': {
+        const callId = msg.call_id as string | undefined
+        const questions = msg.questions as Array<{ question?: string, header?: string }> | undefined
+        const questionText = questions?.map(q => q.question || q.header || '').filter(Boolean).join('\n') || 'User input requested'
+        return {
+          entryType: 'system-message',
+          content: questionText,
+          timestamp: now,
+          metadata: {
+            subtype: 'request_user_input',
+            toolCallId: callId,
+            questions,
+          },
+        }
+      }
+
+      // --- Dynamic tool call request ---
+      case 'dynamic_tool_call_request': {
+        this.resetStreamingState()
+        const callId = msg.callId as string | undefined
+        const toolName = (msg.tool as string) ?? 'unknown'
+        const args = msg.arguments
+        return {
+          entryType: 'tool-use',
+          content: `Tool: ${toolName}`,
+          timestamp: now,
+          metadata: {
+            toolName,
+            toolCallId: callId,
+            input: args,
+          },
+          toolAction: {
+            kind: 'tool',
+            toolName,
+            arguments: args,
+          },
+        }
+      }
+
+      // --- Terminal interaction (interactive stdin) ---
+      case 'terminal_interaction': {
+        const callId = msg.call_id as string | undefined
+        const stdin = (msg.stdin as string) ?? ''
+        return {
+          entryType: 'system-message',
+          content: `Terminal input: ${stdin}`,
+          timestamp: now,
+          metadata: {
+            subtype: 'terminal_interaction',
+            toolCallId: callId,
+            processId: msg.process_id as string | undefined,
+          },
+        }
+      }
+
+      // --- Review mode events ---
+      case 'entered_review_mode': {
+        const hint = msg.user_facing_hint as string | undefined
+        return {
+          entryType: 'system-message',
+          content: hint || 'Entered review mode',
+          timestamp: now,
+          metadata: { subtype: 'entered_review_mode' },
+        }
+      }
+
+      case 'exited_review_mode': {
+        return {
+          entryType: 'system-message',
+          content: 'Exited review mode',
+          timestamp: now,
+          metadata: { subtype: 'exited_review_mode' },
+        }
+      }
+
+      // --- Collaboration events ---
+      case 'collab_agent_spawn_begin': {
+        const callId = msg.call_id as string | undefined
+        const prompt = (msg.prompt as string) ?? ''
+        return {
+          entryType: 'system-message',
+          content: prompt ? `Spawning agent: ${prompt.slice(0, 100)}` : 'Spawning agent',
+          timestamp: now,
+          metadata: {
+            subtype: 'collab_agent_spawn_begin',
+            toolCallId: callId,
+            senderThreadId: msg.sender_thread_id as string | undefined,
+          },
+        }
+      }
+
+      case 'collab_agent_spawn_end': {
+        const newThreadId = msg.new_thread_id as string | null | undefined
+        const status = msg.status as string | Record<string, unknown> | undefined
+        const statusStr = typeof status === 'string' ? status : 'unknown'
+        return {
+          entryType: 'system-message',
+          content: `Agent spawned: ${statusStr}`,
+          timestamp: now,
+          metadata: {
+            subtype: 'collab_agent_spawn_end',
+            ...(newThreadId && { newThreadId }),
+            agentStatus: status,
+          },
+        }
+      }
+
+      case 'collab_agent_interaction_begin': {
+        const callId = msg.call_id as string | undefined
+        const prompt = (msg.prompt as string) ?? ''
+        return {
+          entryType: 'system-message',
+          content: prompt ? `Agent interaction: ${prompt.slice(0, 100)}` : 'Agent interaction started',
+          timestamp: now,
+          metadata: {
+            subtype: 'collab_agent_interaction_begin',
+            toolCallId: callId,
+          },
+        }
+      }
+
+      case 'collab_agent_interaction_end': {
+        const status = msg.status as string | Record<string, unknown> | undefined
+        const statusStr = typeof status === 'string' ? status : 'completed'
+        return {
+          entryType: 'system-message',
+          content: `Agent interaction ended: ${statusStr}`,
+          timestamp: now,
+          metadata: { subtype: 'collab_agent_interaction_end', agentStatus: status },
+        }
+      }
+
+      case 'collab_waiting_begin': {
+        const receiverIds = msg.receiver_thread_ids as string[] | undefined
+        return {
+          entryType: 'system-message',
+          content: `Waiting for ${receiverIds?.length ?? 0} agent(s)`,
+          timestamp: now,
+          metadata: { subtype: 'collab_waiting_begin', receiverIds },
+        }
+      }
+
+      case 'collab_waiting_end': {
+        return {
+          entryType: 'system-message',
+          content: 'Agent wait completed',
+          timestamp: now,
+          metadata: { subtype: 'collab_waiting_end' },
+        }
+      }
+
+      // --- Elicitation request (MCP server asking for user input) ---
+      case 'elicitation_request': {
+        const serverName = (msg.server_name as string) ?? 'unknown'
+        const elicitMessage = (msg.message as string) ?? ''
+        return {
+          entryType: 'system-message',
+          content: elicitMessage || `MCP server ${serverName} requests input`,
+          timestamp: now,
+          metadata: {
+            subtype: 'elicitation_request',
+            serverName,
+          },
+        }
+      }
+
+      // --- Turn aborted ---
+      case 'turn_aborted': {
+        this.resetStreamingState()
+        return {
+          entryType: 'system-message',
+          content: 'Turn aborted',
+          timestamp: now,
+          metadata: { turnCompleted: true },
+        }
+      }
+
+      // --- Skip events (no useful data to extract) ---
       case 'mcp_startup_update':
       case 'mcp_startup_complete':
       case 'mcp_list_tools_response':
@@ -659,25 +948,15 @@ export class CodexLogNormalizer {
       case 'list_custom_prompts_response':
       case 'list_skills_response':
       case 'skills_update_available':
-      case 'turn_aborted':
-      case 'terminal_interaction':
-      case 'elicitation_request':
       case 'agent_message_content_delta':
       case 'reasoning_content_delta':
       case 'reasoning_raw_content_delta':
       case 'agent_reasoning_raw_content':
       case 'agent_reasoning_raw_content_delta':
-      case 'collab_agent_spawn_begin':
-      case 'collab_agent_spawn_end':
-      case 'collab_agent_interaction_begin':
-      case 'collab_agent_interaction_end':
-      case 'collab_waiting_begin':
-      case 'collab_waiting_end':
       case 'collab_close_begin':
       case 'collab_close_end':
       case 'collab_resume_begin':
       case 'collab_resume_end':
-      case 'dynamic_tool_call_request':
       case 'dynamic_tool_call_response':
       case 'list_remote_skills_response':
       case 'remote_skill_downloaded':
@@ -806,9 +1085,9 @@ export class CodexLogNormalizer {
       const patches = item.patches as unknown[] | undefined
       const path = item.path as string | undefined
       const patchCount = patches?.length ?? 0
-      const summary = path ?
-        `File changed: ${path} (${patchCount} patch${patchCount !== 1 ? 'es' : ''})` :
-        `File changed (${patchCount} patch${patchCount !== 1 ? 'es' : ''})`
+      const summary = path
+        ? `File changed: ${path} (${patchCount} patch${patchCount !== 1 ? 'es' : ''})`
+        : `File changed (${patchCount} patch${patchCount !== 1 ? 'es' : ''})`
       return {
         entryType: 'tool-use',
         content: summary,
@@ -891,9 +1170,9 @@ export class CodexLogNormalizer {
     }
     if (outputTokens != null) {
       parts.push(
-        outputTokens >= 1000 ?
-          `${(outputTokens / 1000).toFixed(1)}k output` :
-          `${outputTokens} output`,
+        outputTokens >= 1000
+          ? `${(outputTokens / 1000).toFixed(1)}k output`
+          : `${outputTokens} output`,
       )
     }
 
@@ -960,6 +1239,79 @@ export class CodexLogNormalizer {
     this.assistantText = ''
     this.thinkingText = ''
   }
+}
+
+/**
+ * Map a Codex FileChange value to a frontend-compatible input object.
+ *
+ * Codex FileChange types:
+ * - { type: "add", content: string }        → new file (Write-like)
+ * - { type: "update", unified_diff: string } → file edit with unified diff
+ * - { type: "delete", content: string }      → file deletion
+ */
+function codexFileChangeToInput(
+  path: string,
+  fileChange: unknown,
+): Record<string, unknown> {
+  const base: Record<string, unknown> = { file_path: path }
+  if (!fileChange || typeof fileChange !== 'object') return base
+
+  const fc = fileChange as Record<string, unknown>
+  const changeType = fc.type as string | undefined
+
+  switch (changeType) {
+    case 'add':
+      if (typeof fc.content === 'string') {
+        base.content = fc.content
+      }
+      break
+    case 'update':
+      if (typeof fc.unified_diff === 'string') {
+        base.unified_diff = fc.unified_diff
+      }
+      break
+    case 'delete':
+      base.deleted = true
+      break
+  }
+
+  return base
+}
+
+/**
+ * Extract a human-readable description from parsed_cmd array.
+ * ParsedCommand: { type: "read", path } | { type: "list_files", path } |
+ *                { type: "search", query, path } | { type: "unknown", cmd }
+ */
+function extractParsedCmdDescription(parsedCmd: unknown[] | undefined): string | undefined {
+  if (!parsedCmd || parsedCmd.length === 0) return undefined
+  const first = parsedCmd[0] as Record<string, unknown> | undefined
+  if (!first) return undefined
+  switch (first.type) {
+    case 'read':
+      return `Read ${first.path ?? first.name ?? ''}`
+    case 'list_files':
+      return `List files${first.path ? ` in ${first.path}` : ''}`
+    case 'search':
+      return `Search${first.query ? ` "${first.query}"` : ''}${first.path ? ` in ${first.path}` : ''}`
+    default:
+      return undefined
+  }
+}
+
+/**
+ * Extract a simplified error type string from CodexErrorInfo.
+ * CodexErrorInfo is either a plain string like "context_window_exceeded"
+ * or an object like { http_connection_failed: { http_status_code: 429 } }.
+ */
+function extractCodexErrorType(errorInfo: unknown): string | undefined {
+  if (!errorInfo) return undefined
+  if (typeof errorInfo === 'string') return errorInfo
+  if (typeof errorInfo === 'object') {
+    const keys = Object.keys(errorInfo as Record<string, unknown>)
+    return keys[0] || undefined
+  }
+  return undefined
 }
 
 /**

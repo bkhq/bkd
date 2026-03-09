@@ -31,6 +31,7 @@ export interface ParsedFileToolInput {
   oldString?: string
   newString?: string
   patch?: string
+  unifiedDiff?: string
   hasOnlyFilePath: boolean
   raw: string
 }
@@ -49,6 +50,7 @@ export function parseFileToolInput(input: unknown): ParsedFileToolInput {
     oldString: typeof obj.old_string === 'string' ? obj.old_string : undefined,
     newString: typeof obj.new_string === 'string' ? obj.new_string : undefined,
     patch: typeof obj.patch === 'string' ? obj.patch : undefined,
+    unifiedDiff: typeof obj.unified_diff === 'string' ? obj.unified_diff : undefined,
     hasOnlyFilePath,
     raw,
   }

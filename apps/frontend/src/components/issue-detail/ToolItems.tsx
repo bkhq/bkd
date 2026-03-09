@@ -1,6 +1,7 @@
 import type { ToolGroupChatMessage, ToolGroupItem } from '@bkd/shared'
 import {
   ChevronRight,
+  Copy,
   FileEdit,
   FileText,
   Search,
@@ -136,6 +137,7 @@ export function FileToolItem({ item }: { item: ToolGroupItem }) {
   const hasOldString = parsed.oldString !== undefined
   const hasNewString = parsed.newString !== undefined
   const hasPatch = parsed.patch !== undefined
+  const hasUnifiedDiff = parsed.unifiedDiff !== undefined
 
   if (!isEdit) {
     const resultContent = item.result?.content
@@ -219,7 +221,11 @@ export function FileToolItem({ item }: { item: ToolGroupItem }) {
           ? <ShikiPatchDiff patch={parsed.patch!} />
           : null}
 
-        {!hasContent && !hasOldString && !hasNewString && !hasPatch && !parsed.hasOnlyFilePath
+        {!hasPatch && hasUnifiedDiff && !hasContent && !hasOldString && !hasNewString
+          ? <ShikiPatchDiff patch={parsed.unifiedDiff!} />
+          : null}
+
+        {!hasContent && !hasOldString && !hasNewString && !hasPatch && !hasUnifiedDiff && !parsed.hasOnlyFilePath
           ? <CodeBlock content={parsed.raw || '(empty)'} language="json" collapsible={false} />
           : null}
       </div>
@@ -257,19 +263,41 @@ export function CommandToolItem({ item }: { item: ToolGroupItem }) {
       <div className="space-y-2">
         {preview.isTruncated || fullCommand.includes('\n')
           ? (
-              <div className="rounded-md border border-border/30 bg-muted/10 p-2 space-y-1">
-                <div className="px-0.5 text-[11px] text-muted-foreground">
-                  {t('session.tool.fullCommand')}
+              <div className="rounded-md border border-border/30 bg-muted/10 p-2">
+                <div className="flex items-start gap-2">
+                  <pre className="flex-1 text-[12px] font-mono whitespace-pre-wrap break-all leading-[1.5]">{fullCommand}</pre>
+                  <button
+                    type="button"
+                    className="shrink-0 p-1 rounded hover:bg-muted/50 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                    title={t('common.copy')}
+                    onClick={() => navigator.clipboard.writeText(fullCommand)}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
                 </div>
-                <CodeBlock content={fullCommand} language="shell" collapsible={false} />
               </div>
             )
           : null}
-        <CodeBlock
-          content={item.result?.content || item.action.content || '(empty)'}
-          collapsible={false}
-          language={hasError ? 'text' : undefined}
-        />
+        {(() => {
+          const resultContent = item.result?.content || item.action.content || '(empty)'
+          return (
+            <div className="relative group/result">
+              <CodeBlock
+                content={resultContent}
+                collapsible={false}
+                language={hasError ? 'text' : undefined}
+              />
+              <button
+                type="button"
+                className="absolute top-1.5 right-1.5 p-1 rounded opacity-0 group-hover/result:opacity-100 hover:bg-muted/50 text-muted-foreground/50 hover:text-muted-foreground transition-all"
+                title={t('common.copy')}
+                onClick={() => navigator.clipboard.writeText(resultContent)}
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )
+        })()}
       </div>
     </ToolPanel>
   )
