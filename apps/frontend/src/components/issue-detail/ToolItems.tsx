@@ -1,6 +1,7 @@
 import type { ToolGroupChatMessage, ToolGroupItem } from '@bkd/shared'
 import {
   ChevronRight,
+  Copy,
   FileEdit,
   FileText,
   Search,
@@ -240,11 +241,18 @@ export function CommandToolItem({ item }: { item: ToolGroupItem }) {
       <div className="space-y-2">
         {preview.isTruncated || fullCommand.includes('\n')
           ? (
-              <div className="rounded-md border border-border/30 bg-muted/10 p-2 space-y-1">
-                <div className="px-0.5 text-[11px] text-muted-foreground">
-                  {t('session.tool.fullCommand')}
+              <div className="rounded-md border border-border/30 bg-muted/10 p-2">
+                <div className="flex items-start gap-2">
+                  <pre className="flex-1 text-[12px] font-mono whitespace-pre-wrap break-all leading-[1.5]">{fullCommand}</pre>
+                  <button
+                    type="button"
+                    className="shrink-0 p-1 rounded hover:bg-muted/50 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                    title={t('common.copy')}
+                    onClick={() => navigator.clipboard.writeText(fullCommand)}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
                 </div>
-                <CodeBlock content={fullCommand} language="shell" collapsible={false} />
               </div>
             )
           : null}
