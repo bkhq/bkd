@@ -7,7 +7,6 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { Toaster } from './components/ui/sonner'
 import { useSystemInfo } from './hooks/use-kanban'
 import { eventBus } from './lib/event-bus'
-import { useFileBrowserStore } from './stores/file-browser-store'
 import { useNotesStore } from './stores/notes-store'
 import { useProcessManagerStore } from './stores/process-manager-store'
 import { useServerStore } from './stores/server-store'
@@ -60,11 +59,6 @@ const LazyTerminalDrawer = lazy(() =>
     default: m.TerminalDrawer,
   })),
 )
-const LazyFileBrowserDrawer = lazy(() =>
-  import('./components/files/FileBrowserDrawer').then(m => ({
-    default: m.FileBrowserDrawer,
-  })),
-)
 const LazyProcessManagerDrawer = lazy(() =>
   import('./components/processes/ProcessManagerDrawer').then(m => ({
     default: m.ProcessManagerDrawer,
@@ -92,18 +86,6 @@ function TerminalDrawerMount() {
   return (
     <Suspense fallback={null}>
       <LazyTerminalDrawer />
-    </Suspense>
-  )
-}
-
-function FileBrowserDrawerMount() {
-  const isOpen = useFileBrowserStore(s => s.isOpen)
-
-  if (!isOpen) return null
-
-  return (
-    <Suspense fallback={null}>
-      <LazyFileBrowserDrawer />
     </Suspense>
   )
 }
@@ -226,7 +208,6 @@ if (!rootElement.innerHTML) {
             </Suspense>
           </AppShell>
           <TerminalDrawerMount />
-          <FileBrowserDrawerMount />
           <ProcessManagerDrawerMount />
           <NotesDrawerMount />
           <Toaster position="top-center" />

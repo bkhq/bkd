@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AppSidebar } from '@/components/kanban/AppSidebar'
@@ -11,11 +11,17 @@ import { useIssues, useProject } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { DEFAULT_STATUS_ID } from '@/lib/statuses'
 import {
+  FILE_BROWSER_MIN_WIDTH,
+  useFileBrowserStore,
+} from '@/stores/file-browser-store'
+import {
   PANEL_MAX_WIDTH_RATIO,
   PANEL_MIN_WIDTH,
   useIsPanelOpen,
   usePanelStore,
 } from '@/stores/panel-store'
+
+const LazyFileBrowserPanel = lazy(() => import('../components/files/FileBrowserPanel').then(m => ({ default: m.FileBrowserPanel })))
 
 export default function KanbanPage() {
   const { t } = useTranslation()
@@ -31,6 +37,18 @@ export default function KanbanPage() {
   const isPanelOpen = useIsPanelOpen()
   const isMobile = useIsMobile()
   const [searchQuery, setSearchQuery] = useState('')
+  const showFileBrowser = useFileBrowserStore(s => s.isOpen)
+  const closeFileBrowser = useFileBrowserStore(s => s.close)
+  const [fileBrowserWidth, setFileBrowserWidth] = useState(360)
+
+  const handleFileBrowserWidthChange = useCallback(
+    (w: number) => {
+      const viewport = typeof window !== 'undefined' ? window.innerWidth : 1600
+      const maxWidth = viewport - 56 - 300 // sidebar + min main content
+      setFileBrowserWidth(Math.min(Math.max(FILE_BROWSER_MIN_WIDTH, w), maxWidth))
+    },
+    [],
+  )
 
   const handleCardClick = useCallback(
     (issue: { id: string }) => {
@@ -90,6 +108,46 @@ export default function KanbanPage() {
           </div>
         </div>
       </div>
+
+      {/* File browser panel — inline on desktop, fullscreen on mobile */}
+      {showFileBrowser
+        ? (
+            isMobile
+              ? (
+                  <div className="fixed inset-0 z-40 bg-background flex flex-col">
+                    <Suspense
+                      fallback={(
+                        <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                          {t('common.loading')}
+                        </div>
+                      )}
+                    >
+                      <LazyFileBrowserPanel
+                        width={0}
+                        onWidthChange={handleFileBrowserWidthChange}
+                        onClose={closeFileBrowser}
+                        fullScreen
+                      />
+                    </Suspense>
+                  </div>
+                )
+              : (
+                  <Suspense
+                    fallback={(
+                      <div className="flex w-[360px] shrink-0 items-center justify-center border-l border-border bg-background text-sm text-muted-foreground">
+                        {t('common.loading')}
+                      </div>
+                    )}
+                  >
+                    <LazyFileBrowserPanel
+                      width={fileBrowserWidth}
+                      onWidthChange={handleFileBrowserWidthChange}
+                      onClose={closeFileBrowser}
+                    />
+                  </Suspense>
+                )
+          )
+        : null}
 
       {/* Overlay — covers entire page, click to close panel (desktop only) */}
       {!isMobile && isPanelOpen ?

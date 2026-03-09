@@ -8,10 +8,12 @@ import { AppSidebar } from '@/components/kanban/AppSidebar'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import { useReviewIssues } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { FILE_BROWSER_MIN_WIDTH } from '@/stores/file-browser-store'
 
 const SIDEBAR_WIDTH = 56
 const MIN_CHAT_WIDTH = 300
 const DEFAULT_DIFF_WIDTH = 360
+const DEFAULT_FILE_BROWSER_WIDTH = 360
 const DEFAULT_LIST_WIDTH = 232
 const MIN_LIST_WIDTH = 180
 const MAX_LIST_WIDTH = 400
@@ -31,6 +33,7 @@ export default function ReviewPage() {
 
   const [showDiff, setShowDiff] = useState(false)
   const [diffWidth, setDiffWidth] = useState(DEFAULT_DIFF_WIDTH)
+  const [fileBrowserWidth, setFileBrowserWidth] = useState(DEFAULT_FILE_BROWSER_WIDTH)
   const [listWidth, setListWidth] = useState(DEFAULT_LIST_WIDTH)
   const isResizingList = useRef(false)
   const isMobile = useIsMobile()
@@ -69,6 +72,13 @@ export default function ReviewPage() {
       document.addEventListener('mouseup', onMouseUp)
     },
     [listWidth, showDiff, diffWidth],
+  )
+
+  const handleFileBrowserWidthChange = useCallback(
+    (w: number) => {
+      setFileBrowserWidth(Math.max(FILE_BROWSER_MIN_WIDTH, w))
+    },
+    [],
   )
 
   const availableWidth = typeof window !== 'undefined' ? window.innerWidth - SIDEBAR_WIDTH : 1200
@@ -116,6 +126,8 @@ export default function ReviewPage() {
               onToggleDiff={() => setShowDiff(v => !v)}
               onDiffWidthChange={handleDiffWidthChange}
               onCloseDiff={() => setShowDiff(false)}
+              fileBrowserWidth={fileBrowserWidth}
+              onFileBrowserWidthChange={handleFileBrowserWidthChange}
               showBackToList
               backPath="/review"
             />
