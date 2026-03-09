@@ -366,8 +366,8 @@ export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage })
 
   return (
     <div className="py-0.5 animate-message-enter">
-      <details open className="rounded-lg border border-border/30 bg-card/50 group/tg">
-        <summary className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted-foreground cursor-pointer list-none select-none hover:bg-muted/10 transition-colors rounded-lg">
+      <details open className="border border-border/30 bg-card/50 group/tg">
+        <summary className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted-foreground cursor-pointer list-none select-none hover:bg-muted/10 transition-colors">
           <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open/tg:rotate-90" />
           <span className="truncate">{description || statsLabel}</span>
           {description ?
