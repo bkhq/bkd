@@ -136,7 +136,8 @@ export function getLogsFromDb(
           raw: rawData,
         }
         base.toolAction = rawToToolAction(tool.kind, rawData)
-        // Restore content & metadata from raw (not stored in issues_logs for tool-use)
+        // Restore content & metadata from raw for legacy rows where
+        // tool-use content was not stored in issues_logs (pre-fix).
         if (!base.content && rawData.content) {
           base.content = rawData.content as string
         }
