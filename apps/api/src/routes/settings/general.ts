@@ -230,21 +230,17 @@ general.get('/max-concurrent-executions', async (c) => {
 // PATCH /api/settings/max-concurrent-executions
 general.patch(
   '/max-concurrent-executions',
-  zValidator(
-    'json',
-    z.object({ value: z.number().int().min(1).max(20) }),
-    (result, c) => {
-      if (!result.success) {
-        return c.json(
-          {
-            success: false,
-            error: result.error.issues.map((i) => i.message).join(', '),
-          },
-          400,
-        )
-      }
-    },
-  ),
+  zValidator('json', z.object({ value: z.number().int().min(1).max(20) }), (result, c) => {
+    if (!result.success) {
+      return c.json(
+        {
+          success: false,
+          error: result.error.issues.map((i) => i.message).join(', '),
+        },
+        400,
+      )
+    }
+  }),
   async (c) => {
     const { value } = c.req.valid('json')
     await setAppSetting(MAX_CONCURRENT_KEY, String(value))

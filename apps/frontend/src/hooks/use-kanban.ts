@@ -28,8 +28,7 @@ export const queryKeys = {
   projectWorktrees: (projectId: string) => ['projects', projectId, 'worktrees'] as const,
   logPageSize: () => ['settings', 'logPageSize'] as const,
   worktreeAutoCleanup: () => ['settings', 'worktreeAutoCleanup'] as const,
-  maxConcurrentExecutions: () =>
-    ['settings', 'maxConcurrentExecutions'] as const,
+  maxConcurrentExecutions: () => ['settings', 'maxConcurrentExecutions'] as const,
   upgradeVersion: () => ['upgrade', 'version'] as const,
   upgradeEnabled: () => ['upgrade', 'enabled'] as const,
   upgradeCheck: () => ['upgrade', 'check'] as const,
