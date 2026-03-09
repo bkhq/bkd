@@ -74,15 +74,18 @@ export default function ReviewPage() {
     [listWidth, showDiff, diffWidth],
   )
 
-  const handleFileBrowserWidthChange = useCallback(
-    (w: number) => {
-      setFileBrowserWidth(Math.max(FILE_BROWSER_MIN_WIDTH, w))
-    },
-    [],
-  )
-
   const availableWidth = typeof window !== 'undefined' ? window.innerWidth - SIDEBAR_WIDTH : 1200
   const hideListPanel = (isMobile && !!issueId) || (showDiff && diffWidth > availableWidth * 0.5)
+
+  const handleFileBrowserWidthChange = useCallback(
+    (w: number) => {
+      const viewport = typeof window !== 'undefined' ? window.innerWidth : 1600
+      const listSpace = hideListPanel ? 0 : listWidth
+      const maxWidth = viewport - SIDEBAR_WIDTH - listSpace - MIN_CHAT_WIDTH
+      setFileBrowserWidth(Math.min(Math.max(FILE_BROWSER_MIN_WIDTH, w), maxWidth))
+    },
+    [hideListPanel, listWidth],
+  )
 
   const handleDiffWidthChange = useCallback(
     (w: number) => {

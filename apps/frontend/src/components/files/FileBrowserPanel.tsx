@@ -1,23 +1,8 @@
-import {
-  Check,
-  Copy,
-  Download,
-  Eye,
-  EyeOff,
-  FolderOpen,
-  X,
-} from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { X } from 'lucide-react'
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useProject, useProjectFiles } from '@/hooks/use-kanban'
-import { kanbanApi } from '@/lib/kanban-api'
-import {
-  FILE_BROWSER_MIN_WIDTH,
-  useFileBrowserStore,
-} from '@/stores/file-browser-store'
-import { FileBreadcrumb } from './FileBreadcrumb'
-import { FileList } from './FileList'
-import { FileViewer } from './FileViewer'
+import { FILE_BROWSER_MIN_WIDTH } from '@/stores/file-browser-store'
+import { FileBrowserContent } from './FileBrowserContent'
 
 export function FileBrowserPanel({
   width,
@@ -31,61 +16,7 @@ export function FileBrowserPanel({
   fullScreen?: boolean
 }) {
   const { t } = useTranslation()
-  const {
-    projectId,
-    rootPath,
-    currentPath,
-    hideIgnored,
-    navigateTo,
-    toggleHideIgnored,
-  } = useFileBrowserStore()
-
   const dragRef = useRef<{ startX: number, startWidth: number } | null>(null)
-  const [copied, setCopied] = useState(false)
-
-  const handleToggleIgnored = useCallback(() => {
-    toggleHideIgnored()
-  }, [toggleHideIgnored])
-
-  const handleCopyPath = useCallback(() => {
-    navigator.clipboard.writeText(currentPath === '.' ? '/' : currentPath)
-    setCopied(true)
-    setTimeout(setCopied, 1500, false)
-  }, [currentPath])
-
-  const { data: project } = useProject(projectId ?? '')
-  const effectiveRoot = rootPath ?? project?.directory ?? null
-
-  const handleDownload = useCallback(() => {
-    if (!effectiveRoot || currentPath === '.') return
-    const url = kanbanApi.rawFileUrl(effectiveRoot, currentPath)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = ''
-    a.click()
-  }, [effectiveRoot, currentPath])
-
-  const {
-    data: listing,
-    isLoading,
-    isError,
-    error,
-  } = useProjectFiles(effectiveRoot, currentPath, !!effectiveRoot)
-
-  const handleEntryClick = useCallback(
-    (name: string, _type: 'file' | 'directory') => {
-      const newPath = currentPath === '.' ? name : `${currentPath}/${name}`
-      navigateTo(newPath)
-    },
-    [currentPath, navigateTo],
-  )
-
-  const handleFileBack = useCallback(() => {
-    const parentPath = currentPath.includes('/')
-      ? currentPath.slice(0, currentPath.lastIndexOf('/'))
-      : '.'
-    navigateTo(parentPath)
-  }, [currentPath, navigateTo])
 
   return (
     <div
@@ -137,51 +68,8 @@ export function FileBrowserPanel({
       )}
 
       <div className="flex flex-col h-full min-h-0">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] bg-background/80 backdrop-blur-sm">
-          <div className="flex items-center gap-2 min-w-0">
-            <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="text-xs font-medium text-muted-foreground truncate">
-              {project?.name ?? t('fileBrowser.title')}
-              {rootPath ? ` (${rootPath.split('/').pop()})` : ''}
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={handleCopyPath}
-              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              aria-label={t('fileBrowser.copyPath')}
-              title={t('fileBrowser.copyPath')}
-            >
-              {copied
-                ? <Check className="h-3.5 w-3.5 text-green-500" />
-                : <Copy className="h-3.5 w-3.5" />}
-            </button>
-            {listing?.type === 'file' && (
-              <button
-                type="button"
-                onClick={handleDownload}
-                className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                aria-label={t('fileBrowser.download')}
-                title={t('fileBrowser.download')}
-              >
-                <Download className="h-3.5 w-3.5" />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleToggleIgnored}
-              className={`p-1 rounded transition-colors ${
-                hideIgnored
-                  ? 'text-foreground bg-accent'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-              }`}
-              aria-label={t('fileBrowser.hideIgnored')}
-              title={hideIgnored ? t('fileBrowser.showIgnored') : t('fileBrowser.hideIgnored')}
-            >
-              {hideIgnored ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            </button>
+        <FileBrowserContent
+          headerActions={(
             <button
               type="button"
               onClick={onClose}
@@ -191,45 +79,8 @@ export function FileBrowserPanel({
             >
               <X className="h-3.5 w-3.5" />
             </button>
-          </div>
-        </div>
-
-        {/* Breadcrumb */}
-        <div className="px-3 py-2 border-b border-border shrink-0">
-          <FileBreadcrumb
-            projectName={project?.name ?? ''}
-            path={currentPath}
-            onNavigate={navigateTo}
-          />
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-auto min-h-0 p-4 flex flex-col">
-          {!effectiveRoot
-            ? (
-                <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-                  <FolderOpen className="h-12 w-12" />
-                  <p className="text-sm">{t('fileBrowser.noDirectory')}</p>
-                </div>
-              )
-            : isLoading
-              ? (
-                  <div className="flex items-center justify-center py-16">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  </div>
-                )
-              : isError
-                ? (
-                    <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-                      {(error as Error)?.message || t('fileBrowser.loadError')}
-                    </div>
-                  )
-                : listing?.type === 'file'
-                  ? <FileViewer file={listing} onBack={handleFileBack} />
-                  : listing?.type === 'directory'
-                    ? <FileList entries={listing.entries} onNavigate={handleEntryClick} />
-                    : null}
-        </div>
+          )}
+        />
       </div>
     </div>
   )
