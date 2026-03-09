@@ -47,7 +47,7 @@ export function ChatArea({
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const isMobile = useIsMobile()
-  const showFileBrowser = useFileBrowserStore(s => s.isOpen && !s.isDrawer)
+  const showFileBrowser = useFileBrowserStore(s => s.isOpen && !s.isDrawer && s.issueId === issueId)
   const closeFileBrowser = useFileBrowserStore(s => s.close)
 
   const updateIssue = useUpdateIssue(projectId)

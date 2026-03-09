@@ -41,8 +41,15 @@ export function FileList({ entries, onNavigate, breadcrumb }: FileListProps) {
 
   if (entries.length === 0) {
     return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
-        {t('fileBrowser.emptyDirectory')}
+      <div className="border border-border rounded-lg overflow-auto flex-1 min-h-0">
+        {breadcrumb && (
+          <div className="sticky top-0 z-[2] bg-muted/50 border-b border-border px-4 py-1.5">
+            {breadcrumb}
+          </div>
+        )}
+        <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
+          {t('fileBrowser.emptyDirectory')}
+        </div>
       </div>
     )
   }
