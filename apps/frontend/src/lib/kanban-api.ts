@@ -276,7 +276,7 @@ export const kanbanApi = {
     }),
   getCleanupStats: () =>
     get<{
-      logs: { logCount: number, toolCallCount: number }
+      logs: { issueCount: number, logCount: number, toolCallCount: number, logFileSize: number }
       oldVersions: {
         items: Array<{ name: string, size: number }>
         totalSize: number

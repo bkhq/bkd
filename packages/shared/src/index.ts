@@ -394,22 +394,37 @@ export interface ProjectProcessesResponse {
 // ── Webhooks ─────────────────────────────────────────────
 
 export type WebhookEventType =
-  | 'issue.created' |
-  'issue.updated' |
-  'issue.deleted' |
-  'issue.status_changed' |
-  'session.started' |
-  'session.completed' |
-  'session.failed'
+  | 'issue.created'
+  | 'issue.updated'
+  | 'issue.deleted'
+  | 'issue.status.todo'
+  | 'issue.status.working'
+  | 'issue.status.review'
+  | 'issue.status.done'
+  | 'session.started'
+  | 'session.completed'
+  | 'session.failed'
+  | 'issue.status_changed' // legacy — kept for backwards compat with existing DB records
+
+/** Event types grouped by category for UI display. */
+export const WEBHOOK_EVENT_GROUPS: { category: string, events: WebhookEventType[] }[] = [
+  {
+    category: 'issue',
+    events: ['issue.created', 'issue.updated', 'issue.deleted'],
+  },
+  {
+    category: 'status',
+    events: ['issue.status.todo', 'issue.status.working', 'issue.status.review', 'issue.status.done'],
+  },
+  {
+    category: 'session',
+    events: ['session.started', 'session.completed', 'session.failed'],
+  },
+]
 
 export const WEBHOOK_EVENT_TYPES: WebhookEventType[] = [
-  'issue.created',
-  'issue.updated',
-  'issue.deleted',
-  'issue.status_changed',
-  'session.started',
-  'session.completed',
-  'session.failed',
+  ...WEBHOOK_EVENT_GROUPS.flatMap(g => g.events),
+  'issue.status_changed', // legacy compat
 ]
 
 export type NotificationChannel = 'webhook' | 'telegram'
