@@ -12,7 +12,7 @@
  *
  * Output:
  *   Prints every stdout line with classification. Writes a JSON array of all
- *   file-edit related events to tools/codex-probe-output.json for analysis.
+ *   file-edit related events to /tmp/codex-probe-output.json for analysis.
  */
 
 import { spawn } from 'node:child_process'
@@ -295,7 +295,7 @@ async function main() {
       child.kill()
     } catch { /* already dead */ }
 
-    const outputPath = path.join(import.meta.dir || '.', 'codex-probe-output.json')
+    const outputPath = path.join('/tmp', 'codex-probe-output.json')
     const output = {
       prompt,
       model,
@@ -313,7 +313,7 @@ async function main() {
 
     if (fileEditEvents.length === 0) {
       log('WARN', 'No file-edit events captured! Dumping all events...')
-      const allOutputPath = path.join(import.meta.dir || '.', 'codex-probe-all-events.json')
+      const allOutputPath = path.join('/tmp', 'codex-probe-all-events.json')
       fs.writeFileSync(allOutputPath, JSON.stringify(allEvents, null, 2))
       log('INFO', `Wrote all events to ${allOutputPath}`)
     }
