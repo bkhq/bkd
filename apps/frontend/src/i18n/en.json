@@ -4,7 +4,8 @@
     "loading": "Loading...",
     "search": "Search...",
     "select": "Select",
-    "edit": "Edit"
+    "edit": "Edit",
+    "copy": "Copy"
   },
   "project": {
     "projects": "Projects",

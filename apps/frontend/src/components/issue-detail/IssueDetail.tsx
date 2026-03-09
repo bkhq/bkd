@@ -50,6 +50,24 @@ export function IssueDetail({
       {/* Status — editable */}
       <StatusSelect status={status} onChange={id => onUpdate?.({ statusId: id })} />
 
+      {/* Delete */}
+      {onDelete ?
+          (
+            <Button
+              type="button"
+              onClick={onDelete}
+              size="sm"
+              variant="outline"
+              disabled={isDeleting}
+              className={`${badgeButtonBase} cursor-pointer border-border/50 bg-muted/20 text-muted-foreground/60 hover:text-destructive hover:border-destructive/30 hover:bg-destructive/10`}
+              title={t('issue.delete')}
+            >
+              <Trash2 className="h-3 w-3" />
+              <span>{isDeleting ? t('issue.deleting') : t('issue.delete')}</span>
+            </Button>
+          ) :
+        null}
+
       {/* Tags — editable (comma-separated) */}
       {editingTag ?
           (
@@ -99,24 +117,6 @@ export function IssueDetail({
               {issue.tags && issue.tags.length > 0 ? issue.tags.join(', ') : t('issue.tag')}
             </button>
           )}
-
-      {/* Delete */}
-      {onDelete ?
-          (
-            <Button
-              type="button"
-              onClick={onDelete}
-              size="sm"
-              variant="outline"
-              disabled={isDeleting}
-              className={`${badgeButtonBase} cursor-pointer border-border/50 bg-muted/20 text-muted-foreground/60 hover:text-destructive hover:border-destructive/30 hover:bg-destructive/10`}
-              title={t('issue.delete')}
-            >
-              <Trash2 className="h-3 w-3" />
-              <span>{isDeleting ? t('issue.deleting') : t('issue.delete')}</span>
-            </Button>
-          ) :
-        null}
 
       {/* Worktree (right side) */}
       <div className="ml-auto flex items-center gap-1.5">
