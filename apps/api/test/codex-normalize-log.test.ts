@@ -708,7 +708,6 @@ describe('CodexLogNormalizer (codex/event/*)', () => {
       'user_message',
       'turn_diff',
       'shutdown_complete',
-      'turn_aborted',
     ]
     for (const type of skipTypes) {
       test(`${type} returns null`, () => {
@@ -785,7 +784,7 @@ describe('CodexLogNormalizer (codex/event/*)', () => {
   })
 
   // ------------------------------------------------------------------
-  // Turn complete (v2 codex/event)
+  // Turn complete / turn started (v2 codex/event)
   // ------------------------------------------------------------------
   describe('turn_complete event', () => {
     test('emits completion entry with turnCompleted metadata', () => {
@@ -793,7 +792,55 @@ describe('CodexLogNormalizer (codex/event/*)', () => {
       const r = n.parse(codexEvent('turn_complete'))
       expect(r).not.toBeNull()
       expect(r!.entryType).toBe('system-message')
-      expect(r!.content).toBe('Turn completed')
+      expect(r!.metadata?.turnCompleted).toBe(true)
+    })
+
+    test('extracts turn_id and last_agent_message', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(codexEvent('turn_complete', {
+        turn_id: 'turn-42',
+        last_agent_message: 'Done!',
+      }))
+      expect(r!.content).toBe('Done!')
+      expect(r!.metadata?.turnId).toBe('turn-42')
+    })
+
+    test('task_complete alias works', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(codexEvent('task_complete', { turn_id: 'tc-1' }))
+      expect(r!.metadata?.turnCompleted).toBe(true)
+      expect(r!.metadata?.turnId).toBe('tc-1')
+    })
+  })
+
+  describe('turn_started event', () => {
+    test('extracts turn_id and context window', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(codexEvent('turn_started', {
+        turn_id: 'ts-1',
+        model_context_window: 128000,
+        collaboration_mode_kind: 'default',
+      }))
+      expect(r!.entryType).toBe('system-message')
+      expect(r!.metadata?.turnId).toBe('ts-1')
+      expect(r!.metadata?.contextWindow).toBe(128000)
+      expect(r!.metadata?.collabMode).toBe('default')
+    })
+
+    test('task_started alias works', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(codexEvent('task_started', { turn_id: 'ts-2' }))
+      expect(r!.metadata?.subtype).toBe('turn_started')
+      expect(r!.metadata?.turnId).toBe('ts-2')
+    })
+  })
+
+  describe('turn_aborted event', () => {
+    test('emits system-message with turnCompleted', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(codexEvent('turn_aborted'))
+      expect(r!.entryType).toBe('system-message')
+      expect(r!.content).toBe('Turn aborted')
       expect(r!.metadata?.turnCompleted).toBe(true)
     })
   })
@@ -825,6 +872,440 @@ describe('CodexLogNormalizer (codex/event/*)', () => {
       )
       expect(r!.entryType).toBe('system-message')
       expect(r!.content).toBe('Updated plan')
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // exec_command_begin enriched fields
+  // ------------------------------------------------------------------
+  describe('exec_command_begin enriched fields', () => {
+    test('includes cwd, source, and parsed_cmd description', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('exec_command_begin', {
+          command: ['cat', '/app/file.ts'],
+          call_id: 'c1',
+          cwd: '/app',
+          source: 'agent',
+          parsed_cmd: [{ type: 'read', cmd: 'cat', name: 'cat', path: '/app/file.ts' }],
+        }),
+      )
+      expect(r!.metadata?.cwd).toBe('/app')
+      expect(r!.metadata?.source).toBe('agent')
+      expect(r!.metadata?.input?.description).toBe('Read /app/file.ts')
+    })
+
+    test('parsed_cmd search type', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('exec_command_begin', {
+          command: ['grep', '-r', 'foo', '/app'],
+          call_id: 'c2',
+          parsed_cmd: [{ type: 'search', cmd: 'grep', query: 'foo', path: '/app' }],
+        }),
+      )
+      expect(r!.metadata?.input?.description).toBe('Search "foo" in /app')
+    })
+
+    test('parsed_cmd unknown type has no description', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('exec_command_begin', {
+          command: ['echo', 'hi'],
+          call_id: 'c3',
+          parsed_cmd: [{ type: 'unknown', cmd: 'echo' }],
+        }),
+      )
+      expect(r!.metadata?.input?.description).toBeUndefined()
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // exec_command_end enriched fields
+  // ------------------------------------------------------------------
+  describe('exec_command_end duration', () => {
+    test('includes duration string', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('exec_command_end', {
+          command: ['ls'],
+          exit_code: 0,
+          formatted_output: 'file1',
+          duration: '1.2s',
+        }),
+      )
+      expect(r!.metadata?.duration).toBe('1.2s')
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // patch_apply_begin enriched fields
+  // ------------------------------------------------------------------
+  describe('patch_apply_begin auto_approved', () => {
+    test('includes autoApproved metadata', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('patch_apply_begin', {
+          changes: { '/app/x.ts': { type: 'add', content: 'hi' } },
+          auto_approved: true,
+        }),
+      )
+      expect((r as any).metadata?.autoApproved).toBe(true)
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // patch_apply_end enriched fields
+  // ------------------------------------------------------------------
+  describe('patch_apply_end enriched', () => {
+    test('includes stdout/stderr in content', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('patch_apply_end', {
+          success: true,
+          call_id: 'p1',
+          stdout: 'Applied 2 edits',
+          stderr: '',
+          changes: { '/app/a.ts': { type: 'update', unified_diff: 'diff' } },
+        }),
+      )
+      expect(r!.content).toBe('Applied 2 edits')
+      expect(r!.metadata?.changedPaths).toEqual(['/app/a.ts'])
+    })
+
+    test('falls back to default message when no stdout/stderr', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(codexEvent('patch_apply_end', { success: false }))
+      expect(r!.content).toBe('Patch apply failed')
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // exec_approval_request enriched fields
+  // ------------------------------------------------------------------
+  describe('exec_approval_request enriched', () => {
+    test('includes cwd and reason', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('exec_approval_request', {
+          command: ['rm', '-rf', '/tmp/build'],
+          call_id: 'ea-1',
+          cwd: '/app',
+          reason: 'Needs elevated permissions',
+          parsed_cmd: [{ type: 'unknown', cmd: 'rm' }],
+        }),
+      )
+      expect(r!.metadata?.cwd).toBe('/app')
+      expect(r!.metadata?.reason).toBe('Needs elevated permissions')
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // apply_patch_approval_request enriched fields
+  // ------------------------------------------------------------------
+  describe('apply_patch_approval_request enriched', () => {
+    test('includes reason', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('apply_patch_approval_request', {
+          changes: { '/app/x.ts': { type: 'add', content: 'new' } },
+          call_id: 'pa-1',
+          reason: 'Write to protected path',
+        }),
+      )
+      expect((r as any).metadata?.reason).toBe('Write to protected path')
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // mcp_tool_call_end Ok/Err envelope
+  // ------------------------------------------------------------------
+  describe('mcp_tool_call_end Ok/Err envelope', () => {
+    test('unwraps Ok envelope', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('mcp_tool_call_end', {
+          invocation: { server: 'fs', tool: 'read' },
+          result: { Ok: { content: [{ type: 'text', text: 'contents' }] } },
+          duration: '0.5s',
+        }),
+      )
+      expect(r!.content).toBe('contents')
+      expect(r!.metadata?.exitCode).toBe(0)
+      expect(r!.metadata?.duration).toBe('0.5s')
+    })
+
+    test('unwraps Err envelope', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('mcp_tool_call_end', {
+          invocation: { server: 'fs', tool: 'read' },
+          result: { Err: 'file not found' },
+        }),
+      )
+      expect(r!.content).toBe('file not found')
+      expect(r!.metadata?.exitCode).toBe(1)
+    })
+
+    test('backwards compat: flat result without Ok/Err', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('mcp_tool_call_end', {
+          invocation: { server: 'fs', tool: 'read' },
+          result: { content: [{ type: 'text', text: 'flat' }], is_error: false },
+        }),
+      )
+      expect(r!.content).toBe('flat')
+      expect(r!.metadata?.exitCode).toBe(0)
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // session_configured enriched fields
+  // ------------------------------------------------------------------
+  describe('session_configured enriched', () => {
+    test('includes provider, cwd, approval policy', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('session_configured', {
+          model: 'o3',
+          session_id: 's1',
+          model_provider_id: 'openai',
+          cwd: '/app',
+          approval_policy: 'never',
+          reasoning_effort: 'high',
+          forked_from_id: 'parent-s1',
+          thread_name: 'my thread',
+        }),
+      )
+      expect(r!.content).toBe('model: o3  provider: openai')
+      expect(r!.metadata?.modelProviderId).toBe('openai')
+      expect(r!.metadata?.cwd).toBe('/app')
+      expect(r!.metadata?.approvalPolicy).toBe('never')
+      expect(r!.metadata?.reasoningEffort).toBe('high')
+      expect(r!.metadata?.forkedFromId).toBe('parent-s1')
+      expect(r!.metadata?.threadName).toBe('my thread')
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // error event with codex_error_info
+  // ------------------------------------------------------------------
+  describe('error with codex_error_info', () => {
+    test('extracts string error type', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('error', {
+          message: 'Context exceeded',
+          codex_error_info: 'context_window_exceeded',
+        }),
+      )
+      expect(r!.metadata?.errorType).toBe('context_window_exceeded')
+    })
+
+    test('extracts object error type key', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('error', {
+          message: 'HTTP error',
+          codex_error_info: { http_connection_failed: { http_status_code: 429 } },
+        }),
+      )
+      expect(r!.metadata?.errorType).toBe('http_connection_failed')
+    })
+
+    test('no error info has no errorType', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(codexEvent('error', { message: 'plain error' }))
+      expect(r!.metadata?.errorType).toBeUndefined()
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // token_count enriched fields
+  // ------------------------------------------------------------------
+  describe('token_count enriched', () => {
+    test('includes input/output tokens and rate limits', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('token_count', {
+          info: {
+            last_token_usage: { total_tokens: 5000, input_tokens: 3000, output_tokens: 2000 },
+            model_context_window: 128000,
+          },
+          rate_limits: { requests_remaining: 10 },
+        }),
+      )
+      expect(r!.metadata?.inputTokens).toBe(3000)
+      expect(r!.metadata?.outputTokens).toBe(2000)
+      expect(r!.metadata?.rateLimits).toEqual({ requests_remaining: 10 })
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // Interactive events (previously dropped)
+  // ------------------------------------------------------------------
+  describe('request_user_input', () => {
+    test('returns system-message with questions', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('request_user_input', {
+          call_id: 'rui-1',
+          turn_id: 't1',
+          questions: [{ question: 'Do you want to proceed?' }],
+        }),
+      )
+      expect(r!.entryType).toBe('system-message')
+      expect(r!.content).toBe('Do you want to proceed?')
+      expect(r!.metadata?.subtype).toBe('request_user_input')
+    })
+  })
+
+  describe('dynamic_tool_call_request', () => {
+    test('returns tool-use entry', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('dynamic_tool_call_request', {
+          callId: 'dtc-1',
+          turnId: 't1',
+          tool: 'custom_tool',
+          arguments: { key: 'value' },
+        }),
+      )
+      expect(r!.entryType).toBe('tool-use')
+      expect(r!.metadata?.toolName).toBe('custom_tool')
+      expect(r!.metadata?.input).toEqual({ key: 'value' })
+    })
+  })
+
+  describe('terminal_interaction', () => {
+    test('returns system-message with stdin', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('terminal_interaction', {
+          call_id: 'ti-1',
+          process_id: 'pid-1',
+          stdin: 'yes\n',
+        }),
+      )
+      expect(r!.entryType).toBe('system-message')
+      expect(r!.content).toContain('yes')
+      expect(r!.metadata?.subtype).toBe('terminal_interaction')
+      expect(r!.metadata?.processId).toBe('pid-1')
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // Review mode events
+  // ------------------------------------------------------------------
+  describe('review mode events', () => {
+    test('entered_review_mode returns system-message', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('entered_review_mode', { user_facing_hint: 'Review changes' }),
+      )
+      expect(r!.entryType).toBe('system-message')
+      expect(r!.content).toBe('Review changes')
+      expect(r!.metadata?.subtype).toBe('entered_review_mode')
+    })
+
+    test('exited_review_mode returns system-message', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(codexEvent('exited_review_mode'))
+      expect(r!.entryType).toBe('system-message')
+      expect(r!.content).toBe('Exited review mode')
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // Collaboration events
+  // ------------------------------------------------------------------
+  describe('collaboration events', () => {
+    test('collab_agent_spawn_begin returns system-message with prompt', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('collab_agent_spawn_begin', {
+          call_id: 'cs-1',
+          sender_thread_id: 'sender-1',
+          prompt: 'Fix the bug in auth module',
+        }),
+      )
+      expect(r!.entryType).toBe('system-message')
+      expect(r!.content).toContain('Fix the bug')
+      expect(r!.metadata?.subtype).toBe('collab_agent_spawn_begin')
+    })
+
+    test('collab_agent_spawn_end returns system-message with status', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('collab_agent_spawn_end', {
+          call_id: 'cs-1',
+          new_thread_id: 'new-1',
+          status: 'running',
+          prompt: '',
+          sender_thread_id: 'sender-1',
+        }),
+      )
+      expect(r!.content).toBe('Agent spawned: running')
+      expect(r!.metadata?.newThreadId).toBe('new-1')
+    })
+
+    test('collab_agent_interaction_begin returns system-message', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('collab_agent_interaction_begin', {
+          call_id: 'ci-1',
+          prompt: 'Check status',
+        }),
+      )
+      expect(r!.content).toContain('Check status')
+    })
+
+    test('collab_waiting_begin shows count', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('collab_waiting_begin', {
+          call_id: 'cw-1',
+          receiver_thread_ids: ['t1', 't2', 't3'],
+        }),
+      )
+      expect(r!.content).toBe('Waiting for 3 agent(s)')
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // Elicitation request
+  // ------------------------------------------------------------------
+  describe('elicitation_request', () => {
+    test('returns system-message with server name', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('elicitation_request', {
+          server_name: 'github',
+          message: 'Please authenticate',
+          id: 'el-1',
+        }),
+      )
+      expect(r!.entryType).toBe('system-message')
+      expect(r!.content).toBe('Please authenticate')
+      expect(r!.metadata?.serverName).toBe('github')
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // web_search_end enriched
+  // ------------------------------------------------------------------
+  describe('web_search_end enriched', () => {
+    test('includes action type', () => {
+      const n = new CodexLogNormalizer()
+      const r = n.parse(
+        codexEvent('web_search_end', {
+          call_id: 'ws-1',
+          query: 'how to fix TypeScript errors',
+          action: { type: 'search' },
+        }),
+      )
+      expect(r!.metadata?.actionType).toBe('search')
     })
   })
 })
