@@ -123,6 +123,7 @@ export function FileToolItem({ item }: { item: ToolGroupItem }) {
   const hasContent = parsed.content !== undefined
   const hasOldString = parsed.oldString !== undefined
   const hasNewString = parsed.newString !== undefined
+  const hasUnifiedDiff = parsed.unifiedDiff !== undefined
 
   if (!isEdit) {
     const resultContent = item.result?.content
@@ -202,7 +203,11 @@ export function FileToolItem({ item }: { item: ToolGroupItem }) {
           ? <CodeBlock content={parsed.newString || ''} language={codeLanguage} collapsible={false} />
           : null}
 
-        {!hasContent && !hasOldString && !hasNewString && !parsed.hasOnlyFilePath
+        {hasUnifiedDiff && !hasContent && !hasOldString && !hasNewString
+          ? <CodeBlock content={parsed.unifiedDiff || ''} language="diff" collapsible={false} />
+          : null}
+
+        {!hasContent && !hasOldString && !hasNewString && !hasUnifiedDiff && !parsed.hasOnlyFilePath
           ? <CodeBlock content={parsed.raw || '(empty)'} language="json" collapsible={false} />
           : null}
       </div>
