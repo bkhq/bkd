@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs'
 import { readdir, rm, stat } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { zValidator } from '@hono/zod-validator'
-import { count, eq, inArray, sql } from 'drizzle-orm'
+import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as z from 'zod'
 import { db } from '@/db'
@@ -15,7 +15,10 @@ import {
 } from '@/db/schema'
 import { removeWorktree, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
 import { logger } from '@/logger'
+import { ROOT_DIR } from '@/root'
 import { APP_BASE, UPDATES_DIR } from '@/upgrade/constants'
+
+const ISSUE_LOG_DIR = join(ROOT_DIR, 'data', 'logs', 'issues')
 
 const cleanup = new Hono()
 
@@ -90,26 +93,85 @@ cleanup.post(
 
 // --- Stats helpers ---
 
-async function getLogsStats() {
-  // Count logs/tools only for soft-deleted issues (matching cleanup scope)
-  const deletedIssueIds = await db
-    .select({ id: issuesTable.id })
-    .from(issuesTable)
-    .where(eq(issuesTable.isDeleted, 1))
-  const ids = deletedIssueIds.map(i => i.id)
-  if (ids.length === 0) return { logCount: 0, toolCallCount: 0 }
+/** Check a set of issueIds against DB, return the ones that are alive (exist + not deleted). */
+async function getAliveIssueIds(ids: string[]): Promise<Set<string>> {
+  const BATCH = 500
+  const aliveIds = new Set<string>()
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const batch = ids.slice(i, i + BATCH)
+    const rows = await db
+      .select({ id: issuesTable.id })
+      .from(issuesTable)
+      .where(and(inArray(issuesTable.id, batch), eq(issuesTable.isDeleted, 0)))
+    for (const r of rows) aliveIds.add(r.id)
+  }
+  return aliveIds
+}
 
-  const [logCount] = await db
-    .select({ count: count() })
+/** Scan issueLogs DB + log files on disk for issueIds whose issue is deleted or missing. */
+async function scanCleanableLogIssueIds(): Promise<{ dbIds: string[], fileIds: string[] }> {
+  // 1. Collect issueIds from DB logs
+  const logIssueRows = await db
+    .selectDistinct({ issueId: issueLogs.issueId })
     .from(issueLogs)
-    .where(inArray(issueLogs.issueId, ids))
-  const [toolCallCount] = await db
-    .select({ count: count() })
-    .from(issuesLogsToolsCall)
-    .where(inArray(issuesLogsToolsCall.issueId, ids))
+  const dbLogIds = logIssueRows.map(r => r.issueId)
+
+  // 2. Collect issueIds from disk log directories
+  const diskLogIds: string[] = []
+  if (existsSync(ISSUE_LOG_DIR)) {
+    try {
+      const entries = await readdir(ISSUE_LOG_DIR, { withFileTypes: true })
+      for (const e of entries) {
+        if (e.isDirectory()) diskLogIds.push(e.name)
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // 3. Union all ids, check which are alive
+  const allIds = [...new Set([...dbLogIds, ...diskLogIds])]
+  if (allIds.length === 0) return { dbIds: [], fileIds: [] }
+  const aliveIds = await getAliveIssueIds(allIds)
+
   return {
-    logCount: logCount?.count ?? 0,
-    toolCallCount: toolCallCount?.count ?? 0,
+    dbIds: dbLogIds.filter(id => !aliveIds.has(id)),
+    fileIds: diskLogIds.filter(id => !aliveIds.has(id)),
+  }
+}
+
+async function getLogsStats() {
+  const { dbIds, fileIds } = await scanCleanableLogIssueIds()
+  const issueCount = new Set([...dbIds, ...fileIds]).size
+  if (issueCount === 0) return { issueCount: 0, logCount: 0, toolCallCount: 0, logFileSize: 0 }
+
+  const BATCH = 500
+  let logTotal = 0
+  let toolTotal = 0
+  for (let i = 0; i < dbIds.length; i += BATCH) {
+    const batch = dbIds.slice(i, i + BATCH)
+    const [lc] = await db
+      .select({ count: count() })
+      .from(issueLogs)
+      .where(inArray(issueLogs.issueId, batch))
+    const [tc] = await db
+      .select({ count: count() })
+      .from(issuesLogsToolsCall)
+      .where(inArray(issuesLogsToolsCall.issueId, batch))
+    logTotal += lc?.count ?? 0
+    toolTotal += tc?.count ?? 0
+  }
+
+  let logFileSize = 0
+  for (const id of fileIds) {
+    logFileSize += await getDirSize(join(ISSUE_LOG_DIR, id))
+  }
+
+  return {
+    issueCount,
+    logCount: logTotal,
+    toolCallCount: toolTotal,
+    logFileSize,
   }
 }
 
@@ -162,31 +224,39 @@ async function getOldVersionsStats() {
   return { items, totalSize: items.reduce((sum, i) => sum + i.size, 0) }
 }
 
-async function getWorktreesStats() {
-  let wtCount = 0
-  let totalSize = 0
+/** Scan disk for all worktree issue IDs, then query DB for active ones. */
+async function scanCleanableWorktrees(): Promise<Array<{ projectDir: string, issueId: string, path: string }>> {
+  if (!existsSync(WORKTREE_BASE)) return []
 
-  if (!existsSync(WORKTREE_BASE)) return { count: 0, totalSize: 0 }
-
+  const allOnDisk: Array<{ projectDir: string, issueId: string, path: string }> = []
   try {
     const projectEntries = await readdir(WORKTREE_BASE, { withFileTypes: true })
     for (const pe of projectEntries) {
       if (!pe.isDirectory()) continue
       const projectDir = resolve(WORKTREE_BASE, pe.name)
-      const issueEntries = await readdir(projectDir, {
-        withFileTypes: true,
-      }).catch(() => [])
+      const issueEntries = await readdir(projectDir, { withFileTypes: true }).catch(() => [])
       for (const ie of issueEntries) {
         if (!ie.isDirectory()) continue
-        wtCount++
-        totalSize += await getDirSize(resolve(projectDir, ie.name))
+        allOnDisk.push({ projectDir, issueId: ie.name, path: resolve(projectDir, ie.name) })
       }
     }
   } catch {
     // ignore
   }
+  if (allOnDisk.length === 0) return []
 
-  return { count: wtCount, totalSize }
+  const diskIds = [...new Set(allOnDisk.map(w => w.issueId))]
+  const aliveIds = await getAliveIssueIds(diskIds)
+  return allOnDisk.filter(w => !aliveIds.has(w.issueId))
+}
+
+async function getWorktreesStats() {
+  const cleanable = await scanCleanableWorktrees()
+  let totalSize = 0
+  for (const w of cleanable) {
+    totalSize += await getDirSize(w.path)
+  }
+  return { count: cleanable.length, totalSize }
 }
 
 async function getDeletedIssuesStats() {
@@ -226,31 +296,27 @@ async function getDirSize(dirPath: string): Promise<number> {
 // --- Cleanup actions ---
 
 async function cleanupLogs(): Promise<{ cleaned: number }> {
-  // Only clean logs/tools/attachments for soft-deleted issues
-  const deletedIssues = await db
-    .select({ id: issuesTable.id })
-    .from(issuesTable)
-    .where(eq(issuesTable.isDeleted, 1))
+  const { dbIds, fileIds } = await scanCleanableLogIssueIds()
+  const allIds = [...new Set([...dbIds, ...fileIds])]
+  if (allIds.length === 0) return { cleaned: 0 }
 
-  const issueIds = deletedIssues.map(i => i.id)
-  if (issueIds.length === 0) return { cleaned: 0 }
-
+  // Clean DB records
   const BATCH = 500
-  let cleaned = 0
-  for (let i = 0; i < issueIds.length; i += BATCH) {
-    const batch = issueIds.slice(i, i + BATCH)
-    // Delete tool calls first (FK dependency)
+  for (let i = 0; i < dbIds.length; i += BATCH) {
+    const batch = dbIds.slice(i, i + BATCH)
     await db.delete(issuesLogsToolsCall).where(inArray(issuesLogsToolsCall.issueId, batch))
-    // Delete attachments
     await db.delete(attachments).where(inArray(attachments.issueId, batch))
-    // Delete logs
     await db.delete(issueLogs).where(inArray(issueLogs.issueId, batch))
-    cleaned += batch.length
   }
 
-  db.run(sql`VACUUM`)
-  logger.info({ cleaned }, 'cleanup_logs_done')
-  return { cleaned }
+  // Clean log files from disk
+  for (const id of fileIds) {
+    await rm(join(ISSUE_LOG_DIR, id), { recursive: true }).catch(() => {})
+  }
+
+  if (dbIds.length > 0) db.run(sql`VACUUM`)
+  logger.info({ cleaned: allIds.length, dbIds: dbIds.length, fileIds: fileIds.length }, 'cleanup_logs_done')
+  return { cleaned: allIds.length }
 }
 
 async function cleanupOldVersions(): Promise<{ cleaned: number }> {
@@ -305,38 +371,27 @@ async function cleanupOldVersions(): Promise<{ cleaned: number }> {
 }
 
 async function cleanupWorktrees(): Promise<{ cleaned: number }> {
+  const cleanable = await scanCleanableWorktrees()
   let cleaned = 0
 
-  if (!existsSync(WORKTREE_BASE)) return { cleaned: 0 }
-
-  try {
-    const projectEntries = await readdir(WORKTREE_BASE, { withFileTypes: true })
-    for (const pe of projectEntries) {
-      if (!pe.isDirectory()) continue
-      const projectDir = resolve(WORKTREE_BASE, pe.name)
-      const issueEntries = await readdir(projectDir, {
-        withFileTypes: true,
-      }).catch(() => [])
-      for (const ie of issueEntries) {
-        if (!ie.isDirectory()) continue
-        const worktreePath = resolve(projectDir, ie.name)
-        try {
-          await removeWorktree(process.cwd(), worktreePath)
-          cleaned++
-        } catch {
-          // Fallback: rm -rf if git worktree remove fails
-          await rm(worktreePath, { recursive: true }).catch(() => {})
-          cleaned++
-        }
-      }
-      // Remove empty project directory
-      const remaining = await readdir(projectDir).catch(() => [])
-      if (remaining.length === 0) {
-        await rm(projectDir, { recursive: true }).catch(() => {})
-      }
+  const projectDirs = new Set<string>()
+  for (const w of cleanable) {
+    projectDirs.add(w.projectDir)
+    try {
+      await removeWorktree(process.cwd(), w.path)
+      cleaned++
+    } catch {
+      await rm(w.path, { recursive: true }).catch(() => {})
+      cleaned++
     }
-  } catch {
-    // ignore
+  }
+
+  // Remove empty project directories
+  for (const projectDir of projectDirs) {
+    const remaining = await readdir(projectDir).catch(() => ['_'])
+    if (remaining.length === 0) {
+      await rm(projectDir, { recursive: true }).catch(() => {})
+    }
   }
 
   logger.info({ cleaned }, 'cleanup_worktrees_done')

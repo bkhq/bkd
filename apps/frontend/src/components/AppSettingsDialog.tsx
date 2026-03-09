@@ -697,58 +697,48 @@ function CleanupSection({ open }: { open: boolean }) {
         </Button>
       </div>
       <div className="flex flex-col gap-1.5">
-        <CleanupItem
-          label={t('settings.cleanupLogs')}
-          count={cleanupStats?.logs.logCount}
-          hint={
-            cleanupStats ?
-                t('settings.cleanupLogsHint', {
-                  tools: cleanupStats.logs.toolCallCount,
-                }) :
-              undefined
-          }
-          loading={runCleanup.isPending}
-          onClean={() => runCleanup.mutate(['logs'])}
-        />
+        {(() => {
+          const logs = cleanupStats?.logs
+          const wt = cleanupStats?.worktrees
+          const del = cleanupStats?.deletedIssues
+          const totalIssues = logs?.issueCount ?? 0
+          const totalSize = (logs?.logFileSize ?? 0) + (wt?.totalSize ?? 0)
+          const hasData = totalIssues > 0 || (wt?.count ?? 0) > 0
+            || (del?.issueCount ?? 0) > 0 || (del?.projectCount ?? 0) > 0
+
+          const parts: string[] = []
+          if (logs?.logCount) parts.push(t('settings.cleanupDetailLogs', { count: logs.logCount }))
+          if (logs?.toolCallCount) parts.push(t('settings.cleanupDetailTools', { count: logs.toolCallCount }))
+          if (wt?.count) parts.push(t('settings.cleanupDetailWorktrees', { count: wt.count }))
+          if (del?.issueCount) parts.push(t('settings.cleanupDetailIssues', { count: del.issueCount }))
+          if (del?.projectCount) parts.push(t('settings.cleanupDetailProjects', { count: del.projectCount }))
+          const hint = parts.length > 0
+            ? parts.join(t('settings.cleanupDetailSep'))
+              + (totalSize > 0 ? ` (${formatSize(totalSize)})` : '')
+            : undefined
+
+          return (
+            <CleanupItem
+              label={t('settings.cleanupDeletedData')}
+              count={totalIssues}
+              hint={hint}
+              disabled={!hasData}
+              loading={runCleanup.isPending}
+              onClean={() => runCleanup.mutate(['logs', 'worktrees', 'deletedIssues'])}
+            />
+          )
+        })()}
         <CleanupItem
           label={t('settings.cleanupOldVersions')}
           count={cleanupStats?.oldVersions.items.length}
           hint={
-            cleanupStats?.oldVersions.totalSize ?
-                formatSize(cleanupStats.oldVersions.totalSize) :
-              undefined
+            cleanupStats?.oldVersions.totalSize
+              ? formatSize(cleanupStats.oldVersions.totalSize)
+              : undefined
           }
           disabled={!cleanupStats?.oldVersions.items.length}
           loading={runCleanup.isPending}
           onClean={() => runCleanup.mutate(['oldVersions'])}
-        />
-        <CleanupItem
-          label={t('settings.cleanupWorktrees')}
-          count={cleanupStats?.worktrees.count}
-          hint={
-            cleanupStats?.worktrees.totalSize ?
-                formatSize(cleanupStats.worktrees.totalSize) :
-              undefined
-          }
-          disabled={!cleanupStats?.worktrees.count}
-          loading={runCleanup.isPending}
-          onClean={() => runCleanup.mutate(['worktrees'])}
-        />
-        <CleanupItem
-          label={t('settings.cleanupDeletedIssues')}
-          count={cleanupStats?.deletedIssues.issueCount}
-          hint={
-            cleanupStats?.deletedIssues.projectCount ?
-                t('settings.cleanupDeletedIssuesHint', {
-                  projects: cleanupStats.deletedIssues.projectCount,
-                }) :
-              undefined
-          }
-          disabled={
-            !cleanupStats?.deletedIssues.issueCount && !cleanupStats?.deletedIssues.projectCount
-          }
-          loading={runCleanup.isPending}
-          onClean={() => runCleanup.mutate(['deletedIssues'])}
         />
       </div>
     </div>
