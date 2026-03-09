@@ -58,22 +58,24 @@ export function FileBrowserDrawer() {
     setTimeout(setCopied, 1500, false)
   }, [currentPath])
 
+  const { data: project } = useProject(projectId ?? '')
+  const effectiveRoot = rootPath ?? project?.directory ?? null
+
   const handleDownload = useCallback(() => {
-    if (!projectId || currentPath === '.') return
-    const url = kanbanApi.rawFileUrl(projectId, currentPath, rootPath)
+    if (!effectiveRoot || currentPath === '.') return
+    const url = kanbanApi.rawFileUrl(effectiveRoot, currentPath)
     const a = document.createElement('a')
     a.href = url
     a.download = ''
     a.click()
-  }, [projectId, currentPath, rootPath])
+  }, [effectiveRoot, currentPath])
 
-  const { data: project } = useProject(projectId ?? '')
   const {
     data: listing,
     isLoading,
     isError,
     error,
-  } = useProjectFiles(projectId ?? '', currentPath, !!projectId && isOpen)
+  } = useProjectFiles(effectiveRoot, currentPath, !!effectiveRoot && isOpen)
 
   const handleEntryClick = useCallback(
     (name: string, _type: 'file' | 'directory') => {
@@ -250,7 +252,7 @@ export function FileBrowserDrawer() {
 
         {/* Content */}
         <div className="flex-1 overflow-auto min-h-0 p-4 flex flex-col">
-          {!project?.directory ?
+          {!effectiveRoot ?
               (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
                   <FolderOpen className="h-12 w-12" />

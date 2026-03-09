@@ -75,6 +75,7 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
           isOpen: true,
           isMinimized: false,
           projectId,
+          rootPath: s.projectId === projectId ? s.rootPath : null,
           currentPath: s.projectId === projectId ? s.currentPath : '.',
         }
       }
@@ -84,6 +85,7 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
       return {
         isOpen: true,
         projectId,
+        rootPath: s.projectId === projectId ? s.rootPath : null,
         currentPath: s.projectId === projectId ? s.currentPath : '.',
       }
     }),
