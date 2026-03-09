@@ -404,6 +404,7 @@ export type WebhookEventType =
   | 'session.started'
   | 'session.completed'
   | 'session.failed'
+  | 'issue.status_changed' // legacy — kept for backwards compat with existing DB records
 
 /** Event types grouped by category for UI display. */
 export const WEBHOOK_EVENT_GROUPS: { category: string, events: WebhookEventType[] }[] = [
@@ -421,8 +422,10 @@ export const WEBHOOK_EVENT_GROUPS: { category: string, events: WebhookEventType[
   },
 ]
 
-export const WEBHOOK_EVENT_TYPES: WebhookEventType[] =
-  WEBHOOK_EVENT_GROUPS.flatMap(g => g.events)
+export const WEBHOOK_EVENT_TYPES: WebhookEventType[] = [
+  ...WEBHOOK_EVENT_GROUPS.flatMap(g => g.events),
+  'issue.status_changed', // legacy compat
+]
 
 export type NotificationChannel = 'webhook' | 'telegram'
 

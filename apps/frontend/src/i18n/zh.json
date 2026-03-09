@@ -407,6 +407,7 @@
     "webhooksEventSessionStarted": "开始",
     "webhooksEventSessionCompleted": "完成",
     "webhooksEventSessionFailed": "失败",
+    "webhooksEventStatusChanged": "状态变更（旧版）",
     "webhooksGroupIssue": "任务",
     "webhooksGroupStatus": "状态变更",
     "webhooksGroupSession": "会话"

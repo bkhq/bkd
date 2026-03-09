@@ -42,6 +42,7 @@ const EVENT_LABEL_KEYS: Record<WebhookEventType, string> = {
   'session.started': 'settings.webhooksEventSessionStarted',
   'session.completed': 'settings.webhooksEventSessionCompleted',
   'session.failed': 'settings.webhooksEventSessionFailed',
+  'issue.status_changed': 'settings.webhooksEventStatusChanged',
 }
 
 const GROUP_LABEL_KEYS: Record<string, string> = {

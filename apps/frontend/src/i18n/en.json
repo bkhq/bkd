@@ -407,6 +407,7 @@
     "webhooksEventSessionStarted": "Started",
     "webhooksEventSessionCompleted": "Completed",
     "webhooksEventSessionFailed": "Failed",
+    "webhooksEventStatusChanged": "Status Changed (legacy)",
     "webhooksGroupIssue": "Issue",
     "webhooksGroupStatus": "Status",
     "webhooksGroupSession": "Session"
