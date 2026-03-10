@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronsRight, MousePointerClick } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
@@ -9,8 +9,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
@@ -30,8 +28,8 @@ import type { EngineAvailability, EngineModel, EngineProfile } from '@/types/kan
 // ── Data ──────────────────────────────────────────────
 
 const PERMISSIONS = [
-  { id: 'auto', icon: ChevronsRight },
-  { id: 'ask', icon: MousePointerClick },
+  { id: 'auto' },
+  { id: 'ask' },
 ] as const
 type PermissionId = (typeof PERMISSIONS)[number]['id']
 
@@ -488,7 +486,6 @@ function PermissionSelect({
 }) {
   const { t } = useTranslation()
   const current = PERMISSIONS.find(p => p.id === value) ?? PERMISSIONS[0]
-  const Icon = current.icon
 
   return (
     <DropdownMenu>
@@ -500,28 +497,19 @@ function PermissionSelect({
           />
         )}
       >
-        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         <span className="truncate">{t(`createIssue.perm.${current.id}`)}</span>
         <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[140px]">
-        <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
-          {t('createIssue.permission')}
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {PERMISSIONS.map((perm) => {
-          const PermIcon = perm.icon
-          return (
-            <DropdownMenuItem
-              key={perm.id}
-              onSelect={() => onChange(perm.id)}
-              className={perm.id === value ? 'bg-accent/50' : ''}
-            >
-              <PermIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="font-medium">{t(`createIssue.perm.${perm.id}`)}</span>
-            </DropdownMenuItem>
-          )
-        })}
+        {PERMISSIONS.map(perm => (
+          <DropdownMenuItem
+            key={perm.id}
+            onSelect={() => onChange(perm.id)}
+            className={perm.id === value ? 'bg-accent/50' : ''}
+          >
+            <span className="font-medium">{t(`createIssue.perm.${perm.id}`)}</span>
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   )
