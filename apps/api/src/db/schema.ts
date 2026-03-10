@@ -37,6 +37,7 @@ export const projects = sqliteTable('projects', {
   repositoryUrl: text('repository_url'),
   systemPrompt: text('system_prompt'),
   envVars: text('env_vars'), // JSON: Record<string, string>
+  sortOrder: integer('sort_order').notNull().default(0),
   ...commonFields,
 })
 
