@@ -137,7 +137,7 @@ upgrade.post('/restart', async (c) => {
       data: { status: 'restarting' },
     })
   } catch (err) {
-    logger.error({ error: err }, 'upgrade_restart_failed')
+    logger.error({ err }, 'upgrade_restart_failed')
     return c.json(
       {
         success: false,
@@ -180,7 +180,7 @@ upgrade.delete(
       await deleteDownloadedUpdate(fileName)
       return c.json({ success: true, data: { deleted: fileName } })
     } catch (err) {
-      logger.error({ error: err, fileName }, 'upgrade_delete_failed')
+      logger.error({ err, fileName }, 'upgrade_delete_failed')
       return c.json(
         {
           success: false,

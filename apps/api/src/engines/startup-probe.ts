@@ -136,7 +136,7 @@ async function runLiveProbe(): Promise<EngineDiscovery> {
   // Uses a longer timeout since it spawns a real Claude process.
   const installedEngines = engines.filter(e => e.installed)
   void discoverSlashCommands(installedEngines).catch((err: unknown) => {
-    logger.warn({ error: err }, 'probe_slash_commands_discovery_failed')
+    logger.warn({ err }, 'probe_slash_commands_discovery_failed')
   })
 
   return { engines, models }

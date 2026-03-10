@@ -26,7 +26,7 @@ async function extractArchive(archivePath: string, destDir: string): Promise<voi
 
   try {
     const { code: exitCode, stderr } = await runCommand(
-      ['tar', '-xzf', archivePath, '-C', tmpDir, '--no-same-owner', '--no-overwrite-dir'],
+      ['tar', '-xzf', archivePath, '-C', tmpDir],
       { stderr: 'pipe' },
     )
     if (exitCode !== 0) {
