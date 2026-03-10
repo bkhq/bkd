@@ -1,4 +1,22 @@
 PRAGMA foreign_keys=OFF;--> statement-breakpoint
+CREATE TABLE `__new_projects` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`alias` text NOT NULL,
+	`description` text,
+	`directory` text,
+	`repository_url` text,
+	`system_prompt` text,
+	`env_vars` text,
+	`sort_order` text DEFAULT 'a0' NOT NULL,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	`is_deleted` integer DEFAULT 0 NOT NULL
+);--> statement-breakpoint
+INSERT INTO `__new_projects`("id", "name", "alias", "description", "directory", "repository_url", "system_prompt", "env_vars", "sort_order", "created_at", "updated_at", "is_deleted") SELECT "id", "name", "alias", "description", "directory", "repository_url", "system_prompt", "env_vars", CASE WHEN typeof("sort_order") = 'integer' OR "sort_order" GLOB '[0-9]*' THEN 'a' || printf('%04d', CAST("sort_order" AS INTEGER)) ELSE "sort_order" END, "created_at", "updated_at", "is_deleted" FROM `projects`;--> statement-breakpoint
+DROP TABLE `projects`;--> statement-breakpoint
+ALTER TABLE `__new_projects` RENAME TO `projects`;--> statement-breakpoint
+CREATE UNIQUE INDEX `projects_alias_unique` ON `projects` (`alias`);--> statement-breakpoint
 CREATE TABLE `__new_issues` (
 	`id` text PRIMARY KEY NOT NULL,
 	`project_id` text NOT NULL,
