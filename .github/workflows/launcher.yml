@@ -32,7 +32,7 @@ jobs:
             label: darwin-arm64
             suffix: darwin-arm64
           - target: bun-darwin-x64
-            runner: macos-13
+            runner: macos-latest
             label: darwin-x64
             suffix: darwin-x64
 
