@@ -34,12 +34,19 @@ chmod +x bkd-launcher-linux-x64
 ./bkd-launcher-linux-x64
 ```
 
+**Linux (ARM64)**
+
+```bash
+curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-linux-arm64
+chmod +x bkd-launcher-linux-arm64
+./bkd-launcher-linux-arm64
+```
+
 **macOS (Apple Silicon)**
 
 ```bash
 curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-darwin-arm64
 chmod +x bkd-launcher-darwin-arm64
-xattr -cr bkd-launcher-darwin-arm64
 ./bkd-launcher-darwin-arm64
 ```
 
@@ -50,6 +57,8 @@ curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-
 chmod +x bkd-launcher-darwin-x64
 ./bkd-launcher-darwin-x64
 ```
+
+> **macOS note:** If macOS blocks the binary with "cannot be opened because the developer cannot be verified", run `xattr -cr <binary>` to remove the quarantine attribute before executing.
 
 The launcher stays fixed across versions — only the lightweight app package gets updated. Open http://localhost:3000 after starting.
 

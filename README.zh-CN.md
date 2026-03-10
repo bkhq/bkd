@@ -34,12 +34,19 @@ chmod +x bkd-launcher-linux-x64
 ./bkd-launcher-linux-x64
 ```
 
+**Linux (ARM64)**
+
+```bash
+curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-linux-arm64
+chmod +x bkd-launcher-linux-arm64
+./bkd-launcher-linux-arm64
+```
+
 **macOS (Apple Silicon)**
 
 ```bash
 curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-darwin-arm64
 chmod +x bkd-launcher-darwin-arm64
-xattr -cr bkd-launcher-darwin-arm64
 ./bkd-launcher-darwin-arm64
 ```
 
@@ -50,6 +57,8 @@ curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-
 chmod +x bkd-launcher-darwin-x64
 ./bkd-launcher-darwin-x64
 ```
+
+> **macOS 提示：** 如果 macOS 提示「无法打开，因为无法验证开发者」，请先运行 `xattr -cr <二进制文件>` 移除隔离属性后再执行。
 
 启动器跨版本保持不变，只有轻量级的应用包会被更新。启动后打开 http://localhost:3000。
 
