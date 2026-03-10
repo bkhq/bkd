@@ -29,6 +29,8 @@ interface CodexEventParams {
 export class CodexLogNormalizer {
   private assistantText = ''
   private thinkingText = ''
+  /** Set to true once any codex/event message is seen, so legacy turn events can be skipped. */
+  private hasV2Events = false
 
   /**
    * Parse a single stdout line and return normalized log entries.
@@ -85,10 +87,10 @@ export class CodexLogNormalizer {
         return this.handleFileChangeOutputDelta(data, now)
 
       case 'turn/started':
-        return this.handleTurnStarted(data, now)
+        return this.hasV2Events ? null : this.handleTurnStarted(data, now)
 
       case 'turn/completed':
-        return this.handleTurnCompleted(data, now)
+        return this.hasV2Events ? null : this.handleTurnCompleted(data, now)
 
       case 'thread/started':
         return this.handleThreadStarted(data, now)
@@ -114,6 +116,7 @@ export class CodexLogNormalizer {
     data: Record<string, unknown>,
     now: string,
   ): NormalizedLogEntry | NormalizedLogEntry[] | null {
+    this.hasV2Events = true
     const params = data.params as CodexEventParams | undefined
     const msg = params?.msg
     if (!msg?.type) return null
