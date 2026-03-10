@@ -387,7 +387,9 @@ export function useIssueStream({
 
     cleanup.unsub = eventBus.subscribe(issueId, {
       onLog: (entry) => {
-        if (doneReceivedRef.current) return
+        // Always allow error messages through even after done (race: stderr
+        // entries may arrive after the terminal state event)
+        if (doneReceivedRef.current && entry.entryType !== 'error-message') return
         appendEntry(entry)
       },
       onLogUpdated: (entry) => {

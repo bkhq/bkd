@@ -2,7 +2,7 @@ import { stat } from 'node:fs/promises'
 import { getIssueWithSession, updateIssueSession } from '@/engines/engine-store'
 import { engineRegistry } from '@/engines/executors'
 import type { EngineContext } from '@/engines/issue/context'
-import { emitDiagnosticLog } from '@/engines/issue/diagnostic'
+import { emitDiagnosticLog, emitErrorLog } from '@/engines/issue/diagnostic'
 import { emitStateChange } from '@/engines/issue/events'
 import { getNextTurnIndex, removeLogEntry } from '@/engines/issue/persistence/queries'
 import {
@@ -330,12 +330,14 @@ export async function spawnFollowUpProcess(
     // message.  Revert the session status so the issue doesn't get stuck in
     // 'running' forever with no process to settle it.
     logger.error({ issueId, executionId, error: spawnError }, 'spawn_failed_reverting_session')
+    const errorMsg = spawnError instanceof Error ? spawnError.message : String(spawnError)
     emitDiagnosticLog(
       issueId,
       executionId,
-      `[BKD] Follow-up spawn failed: ${spawnError instanceof Error ? spawnError.message : String(spawnError)}`,
+      `[BKD] Follow-up spawn failed: ${errorMsg}`,
       { event: 'followup_spawn_failed' },
     )
+    emitErrorLog(issueId, executionId, errorMsg)
     // Remove the user message persisted before spawn so it doesn't remain as
     // a ghost entry visible to the frontend.
     if (messageId) {

@@ -3,6 +3,7 @@ import { collectPendingWithAttachments, markPendingMessagesDispatched } from '@/
 import { getIssueWithSession, updateIssueSession } from '@/engines/engine-store'
 import { engineRegistry } from '@/engines/executors'
 import type { EngineContext } from '@/engines/issue/context'
+import { emitErrorLog } from '@/engines/issue/diagnostic'
 import { emitStateChange } from '@/engines/issue/events'
 import { monitorCompletion } from '@/engines/issue/lifecycle/completion-monitor'
 import { spawnFresh } from '@/engines/issue/lifecycle/spawn'
@@ -105,6 +106,7 @@ export async function restartIssue(
         { issueId, executionId, error: spawnError },
         'restart_spawn_failed_reverting_session',
       )
+      emitErrorLog(issueId, executionId, spawnError instanceof Error ? spawnError.message : String(spawnError))
       await updateIssueSession(issueId, { sessionStatus: 'failed' }).catch(e =>
         logger.error({ issueId, error: e }, 'restart_spawn_failed_revert_session_error'),
       )

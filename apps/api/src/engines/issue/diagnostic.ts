@@ -28,3 +28,25 @@ export function emitDiagnosticLog(
     streaming: false,
   })
 }
+
+// ---------- Error log entries ----------
+// Emits error-message entries visible to the user in the chat area (red box).
+
+export function emitErrorLog(
+  issueId: string,
+  executionId: string,
+  content: string,
+): void {
+  const entry: NormalizedLogEntry = {
+    entryType: 'error-message',
+    content,
+    turnIndex: 0,
+    timestamp: new Date().toISOString(),
+  }
+  appEvents.emit('log', {
+    issueId,
+    executionId,
+    entry,
+    streaming: false,
+  })
+}

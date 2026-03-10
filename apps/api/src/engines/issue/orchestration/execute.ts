@@ -2,7 +2,7 @@ import { getEngineDefaultModel } from '@/db/helpers'
 import { getIssueWithSession, updateIssueSession } from '@/engines/engine-store'
 import { engineRegistry } from '@/engines/executors'
 import type { EngineContext } from '@/engines/issue/context'
-import { emitDiagnosticLog } from '@/engines/issue/diagnostic'
+import { emitDiagnosticLog, emitErrorLog } from '@/engines/issue/diagnostic'
 import { emitStateChange } from '@/engines/issue/events'
 import { monitorCompletion } from '@/engines/issue/lifecycle/completion-monitor'
 import { handleTurnCompleted } from '@/engines/issue/lifecycle/turn-completion'
@@ -105,12 +105,14 @@ export async function executeIssue(
         { issueId, executionId, error: spawnError },
         'execute_spawn_failed_reverting_session',
       )
+      const errorMsg = spawnError instanceof Error ? spawnError.message : String(spawnError)
       emitDiagnosticLog(
         issueId,
         executionId,
-        `[BKD] Process spawn failed: ${spawnError instanceof Error ? spawnError.message : String(spawnError)}`,
+        `[BKD] Process spawn failed: ${errorMsg}`,
         { event: 'spawn_failed' },
       )
+      emitErrorLog(issueId, executionId, errorMsg)
       await updateIssueSession(issueId, { sessionStatus: 'failed' }).catch(e =>
         logger.error({ issueId, error: e }, 'execute_spawn_failed_revert_session_error'),
       )

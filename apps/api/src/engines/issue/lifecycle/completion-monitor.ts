@@ -1,7 +1,7 @@
 import { updateIssueSession } from '@/engines/engine-store'
 import { MAX_AUTO_RETRIES } from '@/engines/issue/constants'
 import type { EngineContext } from '@/engines/issue/context'
-import { emitDiagnosticLog } from '@/engines/issue/diagnostic'
+import { emitDiagnosticLog, emitErrorLog } from '@/engines/issue/diagnostic'
 import { emitStateChange } from '@/engines/issue/events'
 import { withIssueLock } from '@/engines/issue/process/lock'
 import { cleanupDomainData, syncPmState } from '@/engines/issue/process/state'
@@ -181,6 +181,10 @@ export function monitorCompletion(
           },
           'issue_process_marked_failed',
         )
+        // Emit a user-visible error message so the chat area shows the failure
+        const reason = managed.logicalFailureReason
+          || (signal ? `Process killed by ${signal}` : `Process exited with code ${exitCode}`)
+        emitErrorLog(issueId, executionId, reason)
 
         // Reset broken session before retry so spawnRetry creates a fresh one
         if (isSessionIdError(managed)) {
