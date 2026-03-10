@@ -357,7 +357,9 @@ export function LogEntry({
       return (
         <div className="flex gap-2 my-1.5 bg-destructive/[0.06] border border-destructive/20 px-3 py-2 animate-message-enter">
           <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive mt-0.5" />
-          <p className="text-xs text-destructive/90 break-words leading-relaxed">{entry.content}</p>
+          <code className="min-w-0 overflow-x-auto text-xs text-destructive/90 leading-relaxed whitespace-pre">
+            {entry.content}
+          </code>
         </div>
       )
 
