@@ -65,7 +65,7 @@ async function checkProjectGitRepo(directory: string | null | undefined): Promis
   try {
     const s = await stat(dir)
     if (!s.isDirectory()) return false
-    return isGitRepoFresh(dir)
+    return await isGitRepoFresh(dir)
   } catch {
     return false
   }
