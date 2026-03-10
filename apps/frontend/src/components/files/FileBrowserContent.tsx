@@ -206,7 +206,7 @@ export function FileBrowserContent({
                 ? (
                     <FileViewer
                       file={listing}
-                      breadcrumb={<FileBreadcrumb path={currentPath} onNavigate={navigateTo} />}
+                      breadcrumb={<FileBreadcrumb path={currentPath} onNavigate={navigateTo} projectName={project?.name} />}
                       isEditing={isEditing}
                       onStartEdit={() => setIsEditing(true)}
                       onCancelEdit={() => setIsEditing(false)}
@@ -221,7 +221,7 @@ export function FileBrowserContent({
                         onNavigate={handleEntryClick}
                         onDelete={handleDeleteEntry}
                         isDeleting={deleteFileMutation.isPending}
-                        breadcrumb={<FileBreadcrumb path={currentPath} onNavigate={navigateTo} />}
+                        breadcrumb={<FileBreadcrumb path={currentPath} onNavigate={navigateTo} projectName={project?.name} />}
                       />
                     )
                   : null}

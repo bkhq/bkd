@@ -1,3 +1,5 @@
+import { DragDropProvider } from '@dnd-kit/react'
+import { useSortable } from '@dnd-kit/react/sortable'
 import {
   Check,
   Copy,
@@ -10,7 +12,7 @@ import {
   StickyNote,
   TerminalSquare,
 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { AppLogo } from '@/components/AppLogo'
@@ -22,7 +24,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
-import { useProjects } from '@/hooks/use-kanban'
+import { useProjects, useSortProjects } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useProjectStats } from '@/hooks/use-project-stats'
 import { getProjectInitials } from '@/lib/format'
@@ -31,11 +33,27 @@ import { useTerminalStore } from '@/stores/terminal-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import type { Project } from '@/types/kanban'
 
-function ProjectCard({ project, onClick }: { project: Project, onClick: () => void }) {
+function SortableProjectCard({
+  project,
+  index,
+  onClick,
+}: {
+  project: Project
+  index: number
+  onClick: () => void
+}) {
   const { t } = useTranslation()
   const stats = useProjectStats(project.id)
   const [showSettings, setShowSettings] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  const { ref, isDragging } = useSortable({
+    id: project.id,
+    index,
+    group: 'projects',
+    type: 'item',
+    data: { project },
+  })
 
   const handleCopyPath = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -48,71 +66,77 @@ function ProjectCard({ project, onClick }: { project: Project, onClick: () => vo
 
   return (
     <>
-      <Card
-        className="h-full bg-card/70 hover:bg-card cursor-pointer transition-all hover:shadow-md hover:border-primary/20 group"
-        onClick={onClick}
+      <div
+        ref={ref}
+        className={`animate-card-enter ${isDragging ? 'opacity-50 scale-105 shadow-xl z-10 rotate-1' : ''}`}
+        style={{ animationDelay: `${index * 60}ms` }}
       >
-        <CardHeader>
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-bold bg-muted text-muted-foreground">
-              {getProjectInitials(project.name)}
+        <Card
+          className="h-full bg-card/70 hover:bg-card cursor-pointer transition-all hover:shadow-md hover:border-primary/20 group"
+          onClick={onClick}
+        >
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-bold bg-muted text-muted-foreground">
+                {getProjectInitials(project.name)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <CardTitle className="flex items-baseline gap-1.5 text-base group-hover:text-primary transition-colors">
+                  <span className="truncate">{project.name}</span>
+                  <span className="shrink-0 text-[10px] font-normal font-mono text-muted-foreground/60">
+                    {project.id}
+                  </span>
+                </CardTitle>
+                {project.description && (
+                  <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                    {project.description}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowSettings(true)
+                }}
+                className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-foreground/[0.07] transition-colors"
+                aria-label={t('project.settings')}
+                title={t('project.settings')}
+              >
+                <Settings className="h-4 w-4" />
+              </button>
             </div>
-            <div className="min-w-0 flex-1">
-              <CardTitle className="flex items-baseline gap-1.5 text-base group-hover:text-primary transition-colors">
-                <span className="truncate">{project.name}</span>
-                <span className="shrink-0 text-[10px] font-normal font-mono text-muted-foreground/60">
-                  {project.id}
-                </span>
-              </CardTitle>
-              {project.description && (
-                <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
-                  {project.description}
-                </p>
-              )}
+          </CardHeader>
+          <CardContent className="mt-auto">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {project.directory ?
+                  (
+                    <button
+                      type="button"
+                      onClick={handleCopyPath}
+                      className="group/path flex min-w-0 items-center gap-1 hover:text-foreground transition-colors text-left"
+                      title={t('project.copyPath')}
+                    >
+                      <FolderOpen className="h-3 w-3 shrink-0" />
+                      <span className="truncate font-mono">{project.directory}</span>
+                      {copied ?
+                          (
+                            <Check className="h-3 w-3 shrink-0 text-green-500" />
+                          ) :
+                          (
+                            <Copy className="h-3 w-3 shrink-0 opacity-0 group-hover/path:opacity-100 transition-opacity" />
+                          )}
+                    </button>
+                  ) :
+                null}
+              <span className="ml-auto flex shrink-0 items-center gap-1">
+                <Hash className="h-3 w-3" />
+                {stats.issueCount}
+              </span>
             </div>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowSettings(true)
-              }}
-              className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-foreground/[0.07] transition-colors"
-              aria-label={t('project.settings')}
-              title={t('project.settings')}
-            >
-              <Settings className="h-4 w-4" />
-            </button>
-          </div>
-        </CardHeader>
-        <CardContent className="mt-auto">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {project.directory ?
-                (
-                  <button
-                    type="button"
-                    onClick={handleCopyPath}
-                    className="group/path flex min-w-0 items-center gap-1 hover:text-foreground transition-colors text-left"
-                    title={t('project.copyPath')}
-                  >
-                    <FolderOpen className="h-3 w-3 shrink-0" />
-                    <span className="truncate font-mono">{project.directory}</span>
-                    {copied ?
-                        (
-                          <Check className="h-3 w-3 shrink-0 text-green-500" />
-                        ) :
-                        (
-                          <Copy className="h-3 w-3 shrink-0 opacity-0 group-hover/path:opacity-100 transition-opacity" />
-                        )}
-                  </button>
-                ) :
-              null}
-            <span className="ml-auto flex shrink-0 items-center gap-1">
-              <Hash className="h-3 w-3" />
-              {stats.issueCount}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
       <ProjectSettingsDialog open={showSettings} onOpenChange={setShowSettings} project={project} />
     </>
   )
@@ -291,6 +315,15 @@ export default function HomePage() {
   const [showSettings, setShowSettings] = useState(false)
   const isMobile = useIsMobile()
   const globalProjectPath = useViewModeStore(s => s.projectPath)
+  const sortProjects = useSortProjects()
+
+  // Track local order during drag for optimistic UI
+  const [localOrder, setLocalOrder] = useState<Project[] | null>(null)
+  const displayProjects = localOrder ?? projects
+
+  // Keep a ref to the latest projects for the drag callbacks
+  const projectsRef = useRef(projects)
+  projectsRef.current = projects
 
   // Mobile always uses list mode
   const projectPath = useCallback(
@@ -355,20 +388,38 @@ export default function HomePage() {
               </div>
             ) :
             (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {projects?.map((project, index) => (
-                  <div
-                    key={project.id}
-                    className="animate-card-enter"
-                    style={{ animationDelay: `${index * 60}ms` }}
-                  >
-                    <ProjectCard
+              <DragDropProvider
+                onDragOver={(event) => {
+                  const source = projectsRef.current
+                  if (!source) return
+                  const { dragOperation } = event.operation
+                  if (!dragOperation.source || dragOperation.source.sortable == null) return
+                  const fromIdx = dragOperation.source.sortable.index
+                  const toIdx = (event.operation.target as any)?.sortable?.index
+                  if (toIdx == null || fromIdx === toIdx) return
+                  const reordered = [...(localOrder ?? source)]
+                  const [moved] = reordered.splice(fromIdx, 1)
+                  if (moved) reordered.splice(toIdx, 0, moved)
+                  setLocalOrder(reordered)
+                }}
+                onDragEnd={() => {
+                  if (!localOrder) return
+                  const order = localOrder.map((p, i) => ({ id: p.id, sortOrder: i }))
+                  sortProjects.mutate(order)
+                  setLocalOrder(null)
+                }}
+              >
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {displayProjects?.map((project, index) => (
+                    <SortableProjectCard
+                      key={project.id}
                       project={project}
+                      index={index}
                       onClick={() => navigate(projectPath(project.alias))}
                     />
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </DragDropProvider>
             )}
       </section>
 

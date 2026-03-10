@@ -1,6 +1,6 @@
 import { resolve } from 'node:path'
 import { zValidator } from '@hono/zod-validator'
-import { and, eq, inArray, ne } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { customAlphabet } from 'nanoid'
 import * as z from 'zod'
@@ -37,6 +37,7 @@ const updateProjectSchema = z.object({
   repositoryUrl: z.string().url().optional().or(z.literal('')),
   systemPrompt: z.string().max(32768).optional(),
   envVars: envVarsSchema,
+  sortOrder: z.number().int().min(0).optional(),
 })
 
 type ProjectRow = typeof projectsTable.$inferSelect
@@ -51,6 +52,7 @@ function serializeProject(row: ProjectRow) {
     repositoryUrl: row.repositoryUrl ?? undefined,
     systemPrompt: row.systemPrompt ?? undefined,
     envVars: row.envVars ? (JSON.parse(row.envVars) as Record<string, string>) : undefined,
+    sortOrder: row.sortOrder,
     createdAt: toISO(row.createdAt),
     updatedAt: toISO(row.updatedAt),
   }
@@ -99,9 +101,41 @@ async function isDirectoryTaken(directory: string, excludeId?: string): Promise<
 const projects = new Hono()
 
 projects.get('/', async (c) => {
-  const rows = await db.select().from(projectsTable).where(eq(projectsTable.isDeleted, 0))
+  const rows = await db
+    .select()
+    .from(projectsTable)
+    .where(eq(projectsTable.isDeleted, 0))
+    .orderBy(asc(projectsTable.sortOrder), desc(projectsTable.updatedAt))
   return c.json({ success: true, data: rows.map(serializeProject) })
 })
+
+const sortProjectsSchema = z.object({
+  order: z.array(z.object({
+    id: z.string(),
+    sortOrder: z.number().int().min(0),
+  })).min(1).max(200),
+})
+
+projects.patch(
+  '/sort',
+  zValidator('json', sortProjectsSchema, (result, c) => {
+    if (!result.success) {
+      return c.json({ success: false, error: result.error.issues.map(i => i.message).join(', ') }, 400)
+    }
+  }),
+  async (c) => {
+    const { order } = c.req.valid('json')
+    await db.transaction(async (tx) => {
+      for (const item of order) {
+        await tx
+          .update(projectsTable)
+          .set({ sortOrder: item.sortOrder })
+          .where(eq(projectsTable.id, item.id))
+      }
+    })
+    return c.json({ success: true, data: null })
+  },
+)
 
 projects.post(
   '/',
@@ -193,6 +227,7 @@ projects.patch(
     if (body.envVars !== undefined) {
       updates.envVars = Object.keys(body.envVars).length > 0 ? JSON.stringify(body.envVars) : null
     }
+    if (body.sortOrder !== undefined) updates.sortOrder = body.sortOrder
 
     if (Object.keys(updates).length === 0) {
       return c.json({ success: true, data: serializeProject(existing) })

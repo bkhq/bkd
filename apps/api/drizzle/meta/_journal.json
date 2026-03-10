@@ -78,6 +78,13 @@
       "when": 1773115168976,
       "tag": "0010_yielding_red_ghost",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1773177234278,
+      "tag": "0011_quiet_gideon",
+      "breakpoints": true
     }
   ]
 }

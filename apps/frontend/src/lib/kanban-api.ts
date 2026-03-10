@@ -95,9 +95,12 @@ export const kanbanApi = {
       repositoryUrl?: string
       systemPrompt?: string
       envVars?: Record<string, string>
+      sortOrder?: number
     },
   ) => patch<Project>(`/api/projects/${id}`, data),
   deleteProject: (id: string) => del<{ id: string }>(`/api/projects/${id}`),
+  sortProjects: (order: Array<{ id: string, sortOrder: number }>) =>
+    patch<null>('/api/projects/sort', { order }),
 
   // Worktrees
   getWorktrees: (projectId: string) =>

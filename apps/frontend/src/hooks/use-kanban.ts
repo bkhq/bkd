@@ -84,6 +84,7 @@ export function useUpdateProject() {
       repositoryUrl?: string
       systemPrompt?: string
       envVars?: Record<string, string>
+      sortOrder?: number
     }) => {
       const { id, ...rest } = data
       return kanbanApi.updateProject(id, rest)
@@ -93,6 +94,17 @@ export function useUpdateProject() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.project(variables.id),
       })
+    },
+  })
+}
+
+export function useSortProjects() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (order: Array<{ id: string, sortOrder: number }>) =>
+      kanbanApi.sortProjects(order),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects() })
     },
   })
 }

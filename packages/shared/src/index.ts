@@ -10,6 +10,7 @@ export interface Project {
   repositoryUrl?: string
   systemPrompt?: string
   envVars?: Record<string, string>
+  sortOrder: number
   createdAt: string
   updatedAt: string
 }
