@@ -4,38 +4,17 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: launcher-release
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build ${{ matrix.label }}
-    runs-on: ${{ matrix.runner }}
+  build-and-release:
+    name: Build and release launchers
+    runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: bun-linux-x64
-            runner: ubuntu-latest
-            label: linux-x64
-            suffix: linux-x64
-          - target: bun-linux-arm64
-            runner: ubuntu-24.04-arm
-            label: linux-arm64
-            suffix: linux-arm64
-          - target: bun-darwin-arm64
-            runner: ubuntu-latest
-            label: darwin-arm64
-            suffix: darwin-arm64
-          - target: bun-darwin-x64
-            runner: ubuntu-latest
-            label: darwin-x64
-            suffix: darwin-x64
-
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -45,56 +24,24 @@ jobs:
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
           restore-keys: ${{ runner.os }}-bun-
 
-      - name: Build launcher binary
-        env:
-          MATRIX_TARGET: ${{ matrix.target }}
-          MATRIX_SUFFIX: ${{ matrix.suffix }}
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build all launcher binaries
         run: |
-          bun install
-          ARTIFACT="bkd-launcher-${MATRIX_SUFFIX}"
-          echo "ARTIFACT=${ARTIFACT}" >> "$GITHUB_ENV"
-          bun scripts/compile.ts --mode launcher --target "${MATRIX_TARGET}" --outfile "${ARTIFACT}"
-          ls -lh "dist/${ARTIFACT}" && file "dist/${ARTIFACT}" && cat "dist/checksums.txt"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bkd-launcher-${{ matrix.suffix }}
-          path: |
-            dist/bkd-launcher-${{ matrix.suffix }}
-            dist/checksums.txt
-          retention-days: 30
-
-  release:
-    name: Update launcher release
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
-
-      - name: Prepare assets
-        run: |
-          mkdir -p release/
-          # Copy launcher binaries only
-          cp artifacts/bkd-launcher-linux-x64/bkd-* release/
-          cp artifacts/bkd-launcher-linux-arm64/bkd-* release/
-          cp artifacts/bkd-launcher-darwin-arm64/bkd-* release/
-          cp artifacts/bkd-launcher-darwin-x64/bkd-* release/
-          for f in release/bkd-launcher-*; do
-            chmod +x "$f"
+          TARGETS="bun-linux-x64 bun-linux-arm64 bun-darwin-arm64 bun-darwin-x64"
+          for TARGET in $TARGETS; do
+            SUFFIX="${TARGET#bun-}"
+            ARTIFACT="bkd-launcher-${SUFFIX}"
+            echo "--- Building ${ARTIFACT} ---"
+            bun scripts/compile.ts --mode launcher --target "${TARGET}" --outfile "${ARTIFACT}"
+            ls -lh "dist/${ARTIFACT}"
           done
-          # Merge checksums from all build jobs
-          cat artifacts/*/checksums.txt > release/checksums.txt
-          # Verify checksums before publishing
-          cd release
-          echo "--- Verifying checksums ---"
-          sha256sum -c checksums.txt
+          # Generate combined checksums
+          cd dist
+          sha256sum bkd-launcher-* > checksums.txt
+          echo "--- Checksums ---"
+          cat checksums.txt
 
       - name: Get commit info
         id: info
@@ -116,7 +63,7 @@ jobs:
           git tag -f "${TAG}" "${COMMIT_SHA}"
           git push origin "refs/tags/${TAG}" --force
           # Create new release with updated assets
-          gh release create "${TAG}" release/* \
+          gh release create "${TAG}" dist/bkd-launcher-* dist/checksums.txt \
             --target "${COMMIT_SHA}" \
             --title "Launcher v1 (${BUILD_DATE})" \
             --notes "$(cat <<NOTES
