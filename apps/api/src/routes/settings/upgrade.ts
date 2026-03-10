@@ -137,11 +137,12 @@ upgrade.post('/restart', async (c) => {
       data: { status: 'restarting' },
     })
   } catch (err) {
-    logger.error({ err }, 'upgrade_restart_failed')
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    logger.error({ error: errorMessage, stack: err instanceof Error ? err.stack : undefined }, 'upgrade_restart_failed')
     return c.json(
       {
         success: false,
-        error: 'Failed to apply upgrade and restart',
+        error: errorMessage || 'Failed to apply upgrade and restart',
       },
       400,
     )
@@ -180,7 +181,7 @@ upgrade.delete(
       await deleteDownloadedUpdate(fileName)
       return c.json({ success: true, data: { deleted: fileName } })
     } catch (err) {
-      logger.error({ err, fileName }, 'upgrade_delete_failed')
+      logger.error({ error: err instanceof Error ? err.message : String(err), fileName }, 'upgrade_delete_failed')
       return c.json(
         {
           success: false,

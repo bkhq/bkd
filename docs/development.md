@@ -10,8 +10,7 @@ curl -fsSL https://bun.sh/install | bash
 bun install
 
 # Configure environment
-cp apps/api/.env.example apps/api/.env
-cp apps/frontend/.env.example apps/frontend/.env
+cp .env.example .env
 
 # Start dev server (API on 3010, frontend on 3000)
 bun run dev
@@ -257,7 +256,7 @@ Server (IssueEngine) → SSE /api/events → EventBus singleton (lib/event-bus.t
 
 ## Environment Variables
 
-### API (`apps/api/.env`)
+### API (`.env` in project root)
 
 | Variable                    | Description                             | Default                         |
 | --------------------------- | --------------------------------------- | ------------------------------- |

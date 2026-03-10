@@ -102,7 +102,7 @@ Requires `GOOGLE_API_KEY` or `GEMINI_API_KEY`, or authenticate via `gemini` CLI.
 
 ## Configuration
 
-All configuration is done via environment variables. Create a `.env` file in `apps/api/` (Bun auto-loads it) or set them in your shell. See `apps/api/.env.example` for a full template.
+All configuration is done via environment variables. Create a `.env` file in the project root (Bun auto-loads it) or set them in your shell. See `.env.example` for a full template.
 
 | Variable                    | Description                                               | Default          |
 | --------------------------- | --------------------------------------------------------- | ---------------- |
