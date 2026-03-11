@@ -3,6 +3,7 @@ import { rename, rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { runCommand, spawnNode } from '@/engines/spawn'
 import { logger } from '@/logger'
+import { writeUpgradeToken } from '@/pid-lock'
 import { isPathWithinDir, parseVersionFromFileName } from '@/upgrade/utils'
 import { APP_BASE, isPackageMode, UPDATES_DIR, VERSION_FILE } from './constants'
 import { getDownloadStatus } from './download'
@@ -130,6 +131,9 @@ export async function applyUpgradeAndRestart(): Promise<void> {
         logger.warn('upgrade_no_shutdown_fn_registered')
       }
 
+      // Write upgrade token so the new process can take over the PID lock
+      writeUpgradeToken()
+
       // Re-exec the launcher binary (process.execPath is the launcher)
       const child = spawnNode([process.execPath], {
         env: { ...process.env } as Record<string, string>,
@@ -158,6 +162,9 @@ export async function applyUpgradeAndRestart(): Promise<void> {
       } else {
         logger.warn('upgrade_no_shutdown_fn_registered')
       }
+
+      // Write upgrade token so the new process can take over the PID lock
+      writeUpgradeToken()
 
       // Spawn the new binary as a detached process after port is released
       const child = spawnNode([upgradeBinary], {
