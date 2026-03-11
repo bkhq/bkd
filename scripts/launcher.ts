@@ -391,8 +391,10 @@ async function downloadAndExtract(
 }
 
 // --- DB repair (--fix-db) ---
+// Reimplements Drizzle's migration logic using only bun:sqlite + node:crypto
+// so it works in standalone compiled binaries without drizzle-orm.
 
-async function repairDatabase(dbPath: string, migrationsDir: string) {
+function repairDatabase(dbPath: string, migrationsDir: string) {
   console.log('[launcher] Running database repair (re-applying migrations)...')
 
   if (!existsSync(dbPath)) {
@@ -406,32 +408,70 @@ async function repairDatabase(dbPath: string, migrationsDir: string) {
     process.exit(1)
   }
 
-  // Use Bun's subprocess to run drizzle migrate against the DB.
-  // We spawn a small inline script so that the import of drizzle
-  // does not pollute the launcher's module cache.
-  const script = `
-    import { Database } from 'bun:sqlite';
-    import { drizzle } from 'drizzle-orm/bun-sqlite';
-    import { migrate } from 'drizzle-orm/bun-sqlite/migrator';
-    const sqlite = new Database(${JSON.stringify(dbPath)});
-    sqlite.run('PRAGMA journal_mode = WAL');
-    sqlite.run('PRAGMA foreign_keys = OFF');
-    const db = drizzle({ client: sqlite });
-    migrate(db, { migrationsFolder: ${JSON.stringify(migrationsDir)} });
-    sqlite.run('PRAGMA foreign_keys = ON');
-    console.log('[repair] Migrations applied successfully.');
-  `
-  const proc = Bun.spawn(['bun', 'eval', script], {
-    stdout: 'inherit',
-    stderr: 'inherit',
-    env: process.env as Record<string, string>,
-  })
-  const exitCode = await proc.exited
-  if (exitCode !== 0) {
-    console.error('[launcher] Database repair failed.')
+  const { Database } = require('bun:sqlite') as typeof import('bun:sqlite')
+  const crypto = require('node:crypto') as typeof import('node:crypto')
+
+  const journal = JSON.parse(readFileSync(journalFile, 'utf8')) as {
+    entries: Array<{ tag: string, when: number }>
+  }
+
+  const sqlite = new Database(dbPath)
+  sqlite.run('PRAGMA journal_mode = WAL')
+
+  // Create migrations table if needed (matches Drizzle's schema)
+  sqlite.run(`
+    CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+      id SERIAL PRIMARY KEY,
+      hash text NOT NULL,
+      created_at numeric
+    )
+  `)
+
+  // Get last applied migration timestamp
+  const lastRow = sqlite.query(
+    'SELECT created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1',
+  ).get() as { created_at: number } | null
+  const lastTimestamp = lastRow?.created_at ?? 0
+
+  sqlite.run('PRAGMA foreign_keys = OFF')
+  sqlite.run('BEGIN')
+
+  let applied = 0
+  try {
+    for (const entry of journal.entries) {
+      if (entry.when <= lastTimestamp) continue
+
+      const sqlFile = resolve(migrationsDir, `${entry.tag}.sql`)
+      if (!existsSync(sqlFile)) {
+        throw new Error(`Migration file not found: ${sqlFile}`)
+      }
+
+      const sql = readFileSync(sqlFile, 'utf8')
+      const hash = crypto.createHash('sha256').update(sql).digest('hex')
+
+      // Split on Drizzle's statement breakpoint marker
+      const statements = sql.split('--> statement-breakpoint').map(s => s.trim()).filter(Boolean)
+      for (const stmt of statements) {
+        sqlite.run(stmt)
+      }
+
+      sqlite.run(
+        'INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)',
+        [hash, entry.when],
+      )
+      applied++
+      console.log(`[repair] Applied: ${entry.tag}`)
+    }
+    sqlite.run('COMMIT')
+  } catch (err) {
+    sqlite.run('ROLLBACK')
+    sqlite.run('PRAGMA foreign_keys = ON')
+    console.error('[launcher] Database repair failed:', err instanceof Error ? err.message : err)
     process.exit(1)
   }
-  console.log('[launcher] Database repair complete.')
+
+  sqlite.run('PRAGMA foreign_keys = ON')
+  console.log(`[launcher] Database repair complete. ${applied} migration(s) applied.`)
 }
 
 // --- CLI parsing ---
