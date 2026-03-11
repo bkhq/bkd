@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { runCommand } from '@/engines/spawn'
+import { resolveWorktreePath } from '@/engines/issue/utils/worktree'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { findProject } from '@/db/helpers'
@@ -16,11 +17,45 @@ async function runGit(args: string[], cwd: string): Promise<{ code: number, stdo
   return runCommand(['git', ...args], { cwd, timeout: 10_000 })
 }
 
+function parseNumstat(stdout: string): { additions: number, deletions: number } {
+  let additions = 0
+  let deletions = 0
+  for (const line of stdout.split('\n').filter(Boolean)) {
+    const [a, d] = line.split('\t')
+    const add = Number(a)
+    const del = Number(d)
+    if (!Number.isNaN(add)) additions += add
+    if (!Number.isNaN(del)) deletions += del
+  }
+  return { additions, deletions }
+}
+
+/**
+ * Resolve the correct working directory for an issue, respecting worktrees.
+ */
+async function resolveIssueDir(
+  projectId: string,
+  issueId: string,
+  useWorktree: boolean,
+  projectRoot: string,
+): Promise<string> {
+  if (!useWorktree) return projectRoot
+  const wtPath = resolveWorktreePath(projectId, issueId)
+  try {
+    const s = await stat(wtPath)
+    if (s.isDirectory()) return wtPath
+  } catch {
+    // worktree dir doesn't exist — fall back
+  }
+  return projectRoot
+}
+
 async function computeAndEmit(issueId: string): Promise<void> {
   try {
     const [issue] = await db
       .select({
         projectId: issuesTable.projectId,
+        useWorktree: issuesTable.useWorktree,
       })
       .from(issuesTable)
       .where(eq(issuesTable.id, issueId))
@@ -30,13 +65,16 @@ async function computeAndEmit(issueId: string): Promise<void> {
     const project = await findProject(issue.projectId)
     if (!project) return
 
-    const root = project.directory ? resolve(project.directory) : process.cwd()
+    const projectRoot = project.directory ? resolve(project.directory) : process.cwd()
     try {
-      const s = await stat(root)
+      const s = await stat(projectRoot)
       if (!s.isDirectory()) return
     } catch {
       return
     }
+
+    // Resolve worktree path if applicable
+    const root = await resolveIssueDir(issue.projectId, issueId, issue.useWorktree, projectRoot)
 
     // Check git repo
     const gitCheck = await runGit(['rev-parse', '--is-inside-work-tree'], root)
@@ -50,33 +88,58 @@ async function computeAndEmit(issueId: string): Promise<void> {
       return
     }
 
-    // Count changed files (working tree only)
-    let filePaths: string[] = []
+    // Count changed files (working tree + staged)
+    const statusLines: { path: string, isUntracked: boolean }[] = []
 
     const { code: statusCode, stdout: statusOut } = await runGit(['status', '--porcelain=v1'], root)
     if (statusCode === 0) {
-      const lines = statusOut
-        .split('\n')
-        .map(l => l.trimEnd())
-        .filter(Boolean)
-      filePaths = lines.map(line => line.slice(3).trim().split(' -> ').at(-1)?.trim() ?? '')
+      for (const raw of statusOut.split('\n')) {
+        const line = raw.trimEnd()
+        if (!line || line.length < 3) continue
+        const xy = line.slice(0, 2)
+        const path = line.slice(3).trim().split(' -> ').at(-1)?.trim() ?? ''
+        if (path) {
+          statusLines.push({ path, isUntracked: xy === '??' })
+        }
+      }
     }
 
-    const fileCount = filePaths.length
+    const fileCount = statusLines.length
 
-    // Additions/deletions via numstat
+    // Additions/deletions: combine unstaged + staged numstat, plus count
+    // lines in untracked files (git diff ignores them entirely)
     let additions = 0
     let deletions = 0
 
     if (fileCount > 0) {
-      const { code, stdout } = await runGit(['diff', '--numstat'], root)
-      if (code === 0) {
-        for (const line of stdout.split('\n').filter(Boolean)) {
-          const [a, d] = line.split('\t')
-          const add = Number(a)
-          const del = Number(d)
-          if (!Number.isNaN(add)) additions += add
-          if (!Number.isNaN(del)) deletions += del
+      // Unstaged changes (tracked files only)
+      const unstaged = await runGit(['diff', '--numstat'], root)
+      if (unstaged.code === 0) {
+        const stats = parseNumstat(unstaged.stdout)
+        additions += stats.additions
+        deletions += stats.deletions
+      }
+
+      // Staged changes
+      const staged = await runGit(['diff', '--cached', '--numstat'], root)
+      if (staged.code === 0) {
+        const stats = parseNumstat(staged.stdout)
+        additions += stats.additions
+        deletions += stats.deletions
+      }
+
+      // Untracked files — count lines manually
+      for (const { path, isUntracked } of statusLines) {
+        if (!isUntracked) continue
+        try {
+          const content = await Bun.file(resolve(root, path)).text()
+          if (content) {
+            const normalized = content.replace(/\r\n/g, '\n')
+            const trimmed = normalized.endsWith('\n') ? normalized.slice(0, -1) : normalized
+            additions += trimmed ? trimmed.split('\n').length : 0
+          }
+        } catch {
+          // skip unreadable files
         }
       }
     }
