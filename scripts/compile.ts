@@ -78,6 +78,8 @@ if (compileMode === 'launcher') {
     'scripts/launcher.ts',
     '--compile',
     ...(target ? ['--target', target] : []),
+    '--define',
+    `__BKD_COMMIT__="${commit}"`,
     '--outfile',
     outfile,
   ]
