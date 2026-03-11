@@ -75,22 +75,8 @@
     {
       "idx": 10,
       "version": "6",
-      "when": 1773115168976,
-      "tag": "0010_yielding_red_ghost",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "6",
-      "when": 1773177234278,
-      "tag": "0011_quiet_gideon",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "6",
-      "when": 1773181694648,
-      "tag": "0012_chemical_spot",
+      "when": 1773273600000,
+      "tag": "0010_smart_bullseye",
       "breakpoints": true
     }
   ]
