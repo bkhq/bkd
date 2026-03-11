@@ -15,6 +15,7 @@ export function isVisible(entry: NormalizedLogEntry): boolean {
 
   // Entry types with no user-facing value — suppress at SSE + DB boundary
   if (entry.entryType === 'token-usage' || entry.entryType === 'loading') return false
+  if (entry.entryType === 'error-message') return false
 
   // System-message subtypes that are internal noise
   if (entry.entryType === 'system-message') {
