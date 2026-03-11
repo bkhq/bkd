@@ -6,11 +6,29 @@ import { ProcessManager } from '@/engines/process-manager'
 import { spawnNodeSync } from '@/engines/spawn'
 import { logger } from '@/logger'
 
-// Server-internal secrets that must never be forwarded to terminal PTY processes
+// App-specific env vars that must not leak into terminal PTY processes.
+// HOST/PORT would override zsh's %m prompt (e.g. HOST=0.0.0.0 → "0").
 const TERMINAL_STRIP_KEYS = new Set([
+  // Server
+  'HOST',
+  'PORT',
+  'ROOT_DIR',
+  'SERVER_NAME',
+  'SERVER_URL',
+  // Security
   'API_SECRET',
-  'DB_PATH',
   'ALLOWED_ORIGIN',
+  // Database
+  'DB_PATH',
+  'BKD_DATA_DIR',
+  // Logging
+  'LOG_LEVEL',
+  'SERVICE_NAME',
+  'LOG_EXECUTOR_IO',
+  // Engine
+  'MAX_CONCURRENT_EXECUTIONS',
+  'WORKTREE_DIR',
+  // Debug
   'ENABLE_RUNTIME_ENDPOINT',
 ])
 
@@ -112,6 +130,18 @@ if (typeof expiryTimer === 'object' && 'unref' in expiryTimer) {
 
 const app = new Hono()
 
+// GET /terminal/:id — Check if a terminal session is alive
+// NOTE: /terminal/ws/:id below has a static 'ws' segment that Hono's trie router
+// matches before this :id param, so there is no conflict.
+app.get('/terminal/:id', (c) => {
+  const id = c.req.param('id')
+  const entry = terminalPM.get(id)
+  if (!entry) {
+    return c.json({ success: false, error: 'Session not found' }, 404)
+  }
+  return c.json({ success: true, data: { id } })
+})
+
 // POST /terminal — Create a new terminal session (spawn PTY)
 app.post('/terminal', (c) => {
   const id = crypto.randomUUID()
@@ -176,6 +206,8 @@ app.get(
   },
   upgradeWebSocket((c) => {
     const id = c.req.param('id')
+    // Capture the raw WS ref so onClose can detect stale sockets
+    let myWsRaw: WsLike | null = null
 
     return {
       onOpen(_evt, ws) {
@@ -191,8 +223,17 @@ app.get(
           entry.meta.graceTimer = null
         }
 
-        // Detach previous WS (if any)
-        entry.meta.wsRaw = ws.raw as WsLike
+        // Close previous WS if another client is still connected
+        if (entry.meta.wsRaw && entry.meta.wsRaw !== ws.raw) {
+          try {
+            entry.meta.wsRaw.close?.(4000, 'Replaced by new connection')
+          } catch {
+            /* already closed */
+          }
+        }
+
+        myWsRaw = ws.raw as WsLike
+        entry.meta.wsRaw = myWsRaw
 
         logger.info({ id, pid: entry.subprocess.pid }, 'terminal_ws_attached')
       },
@@ -231,6 +272,9 @@ app.get(
         const entry = terminalPM.get(id)
         if (!entry) return
 
+        // Ignore stale socket close — a new WS has already taken over
+        if (entry.meta.wsRaw !== myWsRaw) return
+
         entry.meta.wsRaw = null
         logger.info({ id }, 'terminal_ws_detached')
 
@@ -248,7 +292,21 @@ app.get(
         logger.error({ id, error: String(evt) }, 'terminal_ws_error')
         const entry = terminalPM.get(id)
         if (!entry) return
-        entry.meta.wsRaw = null
+        // Only act if this is still the active socket
+        if (entry.meta.wsRaw === myWsRaw) {
+          entry.meta.wsRaw = null
+          // Start grace timer here — onClose compares entry.meta.wsRaw (now null)
+          // against myWsRaw, sees them differ, and exits early
+          if (!entry.meta.graceTimer) {
+            entry.meta.graceTimer = setTimeout(() => {
+              entry.meta.graceTimer = null
+              if (!entry.meta.wsRaw) {
+                logger.info({ id }, 'terminal_grace_expired')
+                killSession(id)
+              }
+            }, GRACE_PERIOD_MS)
+          }
+        }
       },
     }
   }),

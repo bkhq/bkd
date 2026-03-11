@@ -86,6 +86,34 @@ function encodeResize(cols: number, rows: number): ArrayBuffer {
   return buf
 }
 
+// --- Session persistence ---
+
+const SESSION_STORAGE_KEY = 'bkd-terminal-session-id'
+
+function saveSessionId(id: string): void {
+  try {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, id)
+  } catch {
+    /* quota */
+  }
+}
+
+function loadSessionId(): string | null {
+  try {
+    return sessionStorage.getItem(SESSION_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function clearSessionId(): void {
+  try {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY)
+  } catch {
+    /* */
+  }
+}
+
 // --- API helpers ---
 
 async function createSession(): Promise<string> {
@@ -95,7 +123,18 @@ async function createSession(): Promise<string> {
   return json.data.id as string
 }
 
+async function checkSession(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/terminal/${id}`)
+    const json = await res.json()
+    return json.success === true
+  } catch {
+    return false
+  }
+}
+
 function deleteSession(sessionId: string): void {
+  clearSessionId()
   void fetch(`/api/terminal/${sessionId}`, { method: 'DELETE' })
 }
 
@@ -153,6 +192,8 @@ function tryLoadWebgl(terminal: Terminal): void {
   }
 }
 
+let wsRetryCount = 0
+
 function connectWs(sessionId: string, terminal: Terminal, fitAddon: FitAddon): void {
   const state = store.getState()
   if (state.disposed) return
@@ -168,6 +209,7 @@ function connectWs(sessionId: string, terminal: Terminal, fitAddon: FitAddon): v
   store.getState().set({ ws })
 
   ws.addEventListener('open', () => {
+    wsRetryCount = 0
     fitAddon.fit()
     const { cols, rows } = terminal
     ws.send(encodeResize(cols, rows))
@@ -182,8 +224,17 @@ function connectWs(sessionId: string, terminal: Terminal, fitAddon: FitAddon): v
   ws.addEventListener('close', (evt) => {
     store.getState().set({ ws: null })
 
-    // PTY exited — session is gone, start fresh on reconnect
-    if (evt.reason === 'PTY exited') {
+    // Replaced by another tab/connection — stop reconnecting
+    if (evt.code === 4000) {
+      clearSessionId()
+      store.getState().set({ sessionId: null })
+      terminal.writeln('\r\n\x1B[90m[session taken over by another tab]\x1B[0m')
+      return
+    }
+
+    // Session is gone (PTY exited or server rejected) — start fresh
+    if (evt.reason === 'PTY exited' || evt.code === 1008) {
+      clearSessionId()
       store.getState().set({ sessionId: null })
       if (!store.getState().disposed) {
         terminal.writeln('\r\n\x1B[90m[session ended, reconnecting...]\x1B[0m')
@@ -199,6 +250,19 @@ function connectWs(sessionId: string, terminal: Terminal, fitAddon: FitAddon): v
     // WS disconnected but session may still be alive — reconnect to same session
     const currentState = store.getState()
     if (!currentState.disposed && currentState.sessionId) {
+      wsRetryCount++
+      // Too many retries — session is likely dead, start fresh
+      if (wsRetryCount >= 3) {
+        wsRetryCount = 0
+        clearSessionId()
+        store.getState().set({ sessionId: null })
+        const timer = setTimeout(() => {
+          store.getState().set({ reconnectTimer: null })
+          void initConnection(terminal, fitAddon)
+        }, 1500)
+        store.getState().set({ reconnectTimer: timer })
+        return
+      }
       const timer = setTimeout(() => {
         store.getState().set({ reconnectTimer: null })
         const s = store.getState()
@@ -236,8 +300,16 @@ async function initConnection(terminal: Terminal, fitAddon: FitAddon): Promise<v
 
   const connectingPromise = (async () => {
     try {
-      // Create session via REST (works through Vite proxy)
-      const sessionId = await createSession()
+      // Try to reconnect to a persisted session first
+      const savedId = loadSessionId()
+      let sessionId: string
+      if (savedId && await checkSession(savedId)) {
+        sessionId = savedId
+        terminal.writeln('\r\n\x1B[90m[reconnected to existing session]\x1B[0m')
+      } else {
+        sessionId = await createSession()
+      }
+      saveSessionId(sessionId)
       store.getState().set({ sessionId })
 
       // Connect WS for bidirectional I/O
@@ -345,6 +417,7 @@ export function TerminalView({ className }: { className?: string }) {
 
 /** Explicitly kill the terminal session and clean up all resources */
 export function disposeTerminal(): void {
+  wsRetryCount = 0
   const state = store.getState()
   store.getState().set({ disposed: true, connecting: null })
   if (state.reconnectTimer) {
