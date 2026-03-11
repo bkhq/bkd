@@ -1,1 +1,0 @@
-ALTER TABLE `projects` ADD `sort_order` text DEFAULT 'a0' NOT NULL;

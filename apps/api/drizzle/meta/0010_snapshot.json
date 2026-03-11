@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9d945ab5-acfd-496c-b8dc-e49fdf07d5db",
+  "id": "02222074-c35a-48c5-a371-9e16de635f9d",
   "prevId": "83ec1a94-a76f-49ba-a9e5-39a520ab30cc",
   "tables": {
     "app_settings": {
@@ -378,11 +378,11 @@
         },
         "sort_order": {
           "name": "sort_order",
-          "type": "integer",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": "'a0'"
         },
         "parent_issue_id": {
           "name": "parent_issue_id",
@@ -839,6 +839,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'a0'"
         },
         "created_at": {
           "name": "created_at",
