@@ -93,23 +93,16 @@ async function computeAndEmit(issueId: string): Promise<void> {
     let deletions = 0
 
     if (fileCount > 0) {
-      // Unstaged changes (tracked files only)
-      const unstaged = await runGit(['diff', '--numstat'], root)
-      if (unstaged.code === 0) {
-        const stats = parseNumstat(unstaged.stdout)
+      // Single diff against HEAD covers both staged and unstaged changes,
+      // avoiding double-counting partially staged hunks and handling renames correctly
+      const headDiff = await runGit(['diff', 'HEAD', '-M', '--numstat'], root)
+      if (headDiff.code === 0) {
+        const stats = parseNumstat(headDiff.stdout)
         additions += stats.additions
         deletions += stats.deletions
       }
 
-      // Staged changes
-      const staged = await runGit(['diff', '--cached', '--numstat'], root)
-      if (staged.code === 0) {
-        const stats = parseNumstat(staged.stdout)
-        additions += stats.additions
-        deletions += stats.deletions
-      }
-
-      // Untracked files — count lines manually
+      // Untracked files — count lines manually (git diff HEAD ignores them)
       for (const { path, isUntracked } of statusLines) {
         if (!isUntracked) continue
         if (!isPathInsideRoot(root, path)) continue
