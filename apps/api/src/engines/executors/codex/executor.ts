@@ -554,25 +554,28 @@ export class CodexExecutor implements EngineExecutor {
       )
       session.notify('initialized', {})
 
-      const account = (await session.call('account/read', {}, 1)) as {
-        requiresOpenaiAuth?: boolean
-        account?: unknown
-      }
+      const account = (await session.call('account/read', {}, 1)) as Record<string, unknown>
 
-      if (account.requiresOpenaiAuth && !account.account) {
+      // Handle both camelCase and snake_case response shapes
+      const requiresAuth = account.requiresOpenaiAuth ?? account.requires_openai_auth
+      if (requiresAuth && !account.account) {
         return 'unauthenticated'
       }
       return 'authenticated'
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       logger.debug({ error: msg }, 'codex_auth_verify_failed')
-      // If account/read is not supported, fall back to env/config check
-      if (process.env.OPENAI_API_KEY || process.env.CODEX_API_KEY) {
-        return 'authenticated'
-      }
-      const home = process.env.HOME ?? '/root'
-      if (existsSync(`${home}/.codex/config.toml`)) {
-        return 'authenticated'
+      // Only fall back to env/config heuristics if the method is unsupported
+      // (i.e. older Codex version). For other errors (auth failure, timeout)
+      // report unknown rather than masking the real status.
+      if (/method not found|not supported|unknown method/i.test(msg)) {
+        if (process.env.OPENAI_API_KEY || process.env.CODEX_API_KEY) {
+          return 'authenticated'
+        }
+        const home = process.env.HOME ?? '/root'
+        if (existsSync(`${home}/.codex/config.toml`)) {
+          return 'authenticated'
+        }
       }
       return 'unknown'
     } finally {
