@@ -6,7 +6,6 @@
       "name": "@bkd/root",
       "dependencies": {
         "cleye": "^2.3.0",
-        "jittered-fractional-indexing": "^1.0.1",
       },
       "devDependencies": {
         "@antfu/eslint-config": "^7.7.0",
@@ -26,6 +25,7 @@
         "consola": "^3.4.2",
         "drizzle-orm": "^0.45.1",
         "hono": "^4.12.1",
+        "jittered-fractional-indexing": "catalog:",
         "nanoid": "^5.1.6",
         "pino": "^10.3.1",
         "ulid": "^3.0.2",
@@ -76,6 +76,7 @@
         "dompurify": "^3.3.1",
         "github-markdown-css": "^5.9.0",
         "i18next": "^25.8.13",
+        "jittered-fractional-indexing": "catalog:",
         "lucide-react": "^0.577.0",
         "react": "^19.2.0",
         "react-dom": "^19.2.0",
@@ -121,6 +122,7 @@
     },
   },
   "catalog": {
+    "jittered-fractional-indexing": "^1.0.1",
     "typescript": "^5.9.3",
     "zod": "^4.3.6",
   },
