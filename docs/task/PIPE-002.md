@@ -13,13 +13,18 @@ The same workflow also uses `actions/upload-artifact@v4`, which is likewise stil
 
 ## Solution
 
-1. Upgrade artifact actions in `.github/workflows/release.yml` to Node 24-compatible majors.
-2. Leave `softprops/action-gh-release@v2` unchanged for now and remove the temporary Node 24 force flag after the user decided not to enable it yet.
+1. Upgrade GitHub-maintained actions to Node 24-compatible majors.
+2. Replace `oven-sh/setup-bun@v2` with shell-based Bun installation because the latest published action still runs on Node 20.
+3. Leave `softprops/action-gh-release@v2` unchanged for now and keep the workflow behavior intact.
 
 ## Files Changed
 
 - `.github/workflows/release.yml`
+- `.github/workflows/ci.yml`
+- `.github/workflows/launcher.yml`
 
 ## Follow-up
 
 After retagging `v0.0.25`, the first workflow run failed in `Prepare assets` because the `download-artifact@v8` step no longer matched the path assumptions used by the release job. The workflow was updated to download the named artifact into `artifacts/bkd-app-package`, which matches the later copy step exactly.
+
+Remaining Node 20 warnings in Actions were then removed by upgrading `actions/checkout` and `actions/cache`, and by replacing `oven-sh/setup-bun` with a shell install step across all workflows that build with Bun.
