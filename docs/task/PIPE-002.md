@@ -19,3 +19,7 @@ The same workflow also uses `actions/upload-artifact@v4`, which is likewise stil
 ## Files Changed
 
 - `.github/workflows/release.yml`
+
+## Follow-up
+
+After retagging `v0.0.25`, the first workflow run failed in `Prepare assets` because the `download-artifact@v8` step no longer matched the path assumptions used by the release job. The workflow was updated to download the named artifact into `artifacts/bkd-app-package`, which matches the later copy step exactly.

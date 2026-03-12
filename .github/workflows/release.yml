@@ -74,7 +74,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          path: artifacts/
+          name: bkd-app-package
+          path: artifacts/bkd-app-package
 
       - name: Prepare assets
         run: |

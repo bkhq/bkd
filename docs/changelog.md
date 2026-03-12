@@ -7,6 +7,7 @@ PIPE-002: Update release workflow for GitHub Actions Node 24 migration
 - Upgraded `actions/upload-artifact` from `v4` to `v7`
 - Upgraded `actions/download-artifact` from `v4` to `v8`
 - Kept `softprops/action-gh-release@v2` in place without enabling the temporary Node 24 force flag
+- Fixed the release job artifact path by downloading `bkd-app-package` into `artifacts/bkd-app-package`
 - Scope limited to release workflow compatibility; no release behavior changes requested
 ## 2026-03-09 06:00 [progress]
 
