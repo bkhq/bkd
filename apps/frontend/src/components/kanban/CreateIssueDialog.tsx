@@ -65,8 +65,6 @@ export function CreateIssueForm({
     () => discovery?.engines.filter(a => a.installed && a.executable !== false) ?? [],
     [discovery],
   )
-  const allModels = discovery?.models ?? {}
-
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const firstStatusId = STATUSES[0].id
@@ -92,10 +90,10 @@ export function CreateIssueForm({
   }, [engineType, engineSettings, installedEngines])
 
   // Models for the resolved engine
-  const currentModels = useMemo(
-    () => (resolvedEngineType ? (allModels[resolvedEngineType] ?? []) : []),
-    [resolvedEngineType, allModels],
-  )
+  const currentModels = useMemo(() => {
+    const models = discovery?.models ?? {}
+    return resolvedEngineType ? (models[resolvedEngineType] ?? []) : []
+  }, [resolvedEngineType, discovery?.models])
 
   // When engine changes, reset model to "default" (system auto)
   const handleEngineChange = useCallback((newEngine: string) => {

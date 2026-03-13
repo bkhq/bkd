@@ -58,7 +58,9 @@ describe('withIssueLock deep behavior', () => {
     await Bun.sleep(5)
 
     // Current implementation counts active holder + queued entries in lockDepth.
-    const queued = Array.from({ length: 9 }, () => withIssueLock(ctx, issueId, async () => {}))
+    const queued: Promise<void>[] = []
+    for (let i = 0; i < 9; i++)
+      queued.push(withIssueLock(ctx, issueId, async () => {}))
 
     await expect(withIssueLock(ctx, issueId, async () => {})).rejects.toThrow('Lock queue full')
 

@@ -79,7 +79,7 @@ function verifySchema() {
   // Build expected columns from Drizzle schema definitions.
   // Each entry: [tableName, [...columnNames]]
   const expectedTables: Array<[string, string[]]> = []
-  for (const [key, value] of Object.entries(schema)) {
+  for (const [_key, value] of Object.entries(schema)) {
     // Drizzle table objects have a Symbol-keyed property; the simplest
     // reliable check is that the value has a `._.name` (table name) and
     // `._.columns` (column map).

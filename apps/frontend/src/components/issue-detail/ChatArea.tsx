@@ -64,6 +64,7 @@ export function ChatArea({
         titleBeforeAutoRef.current = null
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- issue?.title already covers the null check
   }, [isAutoTitling, issue?.title])
 
   // Reset auto-titling when session fails
