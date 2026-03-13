@@ -203,6 +203,9 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
         entry.toolDetail?.toolCallId ?? (entry.metadata?.toolCallId as string | undefined)
       if (callId && pairedResultCallIds.has(callId)) continue
 
+      // Flush existing buffer first so orphaned results don't merge
+      // with unrelated tool actions that follow
+      flushToolBuffer()
       toolBuffer.push({
         action: entry,
         result: null,
@@ -211,6 +214,10 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
     }
 
     if (isToolUseAction(entry)) {
+      // Flush orphaned results before starting a new action batch
+      if (toolBuffer.length > 0 && toolBuffer.some(item => hasResultFlag(item.action))) {
+        flushToolBuffer()
+      }
       const callId =
         entry.toolDetail?.toolCallId ?? (entry.metadata?.toolCallId as string | undefined)
       let result: NormalizedLogEntry | null = null
@@ -228,6 +235,7 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
     if (entry.entryType === 'system-message' && entry.metadata?.subtype === 'plan') {
       const todos = extractTodos(entry)
       if (todos) {
+        flushToolBuffer()
         items.push({
           type: 'plan',
           id: entryId(entry, nextId('acp-plan')),

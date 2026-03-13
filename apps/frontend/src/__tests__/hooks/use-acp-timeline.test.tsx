@@ -138,6 +138,88 @@ describe('useAcpTimeline', () => {
     })
   })
 
+  it('separates orphaned tool results from subsequent tool actions', () => {
+    const logs: NormalizedLogEntry[] = [
+      // Orphaned result (action on older page, not present here)
+      {
+        messageId: 'orphan-result',
+        entryType: 'tool-use',
+        content: 'old result',
+        metadata: { toolCallId: 'old-tool', toolName: 'OldTool', isResult: true },
+        toolDetail: { kind: 'command-run', toolName: 'OldTool', toolCallId: 'old-tool', isResult: true },
+      },
+      // New unrelated tool action
+      {
+        messageId: 'new-action',
+        entryType: 'tool-use',
+        content: 'new action',
+        metadata: { toolCallId: 'new-tool', toolName: 'NewTool' },
+        toolAction: { kind: 'file-read', path: 'file.ts' },
+        toolDetail: { kind: 'file-read', toolName: 'NewTool', toolCallId: 'new-tool', isResult: false },
+      },
+      {
+        messageId: 'new-result',
+        entryType: 'tool-use',
+        content: 'new result',
+        metadata: { toolCallId: 'new-tool', toolName: 'NewTool', isResult: true },
+        toolDetail: { kind: 'file-read', toolName: 'NewTool', toolCallId: 'new-tool', isResult: true },
+      },
+    ]
+
+    const { result } = renderHook(() => useAcpTimeline(logs))
+
+    // Orphaned result and new action should be in separate groups
+    expect(result.current.items).toHaveLength(2)
+    expect(result.current.items[0]).toMatchObject({
+      type: 'tool-group',
+      message: { count: 1, items: [{ action: { messageId: 'orphan-result' } }] },
+    })
+    expect(result.current.items[1]).toMatchObject({
+      type: 'tool-group',
+      message: { count: 1, items: [{ action: { messageId: 'new-action' }, result: { messageId: 'new-result' } }] },
+    })
+  })
+
+  it('flushes buffered tool calls before inserting plan items', () => {
+    const logs: NormalizedLogEntry[] = [
+      // Tool action before plan
+      {
+        messageId: 'tool-action-pre',
+        entryType: 'tool-use',
+        content: 'Read config',
+        metadata: { toolCallId: 'pre-1', toolName: 'ReadConfig' },
+        toolAction: { kind: 'file-read', path: 'config.ts' },
+        toolDetail: { kind: 'file-read', toolName: 'ReadConfig', toolCallId: 'pre-1', isResult: false },
+      },
+      {
+        messageId: 'tool-result-pre',
+        entryType: 'tool-use',
+        content: 'config contents',
+        metadata: { toolCallId: 'pre-1', toolName: 'ReadConfig', isResult: true },
+        toolDetail: { kind: 'file-read', toolName: 'ReadConfig', toolCallId: 'pre-1', isResult: true },
+      },
+      // Plan arrives while tool buffer is non-empty
+      {
+        messageId: 'plan-1',
+        entryType: 'system-message',
+        content: 'Plan updated',
+        metadata: {
+          subtype: 'plan',
+          entries: [
+            { content: 'Step 1', status: 'pending' },
+          ],
+        },
+      },
+    ]
+
+    const { result } = renderHook(() => useAcpTimeline(logs))
+
+    // Tool group should appear before the plan (chronological order)
+    expect(result.current.items).toHaveLength(2)
+    expect(result.current.items[0]).toMatchObject({ type: 'tool-group' })
+    expect(result.current.items[1]).toMatchObject({ type: 'plan' })
+  })
+
   it('groups consecutive ACP tool calls into a single tool-group', () => {
     const logs: NormalizedLogEntry[] = [
       {
