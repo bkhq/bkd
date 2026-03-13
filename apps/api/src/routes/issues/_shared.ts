@@ -26,10 +26,10 @@ export const createIssueSchema = z.object({
   statusId: z.enum(STATUS_IDS),
   parentIssueId: z.string().optional(),
   useWorktree: z.boolean().optional(),
-  engineType: z.enum(['claude-code', 'codex', 'gemini', 'echo']).optional(),
+  engineType: z.enum(['claude-code', 'codex', 'acp', 'echo']).optional(),
   model: z
     .string()
-    .regex(/^[\w.-]{1,100}$/)
+    .regex(/^[\w./:-]{1,160}$/)
     .optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
 })
@@ -55,11 +55,11 @@ export const updateIssueSchema = z.object({
 })
 
 export const executeIssueSchema = z.object({
-  engineType: z.enum(['claude-code', 'codex', 'gemini', 'echo']),
+  engineType: z.enum(['claude-code', 'codex', 'acp', 'echo']),
   prompt: z.string().min(1).max(32768),
   model: z
     .string()
-    .regex(/^[\w.-]{1,100}$/)
+    .regex(/^[\w./:-]{1,160}$/)
     .optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
 })
@@ -68,7 +68,7 @@ export const followUpSchema = z.object({
   prompt: z.string().min(1).max(32768),
   model: z
     .string()
-    .regex(/^[\w.\-[\]]{1,100}$/)
+    .regex(/^[\w./:\-[\]]{1,160}$/)
     .optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
   busyAction: z.enum(['queue', 'cancel']).optional(),
@@ -81,6 +81,7 @@ export type IssueRow = typeof issuesTable.$inferSelect
 export { getPendingMessages, markPendingMessagesDispatched } from '@/db/pending-messages'
 
 export function serializeIssue(row: IssueRow, childCount?: number) {
+  const engineType = row.engineType === 'gemini' ? 'acp' : row.engineType
   return {
     id: row.id,
     projectId: row.projectId,
@@ -93,7 +94,7 @@ export function serializeIssue(row: IssueRow, childCount?: number) {
     useWorktree: row.useWorktree,
     childCount: childCount ?? 0,
     // Session fields
-    engineType: row.engineType ?? null,
+    engineType: engineType ?? null,
     sessionStatus: row.sessionStatus ?? null,
     prompt: row.prompt ?? null,
     externalSessionId: row.externalSessionId ?? null,
@@ -168,8 +169,9 @@ export function parseProjectEnvVars(
  */
 export function flushPendingAsFollowUp(issueId: string, issue: { model: string | null }): void {
   void (async () => {
+    let relocated: Awaited<ReturnType<typeof relocatePendingForProcessing>> | null = null
     try {
-      const relocated = await relocatePendingForProcessing(issueId)
+      relocated = await relocatePendingForProcessing(issueId)
       if (!relocated) return
       // Emit SSE so frontend shows "AI thinking" indicator
       emitIssueUpdated(issueId, { sessionStatus: 'pending' })
@@ -262,6 +264,7 @@ export function triggerIssueExecution(
   envVars?: Record<string, string> | null,
 ): void {
   void (async () => {
+    let relocated: Awaited<ReturnType<typeof relocatePendingForProcessing>> | null = null
     try {
       let effectiveWorkingDir: string | undefined
       if (projectDirectory) {
@@ -294,7 +297,7 @@ export function triggerIssueExecution(
       }
 
       // Relocate any pending messages: hide old pending row, include content in prompt
-      const relocated = await relocatePendingForProcessing(issueId)
+      relocated = await relocatePendingForProcessing(issueId)
       const basePrompt = systemPrompt ?
         `${systemPrompt}\n\n${issue.prompt ?? ''}` :
           (issue.prompt ?? '')
