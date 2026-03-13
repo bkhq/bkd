@@ -844,7 +844,7 @@ function ModelsSection({ open }: { open: boolean }) {
                     <button
                       key={eng.engineType}
                       type="button"
-                      onClick={() => updateDefaultEngine.mutate(eng.engineType)}
+                      onClick={() => !isSelected && updateDefaultEngine.mutate(eng.engineType)}
                       className={cn(
                         'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors',
                         isSelected ?
@@ -1402,7 +1402,7 @@ function EngineCard({
                   <button
                     key={m.id}
                     type="button"
-                    onClick={() => onChangeDefault(m.id)}
+                    onClick={() => !isSelected && onChangeDefault(m.id)}
                     className={cn(
                       'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs transition-colors text-left',
                       isSelected ?
