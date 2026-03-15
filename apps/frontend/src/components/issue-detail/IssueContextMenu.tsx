@@ -32,7 +32,75 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useDeleteIssue, useDuplicateIssue, useUpdateIssue } from '@/hooks/use-kanban'
 import { kanbanApi } from '@/lib/kanban-api'
+import { cn } from '@/lib/utils'
 import type { Issue } from '@/types/kanban'
+
+/** Shared rename dialog — used by both IssueContextMenu and IssueRow */
+export function RenameDialog({
+  open,
+  onOpenChange,
+  issue,
+  projectId,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  issue: Issue
+  projectId: string
+}) {
+  const { t } = useTranslation()
+  const [renameValue, setRenameValue] = useState(issue.title)
+  const renameInputRef = useRef<HTMLInputElement>(null)
+  const updateIssue = useUpdateIssue(projectId)
+
+  useEffect(() => {
+    if (open) {
+      setRenameValue(issue.title)
+      const timer = setTimeout(() => renameInputRef.current?.select(), 0)
+      return () => clearTimeout(timer)
+    }
+  }, [open, issue.title])
+
+  const handleRename = useCallback(() => {
+    const trimmed = renameValue.trim()
+    if (trimmed && trimmed !== issue.title) {
+      updateIssue.mutate({ id: issue.id, title: trimmed })
+    }
+    onOpenChange(false)
+  }, [updateIssue, issue.id, issue.title, renameValue, onOpenChange])
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('contextMenu.renameTitle')}</DialogTitle>
+        </DialogHeader>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            handleRename()
+          }}
+        >
+          <input
+            ref={renameInputRef}
+            type="text"
+            value={renameValue}
+            onChange={e => setRenameValue(e.target.value)}
+            placeholder={t('contextMenu.newTitle')}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" disabled={!renameValue.trim()}>
+              {t('contextMenu.save')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 interface IssueContextMenuProps {
   issue: Issue
@@ -50,31 +118,13 @@ export function IssueContextMenu({
   const { t } = useTranslation()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
-  const [renameValue, setRenameValue] = useState(issue.title)
-  const renameInputRef = useRef<HTMLInputElement>(null)
   const updateIssue = useUpdateIssue(projectId)
   const deleteIssue = useDeleteIssue(projectId)
   const duplicateIssue = useDuplicateIssue(projectId)
 
-  useEffect(() => {
-    if (renameOpen) {
-      setRenameValue(issue.title)
-      const timer = setTimeout(() => renameInputRef.current?.select(), 0)
-      return () => clearTimeout(timer)
-    }
-  }, [renameOpen, issue.title])
-
   const handlePin = useCallback(() => {
     updateIssue.mutate({ id: issue.id, isPinned: !issue.isPinned })
   }, [updateIssue, issue.id, issue.isPinned])
-
-  const handleRename = useCallback(() => {
-    const trimmed = renameValue.trim()
-    if (trimmed && trimmed !== issue.title) {
-      updateIssue.mutate({ id: issue.id, title: trimmed })
-    }
-    setRenameOpen(false)
-  }, [updateIssue, issue.id, issue.title, renameValue])
 
   const handleDuplicate = useCallback(() => {
     duplicateIssue.mutate(issue.id)
@@ -151,36 +201,12 @@ export function IssueContextMenu({
       </DropdownMenu>
 
       {/* Rename dialog */}
-      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('contextMenu.renameTitle')}</DialogTitle>
-          </DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              handleRename()
-            }}
-          >
-            <input
-              ref={renameInputRef}
-              type="text"
-              value={renameValue}
-              onChange={e => setRenameValue(e.target.value)}
-              placeholder={t('contextMenu.newTitle')}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-            />
-            <DialogFooter className="mt-4">
-              <Button type="button" variant="outline" onClick={() => setRenameOpen(false)}>
-                {t('common.cancel')}
-              </Button>
-              <Button type="submit" disabled={!renameValue.trim()}>
-                {t('contextMenu.save')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <RenameDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        issue={issue}
+        projectId={projectId}
+      />
 
       {/* Delete confirmation */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -204,7 +230,7 @@ export function IssueContextMenuButton({ className }: { className?: string }) {
   return (
     <button
       type="button"
-      className={`inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors ${className ?? ''}`}
+      className={cn('inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors', className)}
       onClick={e => e.stopPropagation()}
     >
       <MoreHorizontal className="size-3.5" />

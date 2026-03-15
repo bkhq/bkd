@@ -66,7 +66,11 @@ duplicate.post('/:id/duplicate', async (c) => {
 
   await cacheDelByPrefix(`childCounts:${project.id}`)
 
-  return c.json({ success: true, data: serializeIssue(newIssue!) }, 201)
+  if (!newIssue) {
+    return c.json({ success: false, error: 'Failed to create issue' }, 500)
+  }
+
+  return c.json({ success: true, data: serializeIssue(newIssue) }, 201)
 })
 
 export default duplicate

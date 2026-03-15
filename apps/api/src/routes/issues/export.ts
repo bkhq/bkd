@@ -1,5 +1,7 @@
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
+import { zValidator } from '@hono/zod-validator'
+import * as z from 'zod'
 import { db } from '@/db'
 import { findProject } from '@/db/helpers'
 import { issueLogs as logsTable, issuesLogsToolsCall as toolsTable } from '@/db/schema'
@@ -99,8 +101,12 @@ function logsToText(logs: NormalizedLogEntry[], issueTitle: string): string {
   return lines.join('\n')
 }
 
+const exportQuerySchema = z.object({
+  format: z.enum(['json', 'txt']).default('json'),
+})
+
 // GET /api/projects/:projectId/issues/:id/export — Export issue logs
-exportRoute.get('/:id/export', async (c) => {
+exportRoute.get('/:id/export', zValidator('query', exportQuerySchema), async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)
   if (!project) {
@@ -113,7 +119,7 @@ exportRoute.get('/:id/export', async (c) => {
     return c.json({ success: false, error: 'Issue not found' }, 404)
   }
 
-  const format = c.req.query('format') || 'json'
+  const { format } = c.req.valid('query')
   const logs = getAllLogs(issueId)
   const filename = `issue-${issue.issueNumber}-${issue.id}`
 

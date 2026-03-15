@@ -8,20 +8,13 @@ import {
   Search,
   Settings,
 } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { IssueContextMenu } from '@/components/issue-detail/IssueContextMenu'
+import { IssueContextMenu, RenameDialog } from '@/components/issue-detail/IssueContextMenu'
 import { ProjectSettingsDialog } from '@/components/ProjectSettingsDialog'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { useIssues, useProject, useUpdateIssue } from '@/hooks/use-kanban'
+import { useIssues, useProject } from '@/hooks/use-kanban'
 import { tStatus } from '@/lib/i18n-utils'
 import type { StatusDefinition } from '@/lib/statuses'
 import { STATUSES } from '@/lib/statuses'
@@ -95,9 +88,10 @@ export function IssueListPanel({
     }
     return STATUSES.map(status => ({
       status,
-      issues: (map.get(status.id) ?? []).sort(
-        (a, b) => new Date(b.statusUpdatedAt).getTime() - new Date(a.statusUpdatedAt).getTime(),
-      ),
+      issues: (map.get(status.id) ?? []).sort((a, b) => {
+        if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1
+        return new Date(b.statusUpdatedAt).getTime() - new Date(a.statusUpdatedAt).getTime()
+      }),
     }))
   }, [filtered, issues])
 
@@ -353,27 +347,7 @@ const IssueRow = memo(({
   onNavigate: (issueId: string) => void
   onToggleChildren: () => void
 }) => {
-  const { t } = useTranslation()
   const [renameOpen, setRenameOpen] = useState(false)
-  const [renameValue, setRenameValue] = useState(issue.title)
-  const renameInputRef = useRef<HTMLInputElement>(null)
-  const updateIssue = useUpdateIssue(projectId)
-
-  useEffect(() => {
-    if (renameOpen) {
-      setRenameValue(issue.title)
-      const timer = setTimeout(() => renameInputRef.current?.select(), 0)
-      return () => clearTimeout(timer)
-    }
-  }, [renameOpen, issue.title])
-
-  const handleRename = useCallback(() => {
-    const trimmed = renameValue.trim()
-    if (trimmed && trimmed !== issue.title) {
-      updateIssue.mutate({ id: issue.id, title: trimmed })
-    }
-    setRenameOpen(false)
-  }, [updateIssue, issue.id, issue.title, renameValue])
 
   const handleClick = useCallback(() => {
     if (isActive) {
@@ -451,36 +425,12 @@ const IssueRow = memo(({
       </div>
 
       {/* Rename dialog triggered by clicking active issue */}
-      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('contextMenu.renameTitle')}</DialogTitle>
-          </DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              handleRename()
-            }}
-          >
-            <input
-              ref={renameInputRef}
-              type="text"
-              value={renameValue}
-              onChange={e => setRenameValue(e.target.value)}
-              placeholder={t('contextMenu.newTitle')}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-            />
-            <DialogFooter className="mt-4">
-              <Button type="button" variant="outline" onClick={() => setRenameOpen(false)}>
-                {t('common.cancel')}
-              </Button>
-              <Button type="submit" disabled={!renameValue.trim()}>
-                {t('contextMenu.save')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <RenameDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        issue={issue}
+        projectId={projectId}
+      />
     </>
   )
 })
