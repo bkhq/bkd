@@ -32,7 +32,7 @@ query.get('/', async (c) => {
     .select()
     .from(issuesTable)
     .where(and(...conditions))
-    .orderBy(desc(issuesTable.statusUpdatedAt))
+    .orderBy(desc(issuesTable.isPinned), desc(issuesTable.statusUpdatedAt))
 
   // Compute child counts for returned issues
   const childCounts = await cacheGetOrSet<Record<string, number>>(
@@ -86,7 +86,7 @@ query.get('/:id', async (c) => {
         eq(issuesTable.isDeleted, 0),
       ),
     )
-    .orderBy(desc(issuesTable.statusUpdatedAt))
+    .orderBy(desc(issuesTable.isPinned), desc(issuesTable.statusUpdatedAt))
 
   return c.json({
     success: true,

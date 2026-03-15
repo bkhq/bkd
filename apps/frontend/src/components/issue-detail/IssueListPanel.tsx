@@ -3,13 +3,15 @@ import {
   ChevronDown,
   ChevronRight,
   FolderOpen,
+  MoreHorizontal,
   Plus,
   Search,
   Settings,
 } from 'lucide-react'
-import { memo, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { IssueContextMenu, RenameDialog } from '@/components/issue-detail/IssueContextMenu'
 import { ProjectSettingsDialog } from '@/components/ProjectSettingsDialog'
 import { Button } from '@/components/ui/button'
 import { useIssues, useProject } from '@/hooks/use-kanban'
@@ -86,9 +88,10 @@ export function IssueListPanel({
     }
     return STATUSES.map(status => ({
       status,
-      issues: (map.get(status.id) ?? []).sort(
-        (a, b) => new Date(b.statusUpdatedAt).getTime() - new Date(a.statusUpdatedAt).getTime(),
-      ),
+      issues: (map.get(status.id) ?? []).sort((a, b) => {
+        if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1
+        return new Date(b.statusUpdatedAt).getTime() - new Date(a.statusUpdatedAt).getTime()
+      }),
     }))
   }, [filtered, issues])
 
@@ -181,6 +184,7 @@ export function IssueListPanel({
             status={status}
             issues={groupIssues}
             childMap={childMap}
+            projectId={projectId}
             isCollapsed={!!collapsed[status.id]}
             onToggle={() => toggleCollapse(status.id)}
             activeIssueId={activeIssueId}
@@ -207,6 +211,7 @@ function StatusGroup({
   status,
   issues,
   childMap,
+  projectId,
   isCollapsed,
   onToggle,
   activeIssueId,
@@ -215,6 +220,7 @@ function StatusGroup({
   status: StatusDefinition
   issues: Issue[]
   childMap: Map<string, Issue[]>
+  projectId: string
   isCollapsed: boolean
   onToggle: () => void
   activeIssueId: string
@@ -263,6 +269,7 @@ function StatusGroup({
               <div key={issue.id}>
                 <IssueRow
                   issue={issue}
+                  projectId={projectId}
                   isActive={isActive}
                   hasChildren={!!hasChildren}
                   isExpanded={!!isExpanded}
@@ -325,6 +332,7 @@ function StatusGroup({
 
 const IssueRow = memo(({
   issue,
+  projectId,
   isActive,
   hasChildren,
   isExpanded,
@@ -332,65 +340,96 @@ const IssueRow = memo(({
   onToggleChildren,
 }: {
   issue: Issue
+  projectId: string
   isActive: boolean
   hasChildren: boolean
   isExpanded: boolean
   onNavigate: (issueId: string) => void
   onToggleChildren: () => void
 }) => {
+  const [renameOpen, setRenameOpen] = useState(false)
+
+  const handleClick = useCallback(() => {
+    if (isActive) {
+      setRenameOpen(true)
+    } else {
+      onNavigate(issue.id)
+    }
+  }, [isActive, issue.id, onNavigate])
+
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onNavigate(issue.id)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onNavigate(issue.id)
-        }
-      }}
-      className={`w-full flex items-center gap-1 px-1.5 py-2.5 md:py-1.5 text-left border-b border-border/20 transition-all duration-150 cursor-pointer ${
-        isActive ? 'bg-primary/[0.06]' : 'hover:bg-accent/50'
-      }`}
-    >
-      {hasChildren ?
-          (
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handleClick()
+          }
+        }}
+        className={`group w-full flex items-center gap-1 px-1.5 py-2.5 md:py-1.5 text-left border-b border-border/20 transition-all duration-150 cursor-pointer ${
+          isActive ? 'bg-primary/[0.06]' : 'hover:bg-accent/50'
+        }`}
+      >
+        {hasChildren ?
+            (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleChildren()
+                }}
+                className="h-3.5 w-3.5 p-0 shrink-0 rounded hover:bg-accent transition-colors"
+              >
+                {isExpanded ?
+                    (
+                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    ) :
+                    (
+                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                    )}
+              </button>
+            ) :
+            (
+              <span className="w-3.5 shrink-0" />
+            )}
+        <span
+          className={`text-[11px] font-mono shrink-0 tabular-nums ${
+            isActive ? 'text-primary font-medium' : 'text-muted-foreground/70'
+          }`}
+        >
+          #
+          {issue.issueNumber}
+        </span>
+        <span
+          title={issue.title}
+          className={`text-[13px] truncate ${
+            isActive ? 'text-foreground font-medium' : 'text-foreground/90'
+          }`}
+        >
+          {issue.title}
+        </span>
+        <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
+          <IssueContextMenu issue={issue} projectId={projectId}>
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggleChildren()
-              }}
-              className="h-3.5 w-3.5 p-0 shrink-0 rounded hover:bg-accent transition-colors"
+              className="inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
             >
-              {isExpanded ?
-                  (
-                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                  ) :
-                  (
-                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                  )}
+              <MoreHorizontal className="size-3.5" />
             </button>
-          ) :
-          (
-            <span className="w-3.5 shrink-0" />
-          )}
-      <span
-        className={`text-[11px] font-mono shrink-0 tabular-nums ${
-          isActive ? 'text-primary font-medium' : 'text-muted-foreground/70'
-        }`}
-      >
-        #
-        {issue.issueNumber}
-      </span>
-      <span
-        title={issue.title}
-        className={`text-[13px] truncate ${
-          isActive ? 'text-foreground font-medium' : 'text-foreground/90'
-        }`}
-      >
-        {issue.title}
-      </span>
-    </div>
+          </IssueContextMenu>
+        </div>
+      </div>
+
+      {/* Rename dialog triggered by clicking active issue */}
+      <RenameDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        issue={issue}
+        projectId={projectId}
+      />
+    </>
   )
 })

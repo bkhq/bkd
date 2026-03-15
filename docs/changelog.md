@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-03-15 03:00 [progress]
+
+FEAT-004 / PLAN-024: Issue context menu and export
+
+- Added `isPinned` column to issues table with migration `0012_add_is_pinned.sql`
+- New `POST /:id/duplicate` endpoint copies issue metadata to a new todo-status issue
+- New `GET /:id/export?format=json|txt` endpoint exports issue chat logs as downloadable files
+- Created `IssueContextMenu` component with actions: Pin/Unpin, Rename, Copy, Download (JSON/TXT), Delete
+- Wired context menu into `KanbanCard` (with `showPin=true`) and `IssueListPanel` `IssueRow` (with `showPin=false`)
+- Pinned issues now sort to the top of each status column in the board store
+- Added i18n keys for all context menu strings (zh + en)
+
 ## 2026-03-13 21:10 [progress]
 
 - BUG-012 / PLAN-023: Keep pending messages separate and editable

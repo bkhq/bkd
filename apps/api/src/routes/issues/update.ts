@@ -226,6 +226,7 @@ update.patch(
       }
     }
     if (body.sortOrder !== undefined) updates.sortOrder = body.sortOrder
+    if (body.isPinned !== undefined) updates.isPinned = body.isPinned
     if (body.parentIssueId !== undefined) {
       if (body.parentIssueId === null) {
         updates.parentIssueId = null

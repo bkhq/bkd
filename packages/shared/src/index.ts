@@ -40,6 +40,7 @@ export interface Issue {
   sortOrder: string
   parentIssueId: string | null
   useWorktree: boolean
+  isPinned: boolean
   childCount?: number
   children?: Issue[]
   engineType: EngineType | null

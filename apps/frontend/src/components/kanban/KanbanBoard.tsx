@@ -116,6 +116,7 @@ export function KanbanBoard({
           key={status.id}
           status={status}
           issues={issuesByStatus.get(status.id) ?? []}
+          projectId={projectId}
           selectedIssueId={selectedIssueId}
           onCardClick={onCardClick}
         />

@@ -8,20 +8,23 @@ import {
   draggable,
   dropTargetForElements,
 } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
-import { GitBranchPlus } from 'lucide-react'
+import { GitBranchPlus, Pin } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
+import { IssueContextMenu, IssueContextMenuButton } from '@/components/issue-detail/IssueContextMenu'
 import type { Issue } from '@/types/kanban'
 
 export const KanbanCard = memo(({
   issue,
   index,
   columnStatusId,
+  projectId,
   isSelected,
   onCardClick,
 }: {
   issue: Issue
   index: number
   columnStatusId: string
+  projectId: string
   isSelected?: boolean
   onCardClick?: (issue: Issue) => void
 }) => {
@@ -80,12 +83,18 @@ export const KanbanCard = memo(({
         }`}
         style={{ animationDelay: `${index * 40}ms` }}
       >
-        {/* Issue number */}
+        {/* Issue number + actions */}
         <div className="flex items-center mb-1">
           <span className="text-[11px] font-medium text-muted-foreground font-mono">
+            {issue.isPinned && <Pin className="inline size-2.5 mr-0.5 -mt-0.5 text-primary" />}
             #
             {issue.issueNumber}
           </span>
+          <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+            <IssueContextMenu issue={issue} projectId={projectId} showPin>
+              <IssueContextMenuButton />
+            </IssueContextMenu>
+          </div>
         </div>
 
         {/* Title */}

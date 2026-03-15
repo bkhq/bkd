@@ -28,6 +28,8 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       groups[status.id] = issues
         .filter(i => i.statusId === status.id)
         .sort((a, b) => {
+          // Pinned items always come first
+          if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1
           // Primary: sortOrder ASC — use plain comparison to match fractional-indexing's
           // character-code ordering (0-9 A-Z a-z). localeCompare can break this.
           const aKey = a.sortOrder || 'a0'

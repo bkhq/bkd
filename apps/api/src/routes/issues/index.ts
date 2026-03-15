@@ -4,6 +4,8 @@ import changes from './changes'
 import command from './command'
 import create from './create'
 import del from './delete'
+import duplicate from './duplicate'
+import exportRoute from './export'
 import logs from './logs'
 import message from './message'
 import query from './query'
@@ -15,6 +17,8 @@ issues.route('/', query)
 issues.route('/', create)
 issues.route('/', update)
 issues.route('/', del)
+issues.route('/', duplicate)
+issues.route('/', exportRoute)
 issues.route('/', title)
 issues.route('/', command)
 issues.route('/', message)

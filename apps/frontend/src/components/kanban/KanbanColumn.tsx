@@ -14,11 +14,13 @@ import { KanbanCard } from './KanbanCard'
 export function KanbanColumn({
   status,
   issues,
+  projectId,
   selectedIssueId,
   onCardClick,
 }: {
   status: StatusDefinition
   issues: Issue[]
+  projectId: string
   selectedIssueId?: string | null
   onCardClick?: (issue: Issue) => void
 }) {
@@ -77,6 +79,7 @@ export function KanbanColumn({
             issue={issue}
             index={index}
             columnStatusId={status.id}
+            projectId={projectId}
             isSelected={selectedIssueId === issue.id}
             onCardClick={onCardClick}
           />
