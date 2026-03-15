@@ -51,6 +51,7 @@ export const updateIssueSchema = z.object({
   statusId: z.enum(STATUS_IDS).optional(),
   sortOrder: z.string().min(1).max(50).regex(fractionalKeyRegex).optional(),
   parentIssueId: z.string().nullable().optional(),
+  isPinned: z.boolean().optional(),
 })
 
 export const executeIssueSchema = z.object({
@@ -88,6 +89,7 @@ export function serializeIssue(row: IssueRow, childCount?: number) {
     sortOrder: row.sortOrder,
     parentIssueId: row.parentIssueId ?? null,
     useWorktree: row.useWorktree,
+    isPinned: row.isPinned,
     childCount: childCount ?? 0,
     // Session fields
     engineType: row.engineType ?? null,
