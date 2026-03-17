@@ -54,10 +54,11 @@ export async function executeIssue(
       throw new Error(`Engine '${opts.engineType}' is not yet executable (spawn not implemented)`)
     }
 
-    let model = opts.model
+    // Treat 'auto' as unset — let the engine use its own default
+    let model = opts.model === 'auto' ? undefined : opts.model
     if (!model) {
       const defaultModel = await getEngineDefaultModel(opts.engineType)
-      if (defaultModel) model = defaultModel
+      if (defaultModel && defaultModel !== 'auto') model = defaultModel
     }
 
     await updateIssueSession(issueId, {

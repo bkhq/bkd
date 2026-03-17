@@ -200,7 +200,7 @@ export async function spawnRetry(
   const spawnOpts = {
     workingDir,
     prompt: issue.sessionFields.prompt ?? '',
-    model: issue.sessionFields.model ?? undefined,
+    model: issue.sessionFields.model === 'auto' ? undefined : (issue.sessionFields.model ?? undefined),
     permissionMode: permOptions.permissionMode,
     projectId: issue.projectId,
     envVars: projCtx.envVars,
@@ -269,7 +269,9 @@ export async function spawnFollowUpProcess(
   }
 
   const executionId = crypto.randomUUID()
-  const effectiveModel = model ?? issue.sessionFields.model ?? undefined
+  // Treat 'auto' as unset — let the engine use its own default
+  const rawModel = model ?? issue.sessionFields.model ?? undefined
+  const effectiveModel = rawModel === 'auto' ? undefined : rawModel
 
   await updateIssueSession(issueId, { sessionStatus: 'running' })
 
