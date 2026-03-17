@@ -1315,7 +1315,13 @@ function EngineCard({
   const builtInDefault = models.find(m => m.isDefault)
   const selectedModel = savedDefault ?? builtInDefault?.id ?? ''
   const selectedModelName = models.find(m => m.id === selectedModel)?.name
-  const hiddenSet = useMemo(() => new Set(hiddenModels), [hiddenModels])
+  // Use local state for hidden models to avoid race conditions with rapid toggles.
+  // Sync from prop when server data changes (e.g. after refetch).
+  const [localHidden, setLocalHidden] = useState(hiddenModels)
+  useEffect(() => {
+    setLocalHidden(hiddenModels)
+  }, [hiddenModels])
+  const hiddenSet = useMemo(() => new Set(localHidden), [localHidden])
   const visibleModels = useMemo(
     () => models.filter(m => !hiddenSet.has(m.id)),
     [models, hiddenSet],
@@ -1430,8 +1436,9 @@ function EngineCard({
                       checked={!isHidden}
                       onCheckedChange={(checked) => {
                         const next = checked
-                          ? hiddenModels.filter(id => id !== m.id)
-                          : [...hiddenModels, m.id]
+                          ? localHidden.filter(id => id !== m.id)
+                          : [...localHidden, m.id]
+                        setLocalHidden(next)
                         onChangeHiddenModels(next)
                       }}
                       className="scale-75 origin-left shrink-0"

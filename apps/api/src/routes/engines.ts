@@ -11,15 +11,15 @@ import {
 } from '@/db/helpers'
 import { engineRegistry } from '@/engines/executors'
 import { getAcpAgents } from '@/engines/executors/acp/agents'
-import { forceProbeEngines, getEngineDiscovery, getEngineModels, toAcpEngineType } from '@/engines/startup-probe'
+import { forceProbeEngines, getEngineDiscovery, getEngineModels, isValidAcpEngineType, toAcpEngineType } from '@/engines/startup-probe'
 import type { EngineProfile } from '@/engines/types'
 import { BUILT_IN_PROFILES } from '@/engines/types'
 
 const ENGINE_TYPES = ['claude-code', 'codex', 'acp'] as const
 
-/** Accept both base engine types and virtual ACP types (e.g. "acp:codex") */
+/** Accept both base engine types and known virtual ACP types (e.g. "acp:codex") */
 const engineTypeOrAcpEnum = z.string().refine(
-  val => ENGINE_TYPES.includes(val as typeof ENGINE_TYPES[number]) || val.startsWith('acp:'),
+  val => ENGINE_TYPES.includes(val as typeof ENGINE_TYPES[number]) || isValidAcpEngineType(val),
   { message: 'Invalid engine type' },
 )
 

@@ -57,7 +57,6 @@ export function ChatInput({
   scrollRef,
   engineType,
   model,
-  externalSessionId,
   sessionStatus,
   statusId,
   isThinking = false,
@@ -75,7 +74,6 @@ export function ChatInput({
   scrollRef?: React.RefObject<HTMLDivElement | null>
   engineType?: string
   model?: string
-  externalSessionId?: string
   sessionStatus?: SessionStatus | null
   statusId?: string
   isThinking?: boolean
@@ -184,7 +182,6 @@ export function ChatInput({
   const [mode, setMode] = useState<ModeOption>('auto')
   const [busyAction, setBusyAction] = useState<BusyAction>('queue')
   const activeModel = selectedModel || model || ''
-  const isModelLocked = !!externalSessionId
   const isSessionActive = sessionStatus === 'running' || sessionStatus === 'pending'
   const effectiveBusyAction: BusyAction | undefined = isSessionActive ?
     isThinking ?
@@ -315,7 +312,7 @@ export function ChatInput({
       const result = await followUp.mutateAsync({
         issueId,
         prompt,
-        model: isModelLocked ? undefined : (activeModel || undefined),
+        model: activeModel || undefined,
         permissionMode: toPermissionMode(mode),
         busyAction: effectiveBusyAction,
         files: filesToSend.length > 0 ? filesToSend : undefined,
@@ -576,8 +573,6 @@ export function ChatInput({
                     models={models}
                     value={activeModel}
                     onChange={setSelectedModel}
-                    disabled={isModelLocked}
-                    disabledTitle={isModelLocked ? t('chat.modelLockedHint') : undefined}
                   />
                 ) :
               null}
@@ -874,14 +869,10 @@ function ModelSelect({
   models,
   value,
   onChange,
-  disabled = false,
-  disabledTitle,
 }: {
   models: EngineModel[]
   value: string
   onChange: (v: string) => void
-  disabled?: boolean
-  disabledTitle?: string
 }) {
   const current = models.find(m => m.id === value)
   const displayName = current ? formatModelName(current.name || current.id) : formatModelName(value)
@@ -893,9 +884,7 @@ function ModelSelect({
           <Button
             variant="ghost"
             size="sm"
-            disabled={disabled}
-            title={disabledTitle}
-            className="h-6 px-2 text-xs text-muted-foreground gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="h-6 px-2 text-xs text-muted-foreground gap-1"
           />
         )}
       >
