@@ -12,7 +12,6 @@ const VALID_ENTRY_TYPES = new Set([
   'assistant-message',
   'tool-use',
   'system-message',
-  'error-message',
   'thinking',
 ])
 
@@ -89,7 +88,11 @@ function parseFilterPath(raw: string): { filters: Record<string, string> } | { e
     if (key in filters) {
       return { error: `Duplicate filter key "${key}"` }
     }
-    filters[key] = decodeURIComponent(value)
+    try {
+      filters[key] = decodeURIComponent(value)
+    } catch {
+      return { error: `Malformed percent-encoding in filter value for "${key}"` }
+    }
   }
   return { filters }
 }
