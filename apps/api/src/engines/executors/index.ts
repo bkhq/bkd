@@ -47,7 +47,9 @@ class DefaultEngineRegistry implements EngineRegistry {
   }
 
   async getModels(engineType: EngineType): Promise<EngineModel[]> {
-    const executor = this.executors.get(engineType)
+    // Resolve virtual ACP types to base 'acp' executor
+    const lookupType = engineType.startsWith('acp:') ? ('acp' as EngineType) : engineType
+    const executor = this.executors.get(lookupType)
     if (!executor) return []
     return executor.getModels()
   }

@@ -49,14 +49,18 @@ create.post(
     let resolvedModel = body.model ?? null
 
     if (!resolvedEngine) {
-      resolvedEngine = ((await getDefaultEngine()) || 'echo') as EngineType
+      resolvedEngine = ((await getDefaultEngine()) || 'claude-code') as EngineType
     }
     if (!resolvedModel) {
       const savedModel = await getEngineDefaultModel(resolvedEngine!)
       if (savedModel) {
         resolvedModel = savedModel
       } else {
-        const models = await engineRegistry.getModels(resolvedEngine as EngineType)
+        const allModels = await engineRegistry.getModels(resolvedEngine as EngineType)
+        // For virtual ACP types (e.g. "acp:claude"), filter to only models scoped to that agent
+        const models = resolvedEngine!.startsWith('acp:')
+          ? allModels.filter(m => m.id.startsWith(`${resolvedEngine}:`))
+          : allModels
         resolvedModel = models.find(m => m.isDefault)?.id ?? models[0]?.id ?? 'auto'
       }
     }
