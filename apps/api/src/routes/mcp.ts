@@ -1,23 +1,68 @@
 import { Hono } from 'hono'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { createMcpServer } from '@/mcp/server'
+import { getAppSetting } from '@/db/helpers'
 import { logger } from '@/logger'
 
 const mcpRoute = new Hono()
 
-// Session management for stateful MCP connections
-const sessions = new Map<string, { server: ReturnType<typeof createMcpServer>, transport: WebStandardStreamableHTTPServerTransport }>()
+// --- Session store with size cap and TTL eviction ---
 
-function getOrCreateSession(sessionId: string | undefined) {
-  if (sessionId && sessions.has(sessionId)) {
-    return sessions.get(sessionId)!
+const MAX_SESSIONS = 100
+const SESSION_TTL_MS = 30 * 60 * 1000 // 30 minutes
+
+interface McpSession {
+  server: ReturnType<typeof createMcpServer>
+  transport: WebStandardStreamableHTTPServerTransport
+  lastAccess: number
+}
+
+const sessions = new Map<string, McpSession>()
+
+function evictStaleSessions() {
+  const now = Date.now()
+  for (const [id, session] of sessions) {
+    if (now - session.lastAccess > SESSION_TTL_MS) {
+      sessions.delete(id)
+      logger.info({ sessionId: id }, 'mcp_session_evicted_ttl')
+    }
+  }
+}
+
+function getOrCreateSession(sessionId: string | undefined): McpSession {
+  if (sessionId) {
+    const existing = sessions.get(sessionId)
+    if (existing) {
+      existing.lastAccess = Date.now()
+      return existing
+    }
+  }
+
+  // Evict stale sessions before creating a new one
+  evictStaleSessions()
+
+  // Enforce size cap
+  if (sessions.size >= MAX_SESSIONS) {
+    // Evict the oldest session
+    let oldestId: string | undefined
+    let oldestTime = Infinity
+    for (const [id, s] of sessions) {
+      if (s.lastAccess < oldestTime) {
+        oldestTime = s.lastAccess
+        oldestId = id
+      }
+    }
+    if (oldestId) {
+      sessions.delete(oldestId)
+      logger.info({ sessionId: oldestId }, 'mcp_session_evicted_cap')
+    }
   }
 
   const server = createMcpServer()
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
     onsessioninitialized: (id) => {
-      sessions.set(id, { server, transport })
+      sessions.set(id, { server, transport, lastAccess: Date.now() })
       logger.info({ sessionId: id }, 'mcp_session_created')
     },
     onsessionclosed: (id) => {
@@ -27,22 +72,50 @@ function getOrCreateSession(sessionId: string | undefined) {
   })
 
   void server.connect(transport)
-  return { server, transport }
+  return { server, transport, lastAccess: Date.now() }
 }
 
-// MCP Streamable HTTP endpoint — handles POST (messages), GET (SSE), DELETE (teardown)
+// --- API key authentication middleware ---
+
+const MCP_API_KEY_SETTING = 'mcp:apiKey'
+
+mcpRoute.use('*', async (c, next) => {
+  const apiKey = process.env.MCP_API_KEY ?? (await getAppSetting(MCP_API_KEY_SETTING))
+
+  // If no API key is configured, only allow localhost
+  if (!apiKey) {
+    const host = c.req.header('host') ?? new URL(c.req.url).hostname
+    const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1') || host.startsWith('[::1]')
+    if (!isLocal) {
+      return c.json({ error: 'MCP endpoint requires API key or localhost access' }, 403)
+    }
+    return next()
+  }
+
+  const token = c.req.header('authorization')?.replace('Bearer ', '')
+  if (!token || token !== apiKey) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  return next()
+})
+
+// --- MCP Streamable HTTP endpoint ---
+
 mcpRoute.all('/', async (c) => {
   const sessionId = c.req.header('mcp-session-id')
 
-  // For GET/DELETE with a session ID, reuse the existing session
-  if (sessionId && sessions.has(sessionId)) {
-    const { transport } = sessions.get(sessionId)!
-    return transport.handleRequest(c.req.raw)
+  // Reuse existing session for any method
+  if (sessionId) {
+    const existing = sessions.get(sessionId)
+    if (existing) {
+      existing.lastAccess = Date.now()
+      return existing.transport.handleRequest(c.req.raw)
+    }
   }
 
-  // For POST without a session or with an unknown session — create new
+  // POST without a session or with an unknown session — create new
   if (c.req.method === 'POST') {
-    const { transport } = getOrCreateSession(sessionId)
+    const { transport } = getOrCreateSession(undefined)
     return transport.handleRequest(c.req.raw)
   }
 

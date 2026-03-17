@@ -15,7 +15,7 @@ app.use(secureHeaders())
 
 // --- Compression (skip for SSE routes) ---
 app.use('*', async (c, next) => {
-  if (c.req.path.endsWith('/stream') || c.req.path === '/api/events' || c.req.path === '/api/mcp') {
+  if (c.req.path.endsWith('/stream') || c.req.path === '/api/events' || c.req.path.startsWith('/api/mcp')) {
     return next()
   }
   return compress()(c, next)

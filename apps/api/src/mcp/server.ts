@@ -1,17 +1,26 @@
-import { and, asc, desc, eq, isNull } from 'drizzle-orm'
+import { resolve } from 'node:path'
+import { and, asc, desc, eq, isNull, max } from 'drizzle-orm'
+import { generateKeyBetween } from 'jittered-fractional-indexing'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { customAlphabet } from 'nanoid'
 import * as z from 'zod'
 import { db } from '@/db'
 import { findProject, getDefaultEngine, getEngineDefaultModel } from '@/db/helpers'
-import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
+import { issueLogs, issues as issuesTable, projects as projectsTable } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
 import { engineRegistry } from '@/engines/executors'
 import { getEngineDiscovery } from '@/engines/startup-probe'
 import type { EngineType } from '@/engines/types'
 import { logger } from '@/logger'
+import { parseProjectEnvVars, triggerIssueExecution } from '@/routes/issues/_shared'
 import { toISO } from '@/utils/date'
 
-// --- Serialization helpers (mirrors route-level serializers) ---
+// --- Constants ---
+
+const DEFAULT_LIST_LIMIT = 200
+const MAX_LIST_LIMIT = 500
+
+// --- Serialization helpers ---
 
 function serializeProject(row: typeof projectsTable.$inferSelect) {
   return {
@@ -53,6 +62,112 @@ function errorResult(message: string) {
   return { content: [{ type: 'text' as const, text: message }], isError: true }
 }
 
+function toMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error'
+}
+
+// --- Shared helpers ---
+
+const aliasId = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 8)
+
+async function isDirectoryTaken(directory: string): Promise<boolean> {
+  const conditions = [eq(projectsTable.directory, directory), eq(projectsTable.isDeleted, 0)]
+  const [existing] = await db
+    .select({ id: projectsTable.id })
+    .from(projectsTable)
+    .where(and(...conditions))
+  return !!existing
+}
+
+async function resolveEngineAndModel(engineType?: string, model?: string) {
+  let resolvedEngine = engineType ?? null
+  let resolvedModel = model ?? null
+
+  if (!resolvedEngine) {
+    resolvedEngine = ((await getDefaultEngine()) || 'echo') as string
+  }
+  if (!resolvedModel) {
+    const savedModel = await getEngineDefaultModel(resolvedEngine)
+    if (savedModel) {
+      resolvedModel = savedModel
+    } else {
+      const models = await engineRegistry.getModels(resolvedEngine as EngineType)
+      resolvedModel = models.find(m => m.isDefault)?.id ?? models[0]?.id ?? 'auto'
+    }
+  }
+
+  return { engine: resolvedEngine, model: resolvedModel }
+}
+
+async function insertIssueInTransaction(
+  projectId: string,
+  opts: {
+    statusId: string
+    title: string
+    parentIssueId?: string
+    engineType: string | null
+    model: string | null
+    sessionStatus: string | null
+  },
+) {
+  const { statusId, title, parentIssueId, engineType, model, sessionStatus } = opts
+
+  const [newIssue] = await db.transaction(async (tx) => {
+    if (parentIssueId) {
+      const [parent] = await tx
+        .select()
+        .from(issuesTable)
+        .where(
+          and(
+            eq(issuesTable.id, parentIssueId),
+            eq(issuesTable.projectId, projectId),
+            eq(issuesTable.isDeleted, 0),
+          ),
+        )
+      if (!parent) throw new Error('Parent issue not found')
+      if (parent.parentIssueId) throw new Error('Cannot nest deeper than 1 level')
+    }
+
+    const [maxNumRow] = await tx
+      .select({ maxNum: max(issuesTable.issueNumber) })
+      .from(issuesTable)
+      .where(eq(issuesTable.projectId, projectId))
+    const issueNumber = (maxNumRow?.maxNum ?? 0) + 1
+
+    const [lastItem] = await tx
+      .select({ sortOrder: issuesTable.sortOrder })
+      .from(issuesTable)
+      .where(
+        and(
+          eq(issuesTable.projectId, projectId),
+          eq(issuesTable.statusId, statusId),
+          eq(issuesTable.isDeleted, 0),
+        ),
+      )
+      .orderBy(desc(issuesTable.sortOrder))
+      .limit(1)
+    const sortOrder = generateKeyBetween(lastItem?.sortOrder ?? null, null)
+
+    return tx
+      .insert(issuesTable)
+      .values({
+        projectId,
+        statusId,
+        issueNumber,
+        title,
+        sortOrder,
+        parentIssueId: parentIssueId ?? null,
+        engineType,
+        model,
+        sessionStatus,
+        prompt: title,
+      })
+      .returning()
+  })
+
+  return newIssue!
+}
+
 // --- MCP Server Factory ---
 
 export function createMcpServer(): McpServer {
@@ -67,14 +182,21 @@ export function createMcpServer(): McpServer {
     title: 'List Projects',
     description: 'List all projects. Optionally filter by archived status.',
     inputSchema: z.object({
-      archived: z.boolean().optional().describe('If true, list archived projects only. Default: false'),
+      archived: z.boolean().optional().describe('If true, list archived projects only. Omit to list all non-deleted projects.'),
+      limit: z.number().min(1).max(MAX_LIST_LIMIT).optional().describe(`Max results. Default: ${DEFAULT_LIST_LIMIT}`),
     }),
-  }, async ({ archived }) => {
+  }, async ({ archived, limit }) => {
+    const conditions = [eq(projectsTable.isDeleted, 0)]
+    if (archived !== undefined) {
+      conditions.push(eq(projectsTable.isArchived, archived ? 1 : 0))
+    }
+
     const rows = await db
       .select()
       .from(projectsTable)
-      .where(and(eq(projectsTable.isDeleted, 0), eq(projectsTable.isArchived, archived ? 1 : 0)))
+      .where(and(...conditions))
       .orderBy(asc(projectsTable.sortOrder), desc(projectsTable.updatedAt))
+      .limit(limit ?? DEFAULT_LIST_LIMIT)
     return textResult(rows.map(serializeProject))
   })
 
@@ -99,11 +221,6 @@ export function createMcpServer(): McpServer {
       directory: z.string().max(1000).optional().describe('Working directory path for the project'),
     }),
   }, async ({ name, description, directory }) => {
-    const { resolve } = await import('node:path')
-    const { generateKeyBetween } = await import('jittered-fractional-indexing')
-    const { customAlphabet } = await import('nanoid')
-
-    const aliasId = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 8)
     const alias = name.toLowerCase().replace(/[^a-z0-9]+/g, '') || aliasId()
 
     // Check alias uniqueness
@@ -120,6 +237,11 @@ export function createMcpServer(): McpServer {
     }
 
     const dir = directory ? resolve(directory) : null
+
+    // Check directory uniqueness
+    if (dir && await isDirectoryTaken(dir)) {
+      return errorResult('Directory is already used by another project')
+    }
 
     // Compute sortOrder
     const lastProject = await db
@@ -153,8 +275,9 @@ export function createMcpServer(): McpServer {
     inputSchema: z.object({
       projectId: z.string().describe('Project ID or alias'),
       parentId: z.string().optional().describe('Filter by parent issue ID. Use "null" for root issues only.'),
+      limit: z.number().min(1).max(MAX_LIST_LIMIT).optional().describe(`Max results. Default: ${DEFAULT_LIST_LIMIT}`),
     }),
-  }, async ({ projectId, parentId }) => {
+  }, async ({ projectId, parentId, limit }) => {
     const project = await findProject(projectId)
     if (!project) return errorResult('Project not found')
 
@@ -170,6 +293,7 @@ export function createMcpServer(): McpServer {
       .from(issuesTable)
       .where(and(...conditions))
       .orderBy(desc(issuesTable.statusUpdatedAt))
+      .limit(limit ?? DEFAULT_LIST_LIMIT)
 
     return textResult(rows.map(r => serializeIssue(r)))
   })
@@ -214,99 +338,30 @@ export function createMcpServer(): McpServer {
     const project = await findProject(projectId)
     if (!project) return errorResult('Project not found')
 
-    // Resolve engine/model defaults
-    let resolvedEngine = engineType ?? null
-    let resolvedModel = model ?? null
-
-    if (!resolvedEngine) {
-      resolvedEngine = ((await getDefaultEngine()) || 'echo') as EngineType
-    }
-    if (!resolvedModel) {
-      const savedModel = await getEngineDefaultModel(resolvedEngine!)
-      if (savedModel) {
-        resolvedModel = savedModel
-      } else {
-        const models = await engineRegistry.getModels(resolvedEngine as EngineType)
-        resolvedModel = models.find(m => m.isDefault)?.id ?? models[0]?.id ?? 'auto'
-      }
-    }
-
-    const { generateKeyBetween } = await import('jittered-fractional-indexing')
-    const { max } = await import('drizzle-orm')
-
+    const resolved = await resolveEngineAndModel(engineType, model)
     const shouldExecute = statusId === 'working' || statusId === 'review'
     const effectiveStatusId = statusId === 'review' ? 'working' : statusId
 
-    const [newIssue] = await db.transaction(async (tx) => {
-      if (parentIssueId) {
-        const [parent] = await tx
-          .select()
-          .from(issuesTable)
-          .where(
-            and(
-              eq(issuesTable.id, parentIssueId),
-              eq(issuesTable.projectId, project.id),
-              eq(issuesTable.isDeleted, 0),
-            ),
-          )
-        if (!parent) throw new Error('Parent issue not found')
-        if (parent.parentIssueId) throw new Error('Cannot nest deeper than 1 level')
-      }
-
-      const [maxNumRow] = await tx
-        .select({ maxNum: max(issuesTable.issueNumber) })
-        .from(issuesTable)
-        .where(eq(issuesTable.projectId, project.id))
-      const issueNumber = (maxNumRow?.maxNum ?? 0) + 1
-
-      const [lastItem] = await tx
-        .select({ sortOrder: issuesTable.sortOrder })
-        .from(issuesTable)
-        .where(
-          and(
-            eq(issuesTable.projectId, project.id),
-            eq(issuesTable.statusId, effectiveStatusId),
-            eq(issuesTable.isDeleted, 0),
-          ),
-        )
-        .orderBy(desc(issuesTable.sortOrder))
-        .limit(1)
-      const sortOrder = generateKeyBetween(lastItem?.sortOrder ?? null, null)
-
-      return tx
-        .insert(issuesTable)
-        .values({
-          projectId: project.id,
-          statusId: effectiveStatusId,
-          issueNumber,
-          title,
-          sortOrder,
-          parentIssueId: parentIssueId ?? null,
-          engineType: resolvedEngine,
-          model: resolvedModel,
-          sessionStatus: shouldExecute ? 'pending' : null,
-          prompt: title,
-        })
-        .returning()
+    const newIssue = await insertIssueInTransaction(project.id, {
+      statusId: effectiveStatusId,
+      title,
+      parentIssueId,
+      engineType: resolved.engine,
+      model: resolved.model,
+      sessionStatus: shouldExecute ? 'pending' : null,
     })
 
-    // Trigger execution if status is working
     if (shouldExecute) {
-      const { triggerIssueExecution, parseProjectEnvVars } = await import('@/routes/issues/_shared')
       triggerIssueExecution(
-        newIssue!.id,
-        {
-          engineType: resolvedEngine,
-          prompt: title,
-          model: resolvedModel,
-        },
+        newIssue.id,
+        { engineType: resolved.engine, prompt: title, model: resolved.model },
         project.directory || undefined,
         project.systemPrompt,
         parseProjectEnvVars(project.envVars),
       )
     }
 
-    return textResult(serializeIssue(newIssue!))
+    return textResult(serializeIssue(newIssue))
   })
 
   server.registerTool('update-issue', {
@@ -334,26 +389,18 @@ export function createMcpServer(): McpServer {
       )
     if (!existing) return errorResult('Issue not found')
 
-    const updates: Record<string, unknown> = {}
-    if (title !== undefined) updates.title = title
-    if (statusId !== undefined) {
-      updates.statusId = statusId
-      if (statusId !== existing.statusId) {
-        updates.statusUpdatedAt = new Date()
-      }
+    const transitioningToWorking = statusId === 'working' && existing.statusId !== 'working'
+    const shouldExecute = transitioningToWorking && (!existing.sessionStatus || existing.sessionStatus === 'pending')
+
+    const updates = {
+      ...(title !== undefined && { title }),
+      ...(statusId !== undefined && { statusId }),
+      ...(statusId !== undefined && statusId !== existing.statusId && { statusUpdatedAt: new Date() }),
+      ...(shouldExecute && { sessionStatus: 'pending' as const }),
     }
 
     if (Object.keys(updates).length === 0) {
       return textResult(serializeIssue(existing))
-    }
-
-    // Handle working transition → trigger execution
-    const transitioningToWorking = statusId === 'working' && existing.statusId !== 'working'
-    const shouldExecute =
-      transitioningToWorking && (!existing.sessionStatus || existing.sessionStatus === 'pending')
-
-    if (shouldExecute) {
-      updates.sessionStatus = 'pending'
     }
 
     const [row] = await db
@@ -363,14 +410,9 @@ export function createMcpServer(): McpServer {
       .returning()
 
     if (shouldExecute) {
-      const { triggerIssueExecution, parseProjectEnvVars } = await import('@/routes/issues/_shared')
       triggerIssueExecution(
         issueId,
-        {
-          engineType: existing.engineType,
-          prompt: existing.prompt,
-          model: existing.model,
-        },
+        { engineType: existing.engineType, prompt: existing.prompt, model: existing.model },
         project.directory || undefined,
         project.systemPrompt,
         parseProjectEnvVars(project.envVars),
@@ -455,14 +497,10 @@ export function createMcpServer(): McpServer {
         workingDir,
         model,
       })
-      return textResult({
-        executionId: result.executionId,
-        issueId,
-        messageId: result.messageId,
-      })
+      return textResult({ executionId: result.executionId, issueId, messageId: result.messageId })
     } catch (error) {
       logger.error({ issueId, error }, 'mcp_execute_failed')
-      return errorResult(`Execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      return errorResult(`Execution failed: ${toMessage(error)}`)
     }
   })
 
@@ -493,14 +531,10 @@ export function createMcpServer(): McpServer {
 
     try {
       const result = await issueEngine.followUpIssue(issueId, prompt, model)
-      return textResult({
-        executionId: result.executionId,
-        issueId,
-        messageId: result.messageId,
-      })
+      return textResult({ executionId: result.executionId, issueId, messageId: result.messageId })
     } catch (error) {
       logger.error({ issueId, error }, 'mcp_followup_failed')
-      return errorResult(`Follow-up failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      return errorResult(`Follow-up failed: ${toMessage(error)}`)
     }
   })
 
@@ -531,7 +565,7 @@ export function createMcpServer(): McpServer {
       const status = await issueEngine.cancelIssue(issueId)
       return textResult({ issueId, status })
     } catch (error) {
-      return errorResult(`Cancel failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      return errorResult(`Cancel failed: ${toMessage(error)}`)
     }
   })
 
@@ -562,7 +596,7 @@ export function createMcpServer(): McpServer {
       const result = await issueEngine.restartIssue(issueId)
       return textResult({ executionId: result.executionId, issueId })
     } catch (error) {
-      return errorResult(`Restart failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      return errorResult(`Restart failed: ${toMessage(error)}`)
     }
   })
 
@@ -603,7 +637,6 @@ export function createMcpServer(): McpServer {
       )
     if (!issue) return errorResult('Issue not found')
 
-    const { issueLogs } = await import('@/db/schema')
     const rows = await db
       .select()
       .from(issueLogs)
