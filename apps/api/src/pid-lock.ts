@@ -97,36 +97,48 @@ function isBkdByHttpProbe(port: number): boolean | undefined {
  *   3. HTTP probe to the configured port — does it serve /api with name='bkd-api'?
  *
  * The HTTP probe is the strongest signal because it directly confirms the
- * service identity, whereas cmdline can match other Bun processes.
+ * service identity. Neither signal alone is sufficient to declare "not BKD"
+ * because the binary may be compiled with a custom name (no "bkd"/"bun" in
+ * cmdline) or the port may differ from the current env (HTTP inconclusive).
+ * Only when both procfs AND HTTP actively deny BKD identity do we treat
+ * the lock as stale.
  */
 function isBkdProcessAlive(pid: number): boolean {
   if (!isProcessAlive(pid)) return false
 
   // --- procfs check (fast, Linux only) ---
   const procResult = isBkdByProcfs(pid)
-  if (procResult === false) {
-    // Definitely NOT bkd — stale PID recycled by an unrelated process
-    logger.info({ pid }, 'pid_lock_not_bkd_by_procfs')
-    return false
-  }
 
   // --- HTTP probe (works on all platforms) ---
   const port = Number(process.env.PORT ?? 3000)
   const httpResult = isBkdByHttpProbe(port)
-  if (httpResult === true) {
-    // Port is serving BKD API — truly a running instance
-    return true
-  }
-  if (httpResult === false) {
-    // Port responds but is NOT BKD — different service on same port
-    logger.info({ pid, port }, 'pid_lock_not_bkd_by_http_probe')
+
+  // HTTP positively confirms BKD — strongest signal
+  if (httpResult === true) return true
+
+  // Both signals actively deny BKD identity — safe to treat as stale
+  if (procResult === false && httpResult === false) {
+    logger.info({ pid, port }, 'pid_lock_not_bkd_by_procfs_and_http')
     return false
   }
 
-  // HTTP probe inconclusive (connection refused / timeout).
-  // The old process may still be starting up or the port changed.
-  // Fall back to procfs result if available, otherwise assume alive.
-  return procResult ?? true
+  // Only procfs denies but HTTP is inconclusive (connection refused / timeout).
+  // The process may be a custom-named BKD binary that hasn't started listening
+  // yet, or is listening on a different port. Err on the side of caution.
+  if (procResult === false && httpResult === undefined) {
+    logger.info({ pid, port }, 'pid_lock_procfs_mismatch_http_inconclusive')
+    return true
+  }
+
+  // HTTP denies but procfs confirms or is unavailable — the port may have
+  // been taken by another service while BKD is still alive on a different port
+  if (httpResult === false) {
+    logger.info({ pid, port }, 'pid_lock_http_mismatch_procfs_match')
+    return procResult ?? true
+  }
+
+  // Both inconclusive — assume alive to avoid dual-instance corruption
+  return true
 }
 
 /**
