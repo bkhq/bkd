@@ -1,4 +1,3 @@
-import { getEngineDefaultModel } from '@/db/helpers'
 import { getIssueWithSession, updateIssueSession } from '@/engines/engine-store'
 import { engineRegistry } from '@/engines/executors'
 import type { EngineContext } from '@/engines/issue/context'
@@ -14,6 +13,7 @@ import { getPermissionOptions } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
 import { createWorktree } from '@/engines/issue/utils/worktree'
+import { parseAcpEngineType } from '@/engines/startup-probe'
 import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
 import { ROOT_DIR } from '@/root'
@@ -53,17 +53,15 @@ export async function executeIssue(
       throw new Error(`Engine '${opts.engineType}' is not yet executable (spawn not implemented)`)
     }
 
-    let model = opts.model
-    if (!model) {
-      const defaultModel = await getEngineDefaultModel(opts.engineType)
-      if (defaultModel) model = defaultModel
-    }
+    // Treat 'auto' as unset — let the engine CLI use its own default.
+    // Do NOT look up or fill in a default model from DB; the engine decides.
+    const model = opts.model === 'auto' ? undefined : opts.model
 
     await updateIssueSession(issueId, {
       engineType: opts.engineType,
       sessionStatus: 'running',
       prompt: opts.prompt,
-      model,
+      model: model ?? null,
     })
 
     const baseDir = opts.workingDir ?? ROOT_DIR
@@ -83,6 +81,10 @@ export async function executeIssue(
     const externalSessionId = crypto.randomUUID()
     const executionId = crypto.randomUUID()
 
+    // For virtual ACP engine types (e.g. "acp:claude"), pass the agent ID
+    // so the executor knows which agent binary to spawn even when model is empty.
+    const acpAgent = parseAcpEngineType(opts.engineType) ?? undefined
+
     let spawned: SpawnedProcess
     try {
       spawned = await executor.spawn(
@@ -92,6 +94,7 @@ export async function executeIssue(
           model,
           permissionMode: permOptions.permissionMode,
           externalSessionId,
+          agent: acpAgent,
         },
         {
           vars: opts.envVars ?? {},

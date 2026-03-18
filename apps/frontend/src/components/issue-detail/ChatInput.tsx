@@ -29,7 +29,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
-import { useEngineAvailability, useFollowUpIssue } from '@/hooks/use-kanban'
+import { useEngineAvailability, useEngineSettings, useFollowUpIssue } from '@/hooks/use-kanban'
 import { formatFileSize, formatModelName } from '@/lib/format'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { BusyAction, EngineModel, SessionStatus } from '@/types/kanban'
@@ -57,7 +57,6 @@ export function ChatInput({
   scrollRef,
   engineType,
   model,
-  externalSessionId,
   sessionStatus,
   statusId,
   isThinking = false,
@@ -75,7 +74,6 @@ export function ChatInput({
   scrollRef?: React.RefObject<HTMLDivElement | null>
   engineType?: string
   model?: string
-  externalSessionId?: string
   sessionStatus?: SessionStatus | null
   statusId?: string
   isThinking?: boolean
@@ -167,12 +165,15 @@ export function ChatInput({
   const changesRoot = (changesSummary as { root?: string } | null)?.root
   const openFileBrowser = useFileBrowserStore(s => s.openForIssue)
 
-  // Fetch models for current engine
+  // Fetch models for current engine, filtering out hidden ones
   const { data: discovery } = useEngineAvailability(!!engineType)
-  const models = useMemo(
-    () => (engineType ? (discovery?.models[engineType] ?? []) : []),
-    [engineType, discovery],
-  )
+  const { data: engineSettings } = useEngineSettings(!!engineType)
+  const models = useMemo(() => {
+    if (!engineType) return []
+    const all = discovery?.models[engineType] ?? []
+    const hidden = new Set(engineSettings?.engines[engineType]?.hiddenModels ?? [])
+    return hidden.size > 0 ? all.filter(m => !hidden.has(m.id)) : all
+  }, [engineType, discovery, engineSettings])
   const [selectedModel, setSelectedModel] = useState(model || '')
   // Sync selectedModel when issue changes (model prop changes)
   useEffect(() => {
@@ -181,7 +182,6 @@ export function ChatInput({
   const [mode, setMode] = useState<ModeOption>('auto')
   const [busyAction, setBusyAction] = useState<BusyAction>('queue')
   const activeModel = selectedModel || model || ''
-  const isModelLocked = !!externalSessionId
   const isSessionActive = sessionStatus === 'running' || sessionStatus === 'pending'
   const effectiveBusyAction: BusyAction | undefined = isSessionActive ?
     isThinking ?
@@ -312,7 +312,7 @@ export function ChatInput({
       const result = await followUp.mutateAsync({
         issueId,
         prompt,
-        model: isModelLocked ? undefined : (activeModel || undefined),
+        model: activeModel || undefined,
         permissionMode: toPermissionMode(mode),
         busyAction: effectiveBusyAction,
         files: filesToSend.length > 0 ? filesToSend : undefined,
@@ -573,8 +573,7 @@ export function ChatInput({
                     models={models}
                     value={activeModel}
                     onChange={setSelectedModel}
-                    disabled={isModelLocked}
-                    disabledTitle={isModelLocked ? t('chat.modelLockedHint') : undefined}
+                    disabled={isSessionActive}
                   />
                 ) :
               null}
@@ -872,13 +871,11 @@ function ModelSelect({
   value,
   onChange,
   disabled = false,
-  disabledTitle,
 }: {
   models: EngineModel[]
   value: string
   onChange: (v: string) => void
   disabled?: boolean
-  disabledTitle?: string
 }) {
   const current = models.find(m => m.id === value)
   const displayName = current ? formatModelName(current.name || current.id) : formatModelName(value)
@@ -891,14 +888,13 @@ function ModelSelect({
             variant="ghost"
             size="sm"
             disabled={disabled}
-            title={disabledTitle}
             className="h-6 px-2 text-xs text-muted-foreground gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
           />
         )}
       >
         <span className="truncate max-w-[140px]">{displayName}</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="top" className="min-w-[180px] text-xs">
+      <DropdownMenuContent align="end" side="top" className="min-w-[180px] max-h-[320px] overflow-y-auto text-xs">
         {models.map(m => (
           <DropdownMenuItem
             key={m.id}

@@ -23,3 +23,10 @@ if (!existsSync(testDir)) {
 }
 // Store path for cleanup
 ;(globalThis as any).__TEST_DB_PATH = testDbPath
+
+// Register echo executor for tests (removed from production registry)
+// eslint-disable-next-line antfu/no-top-level-await
+const { engineRegistry } = await import('@/engines/executors')
+// eslint-disable-next-line antfu/no-top-level-await
+const { EchoExecutor } = await import('@/engines/executors/echo/executor')
+;(engineRegistry as any).register(new EchoExecutor())

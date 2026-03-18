@@ -331,7 +331,6 @@ export function ChatBody({
         scrollRef={scrollRef}
         engineType={issue.engineType ?? undefined}
         model={issue.model ?? undefined}
-        externalSessionId={issue.externalSessionId ?? undefined}
         sessionStatus={issue.sessionStatus}
         statusId={issue.statusId}
         isThinking={isThinking}

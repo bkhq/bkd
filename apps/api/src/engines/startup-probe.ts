@@ -3,6 +3,8 @@ import { getProbeResults, saveProbeResults, setAppSetting } from '@/db/helpers'
 import { refreshSlashCommandsCacheForEngine, slashCommandsKey } from '@/engines/issue/queries'
 import { logger } from '@/logger'
 import { ClaudeCodeExecutor, engineRegistry } from './executors'
+import type { AcpAgentId } from './executors/acp/agents'
+import { getAcpAgents } from './executors/acp/agents'
 import type { EngineAvailability, EngineModel, EngineType } from './types'
 
 // Cache keys
@@ -203,6 +205,94 @@ async function discoverSlashCommands(installed: EngineAvailability[]): Promise<v
   }
 }
 
+// ---------- ACP expansion ----------
+
+/** ACP agent prefix for virtual engine types (e.g. "acp:gemini") */
+export const ACP_ENGINE_PREFIX = 'acp:'
+
+/** Known ACP agent IDs — used for input validation */
+export const KNOWN_ACP_AGENT_IDS: readonly string[] = ['gemini', 'codex', 'claude']
+
+/** Check if a string is a valid ACP virtual engine type with a known agent ID */
+export function isValidAcpEngineType(engineType: string): boolean {
+  if (!engineType.startsWith(ACP_ENGINE_PREFIX)) return false
+  const agentId = engineType.slice(ACP_ENGINE_PREFIX.length)
+  return KNOWN_ACP_AGENT_IDS.includes(agentId)
+}
+
+/** Build a virtual engine type key for an ACP agent */
+export function toAcpEngineType(agentId: AcpAgentId): string {
+  return `${ACP_ENGINE_PREFIX}${agentId}`
+}
+
+/** Extract ACP agent ID from a validated virtual engine type (e.g. "acp:codex" → "codex") */
+export function parseAcpEngineType(engineType: string): AcpAgentId | null {
+  if (!isValidAcpEngineType(engineType)) return null
+  return engineType.slice(ACP_ENGINE_PREFIX.length) as AcpAgentId
+}
+
+/**
+ * Expand a single "acp" engine + models into per-agent virtual engines.
+ *
+ * Input:  engines=[{engineType:'acp', ...}], models={acp: [{id:'acp:gemini:...'}, ...]}
+ * Output: engines=[{engineType:'acp:gemini',...}, {engineType:'acp:codex',...}],
+ *         models={'acp:gemini': [...], 'acp:codex': [...]}
+ */
+function expandAcpEngines(discovery: EngineDiscovery): EngineDiscovery {
+  const acpEntry = discovery.engines.find(e => e.engineType === 'acp')
+  const acpModels = discovery.models.acp
+
+  if (!acpEntry) {
+    // No ACP executor at all — nothing to expand
+    return discovery
+  }
+
+  // Even if no models were discovered, still show per-agent engine entries
+  // so users can see which ACP agents are available.
+
+  const agents = getAcpAgents()
+
+  // Group models by agent prefix (if any models exist)
+  const modelsByAgent = new Map<string, EngineModel[]>()
+  for (const model of (acpModels ?? [])) {
+    const match = model.id.match(/^acp:([\w-]+):/)
+    if (!match) {
+      logger.warn({ modelId: model.id }, 'acp_model_missing_agent_prefix_defaulting_to_gemini')
+    }
+    const agentId = match?.[1] ?? 'gemini'
+    const arr = modelsByAgent.get(agentId)
+    if (arr) arr.push(model)
+    else modelsByAgent.set(agentId, [model])
+  }
+
+  // Build per-agent engine entries — always create entries for all known agents
+  const expandedEngines: EngineAvailability[] = []
+  const expandedModels: Record<string, EngineModel[]> = {}
+
+  for (const agent of agents) {
+    const virtualType = toAcpEngineType(agent.id)
+    expandedEngines.push({
+      ...acpEntry,
+      engineType: virtualType as EngineAvailability['engineType'],
+      version: agent.label,
+    })
+    expandedModels[virtualType] = modelsByAgent.get(agent.id) ?? []
+  }
+
+  return {
+    engines: [
+      ...discovery.engines.filter(e => e.engineType !== 'acp'),
+      ...expandedEngines,
+    ],
+    models: {
+      ...Object.fromEntries(
+        Object.entries(discovery.models).filter(([k]) => k !== 'acp'),
+      ),
+      ...expandedModels,
+    },
+  }
+}
+
 // In-flight probe dedup: prevents concurrent live probes from spawning duplicate processes
 let probeInFlight: Promise<EngineDiscovery> | null = null
 
@@ -216,7 +306,7 @@ let probeInFlight: Promise<EngineDiscovery> | null = null
 export async function getEngineDiscovery(): Promise<EngineDiscovery> {
   // 1. Memory cache
   const cached = await readFromCache()
-  if (cached) return cached
+  if (cached) return expandAcpEngines(cached)
 
   // 2. DB
   const dbData = await getProbeResults()
@@ -229,7 +319,7 @@ export async function getEngineDiscovery(): Promise<EngineDiscovery> {
       'probe_loaded_from_db',
     )
     await writeToCache(dbData.engines, dbData.models)
-    return dbData
+    return expandAcpEngines(dbData)
   }
 
   // 3. Live probe (deduped: concurrent callers share the same in-flight probe)
@@ -254,7 +344,7 @@ export async function getEngineDiscovery(): Promise<EngineDiscovery> {
       'probe_completed',
     )
 
-    return discovery
+    return expandAcpEngines(discovery)
   })().finally(() => {
     probeInFlight = null
   })
@@ -283,7 +373,8 @@ export async function forceProbeEngines(): Promise<ProbeResult> {
     'force_probe_completed',
   )
 
-  return { engines, models, duration }
+  const expanded = expandAcpEngines({ engines, models })
+  return { engines: expanded.engines, models: expanded.models, duration }
 }
 
 /**

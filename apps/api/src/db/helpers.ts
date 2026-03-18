@@ -131,6 +131,55 @@ export async function getAllEngineDefaultModels(): Promise<Record<string, string
   })
 }
 
+// --- Hidden Models persistence ---
+
+export async function getEngineHiddenModels(engineType: string): Promise<string[]> {
+  const raw = await getAppSetting(`engine:${engineType}:hiddenModels`)
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export async function setEngineHiddenModels(engineType: string, modelIds: string[]): Promise<void> {
+  await setAppSetting(`engine:${engineType}:hiddenModels`, JSON.stringify(modelIds))
+  await cacheDel('engineHiddenModels:all')
+
+  // If the current default model is now hidden, clear it so the engine uses its own default
+  if (modelIds.length > 0) {
+    const currentDefault = await getAppSetting(`engine:${engineType}:defaultModel`)
+    if (currentDefault && modelIds.includes(currentDefault)) {
+      await deleteAppSetting(`engine:${engineType}:defaultModel`)
+      await cacheDel('engineDefaultModels:all')
+    }
+  }
+}
+
+export async function getAllEngineHiddenModels(): Promise<Record<string, string[]>> {
+  return cacheGetOrSet('engineHiddenModels:all', SETTINGS_CACHE_TTL, async () => {
+    const rows = await db
+      .select({ key: appSettingsTable.key, value: appSettingsTable.value })
+      .from(appSettingsTable)
+      .where(sql`${appSettingsTable.key} LIKE 'engine:%:hiddenModels'`)
+    const result: Record<string, string[]> = {}
+    const prefix = 'engine:'
+    const suffix = ':hiddenModels'
+    for (const row of rows) {
+      const engineType = row.key.slice(prefix.length, -suffix.length)
+      try {
+        const parsed = JSON.parse(row.value)
+        if (Array.isArray(parsed)) result[engineType] = parsed
+      } catch {
+        // skip invalid entries
+      }
+    }
+    return result
+  })
+}
+
 // --- Probe Results persistence ---
 
 interface ProbeData {

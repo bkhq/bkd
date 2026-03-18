@@ -87,7 +87,7 @@ export async function createTestIssue(
   const result = await post<Record<string, unknown>>(`/api/projects/${projectId}/issues`, {
     title: opts.title ?? 'Test Issue',
     statusId: opts.statusId ?? 'todo',
-    engineType: opts.engineType ?? 'echo',
+    engineType: opts.engineType ?? 'claude-code',
     model: opts.model ?? 'auto',
     description: opts.description,
   })

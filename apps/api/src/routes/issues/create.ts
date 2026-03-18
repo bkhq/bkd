@@ -6,7 +6,6 @@ import { cacheDel, cacheDelByPrefix } from '@/cache'
 import { db } from '@/db'
 import { findProject, getDefaultEngine, getEngineDefaultModel, getServerUrl } from '@/db/helpers'
 import { issues as issuesTable } from '@/db/schema'
-import { engineRegistry } from '@/engines/executors'
 import type { EngineType } from '@/engines/types'
 import { logger } from '@/logger'
 import { buildIssueUrl, dispatch as webhookDispatch } from '@/webhooks/dispatcher'
@@ -44,20 +43,20 @@ create.post(
     const body = c.req.valid('json')
 
     // Resolve engine/model defaults when not explicitly provided
-    // Falls back to 'echo' / 'auto' when no settings exist
     let resolvedEngine = body.engineType ?? null
     let resolvedModel = body.model ?? null
 
     if (!resolvedEngine) {
-      resolvedEngine = ((await getDefaultEngine()) || 'echo') as EngineType
+      const defaultEng = (await getDefaultEngine()) || 'claude-code'
+      // Legacy bare 'acp' maps to 'acp:gemini' (the default ACP agent)
+      resolvedEngine = (defaultEng === 'acp' ? 'acp:gemini' : defaultEng) as EngineType
     }
     if (!resolvedModel) {
+      // Leave model unset — let the engine CLI use its own default.
+      // Only fill from saved settings if the user explicitly configured one.
       const savedModel = await getEngineDefaultModel(resolvedEngine!)
-      if (savedModel) {
+      if (savedModel && savedModel !== 'auto') {
         resolvedModel = savedModel
-      } else {
-        const models = await engineRegistry.getModels(resolvedEngine as EngineType)
-        resolvedModel = models.find(m => m.isDefault)?.id ?? models[0]?.id ?? 'auto'
       }
     }
 

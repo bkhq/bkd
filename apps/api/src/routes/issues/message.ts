@@ -160,15 +160,6 @@ async function upsertAndNotify(
 
 const message = new Hono()
 
-function isFollowUpModelChangeBlocked(
-  issue: { externalSessionId: string | null, model: string | null },
-  requestedModel?: string,
-): boolean {
-  if (!issue.externalSessionId) return false
-  if (!requestedModel) return false
-  return requestedModel !== (issue.model ?? '')
-}
-
 // POST /api/projects/:projectId/issues/:id/follow-up — Follow-up
 message.post('/:id/follow-up', async (c) => {
   const projectId = c.req.param('projectId')!
@@ -202,12 +193,11 @@ message.post('/:id/follow-up', async (c) => {
     return c.json({ success: false, error: 'Issue not found' }, 404)
   }
 
-  if (isFollowUpModelChangeBlocked(issue, parsed.model)) {
+  // Reject model changes while the session is actively running
+  const isActive = issue.sessionStatus === 'running' || issue.sessionStatus === 'pending'
+  if (isActive && parsed.model && parsed.model !== (issue.model ?? '')) {
     return c.json(
-      {
-        success: false,
-        error: 'Model changes are not allowed during an existing session. Restart to use a different model.',
-      },
+      { success: false, error: 'Cannot change model while session is running. Wait for completion or cancel first.' },
       409,
     )
   }
