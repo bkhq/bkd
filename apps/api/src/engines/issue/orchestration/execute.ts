@@ -61,7 +61,7 @@ export async function executeIssue(
       engineType: opts.engineType,
       sessionStatus: 'running',
       prompt: opts.prompt,
-      model: model ?? null,
+      model: model ?? undefined,
     })
 
     const baseDir = opts.workingDir ?? ROOT_DIR

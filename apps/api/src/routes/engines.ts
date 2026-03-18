@@ -33,7 +33,7 @@ engines.get('/available', async (c) => {
 
 // GET /api/engines/profiles — List engine profiles (ACP expanded into per-agent profiles)
 engines.get('/profiles', (c) => {
-  const baseProfiles = Object.values(BUILT_IN_PROFILES)
+  const baseProfiles = Object.values(BUILT_IN_PROFILES).filter((p): p is EngineProfile => p !== undefined)
   const acpProfile = BUILT_IN_PROFILES.acp
   const agents = getAcpAgents()
 

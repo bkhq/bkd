@@ -3,7 +3,7 @@ import type { Subprocess } from '@/engines/spawn'
 // ---------- Enums / Literal Unions ----------
 
 // Supported AI engine types
-export type EngineType = 'claude-code' | 'codex' | 'acp' | `acp:${string}`
+export type EngineType = 'claude-code' | 'codex' | 'acp' | `acp:${string}` | 'echo'
 
 // Communication protocols
 export type EngineProtocol = 'stream-json' | 'json-rpc' | 'acp'

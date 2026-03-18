@@ -109,7 +109,7 @@ command.post(
       const basePrompt = project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt
       const envVars = parseProjectEnvVars(project.envVars)
       const result = await issueEngine.executeIssue(issueId, {
-        engineType: body.engineType,
+        engineType: body.engineType as import('@/engines/types').EngineType,
         prompt: basePrompt,
         workingDir: effectiveWorkingDir,
         model: body.model,

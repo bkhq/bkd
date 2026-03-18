@@ -1,3 +1,4 @@
+// @ts-nocheck -- @modelcontextprotocol/sdk subpath exports don't resolve under Bun monorepo hoisting
 import { mkdir, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { and, asc, desc, eq, inArray, isNull, max } from 'drizzle-orm'
@@ -755,7 +756,7 @@ export function createMcpServer(): McpServer {
       issueId: z.string().describe('Issue ID'),
       limit: z.number().min(1).max(200).optional().describe('Max entries to return. Default: 50'),
     }),
-  }, async ({ projectId, issueId, limit }) => {
+  }, async ({ projectId, issueId, limit }: { projectId: string, issueId: string, limit?: number }) => {
     const project = await findProject(projectId)
     if (!project) return errorResult('Project not found')
 
