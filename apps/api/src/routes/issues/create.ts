@@ -43,12 +43,13 @@ create.post(
     const body = c.req.valid('json')
 
     // Resolve engine/model defaults when not explicitly provided
-    // Falls back to 'echo' / 'auto' when no settings exist
     let resolvedEngine = body.engineType ?? null
     let resolvedModel = body.model ?? null
 
     if (!resolvedEngine) {
-      resolvedEngine = ((await getDefaultEngine()) || 'claude-code') as EngineType
+      const defaultEng = (await getDefaultEngine()) || 'claude-code'
+      // Legacy bare 'acp' maps to 'acp:gemini' (the default ACP agent)
+      resolvedEngine = (defaultEng === 'acp' ? 'acp:gemini' : defaultEng) as EngineType
     }
     if (!resolvedModel) {
       // Leave model unset — let the engine CLI use its own default.

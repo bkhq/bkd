@@ -193,6 +193,15 @@ message.post('/:id/follow-up', async (c) => {
     return c.json({ success: false, error: 'Issue not found' }, 404)
   }
 
+  // Reject model changes while the session is actively running
+  const isActive = issue.sessionStatus === 'running' || issue.sessionStatus === 'pending'
+  if (isActive && parsed.model && parsed.model !== (issue.model ?? '')) {
+    return c.json(
+      { success: false, error: 'Cannot change model while session is running. Wait for completion or cancel first.' },
+      409,
+    )
+  }
+
   const pendingBefore = await getPendingMessages(issueId)
 
   // Save uploaded files and insert attachment records

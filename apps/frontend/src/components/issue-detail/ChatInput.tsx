@@ -573,6 +573,7 @@ export function ChatInput({
                     models={models}
                     value={activeModel}
                     onChange={setSelectedModel}
+                    disabled={isSessionActive}
                   />
                 ) :
               null}
@@ -869,10 +870,12 @@ function ModelSelect({
   models,
   value,
   onChange,
+  disabled = false,
 }: {
   models: EngineModel[]
   value: string
   onChange: (v: string) => void
+  disabled?: boolean
 }) {
   const current = models.find(m => m.id === value)
   const displayName = current ? formatModelName(current.name || current.id) : formatModelName(value)
@@ -884,7 +887,8 @@ function ModelSelect({
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 px-2 text-xs text-muted-foreground gap-1"
+            disabled={disabled}
+            className="h-6 px-2 text-xs text-muted-foreground gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
           />
         )}
       >

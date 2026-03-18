@@ -32,7 +32,7 @@ export const createIssueSchema = z.object({
   ).optional(),
   model: z
     .string()
-    .regex(/^[\w./:-]{1,160}$/)
+    .regex(/^[\w./:\-[\]]{1,160}$/)
     .optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
 })
@@ -65,7 +65,7 @@ export const executeIssueSchema = z.object({
   prompt: z.string().min(1).max(32768),
   model: z
     .string()
-    .regex(/^[\w./:-]{1,160}$/)
+    .regex(/^[\w./:\-[\]]{1,160}$/)
     .optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
 })

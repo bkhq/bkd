@@ -242,22 +242,19 @@ function expandAcpEngines(discovery: EngineDiscovery): EngineDiscovery {
   const acpEntry = discovery.engines.find(e => e.engineType === 'acp')
   const acpModels = discovery.models.acp
 
-  if (!acpEntry || !acpModels || acpModels.length === 0) {
-    // No ACP or no models — remove ACP entirely, nothing to split
-    return {
-      engines: discovery.engines.filter(e => e.engineType !== 'acp'),
-      models: Object.fromEntries(
-        Object.entries(discovery.models).filter(([k]) => k !== 'acp'),
-      ),
-    }
+  if (!acpEntry) {
+    // No ACP executor at all — nothing to expand
+    return discovery
   }
 
-  const agents = getAcpAgents()
-  const agentMap = new Map(agents.map(a => [a.id, a]))
+  // Even if no models were discovered, still show per-agent engine entries
+  // so users can see which ACP agents are available.
 
-  // Group models by agent prefix
+  const agents = getAcpAgents()
+
+  // Group models by agent prefix (if any models exist)
   const modelsByAgent = new Map<string, EngineModel[]>()
-  for (const model of acpModels) {
+  for (const model of (acpModels ?? [])) {
     const match = model.id.match(/^acp:([\w-]+):/)
     if (!match) {
       logger.warn({ modelId: model.id }, 'acp_model_missing_agent_prefix_defaulting_to_gemini')
@@ -268,19 +265,18 @@ function expandAcpEngines(discovery: EngineDiscovery): EngineDiscovery {
     else modelsByAgent.set(agentId, [model])
   }
 
-  // Build per-agent engine entries
+  // Build per-agent engine entries — always create entries for all known agents
   const expandedEngines: EngineAvailability[] = []
   const expandedModels: Record<string, EngineModel[]> = {}
 
-  for (const [agentId, models] of modelsByAgent) {
-    const agent = agentMap.get(agentId as AcpAgentId)
-    const virtualType = toAcpEngineType(agentId as AcpAgentId)
+  for (const agent of agents) {
+    const virtualType = toAcpEngineType(agent.id)
     expandedEngines.push({
       ...acpEntry,
       engineType: virtualType as EngineAvailability['engineType'],
-      version: agent?.label,
+      version: agent.label,
     })
-    expandedModels[virtualType] = models
+    expandedModels[virtualType] = modelsByAgent.get(agent.id) ?? []
   }
 
   return {

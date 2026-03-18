@@ -147,6 +147,15 @@ export async function getEngineHiddenModels(engineType: string): Promise<string[
 export async function setEngineHiddenModels(engineType: string, modelIds: string[]): Promise<void> {
   await setAppSetting(`engine:${engineType}:hiddenModels`, JSON.stringify(modelIds))
   await cacheDel('engineHiddenModels:all')
+
+  // If the current default model is now hidden, clear it so the engine uses its own default
+  if (modelIds.length > 0) {
+    const currentDefault = await getAppSetting(`engine:${engineType}:defaultModel`)
+    if (currentDefault && modelIds.includes(currentDefault)) {
+      await deleteAppSetting(`engine:${engineType}:defaultModel`)
+      await cacheDel('engineDefaultModels:all')
+    }
+  }
 }
 
 export async function getAllEngineHiddenModels(): Promise<Record<string, string[]>> {
