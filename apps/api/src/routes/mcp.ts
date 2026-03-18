@@ -1,6 +1,6 @@
+// @ts-nocheck -- @modelcontextprotocol/sdk subpath exports may not resolve under Bun monorepo hoisting
 import { Hono } from 'hono'
 import { getConnInfo } from 'hono/bun'
-// @ts-expect-error -- Bun monorepo hoisting prevents TS from resolving the subpath export
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { createMcpServer } from '@/mcp/server'
 import { getAppSetting } from '@/db/helpers'
@@ -63,11 +63,11 @@ function getOrCreateSession(sessionId: string | undefined): McpSession {
   const server = createMcpServer()
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
-    onsessioninitialized: (id: string) => {
+    onsessioninitialized: (id) => {
       sessions.set(id, { server, transport, lastAccess: Date.now() })
       logger.info({ sessionId: id }, 'mcp_session_created')
     },
-    onsessionclosed: (id: string) => {
+    onsessionclosed: (id) => {
       sessions.delete(id)
       logger.info({ sessionId: id }, 'mcp_session_closed')
     },

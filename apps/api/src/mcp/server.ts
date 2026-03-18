@@ -1,4 +1,4 @@
-// @ts-nocheck -- @modelcontextprotocol/sdk subpath exports don't resolve under Bun monorepo hoisting
+// @ts-nocheck -- @modelcontextprotocol/sdk subpath exports may not resolve under Bun monorepo hoisting
 import { mkdir, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { and, asc, desc, eq, inArray, isNull, max } from 'drizzle-orm'
