@@ -41,12 +41,15 @@ export default function LoginPage() {
     try {
       const redirectUri = `${window.location.origin}/login/callback`
 
+      const state = crypto.randomUUID()
+      sessionStorage.setItem('bkd_oauth_state', state)
+
       const params = new URLSearchParams({
         client_id: config.clientId,
         redirect_uri: redirectUri,
         response_type: 'code',
         scope: config.scopes || 'openid profile email',
-        state: crypto.randomUUID(),
+        state,
       })
 
       if (config.pkce) {

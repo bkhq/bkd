@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { logger } from '@/logger'
 import type { AuthConfig } from './types'
 
 /**
@@ -61,6 +62,9 @@ function parseAuthConfig(): AuthConfig {
     throw new Error('AUTH_ALLOWED_USERS must contain at least one username')
   }
 
+  if (!process.env.AUTH_SECRET) {
+    logger.warn('AUTH_SECRET not set — generating ephemeral JWT signing key. All sessions will be invalidated on restart.')
+  }
   const secret = process.env.AUTH_SECRET || randomBytes(32).toString('hex')
   const pkce = process.env.AUTH_PKCE !== 'false'
   const scopes = process.env.AUTH_SCOPES || 'openid profile email'

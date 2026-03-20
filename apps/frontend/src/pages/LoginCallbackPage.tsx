@@ -14,7 +14,16 @@ export default function LoginCallbackPage() {
       const code = params.get('code')
 
       if (!code) {
-        setError(params.get('error_description') || params.get('error') || t('auth.noCodeReceived'))
+        setError(params.get('error_description')?.slice(0, 200) || params.get('error') || t('auth.noCodeReceived'))
+        return
+      }
+
+      // Verify OAuth state parameter (CSRF protection)
+      const returnedState = params.get('state')
+      const savedState = sessionStorage.getItem('bkd_oauth_state')
+      sessionStorage.removeItem('bkd_oauth_state')
+      if (!returnedState || returnedState !== savedState) {
+        setError(t('auth.invalidState'))
         return
       }
 

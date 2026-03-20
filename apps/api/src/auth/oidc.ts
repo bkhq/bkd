@@ -34,6 +34,13 @@ export async function discoverOIDC(): Promise<OIDCDiscoveryDoc> {
     }
   }
 
+  // RFC 8414 §3.3: issuer in the discovery document MUST match the expected issuer
+  const expectedIssuer = authConfig.issuer.replace(/\/$/, '')
+  const docIssuer = (doc.issuer || '').replace(/\/$/, '')
+  if (docIssuer !== expectedIssuer) {
+    throw new Error(`OIDC issuer mismatch: expected ${expectedIssuer}, got ${docIssuer}`)
+  }
+
   cachedDiscovery = doc
   cacheTimestamp = now
 
@@ -80,7 +87,8 @@ export async function exchangeCode(
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`Token exchange failed: ${res.status} ${text}`)
+    logger.warn({ status: res.status, body: text }, 'oidc_token_exchange_error')
+    throw new Error(`Token exchange failed: ${res.status}`)
   }
 
   return res.json() as Promise<{ access_token: string, id_token?: string }>

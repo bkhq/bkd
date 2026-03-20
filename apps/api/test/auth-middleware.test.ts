@@ -6,7 +6,9 @@ import { authMiddleware } from '@/auth/middleware'
 import type { AuthUser } from '@/auth/types'
 
 // Force a known secret
-;(authConfig as any).secret = 'test-secret-key-for-middleware-tests'
+;
+
+(authConfig as any).secret = 'test-secret-key-for-middleware-tests'
 ;(authConfig as any).sessionTtl = 3600
 
 const testUser: AuthUser = {

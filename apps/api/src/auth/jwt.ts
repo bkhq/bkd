@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import { authConfig } from './config'
 import type { AuthUser, TokenPayload } from './types'
 
@@ -39,9 +39,11 @@ export function verifyToken(token: string): AuthUser | null {
 
   const [header, payload, signature] = parts
 
-  // Verify signature
+  // Verify signature (constant-time comparison)
   const expected = hmacSign(`${header}.${payload}`)
-  if (signature !== expected) return null
+  const sigBuf = Buffer.from(signature, 'base64url')
+  const expBuf = Buffer.from(expected, 'base64url')
+  if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) return null
 
   try {
     const data = JSON.parse(base64urlDecode(payload)) as TokenPayload

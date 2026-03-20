@@ -1,10 +1,12 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { signToken, verifyToken } from '@/auth/jwt'
 import { authConfig } from '@/auth/config'
 import type { AuthUser } from '@/auth/types'
 
 // Force a known secret for deterministic tests
-;(authConfig as any).secret = 'test-secret-key-for-jwt-tests-1234567890'
+;
+
+(authConfig as any).secret = 'test-secret-key-for-jwt-tests-1234567890'
 ;(authConfig as any).sessionTtl = 3600 // 1 hour
 
 const testUser: AuthUser = {

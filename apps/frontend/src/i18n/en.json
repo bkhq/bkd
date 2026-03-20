@@ -557,6 +557,7 @@
     "authenticating": "Authenticating...",
     "loginFailed": "Login failed",
     "noCodeReceived": "No authorization code received",
+    "invalidState": "Invalid state parameter — please try logging in again",
     "backToLogin": "Back to login",
     "logout": "Logout"
   }
