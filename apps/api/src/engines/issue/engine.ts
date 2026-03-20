@@ -107,6 +107,8 @@ export class IssueEngine {
       model?: string
       permissionMode?: PermissionPolicy
       envVars?: Record<string, string>
+      displayPrompt?: string
+      metadata?: Record<string, unknown>
     },
   ): Promise<{ executionId: string, messageId?: string | null }> {
     return executeIssue(this.ctx, issueId, opts)

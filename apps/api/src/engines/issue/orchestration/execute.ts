@@ -28,6 +28,8 @@ export async function executeIssue(
     model?: string
     permissionMode?: PermissionPolicy
     envVars?: Record<string, string>
+    displayPrompt?: string
+    metadata?: Record<string, unknown>
   },
 ): Promise<{ executionId: string, messageId?: string | null }> {
   return withIssueLock(ctx, issueId, async () => {
@@ -163,7 +165,7 @@ export async function executeIssue(
       `[BKD] Process spawned (engine=${opts.engineType}, pid=${pid}, model=${model ?? 'default'})`,
       { event: 'process_spawned', pid, engineType: opts.engineType, model },
     )
-    const messageId = persistUserMessage(ctx, issueId, executionId, opts.prompt)
+    const messageId = persistUserMessage(ctx, issueId, executionId, opts.prompt, opts.displayPrompt, opts.metadata)
     monitorCompletion(ctx, executionId, issueId, opts.engineType, false)
 
     return { executionId, messageId }

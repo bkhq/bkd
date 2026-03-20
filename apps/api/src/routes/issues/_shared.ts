@@ -300,6 +300,7 @@ export function triggerIssueExecution(
         model: issue.model ?? undefined,
         permissionMode: issue.permissionMode as 'plan' | 'auto' | undefined,
         envVars: envVars ?? undefined,
+        ...(relocated ? { displayPrompt: relocated.displayPrompt, metadata: relocated.metadata } : {}),
       })
       // Notify frontend to remove old pending entry after successful execution
       if (relocated) {
