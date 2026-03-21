@@ -868,6 +868,10 @@ export function useTerminateProcessGlobal() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.allProcesses(),
       })
+      // Refresh issue status on kanban boards after termination
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.projects(),
+      })
     },
   })
 }

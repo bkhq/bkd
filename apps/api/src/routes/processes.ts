@@ -26,7 +26,7 @@ async function buildProcessInfoList(): Promise<ProcessInfo[]> {
 
   const projectIds = [...new Set(matchedIssues.map(i => i.projectId))]
   const projects = await db
-    .select({ id: projectsTable.id, name: projectsTable.name })
+    .select({ id: projectsTable.id, alias: projectsTable.alias, name: projectsTable.name })
     .from(projectsTable)
     .where(
       and(
@@ -34,7 +34,7 @@ async function buildProcessInfoList(): Promise<ProcessInfo[]> {
         eq(projectsTable.isDeleted, 0),
       ),
     )
-  const projectMap = new Map(projects.map(p => [p.id, p.name]))
+  const projectMap = new Map(projects.map(p => [p.id, { alias: p.alias, name: p.name }]))
 
   const issueMap = new Map(matchedIssues.map(i => [i.id, i]))
   const result: ProcessInfo[] = []
@@ -48,7 +48,8 @@ async function buildProcessInfoList(): Promise<ProcessInfo[]> {
       issueTitle: issue.title,
       issueNumber: issue.issueNumber,
       projectId: issue.projectId,
-      projectName: projectMap.get(issue.projectId) ?? '',
+      projectAlias: projectMap.get(issue.projectId)?.alias ?? '',
+      projectName: projectMap.get(issue.projectId)?.name ?? '',
       engineType: p.engineType,
       processState: p.state,
       model: issue.model ?? null,

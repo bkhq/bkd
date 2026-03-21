@@ -79,7 +79,7 @@ function ProcessCard({ proc }: { proc: ProcessInfo }) {
         <button
           type="button"
           className="text-xs font-medium text-foreground truncate hover:underline cursor-pointer text-left min-w-0"
-          onClick={() => navigate(`/projects/${proc.projectId}/issues/${proc.issueId}`)}
+          onClick={() => navigate(`/projects/${proc.projectAlias}/issues/${proc.issueId}`)}
         >
           <span className="text-muted-foreground">
             #
