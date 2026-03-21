@@ -349,13 +349,6 @@ export function ChatBody({
           <AlertDialogHeader>
             <AlertDialogTitle>{t('issue.delete')}</AlertDialogTitle>
             <AlertDialogDescription>{t('issue.deleteConfirm')}</AlertDialogDescription>
-            {issue.childCount && issue.childCount > 0 ?
-                (
-                  <AlertDialogDescription className="text-destructive">
-                    {t('issue.deleteWithChildren')}
-                  </AlertDialogDescription>
-                ) :
-              null}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteIssueMutation.isPending}>

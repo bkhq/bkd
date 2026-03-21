@@ -8,7 +8,7 @@ import {
   draggable,
   dropTargetForElements,
 } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
-import { GitBranchPlus, Pin } from 'lucide-react'
+import { Pin } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 import { IssueContextMenu, IssueContextMenuButton } from '@/components/issue-detail/IssueContextMenu'
 import type { Issue } from '@/types/kanban'
@@ -116,15 +116,6 @@ export const KanbanCard = memo(({
             )
           : null}
 
-        {/* Sub-issue count badge */}
-        {issue.childCount && issue.childCount > 0
-          ? (
-              <div className="mt-1.5 flex items-center gap-1 text-[10px] text-muted-foreground/60">
-                <GitBranchPlus className="h-3 w-3" />
-                <span>{issue.childCount}</span>
-              </div>
-            )
-          : null}
       </div>
 
       {/* Bottom drop indicator */}

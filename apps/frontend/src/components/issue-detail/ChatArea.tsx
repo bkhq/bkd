@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Link, Plus, Sparkles } from 'lucide-react'
+import { ArrowLeft, Check, Link, Sparkles } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -8,7 +8,6 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import { getIssueUrl } from '@/stores/server-store'
 import { ChatBody } from './ChatBody'
-import { SubIssueDialog } from './SubIssueDialog'
 
 const LazyDiffPanel = lazy(() => import('./DiffPanel').then(m => ({ default: m.DiffPanel })))
 const LazyFileBrowserPanel = lazy(() => import('../files/FileBrowserPanel').then(m => ({ default: m.FileBrowserPanel })))
@@ -42,7 +41,6 @@ export function ChatArea({
   const navigate = useNavigate()
   const { data: issue, isLoading, isError } = useIssue(projectId, issueId)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [showSubIssue, setShowSubIssue] = useState(false)
   const [copied, setCopied] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
@@ -218,19 +216,6 @@ export function ChatArea({
           >
             <Sparkles className="h-3.5 w-3.5" />
           </Button>
-          {!issue.parentIssueId ?
-              (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                  title={t('issue.createSubIssue')}
-                  onClick={() => setShowSubIssue(true)}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </Button>
-              ) :
-            null}
           <Button
             variant="ghost"
             size="icon"
@@ -346,13 +331,6 @@ export function ChatArea({
           )
         : null}
 
-      {/* Sub-issue dialog */}
-      <SubIssueDialog
-        projectId={projectId}
-        parentIssueId={issueId}
-        open={showSubIssue}
-        onOpenChange={setShowSubIssue}
-      />
     </div>
   )
 }

@@ -146,8 +146,6 @@ export const kanbanApi = {
   getReviewIssues: () =>
     get<Array<Issue & { projectName: string, projectAlias: string }>>('/api/issues/review'),
   getIssues: (projectId: string) => get<Issue[]>(`/api/projects/${projectId}/issues`),
-  getChildIssues: (projectId: string, parentId: string) =>
-    get<Issue[]>(`/api/projects/${projectId}/issues?parentId=${encodeURIComponent(parentId)}`),
   createIssue: (
     projectId: string,
     data: {
@@ -155,7 +153,6 @@ export const kanbanApi = {
       tags?: string[]
       statusId: string
       useWorktree?: boolean
-      parentIssueId?: string
       engineType?: string
       model?: string
       permissionMode?: string

@@ -24,7 +24,6 @@ export const createIssueSchema = z.object({
   title: z.string().min(1).max(500),
   tags: z.array(z.string().max(50)).max(10).optional(),
   statusId: z.enum(STATUS_IDS),
-  parentIssueId: z.string().optional(),
   useWorktree: z.boolean().optional(),
   engineType: z.string().refine(
     val => ['claude-code', 'codex', 'acp', 'echo'].includes(val) || isValidAcpEngineType(val),
@@ -54,7 +53,6 @@ export const updateIssueSchema = z.object({
   tags: z.array(z.string().max(50)).max(10).nullable().optional(),
   statusId: z.enum(STATUS_IDS).optional(),
   sortOrder: z.string().min(1).max(50).regex(fractionalKeyRegex).optional(),
-  parentIssueId: z.string().nullable().optional(),
   isPinned: z.boolean().optional(),
 })
 
@@ -85,7 +83,7 @@ export const followUpSchema = z.object({
 
 export type IssueRow = typeof issuesTable.$inferSelect
 
-export function serializeIssue(row: IssueRow, childCount?: number) {
+export function serializeIssue(row: IssueRow) {
   return {
     id: row.id,
     projectId: row.projectId,
@@ -94,10 +92,8 @@ export function serializeIssue(row: IssueRow, childCount?: number) {
     title: row.title,
     tags: parseTags(row.tag),
     sortOrder: row.sortOrder,
-    parentIssueId: row.parentIssueId ?? null,
     useWorktree: row.useWorktree,
     isPinned: row.isPinned,
-    childCount: childCount ?? 0,
     // Session fields
     engineType: row.engineType ?? null,
     sessionStatus: row.sessionStatus ?? null,

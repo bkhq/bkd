@@ -1,7 +1,5 @@
 import {
   Activity,
-  ChevronDown,
-  ChevronRight,
   FolderOpen,
   MoreHorizontal,
   Plus,
@@ -56,32 +54,10 @@ export function IssueListPanel({
     return issues.filter(issue => issue.title.toLowerCase().includes(searchTerm))
   }, [issues, searchTerm])
 
-  // Build child map for parent-child grouping, sorted by statusUpdatedAt DESC
-  const childMap = useMemo(() => {
-    const map = new Map<string, Issue[]>()
-    for (const issue of filtered) {
-      if (issue.parentIssueId) {
-        const children = map.get(issue.parentIssueId) ?? []
-        children.push(issue)
-        map.set(issue.parentIssueId, children)
-      }
-    }
-    for (const [key, children] of map.entries()) {
-      map.set(
-        key,
-        children.sort(
-          (a, b) => new Date(b.statusUpdatedAt).getTime() - new Date(a.statusUpdatedAt).getTime(),
-        ),
-      )
-    }
-    return map
-  }, [filtered])
-
   const grouped = useMemo(() => {
     if (!issues) return []
-    const rootIssues = filtered.filter(i => !i.parentIssueId)
     const map = new Map<string, Issue[]>()
-    for (const issue of rootIssues) {
+    for (const issue of filtered) {
       const list = map.get(issue.statusId) ?? []
       list.push(issue)
       map.set(issue.statusId, list)
@@ -183,7 +159,6 @@ export function IssueListPanel({
             key={status.id}
             status={status}
             issues={groupIssues}
-            childMap={childMap}
             projectId={projectId}
             isCollapsed={!!collapsed[status.id]}
             onToggle={() => toggleCollapse(status.id)}
@@ -210,7 +185,6 @@ export function IssueListPanel({
 function StatusGroup({
   status,
   issues,
-  childMap,
   projectId,
   isCollapsed,
   onToggle,
@@ -219,7 +193,6 @@ function StatusGroup({
 }: {
   status: StatusDefinition
   issues: Issue[]
-  childMap: Map<string, Issue[]>
   projectId: string
   isCollapsed: boolean
   onToggle: () => void
@@ -227,11 +200,6 @@ function StatusGroup({
   onNavigate: (issueId: string) => void
 }) {
   const { t } = useTranslation()
-  const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({})
-
-  const toggleParent = (id: string) => {
-    setExpandedParents(prev => ({ ...prev, [id]: !prev[id] }))
-  }
 
   return (
     <div>
@@ -261,58 +229,15 @@ function StatusGroup({
         <div>
           {issues.map((issue) => {
             const isActive = issue.id === activeIssueId
-            const children = childMap.get(issue.id)
-            const hasChildren = children && children.length > 0
-            const isExpanded = expandedParents[issue.id]
 
             return (
-              <div key={issue.id}>
-                <IssueRow
-                  issue={issue}
-                  projectId={projectId}
-                  isActive={isActive}
-                  hasChildren={!!hasChildren}
-                  isExpanded={!!isExpanded}
-                  onNavigate={onNavigate}
-                  onToggleChildren={() => toggleParent(issue.id)}
-                />
-
-                {/* Indented children */}
-                {isExpanded && children ?
-                    children.map((child) => {
-                      const isChildActive = child.id === activeIssueId
-                      return (
-                        <button
-                          key={child.id}
-                          type="button"
-                          onClick={() => onNavigate(child.id)}
-                          className={`w-full flex items-center gap-1 pl-5 pr-2 py-1.5 text-left border-b border-border/20 transition-all duration-150 ${
-                            isChildActive ? 'bg-primary/[0.06]' : 'hover:bg-accent/50'
-                          }`}
-                        >
-                          <span
-                            className={`text-[10px] font-mono shrink-0 tabular-nums ${
-                              isChildActive ?
-                                'text-primary font-medium' :
-                                'text-muted-foreground/60'
-                            }`}
-                          >
-                            #
-                            {child.issueNumber}
-                          </span>
-                          <span
-                            title={child.title}
-                            className={`text-[12px] truncate ${
-                              isChildActive ? 'text-foreground font-medium' : 'text-foreground/80'
-                            }`}
-                          >
-                            {child.title}
-                          </span>
-                        </button>
-                      )
-                    }) :
-                  null}
-              </div>
+              <IssueRow
+                key={issue.id}
+                issue={issue}
+                projectId={projectId}
+                isActive={isActive}
+                onNavigate={onNavigate}
+              />
             )
           })}
           {issues.length === 0 ?
@@ -334,18 +259,12 @@ const IssueRow = memo(({
   issue,
   projectId,
   isActive,
-  hasChildren,
-  isExpanded,
   onNavigate,
-  onToggleChildren,
 }: {
   issue: Issue
   projectId: string
   isActive: boolean
-  hasChildren: boolean
-  isExpanded: boolean
   onNavigate: (issueId: string) => void
-  onToggleChildren: () => void
 }) => {
   const [renameOpen, setRenameOpen] = useState(false)
 
@@ -373,28 +292,7 @@ const IssueRow = memo(({
           isActive ? 'bg-primary/[0.06]' : 'hover:bg-accent/50'
         }`}
       >
-        {hasChildren ?
-            (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggleChildren()
-                }}
-                className="h-3.5 w-3.5 p-0 shrink-0 rounded hover:bg-accent transition-colors"
-              >
-                {isExpanded ?
-                    (
-                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                    ) :
-                    (
-                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                    )}
-              </button>
-            ) :
-            (
-              <span className="w-3.5 shrink-0" />
-            )}
+        <span className="w-3.5 shrink-0" />
         <span
           className={`text-[11px] font-mono shrink-0 tabular-nums ${
             isActive ? 'text-primary font-medium' : 'text-muted-foreground/70'

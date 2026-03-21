@@ -2,7 +2,7 @@ import { zValidator } from '@hono/zod-validator'
 import { and, desc, eq, max } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { generateKeyBetween } from 'jittered-fractional-indexing'
-import { cacheDel, cacheDelByPrefix } from '@/cache'
+import { cacheDel } from '@/cache'
 import { db } from '@/db'
 import { findProject, getDefaultEngine, getEngineDefaultModel, getServerUrl } from '@/db/helpers'
 import { issues as issuesTable } from '@/db/schema'
@@ -67,27 +67,6 @@ create.post(
       const effectiveStatusId = body.statusId === 'review' ? 'working' : body.statusId
 
       const [newIssue] = await db.transaction(async (tx) => {
-        // Validate parentIssueId if provided
-        if (body.parentIssueId) {
-          const [parent] = await tx
-            .select()
-            .from(issuesTable)
-            .where(
-              and(
-                eq(issuesTable.id, body.parentIssueId),
-                eq(issuesTable.projectId, project.id),
-                eq(issuesTable.isDeleted, 0),
-              ),
-            )
-          if (!parent) {
-            throw new Error('Parent issue not found in this project')
-          }
-          // Depth=1 only: parent must not itself be a sub-issue
-          if (parent.parentIssueId) {
-            throw new Error('Cannot create sub-issue of a sub-issue (max depth is 1)')
-          }
-        }
-
         // Compute next issueNumber across ALL issues (including soft-deleted) to avoid reuse
         const [maxNumRow] = await tx
           .select({ maxNum: max(issuesTable.issueNumber) })
@@ -119,7 +98,6 @@ create.post(
             title: body.title,
             tag: serializeTags(body.tags),
             sortOrder,
-            parentIssueId: body.parentIssueId ?? null,
             useWorktree: body.useWorktree ?? false,
             engineType: resolvedEngine,
             model: resolvedModel,
@@ -130,7 +108,6 @@ create.post(
       })
 
       // After successful creation, invalidate relevant caches
-      await cacheDelByPrefix(`childCounts:${project.id}`)
       await cacheDel(`projectIssueIds:${project.id}`)
 
       const webhookPayload: Record<string, unknown> = {

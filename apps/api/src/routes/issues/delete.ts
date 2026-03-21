@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { cacheDel, cacheDelByPrefix } from '@/cache'
 import { db } from '@/db'
@@ -54,33 +54,15 @@ del.delete('/:id', async (c) => {
     }
   }
 
-  await db.transaction(async (tx) => {
-    // Collect child issue IDs before soft-deleting
-    const childIssues = await tx
-      .select({ id: issuesTable.id })
-      .from(issuesTable)
-      .where(
-        and(
-          eq(issuesTable.parentIssueId, issueId),
-          eq(issuesTable.projectId, project.id),
-          eq(issuesTable.isDeleted, 0),
-        ),
-      )
-    const childIds = childIssues.map(c => c.id)
-
-    // Soft-delete the issue only — keep logs/tools/attachments intact for restore
-    await tx.update(issuesTable).set({ isDeleted: 1 }).where(eq(issuesTable.id, issueId))
-
-    // Soft-delete child issues
-    if (childIds.length > 0) {
-      await tx.update(issuesTable).set({ isDeleted: 1 }).where(inArray(issuesTable.id, childIds))
-    }
-  })
+  // Soft-delete the issue only — keep logs/tools/attachments intact for restore
+  await db
+    .update(issuesTable)
+    .set({ isDeleted: 1 })
+    .where(eq(issuesTable.id, issueId))
 
   // Invalidate caches
   await cacheDel(`issue:${project.id}:${issueId}`)
   await cacheDelByPrefix(`projectIssueIds:${project.id}`)
-  await cacheDelByPrefix(`childCounts:${project.id}`)
 
   logger.info({ projectId: project.id, issueId }, 'issue_deleted')
 

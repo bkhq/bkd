@@ -1,7 +1,7 @@
 import { zValidator } from '@hono/zod-validator'
 import { and, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { cacheDel, cacheDelByPrefix } from '@/cache'
+import { cacheDel } from '@/cache'
 import { db } from '@/db'
 import { findProject } from '@/db/helpers'
 import { issues as issuesTable } from '@/db/schema'
@@ -227,41 +227,6 @@ update.patch(
     }
     if (body.sortOrder !== undefined) updates.sortOrder = body.sortOrder
     if (body.isPinned !== undefined) updates.isPinned = body.isPinned
-    if (body.parentIssueId !== undefined) {
-      if (body.parentIssueId === null) {
-        updates.parentIssueId = null
-      } else {
-        if (body.parentIssueId === issueId) {
-          return c.json({ success: false, error: 'Issue cannot be its own parent' }, 400)
-        }
-        const [parent] = await db
-          .select({
-            id: issuesTable.id,
-            parentIssueId: issuesTable.parentIssueId,
-          })
-          .from(issuesTable)
-          .where(
-            and(
-              eq(issuesTable.id, body.parentIssueId),
-              eq(issuesTable.projectId, project.id),
-              eq(issuesTable.isDeleted, 0),
-            ),
-          )
-        if (!parent) {
-          return c.json({ success: false, error: 'Parent issue not found in this project' }, 400)
-        }
-        if (parent.parentIssueId) {
-          return c.json(
-            {
-              success: false,
-              error: 'Cannot create sub-issue of a sub-issue (max depth is 1)',
-            },
-            400,
-          )
-        }
-        updates.parentIssueId = body.parentIssueId
-      }
-    }
 
     if (Object.keys(updates).length === 0) {
       return c.json({ success: true, data: serializeIssue(existing) })
@@ -294,9 +259,6 @@ update.patch(
 
     // Invalidate issue cache after update
     await cacheDel(`issue:${project.id}:${issueId}`)
-    if (body.parentIssueId !== undefined) {
-      await cacheDelByPrefix(`childCounts:${project.id}`)
-    }
 
     // Emit issue-updated for all changes (triggers SSE + webhook dispatch)
     emitIssueUpdated(issueId, updates)

@@ -1,9 +1,8 @@
-import { Check, Link, Maximize2, Plus, X } from 'lucide-react'
+import { Check, Link, Maximize2, X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { ChatBody } from '@/components/issue-detail/ChatBody'
-import { SubIssueDialog } from '@/components/issue-detail/SubIssueDialog'
 import { Button } from '@/components/ui/button'
 import { useIssue, useUpdateIssue } from '@/hooks/use-kanban'
 import { getIssueUrl } from '@/stores/server-store'
@@ -31,7 +30,6 @@ export function IssuePanel({ projectId, issueId, onClose, hideHeaderActions }: I
   const [copied, setCopied] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
-  const [showSubIssue, setShowSubIssue] = useState(false)
   const [showDiff, setShowDiff] = useState(false)
   const [diffWidth, setDiffWidth] = useState(DEFAULT_DIFF_WIDTH)
 
@@ -132,19 +130,6 @@ export function IssuePanel({ projectId, issueId, onClose, hideHeaderActions }: I
           </div>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
-          {!effectiveIssue?.parentIssueId && issueId ?
-              (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground transition-colors"
-                  title={t('issue.createSubIssue')}
-                  onClick={() => setShowSubIssue(true)}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </Button>
-              ) :
-            null}
           {!hideHeaderActions ?
               (
                 <>
@@ -223,17 +208,6 @@ export function IssuePanel({ projectId, issueId, onClose, hideHeaderActions }: I
           ) :
         null}
 
-      {/* Sub-issue dialog */}
-      {issueId ?
-          (
-            <SubIssueDialog
-              projectId={projectId}
-              parentIssueId={issueId}
-              open={showSubIssue}
-              onOpenChange={setShowSubIssue}
-            />
-          ) :
-        null}
     </div>
   )
 }

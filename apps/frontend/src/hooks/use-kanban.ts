@@ -19,8 +19,6 @@ export const queryKeys = {
     ['projects', projectId, 'issues', issueId, 'changes'] as const,
   issueFilePatch: (projectId: string, issueId: string, path: string) =>
     ['projects', projectId, 'issues', issueId, 'changes', 'file', path] as const,
-  childIssues: (projectId: string, parentId: string) =>
-    ['projects', projectId, 'issues', 'children', parentId] as const,
   slashCommands: (projectId: string, issueId: string) =>
     ['projects', projectId, 'issues', issueId, 'slash-commands'] as const,
   projectFiles: (root: string | null, path: string, hideIgnored: boolean) =>
@@ -217,14 +215,6 @@ export function useIssueFilePatch(
   })
 }
 
-export function useChildIssues(projectId: string, parentIssueId: string) {
-  return useQuery({
-    queryKey: queryKeys.childIssues(projectId, parentIssueId),
-    queryFn: () => kanbanApi.getChildIssues(projectId, parentIssueId),
-    enabled: !!projectId && !!parentIssueId,
-  })
-}
-
 export function useCreateIssue(projectId: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -233,21 +223,12 @@ export function useCreateIssue(projectId: string) {
       tags?: string[]
       statusId: string
       useWorktree?: boolean
-      parentIssueId?: string
       engineType?: string
       model?: string
       permissionMode?: string
     }) => kanbanApi.createIssue(projectId, data),
-    onSuccess: (_data, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.issues(projectId) })
-      if (variables.parentIssueId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.childIssues(projectId, variables.parentIssueId),
-        })
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.issue(projectId, variables.parentIssueId),
-        })
-      }
     },
   })
 }

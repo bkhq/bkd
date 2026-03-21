@@ -14,9 +14,7 @@ interface Issue {
   tags: string[] | null
   description: string | null
   sortOrder: string
-  parentIssueId: string | null
   useWorktree: boolean
-  childCount?: number
   engineType: string | null
   sessionStatus: string | null
   prompt: string | null
@@ -302,55 +300,21 @@ describe('PATCH /api/projects/:projectId/issues/bulk', () => {
   })
 })
 
-describe('Parent/Child issues', () => {
-  test('creates a child issue', async () => {
-    const parent = expectSuccess(
-      await post<Issue>(`/api/projects/${projectId}/issues`, {
-        title: 'Parent',
-        statusId: 'todo',
-      }),
-    )
-    const child = expectSuccess(
-      await post<Issue>(`/api/projects/${projectId}/issues`, {
-        title: 'Child',
-        statusId: 'todo',
-        parentIssueId: parent.id,
-      }),
-    )
-    expect(child.parentIssueId).toBe(parent.id)
-
-    // Get parent — should include child count
-    const parentDetail = expectSuccess(
-      await get<Issue & { children: Issue[] }>(`/api/projects/${projectId}/issues/${parent.id}`),
-    )
-    expect(parentDetail.childCount).toBe(1)
-  })
-})
-
 describe('DELETE /api/projects/:projectId/issues/:id', () => {
-  test('deletes parent issue and cascades to child issues', async () => {
-    const parent = expectSuccess(
+  test('deletes an issue', async () => {
+    const issue = expectSuccess(
       await post<Issue>(`/api/projects/${projectId}/issues`, {
-        title: 'Delete Parent',
+        title: 'Delete Me',
         statusId: 'todo',
-      }),
-    )
-    const child = expectSuccess(
-      await post<Issue>(`/api/projects/${projectId}/issues`, {
-        title: 'Delete Child',
-        statusId: 'todo',
-        parentIssueId: parent.id,
       }),
     )
 
-    const result = await del<{ id: string }>(`/api/projects/${projectId}/issues/${parent.id}`)
+    const result = await del<{ id: string }>(`/api/projects/${projectId}/issues/${issue.id}`)
     expect(result.status).toBe(200)
-    expect(expectSuccess(result).id).toBe(parent.id)
+    expect(expectSuccess(result).id).toBe(issue.id)
 
-    const parentAfter = await get<Issue>(`/api/projects/${projectId}/issues/${parent.id}`)
-    const childAfter = await get<Issue>(`/api/projects/${projectId}/issues/${child.id}`)
-    expect(parentAfter.status).toBe(404)
-    expect(childAfter.status).toBe(404)
+    const after = await get<Issue>(`/api/projects/${projectId}/issues/${issue.id}`)
+    expect(after.status).toBe(404)
   })
 
   test('returns 404 for nonexistent issue', async () => {

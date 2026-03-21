@@ -350,7 +350,6 @@ projects.delete('/:projectId', async (c) => {
   // Invalidate caches
   await invalidateProjectCache(existing.id, existing.alias)
   await cacheDelByPrefix(`projectIssueIds:${existing.id}`)
-  await cacheDelByPrefix(`childCounts:${existing.id}`)
 
   logger.info({ projectId: existing.id }, 'project_deleted')
 

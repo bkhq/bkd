@@ -40,14 +40,12 @@ type PermissionId = (typeof PERMISSIONS)[number]['id']
 export function CreateIssueForm({
   projectId,
   initialStatusId,
-  parentIssueId,
   autoFocus,
   onCreated,
   onCancel,
 }: {
   projectId: string
   initialStatusId?: string
-  parentIssueId?: string
   autoFocus?: boolean
   onCreated?: () => void
   onCancel?: () => void
@@ -135,7 +133,6 @@ export function CreateIssueForm({
         })(),
         statusId,
         useWorktree,
-        parentIssueId,
         engineType: resolvedEngineType || undefined,
         model: modelId || undefined,
         permissionMode: permissionMap[permission],
@@ -158,7 +155,6 @@ export function CreateIssueForm({
     statusId,
     permission,
     useWorktree,
-    parentIssueId,
     resolvedEngineType,
     modelId,
     createIssue,

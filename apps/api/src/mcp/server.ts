@@ -1,7 +1,7 @@
 // @ts-nocheck -- @modelcontextprotocol/sdk subpath exports may not resolve under Bun monorepo hoisting
 import { mkdir, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { and, asc, desc, eq, inArray, isNull, max } from 'drizzle-orm'
+import { and, asc, desc, eq, max } from 'drizzle-orm'
 import { generateKeyBetween } from 'jittered-fractional-indexing'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { customAlphabet } from 'nanoid'
@@ -9,7 +9,7 @@ import * as z from 'zod'
 import { cacheDel, cacheDelByPrefix } from '@/cache'
 import { db } from '@/db'
 import { findProject, getAppSetting, getDefaultEngine, getEngineDefaultModel, getServerUrl } from '@/db/helpers'
-import { issueLogs, issues as issuesTable, projects as projectsTable } from '@/db/schema'
+import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
 import { getLogsFromDb } from '@/engines/issue/persistence/queries'
 import { engineRegistry } from '@/engines/executors'
@@ -55,7 +55,6 @@ function serializeIssue(row: typeof issuesTable.$inferSelect) {
     statusId: row.statusId,
     issueNumber: row.issueNumber,
     title: row.title,
-    parentIssueId: row.parentIssueId ?? null,
     engineType: row.engineType ?? null,
     sessionStatus: row.sessionStatus ?? null,
     model: row.model ?? null,
@@ -148,30 +147,14 @@ async function insertIssueInTransaction(
   opts: {
     statusId: string
     title: string
-    parentIssueId?: string
     engineType: string | null
     model: string | null
     sessionStatus: string | null
   },
 ) {
-  const { statusId, title, parentIssueId, engineType, model, sessionStatus } = opts
+  const { statusId, title, engineType, model, sessionStatus } = opts
 
   const [newIssue] = await db.transaction(async (tx) => {
-    if (parentIssueId) {
-      const [parent] = await tx
-        .select()
-        .from(issuesTable)
-        .where(
-          and(
-            eq(issuesTable.id, parentIssueId),
-            eq(issuesTable.projectId, projectId),
-            eq(issuesTable.isDeleted, 0),
-          ),
-        )
-      if (!parent) throw new Error('Parent issue not found')
-      if (parent.parentIssueId) throw new Error('Cannot nest deeper than 1 level')
-    }
-
     const [maxNumRow] = await tx
       .select({ maxNum: max(issuesTable.issueNumber) })
       .from(issuesTable)
@@ -200,7 +183,6 @@ async function insertIssueInTransaction(
         issueNumber,
         title,
         sortOrder,
-        parentIssueId: parentIssueId ?? null,
         engineType,
         model,
         sessionStatus,
@@ -318,19 +300,13 @@ export function createMcpServer(): McpServer {
     description: 'List all issues in a project. Returns issues sorted by status update time.',
     inputSchema: z.object({
       projectId: z.string().describe('Project ID or alias'),
-      parentId: z.string().optional().describe('Filter by parent issue ID. Use "null" for root issues only.'),
       limit: z.number().min(1).max(MAX_LIST_LIMIT).optional().describe(`Max results. Default: ${DEFAULT_LIST_LIMIT}`),
     }),
-  }, async ({ projectId, parentId, limit }) => {
+  }, async ({ projectId, limit }) => {
     const project = await findProject(projectId)
     if (!project) return errorResult('Project not found')
 
     const conditions = [eq(issuesTable.projectId, project.id), eq(issuesTable.isDeleted, 0)]
-    if (parentId === 'null') {
-      conditions.push(isNull(issuesTable.parentIssueId))
-    } else if (parentId) {
-      conditions.push(eq(issuesTable.parentIssueId, parentId))
-    }
 
     const rows = await db
       .select()
@@ -376,9 +352,8 @@ export function createMcpServer(): McpServer {
       statusId: z.enum(['todo', 'working', 'review', 'done']).describe('Initial status. Use "working" to auto-execute.'),
       engineType: z.enum(['claude-code', 'codex', 'acp', 'echo']).optional().describe('AI engine type. Defaults to server setting.'),
       model: z.string().optional().describe('Model ID. Defaults to engine default.'),
-      parentIssueId: z.string().optional().describe('Parent issue ID for sub-issues'),
     }),
-  }, async ({ projectId, title, statusId, engineType, model, parentIssueId }) => {
+  }, async ({ projectId, title, statusId, engineType, model }) => {
     const project = await findProject(projectId)
     if (!project) return errorResult('Project not found')
 
@@ -389,7 +364,6 @@ export function createMcpServer(): McpServer {
     const newIssue = await insertIssueInTransaction(project.id, {
       statusId: effectiveStatusId,
       title,
-      parentIssueId,
       engineType: resolved.engine,
       model: resolved.model,
       sessionStatus: shouldExecute ? 'pending' : null,
@@ -504,7 +478,7 @@ export function createMcpServer(): McpServer {
 
   server.registerTool('delete-issue', {
     title: 'Delete Issue',
-    description: 'Soft-delete an issue and its children. Terminates active processes.',
+    description: 'Soft-delete an issue. Terminates active processes.',
     inputSchema: z.object({
       projectId: z.string().describe('Project ID or alias'),
       issueId: z.string().describe('Issue ID'),
@@ -543,31 +517,15 @@ export function createMcpServer(): McpServer {
       }
     }
 
-    // Soft-delete issue + children in a transaction
-    await db.transaction(async (tx) => {
-      const childIssues = await tx
-        .select({ id: issuesTable.id })
-        .from(issuesTable)
-        .where(
-          and(
-            eq(issuesTable.parentIssueId, issueId),
-            eq(issuesTable.projectId, project.id),
-            eq(issuesTable.isDeleted, 0),
-          ),
-        )
-      const childIds = childIssues.map(c => c.id)
-
-      await tx.update(issuesTable).set({ isDeleted: 1 }).where(eq(issuesTable.id, issueId))
-
-      if (childIds.length > 0) {
-        await tx.update(issuesTable).set({ isDeleted: 1 }).where(inArray(issuesTable.id, childIds))
-      }
-    })
+    // Soft-delete the issue
+    await db
+      .update(issuesTable)
+      .set({ isDeleted: 1 })
+      .where(eq(issuesTable.id, issueId))
 
     // Invalidate caches
     await cacheDel(`issue:${project.id}:${issueId}`)
     await cacheDelByPrefix(`projectIssueIds:${project.id}`)
-    await cacheDelByPrefix(`childCounts:${project.id}`)
 
     return textResult({ deleted: true, id: issueId })
   })

@@ -57,7 +57,6 @@ duplicate.post('/:id/duplicate', async (c) => {
         title: source.title,
         tag: source.tag,
         sortOrder,
-        parentIssueId: source.parentIssueId ?? null,
         useWorktree: source.useWorktree,
         engineType: source.engineType,
         model: source.model,
@@ -132,7 +131,7 @@ duplicate.post('/:id/duplicate', async (c) => {
     return [created]
   })
 
-  await cacheDelByPrefix(`childCounts:${project.id}`)
+  await cacheDelByPrefix(`projectIssueIds:${project.id}`)
 
   if (!newIssue) {
     return c.json({ success: false, error: 'Failed to create issue' }, 500)

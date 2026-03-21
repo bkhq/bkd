@@ -38,11 +38,8 @@ export interface Issue {
   title: string
   tags: string[] | null
   sortOrder: string
-  parentIssueId: string | null
   useWorktree: boolean
   isPinned: boolean
-  childCount?: number
-  children?: Issue[]
   engineType: EngineType | null
   sessionStatus: SessionStatus | null
   prompt: string | null
