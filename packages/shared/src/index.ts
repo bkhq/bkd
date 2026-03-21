@@ -377,6 +377,8 @@ export interface ProcessInfo {
   issueId: string
   issueTitle: string
   issueNumber: number
+  projectId: string
+  projectName: string
   engineType: string
   processState: string
   model: string | null
