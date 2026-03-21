@@ -627,7 +627,12 @@ export function createMcpServer(): McpServer {
   server.registerTool('follow-up-issue', {
     title: 'Follow Up Issue',
     description: [
-      'Send a follow-up message to an active AI session on an issue.',
+      'Send a follow-up message to an issue.',
+      '',
+      'Works in any issue state:',
+      '- todo/done: message is queued and will be processed when the issue starts.',
+      '- working (busy): message is queued until the current turn finishes.',
+      '- working (idle) or review: triggers immediate follow-up.',
       '',
       'Best practices:',
       '- Use this to send detailed requirements after creating an issue with a short title.',
@@ -641,6 +646,8 @@ export function createMcpServer(): McpServer {
       model: z.string().optional().describe('Model ID (cannot change during active session)'),
     }),
   }, async ({ projectId, issueId, prompt, model }) => {
+    const { getPendingMessages, upsertPendingMessage } = await import('@/db/pending-messages')
+
     const project = await findProject(projectId)
     if (!project) return errorResult('Project not found')
 
@@ -657,15 +664,53 @@ export function createMcpServer(): McpServer {
     if (!issue) return errorResult('Issue not found')
 
     // Block model change during active session
-    if (issue.externalSessionId && model && model !== (issue.model ?? '')) {
-      return errorResult('Model changes are not allowed during an existing session. Restart to use a different model.')
+    const isActive = issue.sessionStatus === 'running' || issue.sessionStatus === 'pending'
+    if (isActive && model && model !== (issue.model ?? '')) {
+      return errorResult('Cannot change model while session is running. Wait for completion or cancel first.')
+    }
+
+    // Queue message for todo/done issues
+    if (issue.statusId === 'todo') {
+      const messageId = await upsertPendingMessage(issueId, prompt, { type: 'pending' })
+      return textResult({ issueId, messageId, queued: true })
+    }
+    if (issue.statusId === 'done') {
+      const messageId = await upsertPendingMessage(issueId, prompt, { type: 'done' })
+      return textResult({ issueId, messageId, queued: true })
+    }
+
+    // Queue if engine is actively processing a turn
+    if (issue.statusId === 'working' && issueEngine.isTurnInFlight(issueId)) {
+      const messageId = await upsertPendingMessage(issueId, prompt, { type: 'pending' })
+      logger.debug({ issueId, promptChars: prompt.length }, 'mcp_followup_queued_during_active_turn')
+      return textResult({ issueId, messageId, queued: true })
+    }
+
+    // Queue behind existing pending messages
+    const pendingBefore = await getPendingMessages(issueId)
+    if (issue.statusId === 'working' && pendingBefore.length > 0) {
+      const messageId = await upsertPendingMessage(issueId, prompt, { type: 'pending' })
+      flushPendingAsFollowUp(issueId, { model: issue.model })
+      logger.debug({ issueId, pendingCount: pendingBefore.length + 1 }, 'mcp_followup_queued_behind_existing')
+      return textResult({ issueId, messageId, queued: true })
     }
 
     try {
+      // Ensure issue is in working state (review → working transition)
+      const guard = await ensureWorking(issue)
+      if (!guard.ok) return errorResult(guard.reason!)
+
       const result = await issueEngine.followUpIssue(issueId, prompt, model)
       return textResult({ executionId: result.executionId, issueId, messageId: result.messageId })
     } catch (error) {
-      logger.error({ issueId, error }, 'mcp_followup_failed')
+      // Save as pending so message isn't lost
+      logger.warn({ issueId, error: error instanceof Error ? error.message : String(error) }, 'mcp_followup_failed_saving_as_pending')
+      try {
+        const messageId = await upsertPendingMessage(issueId, prompt, { type: 'pending' })
+        return textResult({ issueId, messageId, queued: true })
+      } catch (persistError) {
+        logger.error({ issueId, error: persistError }, 'mcp_followup_persist_pending_failed')
+      }
       return errorResult(`Follow-up failed: ${toMessage(error)}`)
     }
   })
