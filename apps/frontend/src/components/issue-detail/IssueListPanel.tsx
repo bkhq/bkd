@@ -283,11 +283,10 @@ const IssueRow = memo(({
           handleClick()
         }
       }}
-      className={`group w-full flex items-center gap-1 px-1.5 py-2.5 md:py-1.5 text-left border-b border-border/20 transition-all duration-150 ${
+      className={`group w-full flex items-center gap-1 px-2.5 py-2.5 md:py-1.5 text-left border-b border-border/20 transition-all duration-150 ${
         isActive ? 'bg-primary/[0.06] cursor-default' : 'hover:bg-accent/50 cursor-pointer'
       }`}
     >
-      <span className="w-3.5 shrink-0" />
       <span
         className={`text-[11px] font-mono shrink-0 tabular-nums ${
           isActive ? 'text-primary font-medium' : 'text-muted-foreground/70'
