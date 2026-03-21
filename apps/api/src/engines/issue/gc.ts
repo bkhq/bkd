@@ -136,6 +136,10 @@ export function gcSweep(ctx: EngineContext): void {
       }
 
       // --- Check 2: Stream stall detection (turn in-flight but no output) ---
+      // Skip stall detection entirely for keepAlive processes — they may be
+      // legitimately silent for extended periods (e.g. background agents).
+      if (managed.keepAlive) continue
+
       // Three-tier approach: give the CLI time to retry internally before we intervene.
       //   Tier 1 (STREAM_STALL_TIMEOUT_MS): Non-destructive liveness check via OS
       //   Tier 2 (+ STALL_LIVENESS_GRACE_MS): Process alive but still silent → send interrupt
