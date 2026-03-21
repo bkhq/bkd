@@ -76,6 +76,7 @@ function ProcessCard({ proc }: { proc: ProcessInfo }) {
       {/* Title row */}
       <div className="flex items-center gap-2 min-w-0">
         <StatusIcon status={proc.processState} />
+        <span className="text-[10px] text-muted-foreground shrink-0">{proc.projectName}</span>
         <button
           type="button"
           className="text-xs font-medium text-foreground truncate hover:underline cursor-pointer text-left min-w-0"
@@ -185,17 +186,6 @@ export function ProcessList({ processes }: { processes: ProcessInfo[] }) {
     }
     return [...map.values()]
   }, [processes])
-
-  // If only one project, skip the group header
-  if (grouped.length === 1) {
-    return (
-      <div className="flex flex-col gap-2">
-        {grouped[0]!.items.map(proc => (
-          <ProcessCard key={proc.executionId} proc={proc} />
-        ))}
-      </div>
-    )
-  }
 
   return (
     <div className="flex flex-col gap-4">
