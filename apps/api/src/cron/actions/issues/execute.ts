@@ -1,8 +1,8 @@
 import { issueEngine } from '@/engines/issue'
 import type { EngineType } from '@/engines/types'
 import { ensureWorking, parseProjectEnvVars } from '@/routes/issues/_shared'
-import { resolveIssue } from './issue-resolver'
-import { registerAction } from './registry'
+import { registerAction } from '../registry'
+import { resolveIssue } from './resolver'
 
 registerAction('issue-execute', {
   description: 'Start AI engine execution on an issue',

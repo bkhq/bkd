@@ -1,5 +1,5 @@
-import { resolveIssue } from './issue-resolver'
-import { registerAction } from './registry'
+import { registerAction } from '../registry'
+import { resolveIssue } from './resolver'
 
 registerAction('issue-check-status', {
   description: 'Check current status of an issue (useful for monitoring)',

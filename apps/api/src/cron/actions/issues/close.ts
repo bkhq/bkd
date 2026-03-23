@@ -4,8 +4,8 @@ import { db } from '@/db'
 import { issues as issuesTable } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
 import { emitIssueUpdated } from '@/events/issue-events'
-import { resolveIssue } from './issue-resolver'
-import { registerAction } from './registry'
+import { registerAction } from '../registry'
+import { resolveIssue } from './resolver'
 
 registerAction('issue-close', {
   description: 'Move an issue to done (or specified targetStatus), cancelling any active session',

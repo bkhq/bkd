@@ -1,9 +1,6 @@
 // Import action modules to trigger self-registration
 import './builtins'
-import './follow-up'
-import './execute'
-import './close'
-import './check-status'
+import './issues'
 
 // Re-export registry API
 export {
