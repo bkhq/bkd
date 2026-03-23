@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { compress } from 'hono/compress'
+import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
 import { authMiddleware, authRoutes } from './auth'
 import { getEngineDiscovery } from './engines/startup-probe'
@@ -12,8 +13,35 @@ import terminalRoute from './routes/terminal'
 
 const app = new Hono()
 
-// --- Security headers ---
-app.use(secureHeaders())
+// --- Security headers (CSP + HSTS) ---
+app.use(secureHeaders({
+  contentSecurityPolicy: {
+    defaultSrc: ['\'self\''],
+    scriptSrc: ['\'self\'', '\'unsafe-inline\''],
+    styleSrc: ['\'self\'', '\'unsafe-inline\''],
+    imgSrc: ['\'self\'', 'data:', 'blob:'],
+    connectSrc: ['\'self\''],
+    fontSrc: ['\'self\''],
+    frameAncestors: ['\'none\''],
+    baseUri: ['\'self\''],
+    formAction: ['\'self\''],
+    objectSrc: ['\'none\''],
+  },
+  strictTransportSecurity: 'max-age=31536000; includeSubDomains',
+}))
+
+// --- CORS ---
+const allowedOrigin = process.env.ALLOWED_ORIGIN ?? '*'
+app.use('/api/*', cors({
+  origin: allowedOrigin === '*'
+    ? '*'
+    : allowedOrigin.split(',').map(o => o.trim()),
+  allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  exposeHeaders: ['Content-Length'],
+  maxAge: 600,
+  credentials: allowedOrigin !== '*',
+}))
 
 // --- Compression (skip for SSE routes) ---
 app.use('*', async (c, next) => {
