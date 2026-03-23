@@ -23,6 +23,19 @@ import type {
 } from '@/types/kanban'
 import { clearToken, getToken } from './auth'
 
+export class ApiError extends Error {
+  readonly statusCode: number
+  readonly isUserError: boolean
+
+  constructor(message: string, statusCode: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.statusCode = statusCode
+    // 4xx errors are user-facing; 5xx are server errors
+    this.isUserError = statusCode >= 400 && statusCode < 500
+  }
+}
+
 // Cron types (frontend-only, matches backend REST response shape)
 export interface CronJob {
   id: string
@@ -93,7 +106,7 @@ async function request<T>(url: string, options?: RequestInit & { timeoutMs?: num
   } catch (err) {
     clearTimeout(timer)
     if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new Error(`Request timed out after ${timeoutMs}ms: ${url}`)
+      throw new ApiError(`Request timed out after ${timeoutMs}ms: ${url}`, 408)
     }
     throw err
   }
@@ -102,12 +115,12 @@ async function request<T>(url: string, options?: RequestInit & { timeoutMs?: num
   if (res.status === 401) {
     clearToken()
     window.location.href = '/login'
-    throw new Error('Unauthorized')
+    throw new ApiError('Unauthorized', 401)
   }
 
   const json = (await res.json()) as ApiResponse<T>
   if (!json.success) {
-    throw new Error(json.error)
+    throw new ApiError(json.error, res.status)
   }
   return json.data
 }
@@ -143,7 +156,7 @@ async function postFormData<T>(url: string, formData: FormData, timeoutMs = 60_0
   } catch (err) {
     clearTimeout(timer)
     if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new Error(`Upload timed out after ${timeoutMs}ms: ${url}`)
+      throw new ApiError(`Upload timed out after ${timeoutMs}ms: ${url}`, 408)
     }
     throw err
   }
@@ -152,12 +165,12 @@ async function postFormData<T>(url: string, formData: FormData, timeoutMs = 60_0
   if (res.status === 401) {
     clearToken()
     window.location.href = '/login'
-    throw new Error('Unauthorized')
+    throw new ApiError('Unauthorized', 401)
   }
 
   const json = (await res.json()) as ApiResponse<T>
   if (!json.success) {
-    throw new Error(json.error)
+    throw new ApiError(json.error, res.status)
   }
   return json.data
 }
