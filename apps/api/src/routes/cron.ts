@@ -1,55 +1,18 @@
 import { Hono } from 'hono'
 import { and, desc, eq, lt } from 'drizzle-orm'
+import * as z from 'zod'
+import { zValidator } from '@hono/zod-validator'
 import { db } from '@/db'
 import { cronJobLogs, cronJobs } from '@/db/schema'
-import { getBaker } from '@/cron'
+import { serializeJob } from '@/cron/serialize'
 
 const cronRoute = new Hono()
 
-function serializeJob(row: typeof cronJobs.$inferSelect) {
-  let status = 'unknown'
-  let nextExecution: string | null = null
-
-  try {
-    const baker = getBaker()
-    status = baker.getStatus(row.name)
-    const next = baker.nextExecution(row.name)
-    nextExecution = next ? next.toISOString() : null
-  } catch {
-    status = row.enabled ? 'not_loaded' : 'disabled'
-  }
-
-  // Get latest log for this job
-  const [latestLog] = db
-    .select()
-    .from(cronJobLogs)
-    .where(eq(cronJobLogs.jobId, row.id))
-    .orderBy(desc(cronJobLogs.id))
-    .limit(1)
-    .all()
-
-  return {
-    id: row.id,
-    name: row.name,
-    cron: row.cron,
-    taskType: row.taskType,
-    taskConfig: JSON.parse(row.taskConfig),
-    enabled: row.enabled,
-    status,
-    nextExecution,
-    lastRun: latestLog
-      ? {
-          status: latestLog.status,
-          startedAt: latestLog.startedAt,
-          durationMs: latestLog.durationMs,
-          result: latestLog.result,
-          error: latestLog.error,
-        }
-      : null,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  }
-}
+const logsQuerySchema = z.object({
+  status: z.enum(['success', 'failed', 'running']).optional(),
+  limit: z.coerce.number().min(1).max(100).optional(),
+  cursor: z.string().optional(),
+})
 
 // GET /api/cron — list all cron jobs
 cronRoute.get('/', (c) => {
@@ -63,9 +26,9 @@ cronRoute.get('/', (c) => {
 })
 
 // GET /api/cron/:jobId/logs — get logs for a specific job
-cronRoute.get('/:jobId/logs', (c) => {
+cronRoute.get('/:jobId/logs', zValidator('query', logsQuerySchema), (c) => {
   const jobId = c.req.param('jobId')
-  const { status, limit: limitStr, cursor } = c.req.query()
+  const { status, limit, cursor } = c.req.valid('query')
 
   // Verify job exists
   const [job] = db
@@ -78,7 +41,7 @@ cronRoute.get('/:jobId/logs', (c) => {
     return c.json({ success: false, error: 'Job not found' }, 404)
   }
 
-  const pageLimit = Math.min(Math.max(Number(limitStr) || 20, 1), 100)
+  const pageLimit = limit ?? 20
   const conditions = [eq(cronJobLogs.jobId, jobId)]
 
   if (status) {

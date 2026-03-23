@@ -17,6 +17,10 @@ const BUILTIN_JOBS: Record<string, { cron: string, taskConfig: TaskConfig }> = {
     cron: '0 */30 * * * *', // every 30 minutes
     taskConfig: { handler: 'worktree-cleanup' },
   },
+  'log-cleanup': {
+    cron: '0 0 3 * * *', // daily at 3 AM
+    taskConfig: { handler: 'log-cleanup' },
+  },
 }
 
 let baker: Baker | null = null

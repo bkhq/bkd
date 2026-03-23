@@ -6,6 +6,7 @@ import { cronJobLogs, cronJobs } from '@/db/schema'
 import { logger } from '@/logger'
 import { executeTask } from './executor'
 import { getBaker, syncJob } from './index'
+import { serializeJob } from './serialize'
 import type { TaskConfig } from './executor'
 
 function textResult(data: unknown) {
@@ -31,33 +32,6 @@ function findJob(identifier: string) {
     .where(and(eq(cronJobs.isDeleted, 0), eq(cronJobs.name, identifier)))
     .all()
   return byName ?? null
-}
-
-function serializeJob(row: typeof cronJobs.$inferSelect) {
-  const baker = getBaker()
-  let status: string = 'unknown'
-  let nextExecution: string | null = null
-
-  try {
-    status = baker.getStatus(row.name)
-    const next = baker.nextExecution(row.name)
-    nextExecution = next ? next.toISOString() : null
-  } catch {
-    status = row.enabled ? 'not_loaded' : 'disabled'
-  }
-
-  return {
-    id: row.id,
-    name: row.name,
-    cron: row.cron,
-    taskType: row.taskType,
-    taskConfig: JSON.parse(row.taskConfig),
-    enabled: row.enabled,
-    status,
-    nextExecution,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  }
 }
 
 export function registerCronMcpTools(server: McpServer): void {
@@ -113,7 +87,9 @@ export function registerCronMcpTools(server: McpServer): void {
     // Validate cron expression
     try {
       const { Cron } = await import('cronbake')
-      Cron.isValid(cron as any)
+      if (!Cron.isValid(cron as any)) {
+        return errorResult(`Invalid cron expression: ${cron}`)
+      }
     } catch {
       return errorResult(`Invalid cron expression: ${cron}`)
     }
@@ -156,8 +132,9 @@ export function registerCronMcpTools(server: McpServer): void {
 
     // Remove from Baker
     try {
-      getBaker().stop(row.name)
-      getBaker().remove(row.name)
+      const b = getBaker()
+      b.stop(row.name)
+      b.remove(row.name)
     } catch {
       // Job may not be in Baker
     }
