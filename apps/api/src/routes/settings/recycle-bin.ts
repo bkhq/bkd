@@ -74,12 +74,13 @@ recycleBin.post(
       return c.json({ success: false, error: 'Parent project no longer exists' }, 400)
     }
 
-    // If the project is also soft-deleted, restore it too
-    if (project.isDeleted === 1) {
-      await db.update(projectsTable).set({ isDeleted: 0 }).where(eq(projectsTable.id, project.id))
-    }
-
-    await db.update(issuesTable).set({ isDeleted: 0 }).where(eq(issuesTable.id, issueId))
+    // Restore project (if soft-deleted) and issue atomically
+    await db.transaction(async (tx) => {
+      if (project.isDeleted === 1) {
+        await tx.update(projectsTable).set({ isDeleted: 0 }).where(eq(projectsTable.id, project.id))
+      }
+      await tx.update(issuesTable).set({ isDeleted: 0 }).where(eq(issuesTable.id, issueId))
+    })
 
     // Invalidate cached issue lookups for this project to avoid stale data
     await cacheDelByPrefix(`issue:${existing.projectId}:`)

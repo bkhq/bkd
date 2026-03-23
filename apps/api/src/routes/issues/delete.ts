@@ -55,10 +55,12 @@ del.delete('/:id', async (c) => {
   }
 
   // Soft-delete the issue only — keep logs/tools/attachments intact for restore
-  await db
-    .update(issuesTable)
-    .set({ isDeleted: 1 })
-    .where(eq(issuesTable.id, issueId))
+  await db.transaction(async (tx) => {
+    await tx
+      .update(issuesTable)
+      .set({ isDeleted: 1 })
+      .where(eq(issuesTable.id, issueId))
+  })
 
   // Invalidate caches
   await cacheDel(`issue:${project.id}:${issueId}`)
