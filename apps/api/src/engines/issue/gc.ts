@@ -3,6 +3,7 @@ import type { ProcessStatus } from '@/engines/types'
 import { logger } from '@/logger'
 import {
   IDLE_TIMEOUT_MS,
+  KEEPALIVE_STALL_TIMEOUT_MS,
   STALL_INTERRUPT_GRACE_MS,
   STALL_LIVENESS_GRACE_MS,
   STREAM_STALL_TIMEOUT_MS,
@@ -136,9 +137,40 @@ export function gcSweep(ctx: EngineContext): void {
       }
 
       // --- Check 2: Stream stall detection (turn in-flight but no output) ---
-      // Skip stall detection entirely for keepAlive processes — they may be
-      // legitimately silent for extended periods (e.g. background agents).
-      if (managed.keepAlive) continue
+      // keepAlive processes use a longer stall timeout (30 min) since they may
+      // be legitimately silent for extended periods. If a keepAlive process has
+      // no activity for longer than KEEPALIVE_STALL_TIMEOUT_MS and the OS
+      // confirms the process is dead, terminate it.
+      if (managed.keepAlive) {
+        if (managed.turnInFlight) {
+          const silenceMs = now - managed.lastActivityAt.getTime()
+          if (silenceMs > KEEPALIVE_STALL_TIMEOUT_MS) {
+            const pid = (managed.process.subprocess as { pid?: number }).pid
+            const alive = isProcessAlive(pid)
+            if (!alive) {
+              const stallMinutes = Math.round(silenceMs / 60000)
+              logger.warn(
+                {
+                  issueId: managed.issueId,
+                  executionId: managed.executionId,
+                  stallMinutes,
+                  pid,
+                },
+                'keepalive_stall_process_dead',
+              )
+              emitDiagnosticLog(
+                managed.issueId,
+                managed.executionId,
+                `[BKD] keepAlive stall — process dead (silent ${stallMinutes}min, pid=${pid})`,
+                { event: 'keepalive_stall_dead', stallMinutes, pid },
+              )
+              terminateAndSettle(ctx, entry.id, managed, 'failed')
+              cleaned++
+            }
+          }
+        }
+        continue
+      }
 
       // Three-tier approach: give the CLI time to retry internally before we intervene.
       //   Tier 1 (STREAM_STALL_TIMEOUT_MS): Non-destructive liveness check via OS
