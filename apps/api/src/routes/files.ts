@@ -1,5 +1,6 @@
 import { readdir, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
+import { getAppSetting } from '@/db/helpers'
 import { runCommand } from '@/engines/spawn'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
@@ -52,7 +53,7 @@ async function getGitIgnoredNames(dir: string, names: string[]): Promise<Set<str
 }
 
 /** Resolve root from query param + validate sub-path stays inside it. */
-function resolveRootPath(c: Context, relativePath: string) {
+async function resolveRootPath(c: Context, relativePath: string) {
   const rootParam = c.req.query('root')
   if (!rootParam) {
     return {
@@ -62,6 +63,17 @@ function resolveRootPath(c: Context, relativePath: string) {
 
   const root = resolve(rootParam)
   const target = resolve(root, relativePath)
+
+  // SEC-007: Validate root is within workspace
+  const workspaceRoot = await getAppSetting('workspace:defaultPath')
+  if (workspaceRoot && workspaceRoot !== '/') {
+    const resolvedWorkspace = resolve(workspaceRoot)
+    if (!isInsideRoot(root, resolvedWorkspace)) {
+      return {
+        error: c.json({ success: false, error: 'Root is outside the configured workspace' }, 403),
+      }
+    }
+  }
 
   if (!isInsideRoot(target, root)) {
     return {
@@ -111,9 +123,14 @@ function extractPathAfter(c: Context, marker: string): string {
 // ── /files/show — JSON browse (directory listing + file preview) ──
 
 async function handleShow(c: Context, relativePath: string) {
-  const resolved = resolveRootPath(c, relativePath)
+  const resolved = await resolveRootPath(c, relativePath)
   if ('error' in resolved) return resolved.error
   const { root, target } = resolved
+
+  // SEC-009: Verify real path after symlink resolution stays inside root
+  if (!await verifyRealPath(target, root)) {
+    return c.json({ success: false, error: 'Path escapes root via symlink' }, 403)
+  }
 
   const hideIgnored = c.req.query('hideIgnored') === 'true'
 
@@ -214,9 +231,14 @@ async function handleShow(c: Context, relativePath: string) {
 // ── /files/raw — raw file download ──
 
 async function handleRaw(c: Context, relativePath: string) {
-  const resolved = resolveRootPath(c, relativePath)
+  const resolved = await resolveRootPath(c, relativePath)
   if ('error' in resolved) return resolved.error
-  const { target } = resolved
+  const { root, target } = resolved
+
+  // SEC-008: Verify real path after symlink resolution stays inside root
+  if (!await verifyRealPath(target, root)) {
+    return c.json({ success: false, error: 'Path escapes root via symlink' }, 403)
+  }
 
   try {
     const targetStat = await stat(target)
@@ -247,7 +269,7 @@ async function handleRaw(c: Context, relativePath: string) {
 // ── /files/delete — delete file or directory ──
 
 async function handleDelete(c: Context, relativePath: string) {
-  const resolved = resolveRootPath(c, relativePath)
+  const resolved = await resolveRootPath(c, relativePath)
   if ('error' in resolved) return resolved.error
   const { target, root } = resolved
 
@@ -281,7 +303,7 @@ async function handleDelete(c: Context, relativePath: string) {
 const MAX_SAVE_SIZE = 5 * 1024 * 1024 // 5 MB
 
 async function handleSave(c: Context, relativePath: string) {
-  const resolved = resolveRootPath(c, relativePath)
+  const resolved = await resolveRootPath(c, relativePath)
   if ('error' in resolved) return resolved.error
   const { target, root } = resolved
 
