@@ -70,11 +70,34 @@ function authHeaders(): Record<string, string> {
   return headers
 }
 
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    headers: authHeaders(),
-    ...options,
-  })
+const DEFAULT_TIMEOUT_MS = 30_000 // 30 seconds
+
+async function request<T>(url: string, options?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchOptions } = options ?? {}
+
+  // Wire up AbortController for timeout, chaining with any existing signal
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const existingSignal = fetchOptions.signal
+  if (existingSignal) {
+    existingSignal.addEventListener('abort', () => controller.abort(existingSignal.reason))
+  }
+
+  let res: Response
+  try {
+    res = await fetch(url, {
+      headers: authHeaders(),
+      ...fetchOptions,
+      signal: controller.signal,
+    })
+  } catch (err) {
+    clearTimeout(timer)
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeoutMs}ms: ${url}`)
+    }
+    throw err
+  }
+  clearTimeout(timer)
 
   if (res.status === 401) {
     clearToken()
@@ -105,13 +128,26 @@ function del<T>(url: string) {
   return request<T>(url, { method: 'DELETE' })
 }
 
-async function postFormData<T>(url: string, formData: FormData): Promise<T> {
+async function postFormData<T>(url: string, formData: FormData, timeoutMs = 60_000): Promise<T> {
   const token = getToken()
   const headers: Record<string, string> = {}
   if (token) {
     headers.Authorization = `Bearer ${token}`
   }
-  const res = await fetch(url, { method: 'POST', body: formData, headers })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  let res: Response
+  try {
+    res = await fetch(url, { method: 'POST', body: formData, headers, signal: controller.signal })
+  } catch (err) {
+    clearTimeout(timer)
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error(`Upload timed out after ${timeoutMs}ms: ${url}`)
+    }
+    throw err
+  }
+  clearTimeout(timer)
 
   if (res.status === 401) {
     clearToken()
