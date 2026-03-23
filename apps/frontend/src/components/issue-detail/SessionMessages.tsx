@@ -1,6 +1,7 @@
-import type { ChatMessage, NormalizedLogEntry, TaskPlanChatMessage } from '@bkd/shared'
+import type { ChatMessage, NormalizedLogEntry, TaskPlanChatMessage, UserChatMessage } from '@bkd/shared'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { CheckCircle2, ChevronDown, Circle, ListTodo, Loader2 } from 'lucide-react'
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useChatMessages } from '@/hooks/use-chat-messages'
 import { useViewModeStore } from '@/stores/view-mode-store'
@@ -155,6 +156,9 @@ export function SessionMessages(props: {
   return <LegacySessionMessages {...rest} />
 }
 
+/** Threshold: below this count, render without virtualization for simpler layout. */
+const VIRTUALIZE_THRESHOLD = 80
+
 function LegacySessionMessages({
   logs,
   scrollRef,
@@ -183,6 +187,8 @@ function LegacySessionMessages({
 
   // Transform flat entries → grouped ChatMessage[]
   const { messages, pendingMessages } = useChatMessages(logs)
+
+  const useVirtual = messages.length >= VIRTUALIZE_THRESHOLD
 
   // Auto-scroll to bottom on new messages
   const nearBottomRef = useRef(true)
@@ -261,64 +267,155 @@ function LegacySessionMessages({
             </div>
           ) :
         null}
+      {useVirtual ?
+          (
+            <VirtualMessageList
+              messages={messages}
+              scrollRef={scrollRef}
+            />
+          ) :
+          messages.map(msg => (
+            <ChatMessageRow key={msg.id} message={msg} />
+          ))}
+      <ThinkingIndicator
+        isRunning={isRunning}
+        isCancelling={isCancelling}
+        workingStep={workingStep}
+        onCancel={onCancel}
+      />
+      <PendingMessagesList
+        messages={pendingMessages}
+        onEditPending={onEditPending}
+      />
+    </div>
+  )
+}
+
+// ── Virtualized message list ─────────────────────────────
+
+function VirtualMessageList({
+  messages,
+  scrollRef,
+}: {
+  messages: ChatMessage[]
+  scrollRef?: React.RefObject<HTMLDivElement | null>
+}) {
+  const getScrollElement = useCallback(
+    () => scrollRef?.current ?? null,
+    [scrollRef],
+  )
+
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement,
+    estimateSize: () => 60,
+    overscan: 15,
+  })
+
+  return (
+    <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+      {virtualizer.getVirtualItems().map((item) => {
+        const msg = messages[item.index]
+        return (
+          <div
+            key={msg.id}
+            data-index={item.index}
+            ref={virtualizer.measureElement}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${item.start}px)`,
+            }}
+          >
+            <ChatMessageRow message={msg} />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Thinking indicator ───────────────────────────────────
+
+function ThinkingIndicator({
+  isRunning,
+  isCancelling,
+  workingStep,
+  onCancel,
+}: {
+  isRunning: boolean
+  isCancelling: boolean
+  workingStep?: string | null
+  onCancel?: () => void
+}) {
+  const { t } = useTranslation()
+  if (!isRunning) return null
+
+  return (
+    <div className="flex items-center gap-2.5 my-2 px-3 py-2 text-xs text-muted-foreground animate-message-enter">
+      <span className="thinking-dots flex items-center gap-[3px] text-violet-500/70 dark:text-violet-400/70">
+        <span />
+        <span />
+        <span />
+      </span>
+      <span className="font-medium text-violet-500/70 dark:text-violet-400/70">
+        {isCancelling ? t('session.cancelling') : t('session.thinking')}
+      </span>
+      {!isCancelling && workingStep ?
+          (
+            <span className="truncate text-[11px] text-muted-foreground/60 italic">
+              {workingStep}
+            </span>
+          ) :
+        null}
+      {onCancel ?
+          (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={isCancelling}
+              className="ml-auto rounded-md border border-border/40 bg-background/80 px-2 py-0.5 text-[11px] text-foreground/70 transition-colors hover:bg-accent hover:border-border disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
+            </button>
+          ) :
+        null}
+    </div>
+  )
+}
+
+// ── Pending messages ─────────────────────────────────────
+
+function PendingMessagesList({
+  messages,
+  onEditPending,
+}: {
+  messages: UserChatMessage[]
+  onEditPending?: (messageId: string) => void
+}) {
+  const { t } = useTranslation()
+  if (messages.length === 0) return null
+
+  return (
+    <div className="mt-1 border-t border-border/30 pt-2">
       {messages.map(msg => (
-        <ChatMessageRow key={msg.id} message={msg} />
+        <div key={msg.id} className="group relative">
+          <ChatMessageRow message={msg} />
+          {onEditPending && (msg.status === 'pending' || msg.status === 'done') ?
+              (
+                <button
+                  type="button"
+                  onClick={() => onEditPending(msg.entry.messageId ?? msg.id)}
+                  className="absolute right-2 top-2 hidden rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground group-hover:inline-flex"
+                >
+                  {t('common.edit')}
+                </button>
+              ) :
+            null}
+        </div>
       ))}
-      {isRunning ?
-          (
-            <div className="flex items-center gap-2.5 my-2 px-3 py-2 text-xs text-muted-foreground animate-message-enter">
-              <span className="thinking-dots flex items-center gap-[3px] text-violet-500/70 dark:text-violet-400/70">
-                <span />
-                <span />
-                <span />
-              </span>
-              <span className="font-medium text-violet-500/70 dark:text-violet-400/70">
-                {isCancelling ? t('session.cancelling') : t('session.thinking')}
-              </span>
-              {!isCancelling && workingStep ?
-                  (
-                    <span className="truncate text-[11px] text-muted-foreground/60 italic">
-                      {workingStep}
-                    </span>
-                  ) :
-                null}
-              {onCancel ?
-                  (
-                    <button
-                      type="button"
-                      onClick={onCancel}
-                      disabled={isCancelling}
-                      className="ml-auto rounded-md border border-border/40 bg-background/80 px-2 py-0.5 text-[11px] text-foreground/70 transition-colors hover:bg-accent hover:border-border disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
-                    </button>
-                  ) :
-                null}
-            </div>
-          ) :
-        null}
-      {pendingMessages.length > 0 ?
-          (
-            <div className="mt-1 border-t border-border/30 pt-2">
-              {pendingMessages.map(msg => (
-                <div key={msg.id} className="group relative">
-                  <ChatMessageRow message={msg} />
-                  {onEditPending && (msg.status === 'pending' || msg.status === 'done') ?
-                      (
-                        <button
-                          type="button"
-                          onClick={() => onEditPending(msg.entry.messageId ?? msg.id)}
-                          className="absolute right-2 top-2 hidden rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground group-hover:inline-flex"
-                        >
-                          {t('common.edit')}
-                        </button>
-                      ) :
-                    null}
-                </div>
-              ))}
-            </div>
-          ) :
-        null}
     </div>
   )
 }

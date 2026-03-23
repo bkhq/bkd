@@ -230,15 +230,23 @@ export function ChatBody({
     const el = scrollRef.current
     if (!el) return
 
+    let rafId = 0
     const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = el
-      setShowScrollTop(scrollTop > 200)
-      setShowScrollBottom(scrollHeight - scrollTop - clientHeight > 200)
+      if (rafId) return
+      rafId = requestAnimationFrame(() => {
+        rafId = 0
+        const { scrollTop, scrollHeight, clientHeight } = el
+        setShowScrollTop(scrollTop > 200)
+        setShowScrollBottom(scrollHeight - scrollTop - clientHeight > 200)
+      })
     }
 
     handleScroll()
     el.addEventListener('scroll', handleScroll, { passive: true })
-    return () => el.removeEventListener('scroll', handleScroll)
+    return () => {
+      el.removeEventListener('scroll', handleScroll)
+      if (rafId) cancelAnimationFrame(rafId)
+    }
   }, [scrollRef, logs.length])
 
   const scrollToTop = useCallback(() => {
