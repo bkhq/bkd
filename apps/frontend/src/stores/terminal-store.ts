@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { attachResizeClamp } from '@/lib/store-resize'
 
 const MIN_WIDTH = 320
 const DEFAULT_WIDTH_RATIO = 0.4
@@ -52,17 +53,11 @@ export const useTerminalStore = create<TerminalStore>(set => ({
   setWidth: w => set({ width: clampWidth(w) }),
 }))
 
-// Re-clamp width on window resize
-if (typeof window !== 'undefined') {
-  const KEY = '__terminalStoreResizeAttached'
-  if (!(window as unknown as Record<string, unknown>)[KEY]) {
-    ;(window as unknown as Record<string, unknown>)[KEY] = true
-    window.addEventListener('resize', () => {
-      const store = useTerminalStore.getState()
-      const clamped = clampWidth(store.width)
-      if (clamped !== store.width) {
-        store.setWidth(clamped)
-      }
-    })
-  }
-}
+// Re-clamp width on window resize (HMR-safe via import.meta.hot.dispose)
+attachResizeClamp(useTerminalStore.getState, clampWidth, import.meta.hot)
+
+// Per-field selectors to avoid full re-renders
+export const useTerminalOpen = () => useTerminalStore(s => s.isOpen)
+export const useTerminalMinimized = () => useTerminalStore(s => s.isMinimized)
+export const useTerminalFullscreen = () => useTerminalStore(s => s.isFullscreen)
+export const useTerminalWidth = () => useTerminalStore(s => s.width)

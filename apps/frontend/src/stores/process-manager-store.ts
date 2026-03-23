@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { attachResizeClamp } from '@/lib/store-resize'
 
 const MIN_WIDTH = 320
 const DEFAULT_WIDTH_RATIO = 0.35
@@ -51,17 +52,11 @@ export const useProcessManagerStore = create<ProcessManagerStore>(set => ({
   setWidth: w => set({ width: clampWidth(w) }),
 }))
 
-// Re-clamp width on window resize
-if (typeof window !== 'undefined') {
-  const KEY = '__processManagerStoreResizeAttached'
-  if (!(window as unknown as Record<string, unknown>)[KEY]) {
-    ;(window as unknown as Record<string, unknown>)[KEY] = true
-    window.addEventListener('resize', () => {
-      const store = useProcessManagerStore.getState()
-      const clamped = clampWidth(store.width)
-      if (clamped !== store.width) {
-        store.setWidth(clamped)
-      }
-    })
-  }
-}
+// Re-clamp width on window resize (HMR-safe via import.meta.hot.dispose)
+attachResizeClamp(useProcessManagerStore.getState, clampWidth, import.meta.hot)
+
+// Per-field selectors to avoid full re-renders
+export const useProcessManagerOpen = () => useProcessManagerStore(s => s.isOpen)
+export const useProcessManagerMinimized = () => useProcessManagerStore(s => s.isMinimized)
+export const useProcessManagerFullscreen = () => useProcessManagerStore(s => s.isFullscreen)
+export const useProcessManagerWidth = () => useProcessManagerStore(s => s.width)

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { attachResizeClamp } from '@/lib/store-resize'
 
 const MIN_WIDTH = 520
 const DEFAULT_WIDTH_RATIO = 0.38
@@ -56,17 +57,12 @@ export const useNotesStore = create<NotesStore>(set => ({
   selectNote: id => set({ selectedNoteId: id }),
 }))
 
-// Re-clamp width on window resize
-if (typeof window !== 'undefined') {
-  const KEY = '__notesStoreResizeAttached'
-  if (!(window as unknown as Record<string, unknown>)[KEY]) {
-    ;(window as unknown as Record<string, unknown>)[KEY] = true
-    window.addEventListener('resize', () => {
-      const store = useNotesStore.getState()
-      const clamped = clampWidth(store.width)
-      if (clamped !== store.width) {
-        store.setWidth(clamped)
-      }
-    })
-  }
-}
+// Re-clamp width on window resize (HMR-safe via import.meta.hot.dispose)
+attachResizeClamp(useNotesStore.getState, clampWidth, import.meta.hot)
+
+// Per-field selectors to avoid full re-renders
+export const useNotesOpen = () => useNotesStore(s => s.isOpen)
+export const useNotesMinimized = () => useNotesStore(s => s.isMinimized)
+export const useNotesFullscreen = () => useNotesStore(s => s.isFullscreen)
+export const useNotesWidth = () => useNotesStore(s => s.width)
+export const useSelectedNoteId = () => useNotesStore(s => s.selectedNoteId)

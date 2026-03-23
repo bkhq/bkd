@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { attachResizeClamp } from '@/lib/store-resize'
 
 type PanelState = { kind: 'closed' } | { kind: 'view', issueId: string }
 
@@ -63,17 +64,9 @@ export const useSelectedIssueId = () =>
   usePanelStore(s => (s.panel.kind === 'view' ? s.panel.issueId : null))
 export const useIsPanelOpen = () => usePanelStore(s => s.panel.kind !== 'closed')
 
-// Re-clamp width on window resize (guarded to prevent duplicate listeners during HMR)
-if (typeof window !== 'undefined') {
-  const RESIZE_KEY = '__panelStoreResizeAttached'
-  if (!(window as unknown as Record<string, unknown>)[RESIZE_KEY]) {
-    ;(window as unknown as Record<string, unknown>)[RESIZE_KEY] = true
-    window.addEventListener('resize', () => {
-      const store = usePanelStore.getState()
-      const clamped = clampWidth(store.width)
-      if (clamped !== store.width) {
-        store.setWidth(clamped)
-      }
-    })
-  }
-}
+// Re-clamp width on window resize (HMR-safe via import.meta.hot.dispose)
+attachResizeClamp(usePanelStore.getState, clampWidth, import.meta.hot)
+
+// Per-field selectors to avoid full re-renders
+export const usePanelWidth = () => usePanelStore(s => s.width)
+export const useCreateDialogOpen = () => usePanelStore(s => s.createDialogOpen)

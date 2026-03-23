@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { attachResizeClamp } from '@/lib/store-resize'
 
 const MIN_WIDTH = 320
 const DEFAULT_WIDTH_RATIO = 0.35
@@ -190,17 +191,14 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
   toggleHideIgnored: () => set(s => ({ hideIgnored: !s.hideIgnored })),
 }))
 
-// Re-clamp width on window resize
-if (typeof window !== 'undefined') {
-  const KEY = '__fileBrowserStoreResizeAttached'
-  if (!(window as unknown as Record<string, unknown>)[KEY]) {
-    ;(window as unknown as Record<string, unknown>)[KEY] = true
-    window.addEventListener('resize', () => {
-      const store = useFileBrowserStore.getState()
-      const clamped = clampWidth(store.width)
-      if (clamped !== store.width) {
-        store.setWidth(clamped)
-      }
-    })
-  }
-}
+// Re-clamp width on window resize (HMR-safe via import.meta.hot.dispose)
+attachResizeClamp(useFileBrowserStore.getState, clampWidth, import.meta.hot)
+
+// Per-field selectors to avoid full re-renders
+export const useFileBrowserOpen = () => useFileBrowserStore(s => s.isOpen)
+export const useFileBrowserMinimized = () => useFileBrowserStore(s => s.isMinimized)
+export const useFileBrowserFullscreen = () => useFileBrowserStore(s => s.isFullscreen)
+export const useFileBrowserIsDrawer = () => useFileBrowserStore(s => s.isDrawer)
+export const useFileBrowserWidth = () => useFileBrowserStore(s => s.width)
+export const useFileBrowserCurrentPath = () => useFileBrowserStore(s => s.currentPath)
+export const useFileBrowserHideIgnored = () => useFileBrowserStore(s => s.hideIgnored)
