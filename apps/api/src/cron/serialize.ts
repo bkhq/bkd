@@ -66,7 +66,7 @@ export function serializeJob(row: typeof cronJobs.$inferSelect): SerializedCronJ
   if (latestLog) {
     lastRun = {
       status: latestLog.status,
-      startedAt: latestLog.startedAt,
+      startedAt: latestLog.startedAt instanceof Date ? latestLog.startedAt.toISOString() : String(latestLog.startedAt),
       durationMs: latestLog.durationMs,
       result: latestLog.result,
       error: latestLog.error,
