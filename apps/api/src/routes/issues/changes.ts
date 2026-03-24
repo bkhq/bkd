@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { runCommand } from '@/engines/spawn'
 import { Hono } from 'hono'
 import { findProject } from '@/db/helpers'
-import { countTextLines, isPathInsideRoot, resolveIssueDir } from '@/utils/changes'
+import { checkOversized, countTextLines, isPathInsideRoot, resolveIssueDir } from '@/utils/changes'
 import { isGitRepo } from '@/utils/git'
 import { getProjectOwnedIssue } from './_shared'
 
@@ -20,6 +20,10 @@ interface GitChangedFile {
   previousPath?: string
   additions?: number
   deletions?: number
+  /** true when the file exceeds the large-file threshold (20 MB) */
+  oversized?: boolean
+  /** human-readable file size (only set when oversized) */
+  sizeDisplay?: string
 }
 
 // ---------- Git helpers ----------
@@ -41,7 +45,7 @@ async function runGit(
   args: string[],
   cwd: string,
 ): Promise<{ code: number, stdout: string }> {
-  return runCommand(['git', ...args], { cwd })
+  return runCommand(['git', ...args], { cwd, timeout: 15_000 })
 }
 
 function parsePorcelainLine(line: string): GitChangedFile | null {
@@ -70,19 +74,28 @@ function parsePorcelainLine(line: string): GitChangedFile | null {
 async function listChangedFiles(cwd: string): Promise<GitChangedFile[]> {
   const { code, stdout } = await runGit(['status', '--porcelain=v1', '-uall'], cwd)
   if (code !== 0) return []
-  return stdout
+  const parsed = stdout
     .split('\n')
     .map(line => line.trimEnd())
     .filter(Boolean)
     .map(parsePorcelainLine)
     .filter((f): f is GitChangedFile => !!f)
     .sort((a, b) => a.path.localeCompare(b.path))
+
+  // Check file sizes in parallel and merge oversized flags (immutable)
+  const sizeFlags = await Promise.all(
+    parsed.map(file => checkOversized(cwd, file.path)),
+  )
+  return parsed.map((file, i) => sizeFlags[i] ? { ...file, ...sizeFlags[i] } : file)
 }
 
 async function summarizeFileLines(
   cwd: string,
   file: GitChangedFile,
 ): Promise<{ additions: number, deletions: number }> {
+  // Skip diff for oversized files — they would block the event loop or OOM
+  if (file.oversized) return { additions: 0, deletions: 0 }
+
   if (file.type === 'untracked') {
     if (!isPathInsideRoot(cwd, file.path)) return { additions: 0, deletions: 0 }
     try {
@@ -208,6 +221,24 @@ changes.get('/:id/changes/file', async (c) => {
     return c.json({
       success: true,
       data: { path, patch: '', truncated: false },
+    })
+  }
+
+  // Refuse to diff oversized files
+  if (file.oversized) {
+    return c.json({
+      success: true,
+      data: {
+        path,
+        patch: '',
+        oldText: '',
+        newText: '',
+        truncated: false,
+        type: file.type,
+        status: file.status,
+        oversized: true,
+        sizeDisplay: file.sizeDisplay,
+      },
     })
   }
 

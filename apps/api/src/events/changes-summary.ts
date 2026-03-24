@@ -7,7 +7,7 @@ import { findProject } from '@/db/helpers'
 import { issues as issuesTable } from '@/db/schema'
 import { appEvents } from '@/events'
 import { logger } from '@/logger'
-import { countTextLines, isPathInsideRoot, resolveIssueDir } from '@/utils/changes'
+import { countTextLines, isPathInsideRoot, LARGE_FILE_THRESHOLD, resolveIssueDir } from '@/utils/changes'
 
 export type { ChangesSummary } from '@bkd/shared'
 
@@ -104,7 +104,7 @@ async function computeAndEmit(issueId: string): Promise<void> {
 
       // Untracked files — count lines manually (git diff HEAD ignores them).
       // `-uall` ensures individual files are listed, but guard against
-      // directory entries and binary/unreadable files defensively.
+      // directory entries, binary/unreadable files, and oversized files defensively.
       for (const { path, isUntracked } of statusLines) {
         if (!isUntracked) continue
         if (!isPathInsideRoot(root, path)) continue
@@ -112,6 +112,7 @@ async function computeAndEmit(issueId: string): Promise<void> {
           const fullPath = resolve(root, path)
           const s = await stat(fullPath)
           if (!s.isFile()) continue
+          if (s.size > LARGE_FILE_THRESHOLD) continue // skip oversized files
           const content = await Bun.file(fullPath).text()
           additions += countTextLines(content)
         } catch {

@@ -197,7 +197,11 @@
       "new": "New",
       "deleted": "Del",
       "renamed": "Ren"
-    }
+    },
+    "oversized": "Large file",
+    "oversizedMessage": "This file ({{size}}) exceeds 20 MB and diff is skipped to avoid blocking the system.",
+    "oversizedBannerTitle": "Large files detected — review before committing",
+    "oversizedBannerHint": "Consider adding these files to .gitignore to avoid bloating the repository."
   },
   "session": {
     "connected": "Connected",

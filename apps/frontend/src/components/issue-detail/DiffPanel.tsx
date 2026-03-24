@@ -1,4 +1,4 @@
-import { ChevronRight, Copy, X } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Copy, X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useIssueChanges, useIssueFilePatch } from '@/hooks/use-kanban'
@@ -134,6 +134,7 @@ export function DiffPanel({
                     ) :
                     (
                       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain touch-pan-y p-2 space-y-2">
+                        <OversizedFilesBanner files={files} />
                         {files.map(file => (
                           <DiffFileCard
                             key={file.path}
@@ -143,6 +144,8 @@ export function DiffPanel({
                             type={file.type}
                             additions={file.additions}
                             deletions={file.deletions}
+                            oversized={file.oversized}
+                            sizeDisplay={file.sizeDisplay}
                           />
                         ))}
                       </div>
@@ -154,6 +157,38 @@ export function DiffPanel({
 
 export { DIFF_MIN_WIDTH }
 
+function OversizedFilesBanner({ files }: { files: IssueChangedFile[] }) {
+  const { t } = useTranslation()
+  const oversizedFiles = useMemo(() => files.filter(f => f.oversized), [files])
+  if (oversizedFiles.length === 0) return null
+
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+      <div className="min-w-0 text-[12px] text-amber-700 dark:text-amber-300">
+        <p className="font-semibold">{t('diff.oversizedBannerTitle')}</p>
+        <ul className="mt-1 space-y-0.5 list-disc list-inside">
+          {oversizedFiles.map(f => (
+            <li key={f.path} className="truncate">
+              <span className="font-mono text-[11px]">{f.path}</span>
+              {f.sizeDisplay ? (
+                <span className="ml-1 text-amber-600/70 dark:text-amber-400/70">
+                  (
+                  {f.sizeDisplay}
+                  )
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-1.5 text-amber-600/80 dark:text-amber-400/80 text-[11px]">
+          {t('diff.oversizedBannerHint')}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function DiffFileCard({
   projectId,
   issueId,
@@ -161,6 +196,8 @@ function DiffFileCard({
   type,
   additions,
   deletions,
+  oversized,
+  sizeDisplay,
 }: {
   projectId: string
   issueId: string
@@ -168,12 +205,14 @@ function DiffFileCard({
   type: FileType
   additions?: number
   deletions?: number
+  oversized?: boolean
+  sizeDisplay?: string
 }) {
   const { t } = useTranslation()
   const { resolved } = useTheme()
   const [isOpen, setIsOpen] = useState(false)
   const [copied, setCopied] = useState(false)
-  const patchQuery = useIssueFilePatch(projectId, issueId, path, isOpen)
+  const patchQuery = useIssueFilePatch(projectId, issueId, path, isOpen && !oversized)
   const patch = patchQuery.data
   const patchText = patch?.patch ?? ''
   const stats = useMemo(() => getPatchStats(patchText), [patchText])
@@ -214,6 +253,13 @@ function DiffFileCard({
           <span className="min-w-0 truncate text-[12.5px] font-medium">{path}</span>
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <FileTypeBadge type={type} />
+            {oversized
+              ? (
+                  <span className="shrink-0 text-[10px] font-semibold leading-none text-amber-600 dark:text-amber-400 border border-amber-500/30 bg-amber-500/10 rounded px-1 py-0.5">
+                    {sizeDisplay ?? t('diff.oversized')}
+                  </span>
+                )
+              : null}
             <button
               type="button"
               onClick={handleCopyPath}
@@ -223,82 +269,92 @@ function DiffFileCard({
             >
               <Copy className={`h-3 w-3 ${copied ? 'text-emerald-500' : ''}`} />
             </button>
-            <span className="flex items-center gap-0.5 text-[11px] font-medium tabular-nums">
-              {displayAdditions > 0 ?
-                  (
-                    <span className="text-emerald-600 dark:text-emerald-400">
-                      +
-                      {displayAdditions}
-                    </span>
-                  ) :
-                null}
-              {displayDeletions > 0 ?
-                  (
-                    <span className="text-red-600 dark:text-red-400">
-                      -
-                      {displayDeletions}
-                    </span>
-                  ) :
-                null}
-            </span>
+            {!oversized
+              ? (
+                  <span className="flex items-center gap-0.5 text-[11px] font-medium tabular-nums">
+                    {displayAdditions > 0 ?
+                        (
+                          <span className="text-emerald-600 dark:text-emerald-400">
+                            +
+                            {displayAdditions}
+                          </span>
+                        ) :
+                      null}
+                    {displayDeletions > 0 ?
+                        (
+                          <span className="text-red-600 dark:text-red-400">
+                            -
+                            {displayDeletions}
+                          </span>
+                        ) :
+                      null}
+                  </span>
+                )
+              : null}
           </div>
         </div>
       </summary>
       {isOpen ?
           (
             <div className="min-w-0 border-t border-border/30">
-              {patchQuery.isLoading ?
+              {oversized ?
                   (
-                    <div className="px-3 py-2.5 text-[11px] text-muted-foreground">
-                      {t('common.loading')}
+                    <div className="px-3 py-3 text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/5">
+                      {t('diff.oversizedMessage', { size: sizeDisplay ?? '> 20 MB' })}
                     </div>
                   ) :
-                patchQuery.isError ?
+                patchQuery.isLoading ?
                     (
-                      <div className="px-3 py-2.5 text-[11px] text-destructive">
-                        {String(patchQuery.error.message || t('diff.loadFailed'))}
+                      <div className="px-3 py-2.5 text-[11px] text-muted-foreground">
+                        {t('common.loading')}
                       </div>
                     ) :
-                  fullFilePair ?
+                  patchQuery.isError ?
                       (
-                        <div className="overflow-x-auto">
-                          <Suspense
-                            fallback={(
-                              <div className="px-3 py-2.5 text-[11px] text-muted-foreground">
-                                {t('common.loading')}
-                              </div>
-                            )}
-                          >
-                            <LazyMultiFileDiff
-                              oldFile={{ name: path, contents: fullFilePair.oldText }}
-                              newFile={{ name: path, contents: fullFilePair.newText }}
-                              options={{
-                                diffStyle: 'unified',
-                                diffIndicators: 'bars',
-                                expandUnchanged: false,
-                                hunkSeparators: 'line-info',
-                                disableLineNumbers: false,
-                                overflow: 'wrap',
-                                theme: {
-                                  light: 'github-light-default',
-                                  dark: 'github-dark-default',
-                                },
-                                themeType,
-                                disableFileHeader: true,
-                              }}
-                            />
-                          </Suspense>
+                        <div className="px-3 py-2.5 text-[11px] text-destructive">
+                          {String(patchQuery.error.message || t('diff.loadFailed'))}
                         </div>
                       ) :
-                    patchText.trim() ?
+                    fullFilePair ?
                         (
-                          <PatchDiffView patch={patchText} />
-                        ) :
-                        (
-                          <div className="px-3 py-2.5 text-[11px] text-muted-foreground">
-                            {t('diff.emptyPatch')}
+                          <div className="overflow-x-auto">
+                            <Suspense
+                              fallback={(
+                                <div className="px-3 py-2.5 text-[11px] text-muted-foreground">
+                                  {t('common.loading')}
+                                </div>
+                              )}
+                            >
+                              <LazyMultiFileDiff
+                                oldFile={{ name: path, contents: fullFilePair.oldText }}
+                                newFile={{ name: path, contents: fullFilePair.newText }}
+                                options={{
+                                  diffStyle: 'unified',
+                                  diffIndicators: 'bars',
+                                  expandUnchanged: false,
+                                  hunkSeparators: 'line-info',
+                                  disableLineNumbers: false,
+                                  overflow: 'wrap',
+                                  theme: {
+                                    light: 'github-light-default',
+                                    dark: 'github-dark-default',
+                                  },
+                                  themeType,
+                                  disableFileHeader: true,
+                                }}
+                              />
+                            </Suspense>
                           </div>
-                        )}
+                        ) :
+                      patchText.trim() ?
+                          (
+                            <PatchDiffView patch={patchText} />
+                          ) :
+                          (
+                            <div className="px-3 py-2.5 text-[11px] text-muted-foreground">
+                              {t('diff.emptyPatch')}
+                            </div>
+                          )}
               {patch?.truncated ?
                   (
                     <div className="px-3 pb-2 text-[11px] text-muted-foreground">{t('diff.truncated')}</div>

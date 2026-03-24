@@ -1,6 +1,36 @@
-import { stat } from 'node:fs/promises'
+import { lstat, stat } from 'node:fs/promises'
 import { resolve, sep } from 'node:path'
 import { resolveWorktreePath } from '@/engines/issue/utils/worktree'
+
+/** Files larger than this threshold are flagged as oversized and skipped for diff */
+export const LARGE_FILE_THRESHOLD = 20 * 1024 * 1024 // 20 MB
+
+export function formatFileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${bytes} B`
+}
+
+/**
+ * Check file size using lstat (does not follow symlinks).
+ * Returns `{ oversized, sizeDisplay }` when the file exceeds the threshold.
+ */
+export async function checkOversized(
+  root: string,
+  relPath: string,
+): Promise<{ oversized: true, sizeDisplay: string } | null> {
+  if (!isPathInsideRoot(root, relPath)) return null
+  try {
+    const s = await lstat(resolve(root, relPath))
+    if (s.isFile() && s.size > LARGE_FILE_THRESHOLD) {
+      return { oversized: true, sizeDisplay: formatFileSize(s.size) }
+    }
+  } catch {
+    // file may have been deleted — that's fine
+  }
+  return null
+}
 
 /**
  * Returns true when `path` (relative to `root`) resolves inside the `root` directory.
