@@ -25,8 +25,6 @@ const queryClient = new QueryClient({
   },
 })
 
-// Global SSE connection — connects once at startup, client-side filtering
-eventBus.connect()
 // Invalidate all queries on SSE reconnect so stale statuses get refreshed
 eventBus.onConnectionChange((connected) => {
   if (connected) queryClient.invalidateQueries()
@@ -134,6 +132,33 @@ function NotesDrawerMount() {
       <LazyNotesDrawer />
     </Suspense>
   )
+}
+
+/**
+ * EventBusManager: Gates SSE connection on auth state.
+ * - Auth disabled → connect immediately.
+ * - Auth enabled + authenticated → connect.
+ * - Auth enabled + unauthenticated → disconnect (no reconnect loop).
+ */
+function EventBusManager() {
+  const { authEnabled, isAuthenticated, isLoading } = useAuth()
+
+  useEffect(() => {
+    if (isLoading) return
+
+    const shouldConnect = !authEnabled || isAuthenticated
+    if (shouldConnect) {
+      eventBus.connect()
+    } else {
+      eventBus.disconnect()
+    }
+
+    return () => {
+      eventBus.disconnect()
+    }
+  }, [authEnabled, isAuthenticated, isLoading])
+
+  return null
 }
 
 function ServerConfigLoader() {
@@ -287,6 +312,7 @@ if (!rootElement.innerHTML) {
           <ProcessManagerDrawerMount />
           <NotesDrawerMount />
           <Toaster position="top-center" />
+          <EventBusManager />
           <ServerConfigLoader />
         </ErrorBoundary>
       </BrowserRouter>
