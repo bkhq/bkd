@@ -126,30 +126,41 @@ export function DiffPanel({
                       </span>
                     </div>
                   ) :
-                files.length === 0 ?
+                changesQuery.data?.timedOut ?
                     (
                       <div className="flex-1 flex items-center justify-center px-4">
-                        <span className="text-sm text-muted-foreground text-center">{t('diff.noChanges')}</span>
+                        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 max-w-xs">
+                          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                          <span className="text-sm text-amber-700 dark:text-amber-300">
+                            {t('diff.timedOut')}
+                          </span>
+                        </div>
                       </div>
                     ) :
-                    (
-                      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain touch-pan-y p-2 space-y-2">
-                        <OversizedFilesBanner files={files} />
-                        {files.map(file => (
-                          <DiffFileCard
-                            key={file.path}
-                            projectId={projectId}
-                            issueId={issueId}
-                            path={file.path}
-                            type={file.type}
-                            additions={file.additions}
-                            deletions={file.deletions}
-                            oversized={file.oversized}
-                            sizeDisplay={file.sizeDisplay}
-                          />
-                        ))}
-                      </div>
-                    )}
+                  files.length === 0 ?
+                      (
+                        <div className="flex-1 flex items-center justify-center px-4">
+                          <span className="text-sm text-muted-foreground text-center">{t('diff.noChanges')}</span>
+                        </div>
+                      ) :
+                      (
+                        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain touch-pan-y p-2 space-y-2">
+                          <OversizedFilesBanner files={files} />
+                          {files.map(file => (
+                            <DiffFileCard
+                              key={file.path}
+                              projectId={projectId}
+                              issueId={issueId}
+                              path={file.path}
+                              type={file.type}
+                              additions={file.additions}
+                              deletions={file.deletions}
+                              oversized={file.oversized}
+                              sizeDisplay={file.sizeDisplay}
+                            />
+                          ))}
+                        </div>
+                      )}
       </div>
     </div>
   )

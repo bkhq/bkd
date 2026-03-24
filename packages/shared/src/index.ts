@@ -255,6 +255,8 @@ export interface IssueChangesResponse {
   files: IssueChangedFile[]
   additions: number
   deletions: number
+  /** true when git status timed out (e.g. very large repo or slow disk) */
+  timedOut?: boolean
 }
 
 export interface IssueFilePatchResponse {

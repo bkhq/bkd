@@ -44,7 +44,7 @@ async function resolveProjectDir(projectId: string): Promise<string | null> {
 async function runGit(
   args: string[],
   cwd: string,
-): Promise<{ code: number, stdout: string }> {
+): Promise<{ code: number, stdout: string, timedOut?: boolean }> {
   return runCommand(['git', ...args], { cwd, timeout: 15_000 })
 }
 
@@ -71,9 +71,11 @@ function parsePorcelainLine(line: string): GitChangedFile | null {
   return { path, status, type, staged, unstaged, previousPath }
 }
 
-async function listChangedFiles(cwd: string): Promise<GitChangedFile[]> {
-  const { code, stdout } = await runGit(['status', '--porcelain=v1', '-uall'], cwd)
-  if (code !== 0) return []
+async function listChangedFiles(cwd: string): Promise<{ files: GitChangedFile[], timedOut?: boolean }> {
+  const result = await runGit(['status', '--porcelain=v1', '-uall'], cwd)
+  if (result.timedOut) return { files: [], timedOut: true }
+  if (result.code !== 0) return { files: [] }
+  const { stdout } = result
   const parsed = stdout
     .split('\n')
     .map(line => line.trimEnd())
@@ -86,7 +88,8 @@ async function listChangedFiles(cwd: string): Promise<GitChangedFile[]> {
   const sizeFlags = await Promise.all(
     parsed.map(file => checkOversized(cwd, file.path)),
   )
-  return parsed.map((file, i) => sizeFlags[i] ? { ...file, ...sizeFlags[i] } : file)
+  const files = parsed.map((file, i) => sizeFlags[i] ? { ...file, ...sizeFlags[i] } : file)
+  return { files }
 }
 
 async function summarizeFileLines(
@@ -159,7 +162,14 @@ changes.get('/:id/changes', async (c) => {
     })
   }
 
-  const files = await listChangedFiles(root)
+  const { files, timedOut } = await listChangedFiles(root)
+
+  if (timedOut) {
+    return c.json({
+      success: true,
+      data: { root, gitRepo: true, files: [], additions: 0, deletions: 0, timedOut: true },
+    })
+  }
 
   const filesWithStats = await Promise.all(
     files.map(async file => ({
@@ -215,7 +225,7 @@ changes.get('/:id/changes/file', async (c) => {
     })
   }
 
-  const changedFiles = await listChangedFiles(root)
+  const { files: changedFiles } = await listChangedFiles(root)
   const file = changedFiles.find(f => f.path === path)
   if (!file) {
     return c.json({
