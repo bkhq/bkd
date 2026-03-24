@@ -151,6 +151,8 @@ export interface ToolGroupChatMessage {
   hiddenCount: number
   /** Thinking/description text absorbed from the preceding thinking entry */
   description?: string
+  /** True when this group is the last in the message list and may still receive new tool calls */
+  isActive?: boolean
 }
 
 export interface TaskPlanChatMessage {
