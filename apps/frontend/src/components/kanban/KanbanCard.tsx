@@ -90,7 +90,11 @@ export const KanbanCard = memo(({
             #
             {issue.issueNumber}
           </span>
-          <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+          <div
+            className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={e => e.stopPropagation()}
+            onPointerDown={e => e.stopPropagation()}
+          >
             <IssueContextMenu issue={issue} projectId={projectId} showPin>
               <IssueContextMenuButton />
             </IssueContextMenu>
