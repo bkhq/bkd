@@ -102,7 +102,7 @@ export const getStatus = createRoute({
 
 export const listProjects = createRoute({
   method: 'get',
-  path: '/projects',
+  path: '/',
   tags: ['Projects'],
   summary: 'List projects',
   operationId: 'listProjects',
@@ -118,7 +118,7 @@ export const listProjects = createRoute({
 
 export const createProject = createRoute({
   method: 'post',
-  path: '/projects',
+  path: '/',
   tags: ['Projects'],
   summary: 'Create project',
   operationId: 'createProject',
@@ -132,7 +132,7 @@ export const createProject = createRoute({
 
 export const sortProject = createRoute({
   method: 'patch',
-  path: '/projects/sort',
+  path: '/sort',
   tags: ['Projects'],
   summary: 'Reorder a project',
   operationId: 'sortProject',
@@ -145,7 +145,7 @@ export const sortProject = createRoute({
 
 export const getProject = createRoute({
   method: 'get',
-  path: '/projects/{projectId}',
+  path: '/{projectId}',
   tags: ['Projects'],
   summary: 'Get project',
   operationId: 'getProject',
@@ -158,7 +158,7 @@ export const getProject = createRoute({
 
 export const updateProject = createRoute({
   method: 'patch',
-  path: '/projects/{projectId}',
+  path: '/{projectId}',
   tags: ['Projects'],
   summary: 'Update project',
   operationId: 'updateProject',
@@ -175,7 +175,7 @@ export const updateProject = createRoute({
 
 export const deleteProject = createRoute({
   method: 'delete',
-  path: '/projects/{projectId}',
+  path: '/{projectId}',
   tags: ['Projects'],
   summary: 'Soft-delete project',
   operationId: 'deleteProject',
@@ -188,7 +188,7 @@ export const deleteProject = createRoute({
 
 export const archiveProject = createRoute({
   method: 'post',
-  path: '/projects/{projectId}/archive',
+  path: '/{projectId}/archive',
   tags: ['Projects'],
   summary: 'Archive project',
   operationId: 'archiveProject',
@@ -201,7 +201,7 @@ export const archiveProject = createRoute({
 
 export const unarchiveProject = createRoute({
   method: 'post',
-  path: '/projects/{projectId}/unarchive',
+  path: '/{projectId}/unarchive',
   tags: ['Projects'],
   summary: 'Unarchive project',
   operationId: 'unarchiveProject',

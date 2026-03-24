@@ -22,15 +22,17 @@ function buildRegistry() {
   api.openapi(routes.getHealth, stub)
   api.openapi(routes.getStatus, stub)
 
-  // ── Projects (mounted at /api) ───────────────────
-  api.openapi(routes.listProjects, stub)
-  api.openapi(routes.createProject, stub)
-  api.openapi(routes.sortProject, stub)
-  api.openapi(routes.getProject, stub)
-  api.openapi(routes.updateProject, stub)
-  api.openapi(routes.deleteProject, stub)
-  api.openapi(routes.archiveProject, stub)
-  api.openapi(routes.unarchiveProject, stub)
+  // ── Projects (mounted at /api/projects) ──────────
+  const projects = new OpenAPIHono()
+  projects.openapi(routes.listProjects, stub)
+  projects.openapi(routes.createProject, stub)
+  projects.openapi(routes.sortProject, stub)
+  projects.openapi(routes.getProject, stub)
+  projects.openapi(routes.updateProject, stub)
+  projects.openapi(routes.deleteProject, stub)
+  projects.openapi(routes.archiveProject, stub)
+  projects.openapi(routes.unarchiveProject, stub)
+  api.route('/projects', projects)
 
   // ── Issues (mounted at /api/projects/:projectId/issues) ──
   const issues = new OpenAPIHono()

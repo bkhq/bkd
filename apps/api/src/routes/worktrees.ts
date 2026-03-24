@@ -1,9 +1,10 @@
 import { readdir, stat } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
-import { Hono } from 'hono'
 import { findProject } from '@/db/helpers'
 import { removeWorktree, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
 import { logger } from '@/logger'
+import { createOpenAPIRouter } from '@/openapi/hono'
+import * as R from '@/openapi/routes'
 
 /** Only accept IDs that match the nanoid/ULID patterns used in the project */
 const VALID_ID = /^[\w-]{4,32}$/
@@ -61,10 +62,10 @@ async function listProjectWorktrees(projectId: string): Promise<WorktreeEntry[]>
   return results.sort((a, b) => a.issueId.localeCompare(b.issueId))
 }
 
-const worktrees = new Hono()
+const worktrees = createOpenAPIRouter()
 
 // GET /api/projects/:projectId/worktrees — List worktrees for a project
-worktrees.get('/', async (c) => {
+worktrees.openapi(R.listWorktrees, async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)
   if (!project) {
@@ -76,7 +77,7 @@ worktrees.get('/', async (c) => {
 })
 
 // DELETE /api/projects/:projectId/worktrees/:issueId — Force delete a worktree
-worktrees.delete('/:issueId', async (c) => {
+worktrees.openapi(R.deleteWorktree, async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)
   if (!project) {

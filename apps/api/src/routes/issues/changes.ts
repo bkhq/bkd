@@ -1,10 +1,11 @@
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { runCommand } from '@/engines/spawn'
-import { Hono } from 'hono'
 import { findProject } from '@/db/helpers'
 import { checkOversized, countTextLines, isPathInsideRoot, resolveIssueDir } from '@/utils/changes'
 import { isGitRepo } from '@/utils/git'
+import { createOpenAPIRouter } from '@/openapi/hono'
+import * as R from '@/openapi/routes'
 import { getProjectOwnedIssue } from './_shared'
 
 // ---------- Types ----------
@@ -137,15 +138,15 @@ async function summarizeFileLines(
 
 // ---------- Routes ----------
 
-const changes = new Hono()
+const changes = createOpenAPIRouter()
 
-// GET /api/projects/:projectId/issues/:id/changes — Get changed files from git workspace
-changes.get('/:id/changes', async (c) => {
+// GET /api/projects/:projectId/issues/:issueId/changes — Get changed files from git workspace
+changes.openapi(R.getIssueChanges, async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)
   if (!project) return c.json({ success: false, error: 'Project not found' }, 404)
 
-  const issueId = c.req.param('id')!
+  const issueId = c.req.param('issueId')!
   const issue = await getProjectOwnedIssue(project.id, issueId)
   if (!issue) return c.json({ success: false, error: 'Issue not found' }, 404)
 
@@ -186,6 +187,7 @@ changes.get('/:id/changes', async (c) => {
 })
 
 // GET /api/projects/:projectId/issues/:id/changes/file?path=... — Get file patch from workspace
+// Stays as regular route since it's a sub-route not covered by OpenAPI
 changes.get('/:id/changes/file', async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)

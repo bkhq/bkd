@@ -156,7 +156,20 @@ export const BulkUpdateSchema = z.object({
     id: z.string(),
     statusId: statusIdEnum.optional(),
     sortOrder: z.string().min(1).max(50).regex(/^[a-z0-9]+$/i).optional(),
-  })).max(1000),
+  })).max(1000).superRefine((updates, ctx) => {
+    const seen = new Set<string>()
+    for (const [index, update] of updates.entries()) {
+      if (seen.has(update.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Duplicate issue id in bulk updates',
+          path: [index, 'id'],
+        })
+        continue
+      }
+      seen.add(update.id)
+    }
+  }),
 }).openapi('BulkUpdate')
 
 export const ExecuteIssueSchema = z.object({

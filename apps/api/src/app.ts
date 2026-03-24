@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { OpenAPIHono } from '@hono/zod-openapi'
 import { compress } from 'hono/compress'
 import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
@@ -12,7 +12,7 @@ import docsRoute from './routes/docs'
 import notesRoutes from './routes/notes'
 import terminalRoute from './routes/terminal'
 
-const app = new Hono()
+const app = new OpenAPIHono()
 
 // --- Security headers (CSP + HSTS) ---
 app.use(secureHeaders({

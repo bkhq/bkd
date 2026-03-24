@@ -1,7 +1,6 @@
-import { Hono } from 'hono'
 import { and, desc, eq, lt } from 'drizzle-orm'
-import * as z from 'zod'
-import { zValidator } from '@hono/zod-validator'
+import { createOpenAPIRouter } from '@/openapi/hono'
+import * as R from '@/openapi/routes'
 import { db } from '@/db'
 import { cronJobLogs, cronJobs } from '@/db/schema'
 import { getAction, getActionsHelp, validateActionConfig } from '@/cron/actions'
@@ -11,20 +10,7 @@ import { serializeJob } from '@/cron/serialize'
 import { logger } from '@/logger'
 import type { TaskConfig } from '@/cron/executor'
 
-const cronRoute = new Hono()
-
-const jobsQuerySchema = z.object({
-  deleted: z.enum(['true', 'false', 'only']).optional(),
-  limit: z.coerce.number().min(1).max(100).optional(),
-  cursor: z.string().optional(),
-})
-
-const createJobSchema = z.object({
-  name: z.string().min(1).max(100),
-  cron: z.string().min(1),
-  action: z.string().min(1),
-  config: z.record(z.string(), z.unknown()).optional(),
-})
+const cronRoute = createOpenAPIRouter()
 
 /** Find a non-deleted job by ID or name */
 function findJob(identifier: string) {
@@ -43,19 +29,13 @@ function findJob(identifier: string) {
   return byName ?? null
 }
 
-const logsQuerySchema = z.object({
-  status: z.enum(['success', 'failed', 'running']).optional(),
-  limit: z.coerce.number().min(1).max(100).optional(),
-  cursor: z.string().optional(),
-})
-
 // GET /api/cron/actions — list available cron actions (must be before /:param routes)
-cronRoute.get('/actions', (c) => {
+cronRoute.openapi(R.listCronActions, (c) => {
   return c.json({ success: true, data: { help: getActionsHelp() } })
 })
 
 // GET /api/cron — list cron jobs with optional pagination and deletion filter
-cronRoute.get('/', zValidator('query', jobsQuerySchema), (c) => {
+cronRoute.openapi(R.listCronJobs, (c) => {
   const { deleted, limit, cursor } = c.req.valid('query')
 
   // No pagination requested — return all (backward compatible)
@@ -112,8 +92,82 @@ cronRoute.get('/', zValidator('query', jobsQuerySchema), (c) => {
   })
 })
 
+// POST /api/cron — create a new cron job
+cronRoute.openapi(R.createCronJob, async (c) => {
+  const { name, cron, action, config: rawConfig } = c.req.valid('json')
+
+  // Check name uniqueness
+  if (findJob(name)) {
+    return c.json({ success: false, error: `Job with name "${name}" already exists` }, 409)
+  }
+
+  // Validate cron expression
+  try {
+    const { Cron } = await import('cronbake')
+    if (!Cron.isValid(cron as any)) {
+      return c.json({ success: false, error: `Invalid cron expression: ${cron}` }, 400)
+    }
+  } catch {
+    return c.json({ success: false, error: `Invalid cron expression: ${cron}` }, 400)
+  }
+
+  // Build and validate task config
+  const taskConfig: TaskConfig = { ...(rawConfig ?? {}), action }
+  const validationError = await validateActionConfig(action, taskConfig)
+  if (validationError) {
+    return c.json({ success: false, error: validationError }, 400)
+  }
+
+  const actionDef = getAction(action)
+  let row: typeof cronJobs.$inferSelect
+  try {
+    ;[row] = db.insert(cronJobs).values({
+      name,
+      cron,
+      taskType: actionDef?.category ?? 'custom',
+      taskConfig: JSON.stringify(taskConfig),
+      enabled: true,
+    }).returning().all()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes('UNIQUE constraint')) {
+      return c.json({ success: false, error: `Job with name "${name}" already exists` }, 409)
+    }
+    throw err
+  }
+
+  syncJob(name)
+  logger.info({ name, cron, action }, 'cron_job_created')
+  return c.json({ success: true, data: serializeJob(row) }, 201)
+})
+
+// DELETE /api/cron/:jobId — soft-delete a cron job (by ID or name)
+cronRoute.openapi(R.deleteCronJob, (c) => {
+  const jobId = c.req.param('jobId')
+  const row = findJob(jobId)
+  if (!row) {
+    return c.json({ success: false, error: 'Job not found' }, 404)
+  }
+
+  db.update(cronJobs)
+    .set({ isDeleted: 1 })
+    .where(eq(cronJobs.id, row.id))
+    .run()
+
+  try {
+    const b = getBaker()
+    b.stop(row.name)
+    b.remove(row.name)
+  } catch {
+    // Job may not be in Baker
+  }
+
+  logger.info({ name: row.name }, 'cron_job_deleted')
+  return c.json({ success: true, data: { deleted: true, name: row.name } })
+})
+
 // GET /api/cron/:jobId/logs — get logs for a specific job
-cronRoute.get('/:jobId/logs', zValidator('query', logsQuerySchema), (c) => {
+cronRoute.openapi(R.getCronJobLogs, (c) => {
   const jobId = c.req.param('jobId')
   const { status, limit, cursor } = c.req.valid('query')
 
@@ -170,92 +224,10 @@ cronRoute.get('/:jobId/logs', zValidator('query', logsQuerySchema), (c) => {
   })
 })
 
-// POST /api/cron — create a new cron job
-cronRoute.post(
-  '/',
-  zValidator('json', createJobSchema, (result, c) => {
-    if (!result.success) {
-      return c.json({ success: false, error: result.error.issues.map(i => i.message).join(', ') }, 400)
-    }
-  }),
-  async (c) => {
-    const { name, cron, action, config: rawConfig } = c.req.valid('json')
-
-    // Check name uniqueness
-    if (findJob(name)) {
-      return c.json({ success: false, error: `Job with name "${name}" already exists` }, 409)
-    }
-
-    // Validate cron expression
-    try {
-      const { Cron } = await import('cronbake')
-      if (!Cron.isValid(cron as any)) {
-        return c.json({ success: false, error: `Invalid cron expression: ${cron}` }, 400)
-      }
-    } catch {
-      return c.json({ success: false, error: `Invalid cron expression: ${cron}` }, 400)
-    }
-
-    // Build and validate task config
-    const taskConfig: TaskConfig = { ...(rawConfig ?? {}), action }
-    const validationError = await validateActionConfig(action, taskConfig)
-    if (validationError) {
-      return c.json({ success: false, error: validationError }, 400)
-    }
-
-    const actionDef = getAction(action)
-    let row: typeof cronJobs.$inferSelect
-    try {
-      ;[row] = db.insert(cronJobs).values({
-        name,
-        cron,
-        taskType: actionDef?.category ?? 'custom',
-        taskConfig: JSON.stringify(taskConfig),
-        enabled: true,
-      }).returning().all()
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (msg.includes('UNIQUE constraint')) {
-        return c.json({ success: false, error: `Job with name "${name}" already exists` }, 409)
-      }
-      throw err
-    }
-
-    syncJob(name)
-    logger.info({ name, cron, action }, 'cron_job_created')
-    return c.json({ success: true, data: serializeJob(row) }, 201)
-  },
-)
-
-// DELETE /api/cron/:job — soft-delete a cron job (by ID or name)
-cronRoute.delete('/:job', (c) => {
-  const job = c.req.param('job')
-  const row = findJob(job)
-  if (!row) {
-    return c.json({ success: false, error: 'Job not found' }, 404)
-  }
-
-  db.update(cronJobs)
-    .set({ isDeleted: 1 })
-    .where(eq(cronJobs.id, row.id))
-    .run()
-
-  try {
-    const b = getBaker()
-    b.stop(row.name)
-    b.remove(row.name)
-  } catch {
-    // Job may not be in Baker
-  }
-
-  logger.info({ name: row.name }, 'cron_job_deleted')
-  return c.json({ success: true, data: { deleted: true, name: row.name } })
-})
-
-// POST /api/cron/:job/trigger — manually trigger a cron job
-cronRoute.post('/:job/trigger', async (c) => {
-  const job = c.req.param('job')
-  const row = findJob(job)
+// POST /api/cron/:jobId/trigger — manually trigger a cron job
+cronRoute.openapi(R.triggerCronJob, async (c) => {
+  const jobId = c.req.param('jobId')
+  const row = findJob(jobId)
   if (!row) {
     return c.json({ success: false, error: 'Job not found' }, 404)
   }
@@ -298,10 +270,10 @@ cronRoute.post('/:job/trigger', async (c) => {
   })
 })
 
-// POST /api/cron/:job/pause — pause a cron job
-cronRoute.post('/:job/pause', (c) => {
-  const job = c.req.param('job')
-  const row = findJob(job)
+// POST /api/cron/:jobId/pause — pause a cron job
+cronRoute.openapi(R.pauseCronJob, (c) => {
+  const jobId = c.req.param('jobId')
+  const row = findJob(jobId)
   if (!row) {
     return c.json({ success: false, error: 'Job not found' }, 404)
   }
@@ -320,10 +292,10 @@ cronRoute.post('/:job/pause', (c) => {
   return c.json({ success: true, data: { paused: true, name: row.name } })
 })
 
-// POST /api/cron/:job/resume — resume a paused cron job
-cronRoute.post('/:job/resume', (c) => {
-  const job = c.req.param('job')
-  const row = findJob(job)
+// POST /api/cron/:jobId/resume — resume a paused cron job
+cronRoute.openapi(R.resumeCronJob, (c) => {
+  const jobId = c.req.param('jobId')
+  const row = findJob(jobId)
   if (!row) {
     return c.json({ success: false, error: 'Job not found' }, 404)
   }

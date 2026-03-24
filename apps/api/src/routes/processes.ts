@@ -1,10 +1,11 @@
 import { and, eq, inArray } from 'drizzle-orm'
-import { Hono } from 'hono'
 import { db } from '@/db'
 import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
 import { getPidFromManaged } from '@/engines/issue/utils/pid'
 import { logger } from '@/logger'
+import { createOpenAPIRouter } from '@/openapi/hono'
+import * as R from '@/openapi/routes'
 import type { ProcessInfo } from '@bkd/shared'
 
 export async function buildProcessInfoList(): Promise<ProcessInfo[]> {
@@ -64,14 +65,14 @@ export async function buildProcessInfoList(): Promise<ProcessInfo[]> {
   return result
 }
 
-const processes = new Hono()
+const processes = createOpenAPIRouter()
 
-processes.get('/', async (c) => {
+processes.openapi(R.listProcesses, async (c) => {
   const result = await buildProcessInfoList()
   return c.json({ success: true, data: { processes: result } })
 })
 
-processes.post('/:issueId/terminate', async (c) => {
+processes.openapi(R.terminateProcess, async (c) => {
   const issueId = c.req.param('issueId')!
 
   // Verify issue exists and its project is not deleted

@@ -1,24 +1,25 @@
 import { and, asc, desc, eq, max } from 'drizzle-orm'
-import { Hono } from 'hono'
 import { generateKeyBetween } from 'jittered-fractional-indexing'
 import { ulid } from 'ulid'
 import { cacheDelByPrefix } from '@/cache'
 import { db } from '@/db'
 import { findProject } from '@/db/helpers'
 import { issues as issuesTable, issueLogs as logsTable } from '@/db/schema'
+import { createOpenAPIRouter } from '@/openapi/hono'
+import * as R from '@/openapi/routes'
 import { getProjectOwnedIssue, serializeIssue } from './_shared'
 
-const duplicate = new Hono()
+const duplicate = createOpenAPIRouter()
 
-// POST /api/projects/:projectId/issues/:id/duplicate — Duplicate an issue
-duplicate.post('/:id/duplicate', async (c) => {
+// POST /api/projects/:projectId/issues/:issueId/duplicate — Duplicate an issue
+duplicate.openapi(R.duplicateIssue, async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)
   if (!project) {
     return c.json({ success: false, error: 'Project not found' }, 404)
   }
 
-  const issueId = c.req.param('id')!
+  const issueId = c.req.param('issueId')!
   const source = await getProjectOwnedIssue(project.id, issueId)
   if (!source) {
     return c.json({ success: false, error: 'Issue not found' }, 404)
