@@ -197,7 +197,12 @@
       "new": "新",
       "deleted": "删",
       "renamed": "改名"
-    }
+    },
+    "oversized": "大文件",
+    "oversizedMessage": "该文件 ({{size}}) 超过 20 MB，已跳过 diff 以避免阻塞系统。",
+    "oversizedBannerTitle": "检测到大文件 — 提交前请检查",
+    "oversizedBannerHint": "建议将这些文件添加到 .gitignore，避免仓库体积膨胀。",
+    "timedOut": "Git 操作超时。仓库可能包含非常大的文件或磁盘较慢，请稍后重试。"
   },
   "session": {
     "connected": "已连接",

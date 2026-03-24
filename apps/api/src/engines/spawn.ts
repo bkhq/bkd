@@ -195,6 +195,8 @@ export interface CommandResult {
   code: number
   stdout: string
   stderr: string
+  /** true when the process was killed because it exceeded the timeout */
+  timedOut?: boolean
 }
 
 /**
@@ -223,8 +225,10 @@ export async function runCommand(
 
   // Kill the child if it exceeds the timeout deadline
   let killTimer: ReturnType<typeof setTimeout> | undefined
+  let didTimeout = false
   if (options?.timeout) {
     killTimer = setTimeout(() => {
+      didTimeout = true
       try {
         child.kill()
       } catch { /* already dead */ }
@@ -250,6 +254,7 @@ export async function runCommand(
     code,
     stdout: Buffer.concat(stdoutChunks).toString('utf-8'),
     stderr: Buffer.concat(stderrChunks).toString('utf-8'),
+    ...(didTimeout ? { timedOut: true } : {}),
   }
 }
 

@@ -197,7 +197,12 @@
       "new": "New",
       "deleted": "Del",
       "renamed": "Ren"
-    }
+    },
+    "oversized": "Large file",
+    "oversizedMessage": "This file ({{size}}) exceeds 20 MB and diff is skipped to avoid blocking the system.",
+    "oversizedBannerTitle": "Large files detected — review before committing",
+    "oversizedBannerHint": "Consider adding these files to .gitignore to avoid bloating the repository.",
+    "timedOut": "Git operation timed out. The repository may contain very large files or the disk is slow. Try again later."
   },
   "session": {
     "connected": "Connected",

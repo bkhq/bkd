@@ -243,6 +243,10 @@ export interface IssueChangedFile {
   unstaged: boolean
   additions?: number
   deletions?: number
+  /** true when the file exceeds the large-file threshold (20 MB) */
+  oversized?: boolean
+  /** human-readable file size (only set when oversized) */
+  sizeDisplay?: string
 }
 
 export interface IssueChangesResponse {
@@ -251,6 +255,8 @@ export interface IssueChangesResponse {
   files: IssueChangedFile[]
   additions: number
   deletions: number
+  /** true when git status timed out (e.g. very large repo or slow disk) */
+  timedOut?: boolean
 }
 
 export interface IssueFilePatchResponse {
@@ -261,6 +267,10 @@ export interface IssueFilePatchResponse {
   truncated: boolean
   type?: IssueChangedFile['type']
   status?: string
+  /** true when the file exceeds the large-file threshold */
+  oversized?: boolean
+  /** human-readable file size (only set when oversized) */
+  sizeDisplay?: string
 }
 
 export interface EngineAvailability {

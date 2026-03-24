@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { runCommand } from '@/engines/spawn'
 import { Hono } from 'hono'
 import { findProject } from '@/db/helpers'
-import { countTextLines, isPathInsideRoot, resolveIssueDir } from '@/utils/changes'
+import { checkOversized, countTextLines, isPathInsideRoot, resolveIssueDir } from '@/utils/changes'
 import { isGitRepo } from '@/utils/git'
 import { getProjectOwnedIssue } from './_shared'
 
@@ -20,6 +20,10 @@ interface GitChangedFile {
   previousPath?: string
   additions?: number
   deletions?: number
+  /** true when the file exceeds the large-file threshold (20 MB) */
+  oversized?: boolean
+  /** human-readable file size (only set when oversized) */
+  sizeDisplay?: string
 }
 
 // ---------- Git helpers ----------
@@ -40,8 +44,8 @@ async function resolveProjectDir(projectId: string): Promise<string | null> {
 async function runGit(
   args: string[],
   cwd: string,
-): Promise<{ code: number, stdout: string }> {
-  return runCommand(['git', ...args], { cwd })
+): Promise<{ code: number, stdout: string, timedOut?: boolean }> {
+  return runCommand(['git', ...args], { cwd, timeout: 15_000 })
 }
 
 function parsePorcelainLine(line: string): GitChangedFile | null {
@@ -67,22 +71,34 @@ function parsePorcelainLine(line: string): GitChangedFile | null {
   return { path, status, type, staged, unstaged, previousPath }
 }
 
-async function listChangedFiles(cwd: string): Promise<GitChangedFile[]> {
-  const { code, stdout } = await runGit(['status', '--porcelain=v1', '-uall'], cwd)
-  if (code !== 0) return []
-  return stdout
+async function listChangedFiles(cwd: string): Promise<{ files: GitChangedFile[], timedOut?: boolean }> {
+  const result = await runGit(['status', '--porcelain=v1', '-uall'], cwd)
+  if (result.timedOut) return { files: [], timedOut: true }
+  if (result.code !== 0) return { files: [] }
+  const { stdout } = result
+  const parsed = stdout
     .split('\n')
     .map(line => line.trimEnd())
     .filter(Boolean)
     .map(parsePorcelainLine)
     .filter((f): f is GitChangedFile => !!f)
     .sort((a, b) => a.path.localeCompare(b.path))
+
+  // Check file sizes in parallel and merge oversized flags (immutable)
+  const sizeFlags = await Promise.all(
+    parsed.map(file => checkOversized(cwd, file.path)),
+  )
+  const files = parsed.map((file, i) => sizeFlags[i] ? { ...file, ...sizeFlags[i] } : file)
+  return { files }
 }
 
 async function summarizeFileLines(
   cwd: string,
   file: GitChangedFile,
 ): Promise<{ additions: number, deletions: number }> {
+  // Skip diff for oversized files — they would block the event loop or OOM
+  if (file.oversized) return { additions: 0, deletions: 0 }
+
   if (file.type === 'untracked') {
     if (!isPathInsideRoot(cwd, file.path)) return { additions: 0, deletions: 0 }
     try {
@@ -146,7 +162,14 @@ changes.get('/:id/changes', async (c) => {
     })
   }
 
-  const files = await listChangedFiles(root)
+  const { files, timedOut } = await listChangedFiles(root)
+
+  if (timedOut) {
+    return c.json({
+      success: true,
+      data: { root, gitRepo: true, files: [], additions: 0, deletions: 0, timedOut: true },
+    })
+  }
 
   const filesWithStats = await Promise.all(
     files.map(async file => ({
@@ -202,12 +225,36 @@ changes.get('/:id/changes/file', async (c) => {
     })
   }
 
-  const changedFiles = await listChangedFiles(root)
+  const { files: changedFiles, timedOut: listTimedOut } = await listChangedFiles(root)
+  if (listTimedOut) {
+    return c.json({
+      success: true,
+      data: { path, patch: '', truncated: false, timedOut: true },
+    })
+  }
   const file = changedFiles.find(f => f.path === path)
   if (!file) {
     return c.json({
       success: true,
       data: { path, patch: '', truncated: false },
+    })
+  }
+
+  // Refuse to diff oversized files
+  if (file.oversized) {
+    return c.json({
+      success: true,
+      data: {
+        path,
+        patch: '',
+        oldText: '',
+        newText: '',
+        truncated: false,
+        type: file.type,
+        status: file.status,
+        oversized: true,
+        sizeDisplay: file.sizeDisplay,
+      },
     })
   }
 
