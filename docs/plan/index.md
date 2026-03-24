@@ -9,6 +9,7 @@
 ## In Progress
 
 - [-] **PLAN-011 Model discovery diagnostic logs** - task: `BUG-009`
+- [x] **PLAN-034 Document PR-104 audit findings** - task: `AUDIT-074` - file: `docs/plan/PLAN-034.md`
 
 ## Drafted
 

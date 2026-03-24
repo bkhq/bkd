@@ -26,6 +26,7 @@
 
 ## Audit — HIGH (P1)
 
+- [x] **AUDIT-074 PR-104 pull request review documentation** `P1` - file: `docs/task/AUDIT-074.md`
 - [ ] **AUDIT-005 Engine domain data memory leak** `P1`
 - [ ] **AUDIT-006 Reconciler check scope too narrow** `P1`
 - [ ] **AUDIT-007 Reconciler vs spawn race condition** `P1`
