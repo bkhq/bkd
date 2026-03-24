@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   Calendar,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Clock,
   Loader2,
@@ -11,17 +12,20 @@ import {
   Trash2,
   XCircle,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { AppLogo } from '@/components/AppLogo'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useCronJobLogs, useCronJobs } from '@/hooks/use-kanban'
-import type { CronJob, CronJobLog } from '@/lib/kanban-api'
+import { useCronJobs } from '@/hooks/use-kanban'
+import type { CronJob, CronJobLog, CronJobLogsResponse } from '@/lib/kanban-api'
+import { kanbanApi } from '@/lib/kanban-api'
 import { useNotesStore } from '@/stores/notes-store'
 import { useTerminalStore } from '@/stores/terminal-store'
+
+const LOG_PAGE_SIZE = 20
 
 function formatDuration(ms: number | null): string {
   if (ms === null) return '-'
@@ -165,40 +169,88 @@ function CronJobList({
   )
 }
 
-/* -- Log list view ---------------------------------------- */
+/* -- Task config as collapsible JSON ---------------------- */
 
 function TaskConfigView({ config }: { config: Record<string, unknown> }) {
   const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
   const entries = Object.entries(config)
   if (entries.length === 0) return null
 
+  const jsonStr = JSON.stringify(config, null, 2)
+
   return (
     <div className="mt-4 mb-6">
-      <h3 className="text-sm font-medium mb-2">{t('cron.taskConfig')}</h3>
-      <Card className="bg-muted/30">
-        <CardContent className="py-3 px-4">
-          <div className="space-y-1.5">
-            {entries.map(([key, value]) => (
-              <div key={key} className="flex items-start gap-2 text-xs">
-                <span className="font-mono text-muted-foreground shrink-0">
-                  {key}
-                  :
-                </span>
-                <span className="font-mono break-all">
-                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-sm font-medium hover:text-foreground transition-colors mb-2"
+      >
+        <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expanded ? 'rotate-90' : ''}`} />
+        {t('cron.taskConfig')}
+        <Badge variant="secondary" className="ml-1 text-[10px]">
+          {entries.length}
+          {' '}
+          {entries.length === 1 ? 'key' : 'keys'}
+        </Badge>
+      </button>
+      {expanded && (
+        <Card className="bg-muted/30">
+          <CardContent className="py-3 px-4">
+            <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-all">
+              {jsonStr}
+            </pre>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
 
+/* -- Log detail view with pagination ---------------------- */
+
 function CronJobLogView({ job, onBack }: { job: CronJob, onBack: () => void }) {
   const { t } = useTranslation()
-  const { data, isLoading } = useCronJobLogs(job.id)
+  const [logs, setLogs] = useState<CronJobLog[]>([])
+  const [hasMore, setHasMore] = useState(false)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+
+  const fetchLogs = useCallback(async (cursor?: string) => {
+    const data = await kanbanApi.getCronJobLogs(job.id, {
+      limit: LOG_PAGE_SIZE,
+      cursor,
+    }) as CronJobLogsResponse
+    return data
+  }, [job.id])
+
+  // Initial load
+  const [initialized, setInitialized] = useState(false)
+  if (!initialized) {
+    setInitialized(true)
+    fetchLogs().then((data) => {
+      setLogs(data.logs)
+      setHasMore(data.hasMore)
+      setNextCursor(data.nextCursor)
+      setIsLoading(false)
+    }).catch(() => {
+      setIsLoading(false)
+    })
+  }
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || isLoadingMore) return
+    setIsLoadingMore(true)
+    try {
+      const data = await fetchLogs(nextCursor)
+      setLogs(prev => [...prev, ...data.logs])
+      setHasMore(data.hasMore)
+      setNextCursor(data.nextCursor)
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [nextCursor, isLoadingMore, fetchLogs])
 
   return (
     <div>
@@ -228,6 +280,7 @@ function CronJobLogView({ job, onBack }: { job: CronJob, onBack: () => void }) {
             <span className="text-xs">
               {t('cron.nextExecution')}
               :
+              {' '}
               {formatTime(job.nextExecution)}
             </span>
           )}
@@ -236,26 +289,52 @@ function CronJobLogView({ job, onBack }: { job: CronJob, onBack: () => void }) {
 
       <TaskConfigView config={job.taskConfig} />
 
-      <h3 className="text-sm font-medium mb-3">{t('cron.logs')}</h3>
+      <h3 className="text-sm font-medium mb-3">
+        {t('cron.logs')}
+        {logs.length > 0 && (
+          <Badge variant="secondary" className="ml-2 text-xs">
+            {logs.length}
+            {hasMore ? '+' : ''}
+          </Badge>
+        )}
+      </h3>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : !data?.logs.length ? (
+      ) : logs.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <p>{t('cron.noLogs')}</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {data.logs.map((log: CronJobLog) => (
+          {logs.map((log: CronJobLog) => (
             <LogEntry key={log.id} log={log} />
           ))}
+          {hasMore && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={loadMore}
+                disabled={isLoadingMore}
+                className="text-muted-foreground"
+              >
+                {isLoadingMore
+                  ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  : <ChevronDown className="mr-1.5 h-3.5 w-3.5" />}
+                {t('cron.loadMore')}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
   )
 }
+
+/* -- Single log entry (collapsed by default) -------------- */
 
 function LogEntry({ log }: { log: CronJobLog }) {
   const { t } = useTranslation()
@@ -284,17 +363,11 @@ function LogEntry({ log }: { log: CronJobLog }) {
           <span className="text-xs text-muted-foreground font-mono">
             {formatTime(log.startedAt)}
           </span>
-          {log.finishedAt && (
-            <span className="text-xs text-muted-foreground">
-              →
-              {' '}
-              {formatTime(log.finishedAt)}
-            </span>
-          )}
           {log.durationMs !== null && (
             <span className="text-xs text-muted-foreground">
               {t('cron.duration')}
               :
+              {' '}
               {formatDuration(log.durationMs)}
             </span>
           )}
@@ -302,16 +375,6 @@ function LogEntry({ log }: { log: CronJobLog }) {
             <ChevronRight className={`ml-auto h-3.5 w-3.5 text-muted-foreground transition-transform ${expanded ? 'rotate-90' : ''}`} />
           )}
         </div>
-        {!expanded && log.result && (
-          <p className="mt-1.5 text-xs text-muted-foreground font-mono truncate">
-            {log.result}
-          </p>
-        )}
-        {!expanded && log.error && (
-          <p className="mt-1.5 text-xs text-red-500 font-mono truncate">
-            {log.error}
-          </p>
-        )}
         {expanded && (
           <div className="mt-3 space-y-2">
             {log.result && (
@@ -329,6 +392,13 @@ function LogEntry({ log }: { log: CronJobLog }) {
                   {log.error}
                 </pre>
               </div>
+            )}
+            {log.finishedAt && (
+              <p className="text-[10px] text-muted-foreground">
+                {formatTime(log.startedAt)}
+                {' → '}
+                {formatTime(log.finishedAt)}
+              </p>
             )}
           </div>
         )}
@@ -413,6 +483,7 @@ export default function CronPage() {
           </div>
         ) : selectedJob ? (
           <CronJobLogView
+            key={selectedJob.id}
             job={selectedJob}
             onBack={() => setSelectedJob(null)}
           />

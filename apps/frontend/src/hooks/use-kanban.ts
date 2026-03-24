@@ -979,10 +979,10 @@ export function useCronJobs() {
   })
 }
 
-export function useCronJobLogs(jobId: string | null) {
+export function useCronJobLogs(jobId: string | null, opts?: { limit?: number }) {
   return useQuery({
     queryKey: queryKeys.cronJobLogs(jobId ?? ''),
-    queryFn: () => kanbanApi.getCronJobLogs(jobId!),
+    queryFn: () => kanbanApi.getCronJobLogs(jobId!, { limit: opts?.limit }),
     enabled: !!jobId,
     staleTime: STALE_TIME.STANDARD,
   })
