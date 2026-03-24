@@ -497,7 +497,7 @@ const MemoizedToolItemRenderer = memo(ToolItemRenderer)
 
 export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage }) {
   const { t } = useTranslation()
-  const { items, stats, count, description } = message
+  const { items, stats, count, description, isActive } = message
   const statsLabel = getGroupSummaryLabel(stats, count, t)
   const bodyId = `tg-body-${message.id}`
 
@@ -506,45 +506,39 @@ export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage })
   const [isOpen, setIsOpen] = useState(true)
   const [expanded, setExpanded] = useState(false)
 
-  // Group is actively streaming when the last tool call has no result yet.
-  // Completed groups always have all results paired via resultMap in useChatMessages.
-  const isStreaming = items.length > 0 && items.at(-1)?.result === null
+  // isActive is set by useChatMessages — true when this group is the trailing
+  // tool group (no subsequent assistant/user message has flushed it yet).
+  // It stays true until the next conversation message arrives, so it won't
+  // flicker between tool action/result pairs.
+  const isActiveRef = useRef(isActive)
+  isActiveRef.current = isActive
 
-  // Ref for click handler to avoid stale-closure on streaming→completed boundary.
-  const isStreamingRef = useRef(isStreaming)
-  isStreamingRef.current = isStreaming
+  // Track whether this group was ever active (streaming).
+  // Historical groups skip the auto-collapse on mount.
+  const wasEverActiveRef = useRef(!!isActive)
+  if (isActive) wasEverActiveRef.current = true
 
-  // Track whether this group was ever in streaming state.
-  // Historical (already completed) groups skip the auto-collapse on mount.
-  const wasEverStreamingRef = useRef(isStreaming)
-  if (isStreaming) wasEverStreamingRef.current = true
-
-  // When streaming ends, reset expanded so items truncate back to DEFAULT_VISIBLE_COUNT.
-  // Body stays open (isOpen remains true) — only item truncation resets.
+  // When the group is no longer active (assistant message arrived),
+  // reset expanded so items truncate back to DEFAULT_VISIBLE_COUNT.
   useEffect(() => {
-    if (!isStreaming && wasEverStreamingRef.current) {
-      const timer = setTimeout(() => {
-        if (!isStreamingRef.current) {
-          setExpanded(false)
-        }
-      }, 500)
-      return () => clearTimeout(timer)
+    if (!isActive && wasEverActiveRef.current) {
+      setExpanded(false)
     }
-  }, [isStreaming])
+  }, [isActive])
 
   // During streaming: always show body (auto-expand)
   // After streaming: user controls via isOpen
-  const bodyVisible = isStreaming || isOpen
+  const bodyVisible = isActive || isOpen
 
   const hasMore = items.length > DEFAULT_VISIBLE_COUNT
-  // No truncation during streaming (show all items in real-time)
-  const shouldTruncate = bodyVisible && hasMore && !expanded && !isStreaming
+  // No truncation while group is active (show all items in real-time)
+  const shouldTruncate = bodyVisible && hasMore && !expanded && !isActive
   const visibleItems = shouldTruncate ? items.slice(0, DEFAULT_VISIBLE_COUNT) : items
   const truncatedCount = items.length - DEFAULT_VISIBLE_COUNT
 
   const handleHeaderClick = useCallback(() => {
     // During streaming, body is auto-expanded — header click is a no-op
-    if (!isStreamingRef.current) {
+    if (!isActiveRef.current) {
       setIsOpen(v => !v)
     }
   }, [])
@@ -557,7 +551,7 @@ export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage })
           onClick={handleHeaderClick}
           aria-expanded={bodyVisible}
           aria-controls={bodyId}
-          aria-disabled={isStreaming || undefined}
+          aria-disabled={isActive || undefined}
           className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted-foreground cursor-pointer select-none bg-muted/60"
         >
           <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${bodyVisible ? 'rotate-90' : ''}`} />
@@ -587,7 +581,7 @@ export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage })
                       </button>
                     )
                   : null}
-                {hasMore && expanded && !isStreaming
+                {hasMore && expanded && !isActive
                   ? (
                       <button
                         type="button"

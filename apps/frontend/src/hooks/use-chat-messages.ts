@@ -345,6 +345,21 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
 
   flushToolBuffer()
   flushPendingThinking()
+
+  // Mark the trailing tool group as active — it hasn't been closed by a
+  // subsequent assistant/user message, so it may still receive new tool calls.
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].type === 'tool-group') {
+      (messages[i] as ToolGroupChatMessage).isActive = true
+      break
+    }
+    // Stop searching if an assistant message is found — the group was
+    // properly flushed and is no longer the trailing group.
+    // Note: user messages include pending/done types that don't flush tool
+    // buffers, so only assistant messages are a reliable boundary.
+    if (messages[i].type === 'assistant') break
+  }
+
   return messages
 }
 
