@@ -17,7 +17,7 @@ const outputPath = outputIdx !== -1 && args[outputIdx + 1]
 const spec = app.getOpenAPI31Document({
   openapi: '3.1.0',
   info: { title: 'BKD API', version: 'dev' },
-  servers: [{ url: '/api' }],
+  servers: [{ url: '/' }],
 })
 const json = JSON.stringify(spec, null, 2)
 

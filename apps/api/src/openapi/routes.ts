@@ -340,11 +340,15 @@ export const executeIssue = createRoute({
   },
 })
 
+// Note: followUpIssue accepts both JSON and multipart/form-data (file uploads).
+// It uses message.post() instead of message.openapi() because OpenAPIHono's
+// automatic body validation doesn't support dual content-type parsing.
+// This definition exists for documentation; the handler validates manually.
 export const followUpIssue = createRoute({
   method: 'post',
   path: '/{issueId}/follow-up',
   tags: ['Issue Commands'],
-  summary: 'Send follow-up message',
+  summary: 'Send follow-up message (JSON or multipart/form-data with file attachments)',
   operationId: 'followUpIssue',
   request: {
     params: projectIssueParams,
