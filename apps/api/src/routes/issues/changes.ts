@@ -225,7 +225,13 @@ changes.get('/:id/changes/file', async (c) => {
     })
   }
 
-  const { files: changedFiles } = await listChangedFiles(root)
+  const { files: changedFiles, timedOut: listTimedOut } = await listChangedFiles(root)
+  if (listTimedOut) {
+    return c.json({
+      success: true,
+      data: { path, patch: '', truncated: false, timedOut: true },
+    })
+  }
   const file = changedFiles.find(f => f.path === path)
   if (!file) {
     return c.json({
