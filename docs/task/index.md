@@ -93,4 +93,7 @@
 - [ ] **AUDIT-026 SSE writeSSE serialization failure not logged** `P3`
 - [ ] **AUDIT-027 No global rate limiting** `P3`
 - [ ] **AUDIT-032 FileBrowserPage implemented but unreachable from router** `P3`
+- [x] **DOC-002 Restore issue cron action details in bkd skill** `P2` - file: `docs/task/DOC-002.md`
+- [x] **SKILL-001 Standardize bkd skill package** `P2` - file: `docs/task/SKILL-001.md`
+- [x] **DOC-001 Fix bkd skill API examples** `P2` - file: `docs/task/DOC-001.md`
 - [x] **AUDIT-073 Multi-agent comprehensive repository review (2026-03-23)** `P1` - file: `docs/task/AUDIT-073.md`

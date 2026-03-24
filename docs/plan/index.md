@@ -13,4 +13,7 @@
 ## Drafted
 
 - [ ] **PLAN-028 OAuth PKCE Authentication** - task: `AUTH-001`
+- [x] **PLAN-033 Restore issue cron action details in bkd skill** - task: `DOC-002` - file: `docs/plan/PLAN-033.md`
+- [x] **PLAN-032 Standardize bkd skill package** - task: `SKILL-001` - file: `docs/plan/PLAN-032.md`
+- [x] **PLAN-031 Fix bkd skill API examples** - task: `DOC-001` - file: `docs/plan/PLAN-031.md`
 - [x] **PLAN-030 Comprehensive repository review** - task: `AUDIT-073` - file: `docs/plan/PLAN-030.md`
