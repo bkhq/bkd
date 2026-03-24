@@ -519,14 +519,12 @@ export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage })
   const wasEverStreamingRef = useRef(isStreaming)
   if (isStreaming) wasEverStreamingRef.current = true
 
-  // Auto-collapse when streaming ends. Debounce 500ms to avoid flicker
-  // between consecutive tool-action/result pairs within the same group.
+  // When streaming ends, reset expanded so items truncate back to DEFAULT_VISIBLE_COUNT.
+  // Body stays open (isOpen remains true) — only item truncation resets.
   useEffect(() => {
     if (!isStreaming && wasEverStreamingRef.current) {
       const timer = setTimeout(() => {
-        // Re-check via ref — streaming may have resumed during the delay
         if (!isStreamingRef.current) {
-          setIsOpen(false)
           setExpanded(false)
         }
       }, 500)
