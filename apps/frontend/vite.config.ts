@@ -2,7 +2,8 @@ import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import viteReact from '@vitejs/plugin-react'
 import tsconfigPaths from 'vite-tsconfig-paths'
-import type { Plugin } from 'vitest/config'
+import type { Plugin } from 'vite'
+import { loadEnv } from 'vite'
 import { defineConfig } from 'vitest/config'
 
 /**
@@ -45,10 +46,8 @@ function shikiSlim(): Plugin {
   }
 }
 
-const config = defineConfig(() => {
-  const apiPort = Number(process.env.VITE_API_PORT) || 3010
-  const devPort = Number(process.env.VITE_DEV_PORT) || 3000
-  const devHost = process.env.VITE_DEV_HOST || '0.0.0.0'
+const config = defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd())
 
   return {
     plugins: [
@@ -88,18 +87,18 @@ const config = defineConfig(() => {
       setupFiles: ['./src/test-setup.ts'],
     },
     server: {
-      port: devPort,
-      host: devHost,
+      port: Number(env.VITE_DEV_PORT) || 3000,
+      host: env.VITE_DEV_HOST || '0.0.0.0',
       // Restrict allowed hosts to prevent DNS rebinding attacks.
       // Extend via VITE_ALLOWED_HOSTS (comma-separated) for custom domains.
       allowedHosts: [
         'localhost',
         '127.0.0.1',
-        ...(process.env.VITE_ALLOWED_HOSTS?.split(',').map(h => h.trim()).filter(Boolean) ?? []),
+        ...(env.VITE_ALLOWED_HOSTS?.split(',').map(h => h.trim()).filter(Boolean) ?? []),
       ],
       proxy: {
         '/api': {
-          target: `http://localhost:${apiPort}`,
+          target: `http://localhost:${Number(env.VITE_API_PORT) || 3010}`,
           changeOrigin: true,
         },
       },
