@@ -1,4 +1,4 @@
-import { readdir, realpath, rm, stat, writeFile } from 'node:fs/promises'
+import { readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
 import bs58 from 'bs58'
 import { getAppSetting } from '@/db/helpers'
@@ -101,27 +101,6 @@ async function resolveRootPath(c: Context, relativePath: string) {
   }
 
   return { root, target }
-}
-
-/**
- * Resolve the real on-disk path (following symlinks) and verify it stays inside root.
- * Used for write operations (save/delete) to prevent symlink traversal attacks.
- */
-async function verifyRealPath(target: string, root: string): Promise<boolean> {
-  try {
-    const realTarget = await realpath(target)
-    const realRoot = await realpath(root)
-    return isInsideRoot(realTarget, realRoot)
-  } catch {
-    const parent = resolve(target, '..')
-    try {
-      const realParent = await realpath(parent)
-      const realRoot = await realpath(root)
-      return isInsideRoot(realParent, realRoot)
-    } catch {
-      return false
-    }
-  }
 }
 
 /** Extract relative path from the URL after the given marker segment. */
@@ -293,11 +272,6 @@ async function handleDelete(c: Context, relativePath: string) {
     return c.json({ success: false, error: 'Cannot delete root directory' }, 400)
   }
 
-  // SEC: Verify real path after symlink resolution stays inside root (write operations only)
-  if (!await verifyRealPath(target, root)) {
-    return c.json({ success: false, error: 'Path escapes root via symlink' }, 403)
-  }
-
   try {
     const targetStat = await stat(target)
     const isDir = targetStat.isDirectory()
@@ -320,12 +294,7 @@ const MAX_SAVE_SIZE = 5 * 1024 * 1024 // 5 MB
 async function handleSave(c: Context, relativePath: string) {
   const resolved = await resolveRootPath(c, relativePath)
   if ('error' in resolved) return resolved.error
-  const { target, root } = resolved
-
-  // SEC: Verify real path after symlink resolution stays inside root (write operations only)
-  if (!await verifyRealPath(target, root)) {
-    return c.json({ success: false, error: 'Path escapes root via symlink' }, 403)
-  }
+  const { target } = resolved
 
   try {
     const body = await c.req.json<{ content: string }>()
