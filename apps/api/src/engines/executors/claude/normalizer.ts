@@ -180,7 +180,7 @@ export class ClaudeLogNormalizer {
       })
     }
 
-    // Thinking blocks
+    // Thinking blocks (including redacted)
     if (contentBlocks) {
       for (const block of contentBlocks) {
         if (block.type === 'thinking' && block.thinking) {
@@ -189,46 +189,127 @@ export class ClaudeLogNormalizer {
             content: block.thinking,
             timestamp: data.timestamp,
           })
+        } else if (block.type === 'redacted_thinking') {
+          entries.push({
+            entryType: 'thinking',
+            content: '[Thinking redacted]',
+            timestamp: data.timestamp,
+            metadata: { redacted: true },
+          })
         }
       }
     }
 
-    // Tool use blocks
+    // Tool use blocks (client-side and server-side)
     if (contentBlocks) {
       for (const block of contentBlocks) {
-        if (block.type !== 'tool_use' || !block.name) continue
+        // Client-side tool_use
+        if (block.type === 'tool_use' && block.name) {
+          const input = block.input ?? {}
+          const toolCallId = block.id ?? ''
 
-        const input = block.input ?? {}
-        const toolCallId = block.id ?? ''
+          if (toolCallId) {
+            this.toolMap.set(toolCallId, {
+              toolName: block.name,
+              input,
+              toolCallId,
+            })
+          }
 
-        // Register in tool map for later correlation
-        if (toolCallId) {
+          entries.push({
+            entryType: 'tool-use',
+            content: generateToolContent(block.name, input),
+            timestamp: data.timestamp,
+            metadata: {
+              messageId: data.message.id,
+              toolName: block.name,
+              input,
+              toolCallId,
+            },
+            toolAction: classifyToolAction(block.name, input),
+            toolDetail: {
+              kind: classifyToolKind(block.name),
+              toolName: block.name,
+              toolCallId,
+              isResult: false,
+              raw: input,
+            },
+          })
+        }
+
+        // Server-side tool_use (web_search, web_fetch, code_execution, etc.)
+        if (block.type === 'server_tool_use') {
+          const input = (typeof block.input === 'object' && block.input !== null ? block.input : {}) as Record<string, unknown>
+          const toolCallId = block.id
+
           this.toolMap.set(toolCallId, {
             toolName: block.name,
             input,
             toolCallId,
           })
+
+          entries.push({
+            entryType: 'tool-use',
+            content: generateToolContent(block.name, input),
+            timestamp: data.timestamp,
+            metadata: {
+              messageId: data.message.id,
+              toolName: block.name,
+              input,
+              toolCallId,
+              serverTool: true,
+            },
+            toolAction: classifyToolAction(block.name, input),
+            toolDetail: {
+              kind: classifyToolKind(block.name),
+              toolName: block.name,
+              toolCallId,
+              isResult: false,
+              raw: input,
+            },
+          })
         }
 
-        entries.push({
-          entryType: 'tool-use',
-          content: generateToolContent(block.name, input),
-          timestamp: data.timestamp,
-          metadata: {
-            messageId: data.message.id,
-            toolName: block.name,
-            input,
-            toolCallId,
-          },
-          toolAction: classifyToolAction(block.name, input),
-          toolDetail: {
-            kind: classifyToolKind(block.name),
-            toolName: block.name,
-            toolCallId,
-            isResult: false,
-            raw: input,
-          },
-        })
+        // Server tool result blocks
+        if (
+          block.type === 'web_search_tool_result'
+          || block.type === 'web_fetch_tool_result'
+          || block.type === 'code_execution_tool_result'
+          || block.type === 'bash_code_execution_tool_result'
+          || block.type === 'text_editor_code_execution_tool_result'
+          || block.type === 'tool_search_tool_result'
+        ) {
+          const toolUseId = block.tool_use_id
+          const info = this.toolMap.get(toolUseId)
+          if (info) this.toolMap.delete(toolUseId)
+
+          const resultContent = this.extractServerToolResultContent(block.type, block.content)
+          const isError = typeof block.content === 'object'
+            && block.content !== null
+            && 'type' in (block.content as Record<string, unknown>)
+            && String((block.content as Record<string, unknown>).type).endsWith('_error')
+
+          entries.push({
+            entryType: isError ? 'error-message' : 'tool-use',
+            content: resultContent,
+            timestamp: data.timestamp,
+            metadata: {
+              toolCallId: toolUseId,
+              toolName: info?.toolName,
+              isResult: true,
+              serverTool: true,
+            },
+            toolDetail: info
+              ? {
+                  kind: classifyToolKind(info.toolName),
+                  toolName: info.toolName,
+                  toolCallId: toolUseId,
+                  isResult: true,
+                  raw: buildToolResultRaw(info, resultContent, isError),
+                }
+              : undefined,
+          })
+        }
       }
     }
 
@@ -432,20 +513,94 @@ export class ClaudeLogNormalizer {
     // Emit token usage from message_delta if not from subagent
     if (!data.parent_tool_use_id && data.usage) {
       const input =
-        (data.usage.input_tokens ?? 0) +
-        (data.usage.cache_creation_input_tokens ?? 0) +
-        (data.usage.cache_read_input_tokens ?? 0)
+        (data.usage.input_tokens ?? 0)
+        + (data.usage.cache_creation_input_tokens ?? 0)
+        + (data.usage.cache_read_input_tokens ?? 0)
       const output = data.usage.output_tokens ?? 0
       if (input > 0 || output > 0) {
+        const metadata: Record<string, unknown> = {
+          inputTokens: input,
+          outputTokens: output,
+        }
+        // Include enriched usage fields when present
+        if (data.usage.service_tier) metadata.serviceTier = data.usage.service_tier
+        if (data.usage.inference_geo) metadata.inferenceGeo = data.usage.inference_geo
+        if (data.usage.server_tool_use) metadata.serverToolUse = data.usage.server_tool_use
+        if (data.usage.cache_creation) metadata.cacheCreation = data.usage.cache_creation
+
         return {
           entryType: 'token-usage',
           content: `${input} input · ${output} output`,
           timestamp: data.timestamp,
-          metadata: { inputTokens: input, outputTokens: output },
+          metadata,
         }
       }
     }
     return null
+  }
+
+  /** Extract human-readable content from server tool result blocks. */
+  private extractServerToolResultContent(blockType: string, content: unknown): string {
+    if (!content || typeof content !== 'object') return `${blockType}: (empty)`
+
+    // Error result (all server tool errors share *_error type suffix)
+    const contentObj = content as Record<string, unknown>
+    if (typeof contentObj.type === 'string' && contentObj.type.endsWith('_error')) {
+      return `Error: ${contentObj.error_code ?? contentObj.type}${contentObj.error_message ? ` — ${contentObj.error_message}` : ''}`
+    }
+
+    switch (blockType) {
+      case 'web_search_tool_result':
+        // Array of WebSearchResultBlock
+        if (Array.isArray(content)) {
+          return content
+            .map((r: Record<string, unknown>) => r.title ?? r.url ?? '')
+            .filter(Boolean)
+            .join(', ') || 'Web search completed'
+        }
+        return 'Web search completed'
+
+      case 'web_fetch_tool_result': {
+        // WebFetchBlock — extract text from nested structure
+        if ('page_content' in contentObj && typeof contentObj.page_content === 'string') {
+          return contentObj.page_content.slice(0, 500)
+        }
+        if ('content' in contentObj) {
+          const inner = contentObj.content
+          if (typeof inner === 'string') return inner.slice(0, 500)
+          if (typeof inner === 'object' && inner !== null) {
+            const innerObj = inner as Record<string, unknown>
+            // { type: 'web_fetch_result', content: "..." } or { page_content: "..." }
+            if (typeof innerObj.page_content === 'string') return innerObj.page_content.slice(0, 500)
+            if (typeof innerObj.content === 'string') return innerObj.content.slice(0, 500)
+            return JSON.stringify(inner).slice(0, 500)
+          }
+        }
+        return 'Web fetch completed'
+      }
+
+      case 'code_execution_tool_result':
+      case 'bash_code_execution_tool_result': {
+        // CodeExecutionResultBlock with stdout/stderr
+        const stdout = contentObj.stdout ?? ''
+        const stderr = contentObj.stderr ?? ''
+        const rc = contentObj.return_code
+        const parts: string[] = []
+        if (stdout) parts.push(String(stdout).slice(0, 500))
+        if (stderr) parts.push(`stderr: ${String(stderr).slice(0, 200)}`)
+        if (rc !== undefined && rc !== 0) parts.push(`exit: ${rc}`)
+        return parts.join('\n') || 'Code execution completed'
+      }
+
+      case 'text_editor_code_execution_tool_result':
+        return 'Text editor operation completed'
+
+      case 'tool_search_tool_result':
+        return 'Tool search completed'
+
+      default:
+        return JSON.stringify(content).slice(0, 300)
+    }
   }
 
   // ---------- Result ----------

@@ -108,7 +108,8 @@ describe('files/:root/show browse and file content', () => {
     )
     expect(result.status).toBe(200)
     expect(result.json.success).toBe(true)
-    const names = result.json.data!.entries.map((e: { name: string }) => e.name)
+    if (!result.json.success) throw new Error('unreachable')
+    const names = result.json.data.entries.map((e: { name: string }) => e.name)
     expect(names).toContain('test.txt')
     expect(names).toContain('subdir')
     expect(names).toContain('linked-dir')
@@ -120,8 +121,9 @@ describe('files/:root/show browse and file content', () => {
       `/api/files/${encoded}/show/test.txt`,
     )
     expect(result.status).toBe(200)
-    expect(result.json.data!.type).toBe('file')
-    expect(result.json.data!.content).toBe('hello workspace')
+    if (!result.json.success) throw new Error('unreachable')
+    expect(result.json.data.type).toBe('file')
+    expect(result.json.data.content).toBe('hello workspace')
   })
 
   test('rejects path traversal via relative path', async () => {

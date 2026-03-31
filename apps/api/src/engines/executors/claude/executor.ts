@@ -376,10 +376,13 @@ export class ClaudeCodeExecutor implements EngineExecutor {
       }
     }
 
-    // Plan mode: start CLI with bypassPermissions so we can switch back to it
-    // after ExitPlanMode. SDK protocol then sets the actual mode to "plan".
+    // Set CLI-level permission mode:
+    // - plan: bootstrap with bypassPermissions so SDK can switch back after ExitPlanMode
+    // - auto: enable the built-in AI classifier; stdio protocol acts as fallback approver
     if (isPlanMode) {
       builder.param('--permission-mode', 'bypassPermissions')
+    } else {
+      builder.param('--permission-mode', 'auto')
     }
 
     if (options.model && options.model !== 'auto') {

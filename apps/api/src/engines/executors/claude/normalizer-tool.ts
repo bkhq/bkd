@@ -28,14 +28,16 @@ export function generateToolContent(toolName: string, input: Record<string, unkn
     case 'Grep':
       return input.path ? `${input.pattern} in ${input.path}` : String(input.pattern ?? toolName)
     case 'Glob':
-      return input.path ?
-        `${input.pattern ?? input.filePattern} in ${input.path}` :
-          String(input.pattern ?? input.filePattern ?? toolName)
+      return input.path
+        ? `${input.pattern ?? input.filePattern} in ${input.path}`
+        : String(input.pattern ?? input.filePattern ?? toolName)
     case 'LS':
       return String(input.path ?? toolName)
     case 'WebFetch':
+    case 'web_fetch':
       return String(input.url ?? toolName)
     case 'WebSearch':
+    case 'web_search':
       return String(input.query ?? toolName)
     case 'Task':
       return input.description ? `Task: ${input.description}` : 'Task'
@@ -47,6 +49,15 @@ export function generateToolContent(toolName: string, input: Record<string, unkn
       return String(input.plan ?? 'Plan submitted')
     case 'NotebookEdit':
       return String(input.notebook_path ?? toolName)
+    // Server-side tools
+    case 'code_execution':
+    case 'bash_code_execution':
+      return String(input.code ?? input.command ?? `Server: ${toolName}`)
+    case 'text_editor_code_execution':
+      return String(input.command ?? `Server: ${toolName}`)
+    case 'tool_search_tool_regex':
+    case 'tool_search_tool_bm25':
+      return String(input.query ?? `Server: ${toolName}`)
     default: {
       // MCP tools: mcp__server__tool → mcp:server:tool
       if (toolName.startsWith('mcp__')) {
@@ -75,9 +86,20 @@ export function classifyToolKind(toolName: string): string {
     case 'Glob':
       return 'search'
     case 'WebFetch':
+    case 'web_fetch':
       return 'web-fetch'
+    case 'WebSearch':
+    case 'web_search':
+      return 'search'
     case 'Task':
       return 'task'
+    case 'code_execution':
+    case 'bash_code_execution':
+    case 'text_editor_code_execution':
+      return 'command-run'
+    case 'tool_search_tool_regex':
+    case 'tool_search_tool_bm25':
+      return 'search'
     default:
       return 'tool'
   }
@@ -99,19 +121,33 @@ export function classifyToolAction(toolName: string, input: Record<string, unkno
         path: String(input.file_path ?? input.path ?? ''),
       }
     case 'Bash':
+    case 'code_execution':
+    case 'bash_code_execution':
       return {
         kind: 'command-run',
-        command: String(input.command ?? input.cmd ?? ''),
-        category: classifyCommand(String(input.command ?? input.cmd ?? '')) as CommandCategory,
+        command: String(input.command ?? input.code ?? input.cmd ?? ''),
+        category: classifyCommand(String(input.command ?? input.code ?? input.cmd ?? '')) as CommandCategory,
+      }
+    case 'text_editor_code_execution':
+      return {
+        kind: 'command-run',
+        command: String(input.command ?? ''),
+        category: 'edit' as CommandCategory,
       }
     case 'Grep':
     case 'Glob':
+    case 'tool_search_tool_regex':
+    case 'tool_search_tool_bm25':
       return {
         kind: 'search',
         query: String(input.pattern ?? input.query ?? input.filePattern ?? ''),
       }
     case 'WebFetch':
+    case 'web_fetch':
       return { kind: 'web-fetch', url: String(input.url ?? '') }
+    case 'WebSearch':
+    case 'web_search':
+      return { kind: 'search', query: String(input.query ?? '') }
     default:
       return { kind: 'tool', toolName, arguments: input }
   }
