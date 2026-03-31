@@ -41,9 +41,9 @@ export async function getClaudeMcpConfig(): Promise<string | null> {
 
 /**
  * Build the MCP server config for ACP protocol's mcpServers parameter.
- * Returns the server list, or empty array if MCP is disabled.
+ * Returns the server list matching the ACP SDK McpServer type.
  */
-export async function getAcpMcpServers(): Promise<Array<{ name: string, uri: string }>> {
+export async function getAcpMcpServers(): Promise<Array<{ type: 'http', name: string, url: string, headers: Array<{ name: string, value: string }> }>> {
   if (!await isMcpEnabled()) return []
-  return [{ name: 'bkd', uri: getMcpLocalUrl() }]
+  return [{ type: 'http', name: 'bkd', url: getMcpLocalUrl(), headers: [] }]
 }

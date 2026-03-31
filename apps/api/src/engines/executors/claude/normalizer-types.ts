@@ -88,6 +88,8 @@ export interface ClaudeStreamEvent {
     type?: string
     text?: string
     thinking?: string
+    signature?: string
+    citation?: unknown
   }
   content_block?: ClaudeContentItem
   message?: ClaudeMessage
@@ -146,12 +148,13 @@ export interface ClaudeMessage {
   role?: string
   model?: string
   content?: ClaudeContentItem[] | string
-  stop_reason?: string
+  stop_reason?: 'end_turn' | 'max_tokens' | 'stop_sequence' | 'tool_use' | 'pause_turn' | 'refusal' | string
 }
 
 export type ClaudeContentItem =
-  | { type: 'text', text: string } |
+  | { type: 'text', text: string, citations?: unknown[] | null } |
   { type: 'thinking', thinking: string } |
+  { type: 'redacted_thinking', data: string } |
   {
     type: 'tool_use'
     id?: string
@@ -163,6 +166,47 @@ export type ClaudeContentItem =
     tool_use_id?: string
     content?: string | unknown[]
     is_error?: boolean
+  } |
+  {
+    type: 'server_tool_use'
+    id: string
+    name: string
+    input?: unknown
+    caller?: { type: string, tool_id?: string }
+  } |
+  {
+    type: 'web_search_tool_result'
+    tool_use_id: string
+    content: unknown
+  } |
+  {
+    type: 'web_fetch_tool_result'
+    tool_use_id: string
+    content: unknown
+  } |
+  {
+    type: 'code_execution_tool_result'
+    tool_use_id: string
+    content: unknown
+  } |
+  {
+    type: 'bash_code_execution_tool_result'
+    tool_use_id: string
+    content: unknown
+  } |
+  {
+    type: 'text_editor_code_execution_tool_result'
+    tool_use_id: string
+    content: unknown
+  } |
+  {
+    type: 'tool_search_tool_result'
+    tool_use_id: string
+    content: unknown
+  } |
+  {
+    type: 'container_upload'
+    [key: string]: unknown
   }
 
 export interface ClaudeUsage {
@@ -170,7 +214,16 @@ export interface ClaudeUsage {
   output_tokens?: number
   cache_creation_input_tokens?: number
   cache_read_input_tokens?: number
-  service_tier?: string
+  server_tool_use?: {
+    web_search_requests: number
+    web_fetch_requests: number
+  } | null
+  cache_creation?: {
+    ephemeral_1h_input_tokens: number
+    ephemeral_5m_input_tokens: number
+  } | null
+  service_tier?: 'standard' | 'priority' | 'batch' | null
+  inference_geo?: string | null
 }
 
 // ---------- Tool call info (for correlating tool_use → tool_result) ----------

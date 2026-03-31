@@ -401,15 +401,15 @@ export class ClaudeProtocolHandler {
 // ---------- Helpers ----------
 
 /** Map our PermissionPolicy to Claude SDK permission mode string. */
-function mapPermissionMode(policy: PermissionPolicy): 'bypassPermissions' | 'plan' | 'default' {
+function mapPermissionMode(policy: PermissionPolicy): 'auto' | 'bypassPermissions' | 'plan' | 'default' {
   switch (policy) {
     case 'auto':
-      return 'bypassPermissions'
+      return 'auto'
     case 'plan':
       return 'plan'
     case 'supervised':
       return 'default'
     default:
-      return 'bypassPermissions'
+      return 'auto'
   }
 }
