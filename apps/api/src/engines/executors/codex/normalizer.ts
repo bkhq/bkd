@@ -264,9 +264,13 @@ export class CodexLogNormalizer {
       }
     }
 
+    // FileChange: { type: "fileChange", id, changes: [{path, kind, diff}], status }
     if (itemType === 'fileChange') {
       this.resetStreamingState()
-      const path = item.path as string | undefined
+      const changes = item.changes as Array<{ path?: string, kind?: unknown, diff?: string }> | undefined
+      const paths = changes?.map(c => c.path).filter(Boolean) as string[] ?? []
+      const firstPath = paths[0] ?? ''
+      const input = fileChangesToInput(changes)
       return {
         entryType: 'tool-use',
         content: 'Tool: Edit',
@@ -275,10 +279,10 @@ export class CodexLogNormalizer {
           streaming: true,
           toolName: 'Edit',
           toolCallId: item.id as string | undefined,
-          path,
-          input: path ? { file_path: path } : undefined,
+          path: firstPath || undefined,
+          input,
         },
-        toolAction: { kind: 'file-edit', path: path ?? '' },
+        toolAction: { kind: 'file-edit', path: firstPath },
       }
     }
 
@@ -421,13 +425,22 @@ export class CodexLogNormalizer {
       }
     }
 
+    // FileChange completed: { type: "fileChange", id, changes: [{path, kind, diff}], status }
     if (itemType === 'fileChange') {
-      const patches = item.patches as unknown[] | undefined
-      const path = item.path as string | undefined
-      const patchCount = patches?.length ?? 0
-      const summary = path
-        ? `File changed: ${path} (${patchCount} patch${patchCount !== 1 ? 'es' : ''})`
-        : `File changed (${patchCount} patch${patchCount !== 1 ? 'es' : ''})`
+      const changes = item.changes as Array<{ path?: string, kind?: unknown, diff?: string }> | undefined
+      const paths = changes?.map(c => c.path).filter(Boolean) as string[] ?? []
+      const firstPath = paths[0] ?? ''
+      const changeCount = changes?.length ?? 0
+      const status = item.status as string | undefined
+      const isError = status === 'failed' || status === 'declined'
+
+      // Build a content summary from changes
+      const summary = paths.length > 0
+        ? paths.length === 1
+          ? `File changed: ${firstPath}`
+          : `${changeCount} files changed: ${paths.join(', ')}`
+        : `File changed (${changeCount} change${changeCount !== 1 ? 's' : ''})`
+
       return {
         entryType: 'tool-use',
         content: summary,
@@ -436,9 +449,11 @@ export class CodexLogNormalizer {
           toolName: 'Edit',
           isResult: true,
           toolCallId: item.id as string | undefined,
-          path,
+          path: firstPath || undefined,
+          exitCode: isError ? 1 : 0,
+          ...(paths.length > 1 && { changedPaths: paths }),
         },
-        toolAction: { kind: 'file-edit', path: path ?? '' },
+        toolAction: { kind: 'file-edit', path: firstPath },
       }
     }
 
@@ -769,6 +784,32 @@ export class CodexLogNormalizer {
   private resetStreamingState(): void {
     this.assistantText = ''
     this.thinkingText = ''
+  }
+}
+
+/**
+ * Build input metadata from v2 FileChange changes array.
+ * FileUpdateChange: { path, kind: { type: "add"|"delete"|"update" }, diff }
+ */
+function fileChangesToInput(
+  changes: Array<{ path?: string, kind?: unknown, diff?: string }> | undefined,
+): Record<string, unknown> | undefined {
+  if (!changes || changes.length === 0) return undefined
+  if (changes.length === 1) {
+    const c = changes[0]
+    const kind = c.kind as { type?: string } | undefined
+    return {
+      file_path: c.path ?? '',
+      ...(kind?.type && { changeType: kind.type }),
+      ...(c.diff && { unified_diff: c.diff }),
+    }
+  }
+  // Multiple files — summarize
+  return {
+    files: changes.map(c => ({
+      file_path: c.path ?? '',
+      changeType: (c.kind as { type?: string } | undefined)?.type,
+    })),
   }
 }
 

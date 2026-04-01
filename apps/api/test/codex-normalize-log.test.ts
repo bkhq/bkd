@@ -51,14 +51,24 @@ describe('CodexExecutor.normalizeLog', () => {
       expect(entry!.metadata?.toolCallId).toBe('cmd-1')
     })
 
-    test('fileChange returns tool-use with path', () => {
+    test('fileChange returns tool-use with path from changes array', () => {
       const entry = normalize('item/started', {
-        item: { type: 'fileChange', id: 'fc-1', path: '/tmp/test.ts' },
+        item: {
+          type: 'fileChange',
+          id: 'fc-1',
+          changes: [{ path: '/tmp/test.ts', kind: { type: 'update' }, diff: '--- a\n+++ b' }],
+          status: 'inProgress',
+        },
       })
       expect(entry).not.toBeNull()
       expect(entry!.entryType).toBe('tool-use')
       expect(entry!.content).toBe('Tool: Edit')
       expect(entry!.metadata?.path).toBe('/tmp/test.ts')
+      expect(entry!.metadata?.input).toEqual({
+        file_path: '/tmp/test.ts',
+        changeType: 'update',
+        unified_diff: '--- a\n+++ b',
+      })
     })
 
     test('agentMessage returns null (canonical text emitted by item/completed)', () => {
@@ -127,35 +137,41 @@ describe('CodexExecutor.normalizeLog', () => {
       expect(entry!.content).toBe('added 10 packages\nWARN deprecated')
     })
 
-    test('fileChange with patches', () => {
+    test('fileChange with multiple changes', () => {
       const entry = normalize('item/completed', {
         item: {
           type: 'fileChange',
-          path: '/app/index.ts',
-          patches: [{ op: 'replace' }, { op: 'add' }],
+          id: 'fc-done',
+          changes: [
+            { path: '/app/index.ts', kind: { type: 'update' }, diff: 'diff1' },
+            { path: '/app/utils.ts', kind: { type: 'add' }, diff: 'diff2' },
+          ],
+          status: 'completed',
         },
       })
       expect(entry).not.toBeNull()
       expect(entry!.entryType).toBe('tool-use')
-      expect(entry!.content).toBe('File changed: /app/index.ts (2 patches)')
+      expect(entry!.content).toBe('2 files changed: /app/index.ts, /app/utils.ts')
       expect(entry!.metadata?.isResult).toBe(true)
       expect(entry!.metadata?.path).toBe('/app/index.ts')
+      expect(entry!.metadata?.changedPaths).toEqual(['/app/index.ts', '/app/utils.ts'])
       expect(entry!.toolAction).toEqual({
         kind: 'file-edit',
         path: '/app/index.ts',
       })
     })
 
-    test('fileChange single patch uses singular', () => {
+    test('fileChange single file', () => {
       const entry = normalize('item/completed', {
         item: {
           type: 'fileChange',
-          path: '/app/test.ts',
-          patches: [{ op: 'replace' }],
+          id: 'fc-single',
+          changes: [{ path: '/app/test.ts', kind: { type: 'update' }, diff: 'diff' }],
+          status: 'completed',
         },
       })
       expect(entry).not.toBeNull()
-      expect(entry!.content).toBe('File changed: /app/test.ts (1 patch)')
+      expect(entry!.content).toBe('File changed: /app/test.ts')
     })
 
     test('agentMessage returns assistant-message with final text', () => {
