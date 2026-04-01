@@ -637,11 +637,17 @@ export class CodexLogNormalizer {
     const params = (data.params ?? {}) as Record<string, unknown>
     const delta = params.delta as string | undefined
     if (!delta) return null
+    const itemId = params.itemId as string | undefined
     return {
       entryType: 'tool-use',
       content: delta,
       timestamp: now,
-      metadata: { isResult: true, streaming: true },
+      metadata: {
+        toolName: 'Bash',
+        isResult: true,
+        streaming: true,
+        ...(itemId && { toolCallId: itemId }),
+      },
     }
   }
 
@@ -652,11 +658,17 @@ export class CodexLogNormalizer {
     const params = (data.params ?? {}) as Record<string, unknown>
     const delta = params.delta as string | undefined
     if (!delta) return null
+    const itemId = params.itemId as string | undefined
     return {
       entryType: 'tool-use',
       content: delta,
       timestamp: now,
-      metadata: { isResult: true, streaming: true },
+      metadata: {
+        toolName: 'Edit',
+        isResult: true,
+        streaming: true,
+        ...(itemId && { toolCallId: itemId }),
+      },
     }
   }
 
