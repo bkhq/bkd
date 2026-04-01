@@ -97,16 +97,15 @@ describe('CodexExecutor.normalizeLog', () => {
   // 3. item/completed
   // ------------------------------------------------------------------
   describe('item/completed', () => {
-    test('commandExecution with stdout and exit code', () => {
+    test('commandExecution with aggregatedOutput and exit code', () => {
       const entry = normalize('item/completed', {
         item: {
           type: 'commandExecution',
           id: 'cmd-done',
-          command: ['ls', '-la'],
-          stdout: 'file1.ts\nfile2.ts',
-          stderr: '',
+          command: 'ls -la',
+          aggregatedOutput: 'file1.ts\nfile2.ts',
           exitCode: 0,
-          duration: 150,
+          durationMs: 150,
         },
       })
       expect(entry).not.toBeNull()
@@ -123,18 +122,16 @@ describe('CodexExecutor.normalizeLog', () => {
       })
     })
 
-    test('commandExecution with stderr combined', () => {
+    test('commandExecution with empty output', () => {
       const entry = normalize('item/completed', {
         item: {
           type: 'commandExecution',
-          command: ['npm', 'install'],
-          stdout: 'added 10 packages',
-          stderr: 'WARN deprecated',
+          command: 'npm install',
           exitCode: 0,
         },
       })
       expect(entry).not.toBeNull()
-      expect(entry!.content).toBe('added 10 packages\nWARN deprecated')
+      expect(entry!.content).toBe('')
     })
 
     test('fileChange with multiple changes', () => {

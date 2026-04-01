@@ -242,9 +242,12 @@ export class CodexLogNormalizer {
     const item = (params.item ?? {}) as Record<string, unknown>
     const itemType = item.type as string | undefined
 
+    // CommandExecution: { type: "commandExecution", id, command (string), cwd, commandActions, status, ... }
     if (itemType === 'commandExecution') {
       this.resetStreamingState()
       const commandStr = extractCommandString(item)
+      const cwd = item.cwd as string | undefined
+      const description = extractCommandDescription(item)
       const toolAction: ToolAction = {
         kind: 'command-run',
         command: commandStr,
@@ -258,7 +261,11 @@ export class CodexLogNormalizer {
           streaming: true,
           toolName: 'Bash',
           toolCallId: item.id as string | undefined,
-          input: commandStr ? { command: commandStr } : undefined,
+          input: {
+            ...(commandStr && { command: commandStr }),
+            ...(description && { description }),
+          },
+          ...(cwd && { cwd }),
         },
         toolAction,
       }
@@ -397,29 +404,27 @@ export class CodexLogNormalizer {
     const item = (params.item ?? {}) as Record<string, unknown>
     const itemType = item.type as string | undefined
 
+    // CommandExecution completed: { type: "commandExecution", id, command, cwd, aggregatedOutput?, exitCode?, durationMs?, status }
     if (itemType === 'commandExecution') {
-      const stdout = (item.stdout as string) ?? ''
-      const stderr = (item.stderr as string) ?? ''
-      const aggregated = (item.aggregatedOutput as string) ?? ''
-      const combined = aggregated || [stdout, stderr].filter(Boolean).join('\n')
+      const output = (item.aggregatedOutput as string) ?? ''
       const exitCode = item.exitCode as number | undefined
-      const duration = (item.durationMs ?? item.duration) as number | undefined
+      const durationMs = item.durationMs as number | undefined
       const commandStr = extractCommandString(item)
       return {
         entryType: 'tool-use',
-        content: combined,
+        content: output,
         timestamp: now,
         metadata: {
           toolName: 'Bash',
           isResult: true,
           toolCallId: item.id as string | undefined,
           exitCode,
-          duration,
+          ...(durationMs != null && { duration: durationMs }),
         },
         toolAction: {
           kind: 'command-run',
           command: commandStr,
-          result: combined || undefined,
+          result: output || undefined,
           category: commandStr ? classifyCommand(commandStr) : 'other',
         },
       }
@@ -814,8 +819,8 @@ function fileChangesToInput(
 }
 
 /**
- * Extract the command string from a Codex item.
- * Codex sends `item.command` as either a string or string[] depending on version.
+ * Extract the command string from a v2 CommandExecution item.
+ * v2 sends `command` as a string; also check `commandActions[0].command` as fallback.
  */
 function extractCommandString(item: Record<string, unknown>): string {
   const cmd = item.command
@@ -832,4 +837,25 @@ function extractCommandString(item: Record<string, unknown>): string {
   const rawCmd = actions?.[0]?.command
   if (typeof rawCmd === 'string' && rawCmd) return rawCmd
   return ''
+}
+
+/**
+ * Extract a description from v2 CommandExecution commandActions.
+ * CommandAction: { type: "read"|"listFiles"|"search"|... } with action-specific fields.
+ */
+function extractCommandDescription(item: Record<string, unknown>): string | undefined {
+  const actions = item.commandActions as Array<Record<string, unknown>> | undefined
+  if (!actions || actions.length === 0) return undefined
+  const first = actions[0]
+  if (!first) return undefined
+  switch (first.type) {
+    case 'read':
+      return `Read ${first.path ?? ''}`
+    case 'listFiles':
+      return `List files${first.path ? ` in ${first.path}` : ''}`
+    case 'search':
+      return `Search${first.query ? ` "${first.query}"` : ''}${first.path ? ` in ${first.path}` : ''}`
+    default:
+      return undefined
+  }
 }
