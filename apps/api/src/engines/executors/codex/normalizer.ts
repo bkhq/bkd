@@ -94,7 +94,9 @@ export class CodexLogNormalizer {
         return this.handleReasoningSummaryTextDelta(data, now)
 
       case 'item/reasoning/summaryPartAdded':
-        return null // Section break — reset state handled via next delta
+        // New summary segment — reset so next summaryTextDelta starts fresh
+        this.thinkingText = ''
+        return null
 
       case 'item/plan/delta':
         return this.handlePlanDelta(data, now)
