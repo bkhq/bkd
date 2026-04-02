@@ -436,7 +436,7 @@ function AssistantMessage({
   return (
     <div className="group py-1.5 animate-message-enter">
       <div className="relative min-w-0">
-        <div className="absolute right-0 top-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10">
+        <div className="absolute right-0 top-0 flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150 z-10">
           <button
             type="button"
             onClick={() => setViewOpen(true)}
