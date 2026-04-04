@@ -1,7 +1,7 @@
 import { and, count as countFn, eq, inArray, lt } from 'drizzle-orm'
 import { db } from '@/db'
 import { getAppSetting } from '@/db/helpers'
-import { issueLogs, issuesLogsToolsCall, issues as issuesTable } from '@/db/schema'
+import { attachments, issueLogs, issuesLogsToolsCall, issues as issuesTable } from '@/db/schema'
 import { logger } from '@/logger'
 
 export const LOG_RETENTION_DAYS_KEY = 'log:retentionDays'
@@ -51,6 +51,10 @@ export async function runIssueLogRetention(): Promise<string> {
     .where(inArray(issuesLogsToolsCall.issueId, issueIds))
 
   await db.transaction(async (tx) => {
+    // Delete attachments referencing these issue logs
+    await tx
+      .delete(attachments)
+      .where(inArray(attachments.issueId, issueIds))
     if (toolCallCount > 0) {
       await tx
         .delete(issuesLogsToolsCall)
