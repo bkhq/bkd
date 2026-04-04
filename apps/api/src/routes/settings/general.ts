@@ -13,7 +13,7 @@ import {
   setServerUrl,
 } from '@/db/helpers'
 import { DEFAULT_LOG_PAGE_SIZE, LOG_PAGE_SIZE_KEY } from '@/engines/issue/constants'
-import { invalidateGlobalEnvCache } from '@/engines/safe-env'
+import { refreshGlobalEnvCache } from '@/engines/safe-env'
 import { getCachedCategorizedCommands } from '@/engines/issue/queries'
 import type { WriteFilterRule } from '@/engines/write-filter'
 import { DEFAULT_FILTER_RULES, WRITE_FILTER_RULES_KEY } from '@/engines/write-filter'
@@ -364,7 +364,7 @@ general.put(
   async (c) => {
     const { vars } = c.req.valid('json')
     await setAppSetting(GLOBAL_ENV_VARS_KEY, JSON.stringify(vars))
-    invalidateGlobalEnvCache()
+    await refreshGlobalEnvCache()
     return c.json({ success: true, data: vars })
   },
 )

@@ -29,10 +29,6 @@ export function getCachedGlobalEnvVars(): Record<string, string> {
   return _globalEnvCache
 }
 
-export function invalidateGlobalEnvCache(): void {
-  _globalEnvCacheAt = 0
-}
-
 /**
  * Keys that user-provided envVars (from project settings) must never override.
  * These control security-critical paths and authentication credentials.
