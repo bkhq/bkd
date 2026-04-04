@@ -1,5 +1,5 @@
 import type { WebhookEventType } from '@bkd/shared'
-import { and, desc, eq, gte, inArray } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, notInArray } from 'drizzle-orm'
 import { db } from '@/db'
 import { getServerUrl } from '@/db/helpers'
 import {
@@ -561,16 +561,23 @@ export async function cleanupDeliveries() {
       .where(eq(webhooks.isDeleted, 0))
 
     for (const wh of allWebhooks) {
-      const rows = await db
+      // Keep the latest 100 deliveries, delete the rest
+      const keepIds = await db
         .select({ id: webhookDeliveries.id })
         .from(webhookDeliveries)
         .where(eq(webhookDeliveries.webhookId, wh.id))
         .orderBy(desc(webhookDeliveries.createdAt))
-        .offset(100)
+        .limit(100)
 
-      if (rows.length > 0) {
-        const ids = rows.map(r => r.id)
-        await db.delete(webhookDeliveries).where(inArray(webhookDeliveries.id, ids))
+      if (keepIds.length === 100) {
+        await db
+          .delete(webhookDeliveries)
+          .where(
+            and(
+              eq(webhookDeliveries.webhookId, wh.id),
+              notInArray(webhookDeliveries.id, keepIds.map(r => r.id)),
+            ),
+          )
       }
     }
   } catch (err) {
