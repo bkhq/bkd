@@ -12,6 +12,7 @@ import {
   startupReconciliation,
   stopPeriodicReconciliation,
 } from './engines/reconciler'
+import { refreshGlobalEnvCache } from './engines/safe-env'
 import { startChangesSummaryWatcher, stopChangesSummaryWatcher } from './events/changes-summary'
 import { startCron } from './cron'
 import { logger } from './logger'
@@ -63,6 +64,11 @@ void migrateSlashCommandsKey()
   .catch((err) => {
     logger.error({ err }, 'slash_commands_cache_load_failed')
   })
+
+// Pre-warm global env vars cache from DB
+void refreshGlobalEnvCache().catch((err) => {
+  logger.error({ err }, 'global_env_cache_load_failed')
+})
 
 // Load max concurrent executions setting from DB
 void issueEngine.initMaxConcurrent().catch((err) => {

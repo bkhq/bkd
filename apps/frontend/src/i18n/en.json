@@ -5,7 +5,8 @@
     "search": "Search...",
     "select": "Select",
     "edit": "Edit",
-    "copy": "Copy"
+    "copy": "Copy",
+    "save": "Save"
   },
   "project": {
     "projects": "Projects",
@@ -327,6 +328,9 @@
     "logPageSizeHint": "Number of conversation messages (user and assistant) to load per page",
     "maxConcurrentExecutions": "Max concurrent sessions",
     "maxConcurrentExecutionsHint": "Maximum number of AI agent sessions that can run simultaneously (1–50)",
+    "globalEnvVars": "Global environment variables",
+    "globalEnvVarsHint": "These variables are injected into all engine processes. One per line in KEY=VALUE format. Lines starting with # are ignored. Protected keys (PATH, HOME, API keys) cannot be overridden.",
+    "globalEnvVarsPlaceholder": "BKD_URL=https://example.com\nCUSTOM_VAR=value\n# Comments are ignored",
     "worktreeAutoCleanup": "Auto-cleanup worktrees",
     "worktreeAutoCleanupHint": "Automatically remove worktrees for issues that have been done for more than 1 day",
     "upgradeEnabled": "Auto-check updates",

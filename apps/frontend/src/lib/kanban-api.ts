@@ -157,6 +157,10 @@ function patch<T>(url: string, body: unknown) {
   return request<T>(url, { method: 'PATCH', body: JSON.stringify(body) })
 }
 
+function put<T>(url: string, body: unknown) {
+  return request<T>(url, { method: 'PUT', body: JSON.stringify(body) })
+}
+
 function del<T>(url: string) {
   return request<T>(url, { method: 'DELETE' })
 }
@@ -626,6 +630,11 @@ export const kanbanApi = {
   updateNote: (id: string, data: { title?: string, content?: string, isPinned?: boolean }) =>
     patch<Note>(`/api/notes/${id}`, data),
   deleteNote: (id: string) => del<{ id: string }>(`/api/notes/${id}`),
+
+  // Global Engine Environment Variables
+  getGlobalEnvVars: () => get<Record<string, string>>('/api/settings/global-env-vars'),
+  setGlobalEnvVars: (vars: Record<string, string>) =>
+    put<Record<string, string>>('/api/settings/global-env-vars', { vars }),
 
   // Cron
   getCronJobs: () => get<CronJob[]>('/api/cron'),

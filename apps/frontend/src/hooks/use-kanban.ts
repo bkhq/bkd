@@ -40,6 +40,7 @@ export const queryKeys = {
   systemInfo: () => ['settings', 'systemInfo'] as const,
   reviewIssues: () => ['issues', 'review'] as const,
   mcpSettings: () => ['settings', 'mcpSettings'] as const,
+  globalEnvVars: () => ['settings', 'globalEnvVars'] as const,
   webhooks: () => ['settings', 'webhooks'] as const,
   webhookDeliveries: (id: string) => ['settings', 'webhooks', id, 'deliveries'] as const,
   cronJobs: () => ['cron', 'jobs'] as const,
@@ -638,6 +639,27 @@ export function useUpdateMcpSettings() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.mcpSettings(),
       })
+    },
+  })
+}
+
+// --- Global Engine Environment Variables hooks ---
+
+export function useGlobalEnvVars(enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.globalEnvVars(),
+    queryFn: () => kanbanApi.getGlobalEnvVars(),
+    enabled,
+    staleTime: STALE_TIME.CONFIG,
+  })
+}
+
+export function useSetGlobalEnvVars() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: Record<string, string>) => kanbanApi.setGlobalEnvVars(vars),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.globalEnvVars() })
     },
   })
 }
