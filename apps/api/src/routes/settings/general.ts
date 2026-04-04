@@ -13,6 +13,7 @@ import {
   setServerUrl,
 } from '@/db/helpers'
 import { DEFAULT_LOG_PAGE_SIZE, LOG_PAGE_SIZE_KEY } from '@/engines/issue/constants'
+import { refreshGlobalEnvCache } from '@/engines/safe-env'
 import { getCachedCategorizedCommands } from '@/engines/issue/queries'
 import type { WriteFilterRule } from '@/engines/write-filter'
 import { DEFAULT_FILTER_RULES, WRITE_FILTER_RULES_KEY } from '@/engines/write-filter'
@@ -321,6 +322,50 @@ general.patch(
         },
       },
     })
+  },
+)
+
+// --- Global Engine Environment Variables ---
+
+export const GLOBAL_ENV_VARS_KEY = 'engine:globalEnvVars'
+
+// GET /api/settings/global-env-vars
+general.get('/global-env-vars', async (c) => {
+  const raw = await getAppSetting(GLOBAL_ENV_VARS_KEY)
+  let vars: Record<string, string> = {}
+  if (raw) {
+    try {
+      vars = JSON.parse(raw) as Record<string, string>
+    } catch { /* ignore */ }
+  }
+  return c.json({ success: true, data: vars })
+})
+
+// PUT /api/settings/global-env-vars
+general.put(
+  '/global-env-vars',
+  zValidator(
+    'json',
+    z.object({
+      vars: z.record(z.string(), z.string()).refine(
+        obj => Object.keys(obj).length <= 50,
+        { message: 'Maximum 50 environment variables allowed' },
+      ),
+    }),
+    (result, c) => {
+      if (!result.success) {
+        return c.json(
+          { success: false, error: result.error.issues.map(i => i.message).join(', ') },
+          400,
+        )
+      }
+    },
+  ),
+  async (c) => {
+    const { vars } = c.req.valid('json')
+    await setAppSetting(GLOBAL_ENV_VARS_KEY, JSON.stringify(vars))
+    await refreshGlobalEnvCache()
+    return c.json({ success: true, data: vars })
   },
 )
 

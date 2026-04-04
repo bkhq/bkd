@@ -30,6 +30,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -51,6 +52,7 @@ import {
   useEngineAvailability,
   useEngineProfiles,
   useEngineSettings,
+  useGlobalEnvVars,
   useLogPageSize,
   useMaxConcurrentExecutions,
   useMcpSettings,
@@ -59,6 +61,7 @@ import {
   useRestoreDeletedIssue,
   useRunCleanup,
   useServerInfo,
+  useSetGlobalEnvVars,
   useSetLogPageSize,
   useSetMaxConcurrentExecutions,
   useSetUpgradeEnabled,
@@ -348,7 +351,84 @@ function GeneralSection({ open }: { open: boolean }) {
           {t('settings.maxConcurrentExecutionsHint')}
         </p>
       </Field>
+
+      <GlobalEnvVarsSection open={open} />
     </div>
+  )
+}
+
+function envVarsToText(vars: Record<string, string>): string {
+  return Object.entries(vars)
+    .map(([k, v]) => `${k}=${v}`)
+    .join('\n')
+}
+
+function textToEnvVars(text: string): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eqIdx = trimmed.indexOf('=')
+    if (eqIdx <= 0) continue
+    const key = trimmed.slice(0, eqIdx).trim()
+    const val = trimmed.slice(eqIdx + 1).trim()
+    if (key) result[key] = val
+  }
+  return result
+}
+
+function GlobalEnvVarsSection({ open }: { open: boolean }) {
+  const { t } = useTranslation()
+  const { data: envVars } = useGlobalEnvVars(open)
+  const setGlobalEnvVars = useSetGlobalEnvVars()
+  const [text, setText] = useState('')
+  const loaded = useRef(false)
+
+  useEffect(() => {
+    if (envVars && !loaded.current) {
+      setText(envVarsToText(envVars))
+      loaded.current = true
+    }
+  }, [envVars])
+
+  useEffect(() => {
+    if (!open) {
+      loaded.current = false
+    }
+  }, [open])
+
+  const isDirty = loaded.current && envVarsToText(envVars ?? {}) !== text
+
+  const handleSave = () => {
+    setGlobalEnvVars.mutate(textToEnvVars(text), {
+      onSuccess: (data) => {
+        setText(envVarsToText(data))
+      },
+    })
+  }
+
+  return (
+    <Field>
+      <Label>{t('settings.globalEnvVars')}</Label>
+      <Textarea
+        className="font-mono text-xs"
+        rows={5}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        placeholder={t('settings.globalEnvVarsPlaceholder')}
+      />
+      <p className="text-[11px] text-muted-foreground">{t('settings.globalEnvVarsHint')}</p>
+      {isDirty && (
+        <div className="flex justify-end mt-1">
+          <Button size="sm" onClick={handleSave} disabled={setGlobalEnvVars.isPending}>
+            {setGlobalEnvVars.isPending
+              ? <Loader2 className="size-3 animate-spin mr-1" />
+              : <Check className="size-3 mr-1" />}
+            {t('common.save')}
+          </Button>
+        </div>
+      )}
+    </Field>
   )
 }
 

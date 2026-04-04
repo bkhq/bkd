@@ -3,6 +3,32 @@ import { logger } from '@/logger'
 
 import type { EngineType } from './types'
 
+// In-memory cache for global env vars — sync access for safeEnv(), async refresh.
+let _globalEnvCache: Record<string, string> = {}
+let _globalEnvCacheAt = 0
+const CACHE_TTL_MS = 30_000 // 30s
+
+/** Refresh global env vars cache from DB (call on startup + after settings change). */
+export async function refreshGlobalEnvCache(): Promise<void> {
+  try {
+    const { getAppSetting } = await import('@/db/helpers')
+    const raw = await getAppSetting('engine:globalEnvVars')
+    _globalEnvCache = raw ? JSON.parse(raw) as Record<string, string> : {}
+  } catch {
+    _globalEnvCache = {}
+  }
+  _globalEnvCacheAt = Date.now()
+}
+
+/** Get cached global env vars (sync). Returns empty object if cache cold. */
+export function getCachedGlobalEnvVars(): Record<string, string> {
+  // Trigger async refresh if stale (non-blocking)
+  if (Date.now() - _globalEnvCacheAt > CACHE_TTL_MS) {
+    void refreshGlobalEnvCache()
+  }
+  return _globalEnvCache
+}
+
 /**
  * Keys that user-provided envVars (from project settings) must never override.
  * These control security-critical paths and authentication credentials.
@@ -75,13 +101,15 @@ const SAFE_ENV_KEYS = [
 
 /**
  * Build an env object containing only allowlisted vars from process.env,
- * merged with any extra vars from the caller.
+ * merged with global env vars (from app settings) and any extra vars from the caller.
  *
- * Protected keys (PATH, HOME, API keys, etc.) cannot be overridden by
- * user-supplied `extra` vars. When an `engineType` is provided, only the
- * relevant API key(s) for that engine are included.
+ * Priority (highest wins): project envVars (extra) > global envVars > process.env allowlist.
+ * Protected keys (PATH, HOME, API keys, etc.) cannot be overridden by user-supplied vars.
  */
-export function safeEnv(extra?: Record<string, string>, engineType?: EngineType): Record<string, string> {
+export function safeEnv(
+  extra?: Record<string, string>,
+  engineType?: EngineType,
+): Record<string, string> {
   // Determine which API keys to include based on engine type
   const allowedApiKeys = engineType
     ? new Set(ENGINE_API_KEYS[engineType] ?? [])
@@ -98,6 +126,19 @@ export function safeEnv(extra?: Record<string, string>, engineType?: EngineType)
     }
   }
 
+  // Merge global env vars (from app settings cache)
+  const globalVars = getCachedGlobalEnvVars()
+  if (globalVars) {
+    for (const [key, value] of Object.entries(globalVars)) {
+      if (PROTECTED_KEYS.has(key)) {
+        logger.warn({ key }, 'env_override_blocked: global envVar tried to override a protected key')
+        continue
+      }
+      env[key] = value
+    }
+  }
+
+  // Merge project-level env vars (highest priority)
   if (extra) {
     for (const [key, value] of Object.entries(extra)) {
       if (PROTECTED_KEYS.has(key)) {
