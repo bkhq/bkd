@@ -496,3 +496,17 @@ export const BulkUpdateWhiteboardNodeSchema = z.object({
     sortOrder: z.string().max(50).optional(),
   })).min(1).max(500),
 }).openapi('BulkUpdateWhiteboardNode')
+
+export const WhiteboardAskSchema = z.object({
+  nodeId: z.string(),
+  action: z.enum(['explore', 'explain', 'simplify', 'examples', 'custom']),
+  prompt: z.string().max(32768).optional(),
+  engineType: z.string().optional(),
+  model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
+}).openapi('WhiteboardAsk')
+
+export const WhiteboardAskResponseSchema = z.object({
+  issueId: z.string(),
+  executionId: z.string().optional(),
+  queued: z.boolean().optional(),
+}).openapi('WhiteboardAskResponse')

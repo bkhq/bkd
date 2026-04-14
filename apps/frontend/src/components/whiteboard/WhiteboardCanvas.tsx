@@ -21,6 +21,7 @@ const nodeTypes: NodeTypes = {
 interface WhiteboardCanvasProps {
   flatNodes: WhiteboardNode[]
   collapsedIds: Set<string>
+  askingNodeId: string | null
   onAddChild: (parentId: string) => void
   onUpdateNode: (nodeId: string, data: Record<string, unknown>) => void
   onDeleteNode: (nodeId: string) => void
@@ -30,6 +31,7 @@ interface WhiteboardCanvasProps {
 export function WhiteboardCanvas({
   flatNodes,
   collapsedIds,
+  askingNodeId,
   onAddChild,
   onUpdateNode,
   onDeleteNode,
@@ -73,7 +75,7 @@ export function WhiteboardCanvas({
   // Recompute layout when nodes or collapsed state changes
   useEffect(() => {
     let cancelled = false
-    computeLayout(flatNodes, collapsedIds).then((result) => {
+    computeLayout(flatNodes, collapsedIds, askingNodeId).then((result) => {
       if (!cancelled) {
         setNodes(result.nodes)
         setEdges(result.edges)
@@ -82,7 +84,7 @@ export function WhiteboardCanvas({
     return () => {
       cancelled = true
     }
-  }, [flatNodes, collapsedIds, setNodes, setEdges])
+  }, [flatNodes, collapsedIds, askingNodeId, setNodes, setEdges])
 
   const defaultEdgeOptions = useMemo(() => ({
     style: { stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1.5 },

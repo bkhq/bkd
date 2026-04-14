@@ -1,7 +1,10 @@
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, max } from 'drizzle-orm'
+import { generateKeyBetween } from 'jittered-fractional-indexing'
 import { db } from '@/db'
-import { findProject } from '@/db/helpers'
+import { findProject, getDefaultEngine, getEngineDefaultModel } from '@/db/helpers'
 import { issues as issuesTable, whiteboardNodes } from '@/db/schema'
+import { issueEngine } from '@/engines/issue/engine'
+import type { EngineType } from '@/engines/types'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
@@ -206,6 +209,152 @@ whiteboardRoutes.openapi(R.bulkUpdateWhiteboardNodes, async (c) => {
   } catch (err) {
     logger.error({ err }, 'whiteboard_bulk_update_failed')
     return c.json({ success: false, error: 'Failed to bulk update whiteboard nodes' }, 500 as const)
+  }
+})
+
+// POST /ask — AI interaction via bound issue follow-up
+whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
+  try {
+    const projectId = c.req.param('projectId')
+    const project = await findProject(projectId)
+    if (!project) {
+      return c.json({ success: false, error: 'Project not found' }, 404 as const)
+    }
+
+    const body = c.req.valid('json')
+
+    // Find the target node
+    const [targetNode] = await db
+      .select()
+      .from(whiteboardNodes)
+      .where(and(eq(whiteboardNodes.id, body.nodeId), eq(whiteboardNodes.projectId, project.id), notDeleted))
+    if (!targetNode) {
+      return c.json({ success: false, error: 'Node not found' }, 404 as const)
+    }
+
+    // Build node path (root → target) for context
+    const allNodes = await db
+      .select()
+      .from(whiteboardNodes)
+      .where(and(eq(whiteboardNodes.projectId, project.id), notDeleted))
+
+    const nodeMap = new Map(allNodes.map(n => [n.id, n]))
+    const path: string[] = []
+    let current: typeof targetNode | undefined = targetNode
+    while (current) {
+      path.unshift(current.label || 'Untitled')
+      current = current.parentId ? nodeMap.get(current.parentId) : undefined
+    }
+
+    // Build action-specific prompt
+    const contextLines = [
+      `Project: ${project.name}`,
+      `Node path: ${path.join(' > ')}`,
+      targetNode.content ? `Node content:\n${targetNode.content}` : '',
+    ].filter(Boolean).join('\n')
+
+    const actionPrompts: Record<string, string> = {
+      explore: `${contextLines}\n\nGenerate 3-7 subtopics for this node. For each subtopic, output a markdown heading (##) followed by a brief description paragraph. Example:\n\n## Subtopic Title\nBrief description of the subtopic.`,
+      explain: `${contextLines}\n\nExplain this topic in detail. Provide a clear, structured explanation.`,
+      simplify: `${contextLines}\n\nSimplify and rewrite the content of this node to be more concise and easier to understand.`,
+      examples: `${contextLines}\n\nProvide 3-5 concrete examples related to this topic. For each example, output a markdown heading (##) followed by a description.`,
+      custom: `${contextLines}\n\n${body.prompt ?? ''}`,
+    }
+    const prompt = actionPrompts[body.action] ?? actionPrompts.custom
+
+    // Find or create the bound whiteboard issue
+    let boundIssueId = targetNode.boundIssueId
+    // Walk up to root to find a bound issue
+    if (!boundIssueId) {
+      let walk: typeof targetNode | undefined = targetNode
+      while (walk && !boundIssueId) {
+        boundIssueId = walk.boundIssueId
+        walk = walk.parentId ? nodeMap.get(walk.parentId) : undefined
+      }
+    }
+
+    const resolvedEngine = (body.engineType ?? await getDefaultEngine() ?? 'claude-code') as EngineType
+    let resolvedModel = body.model
+    if (!resolvedModel) {
+      const savedModel = await getEngineDefaultModel(resolvedEngine)
+      if (savedModel && savedModel !== 'auto') resolvedModel = savedModel
+    }
+
+    if (!boundIssueId) {
+      // Create a new whiteboard issue
+      const [maxNumRow] = await db
+        .select({ maxNum: max(issuesTable.issueNumber) })
+        .from(issuesTable)
+        .where(eq(issuesTable.projectId, project.id))
+      const issueNumber = (maxNumRow?.maxNum ?? 0) + 1
+      const [lastItem] = await db
+        .select({ sortOrder: issuesTable.sortOrder })
+        .from(issuesTable)
+        .where(and(
+          eq(issuesTable.projectId, project.id),
+          eq(issuesTable.statusId, 'working'),
+          eq(issuesTable.isDeleted, 0),
+        ))
+        .orderBy(desc(issuesTable.sortOrder))
+        .limit(1)
+      const sortOrder = generateKeyBetween(lastItem?.sortOrder ?? null, null)
+
+      const [newIssue] = await db
+        .insert(issuesTable)
+        .values({
+          projectId: project.id,
+          statusId: 'working',
+          issueNumber,
+          title: `[Whiteboard] ${project.name}`,
+          tag: JSON.stringify(['whiteboard']),
+          sortOrder,
+          engineType: resolvedEngine,
+          model: resolvedModel ?? null,
+          prompt,
+        })
+        .returning()
+      boundIssueId = newIssue.id
+
+      // Bind to the root node (first node with no parent)
+      const rootNode = allNodes.find(n => !n.parentId)
+      if (rootNode) {
+        await db.update(whiteboardNodes)
+          .set({ boundIssueId: newIssue.id, updatedAt: new Date() })
+          .where(eq(whiteboardNodes.id, rootNode.id))
+      }
+
+      // Execute the issue (first turn)
+      const result = await issueEngine.executeIssue(boundIssueId, {
+        engineType: resolvedEngine,
+        prompt: project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt,
+        workingDir: project.directory ?? undefined,
+        model: resolvedModel,
+        displayPrompt: `[Whiteboard] ${body.action}: ${targetNode.label || 'Untitled'}`,
+      })
+
+      return c.json({
+        success: true,
+        data: { issueId: boundIssueId, executionId: result.executionId },
+      }, 200 as const)
+    }
+
+    // Follow-up on existing bound issue
+    const result = await issueEngine.followUpIssue(
+      boundIssueId,
+      prompt,
+      resolvedModel,
+      undefined,
+      'queue',
+      `[Whiteboard] ${body.action}: ${targetNode.label || 'Untitled'}`,
+    )
+
+    return c.json({
+      success: true,
+      data: { issueId: boundIssueId, executionId: result.executionId, queued: false },
+    }, 200 as const)
+  } catch (err) {
+    logger.error({ err }, 'whiteboard_ask_failed')
+    return c.json({ success: false, error: 'Failed to process whiteboard AI request' }, 500 as const)
   }
 })
 

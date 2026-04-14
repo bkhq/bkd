@@ -15,6 +15,7 @@ interface LayoutResult {
 export async function computeLayout(
   flatNodes: WhiteboardNode[],
   collapsedIds: Set<string>,
+  askingNodeId?: string | null,
 ): Promise<LayoutResult> {
   if (flatNodes.length === 0) {
     return { nodes: [], edges: [] }
@@ -85,6 +86,7 @@ export async function computeLayout(
         ...original,
         hasChildren,
         isCollapsed: collapsedIds.has(elkNode.id),
+        askingNodeId: askingNodeId ?? null,
       },
     }
   })

@@ -42,6 +42,8 @@ import {
   UpdateWhiteboardNodeSchema,
   WebhookDeliverySchema,
   WebhookSchema,
+  WhiteboardAskResponseSchema,
+  WhiteboardAskSchema,
   WhiteboardNodeSchema,
   WorktreeEntrySchema,
   WriteFilterRuleSchema,
@@ -1110,6 +1112,20 @@ export const bulkUpdateWhiteboardNodes = createRoute({
   responses: {
     200: successResponse(z.array(WhiteboardNodeSchema), 'Updated nodes'),
     404: errorResponse('Project not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const whiteboardAsk = createRoute({
+  method: 'post',
+  path: '/ask',
+  tags: ['Whiteboard'],
+  summary: 'Ask AI about a whiteboard node',
+  operationId: 'whiteboardAsk',
+  request: { body: { content: { 'application/json': { schema: WhiteboardAskSchema } } } },
+  responses: {
+    200: successResponse(WhiteboardAskResponseSchema, 'AI request submitted'),
+    404: errorResponse('Project or node not found'),
     500: errorResponse('Internal error'),
   },
 })

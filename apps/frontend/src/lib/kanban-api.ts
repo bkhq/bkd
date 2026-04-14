@@ -665,6 +665,16 @@ export const kanbanApi = {
     parentId?: string | null
     sortOrder?: string
   }>) => patch<WhiteboardNode[]>(`/api/projects/${projectId}/whiteboard/nodes/bulk`, { nodes }),
+  whiteboardAsk: (projectId: string, data: {
+    nodeId: string
+    action: 'explore' | 'explain' | 'simplify' | 'examples' | 'custom'
+    prompt?: string
+    engineType?: string
+    model?: string
+  }) => post<{ issueId: string, executionId?: string, queued?: boolean }>(
+    `/api/projects/${projectId}/whiteboard/ask`,
+    data,
+  ),
 
   // Cron
   getCronJobs: () => get<CronJob[]>('/api/cron'),

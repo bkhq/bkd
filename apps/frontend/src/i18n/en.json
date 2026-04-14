@@ -565,7 +565,14 @@
     "expand": "Expand",
     "collapse": "Collapse",
     "untitled": "Untitled",
-    "backToBoard": "Back to board"
+    "backToBoard": "Back to board",
+    "askAI": "Ask AI",
+    "quickActions": "Quick actions",
+    "actionExplore": "Deep explore",
+    "actionExplain": "Explain",
+    "actionSimplify": "Simplify",
+    "actionExamples": "Examples",
+    "askPlaceholder": "Ask anything..."
   },
   "auth": {
     "login": "Login",
