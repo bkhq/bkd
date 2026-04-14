@@ -1,7 +1,9 @@
+import { mkdir, stat } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { and, desc, eq, inArray, max } from 'drizzle-orm'
 import { generateKeyBetween } from 'jittered-fractional-indexing'
 import { db } from '@/db'
-import { findProject, getDefaultEngine, getEngineDefaultModel } from '@/db/helpers'
+import { findProject, getAppSetting, getDefaultEngine, getEngineDefaultModel } from '@/db/helpers'
 import { issues as issuesTable, whiteboardNodes } from '@/db/schema'
 import { issueEngine } from '@/engines/issue/engine'
 import type { EngineType } from '@/engines/types'
@@ -280,6 +282,27 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
       if (savedModel && savedModel !== 'auto') resolvedModel = savedModel
     }
 
+    // SEC-016: Validate and resolve working directory
+    let effectiveWorkingDir: string | undefined
+    if (project.directory) {
+      const resolvedDir = resolve(project.directory)
+      const workspaceRoot = await getAppSetting('workspace:defaultPath')
+      if (workspaceRoot && workspaceRoot !== '/') {
+        const resolvedRoot = resolve(workspaceRoot)
+        if (!resolvedDir.startsWith(`${resolvedRoot}/`) && resolvedDir !== resolvedRoot) {
+          logger.warn({ projectId: project.id, resolvedDir, workspaceRoot: resolvedRoot }, 'whiteboard_workdir_outside_workspace')
+          return c.json({ success: false, error: 'Project directory is outside the configured workspace' }, 500 as const)
+        }
+      }
+      try {
+        await mkdir(resolvedDir, { recursive: true })
+        const s = await stat(resolvedDir)
+        if (s.isDirectory()) effectiveWorkingDir = resolvedDir
+      } catch {
+        logger.warn({ projectId: project.id, resolvedDir }, 'whiteboard_workdir_prepare_failed')
+      }
+    }
+
     if (!boundIssueId) {
       // Create a new whiteboard issue
       const [maxNumRow] = await db
@@ -315,7 +338,16 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
         .returning()
       boundIssueId = newIssue.id
 
-      // Bind to the root node (first node with no parent)
+      // Execute the issue (first turn) — bind root node only after success
+      const result = await issueEngine.executeIssue(boundIssueId, {
+        engineType: resolvedEngine,
+        prompt: project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt,
+        workingDir: effectiveWorkingDir,
+        model: resolvedModel,
+        displayPrompt: `[Whiteboard] ${body.action}: ${targetNode.label || 'Untitled'}`,
+      })
+
+      // Bind to the root node after successful execution
       const rootNode = allNodes.find(n => !n.parentId)
       if (rootNode) {
         await db.update(whiteboardNodes)
@@ -323,26 +355,17 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
           .where(eq(whiteboardNodes.id, rootNode.id))
       }
 
-      // Execute the issue (first turn)
-      const result = await issueEngine.executeIssue(boundIssueId, {
-        engineType: resolvedEngine,
-        prompt: project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt,
-        workingDir: project.directory ?? undefined,
-        model: resolvedModel,
-        displayPrompt: `[Whiteboard] ${body.action}: ${targetNode.label || 'Untitled'}`,
-      })
-
       return c.json({
         success: true,
         data: { issueId: boundIssueId, executionId: result.executionId },
       }, 200 as const)
     }
 
-    // Follow-up on existing bound issue
+    // Follow-up on existing bound issue — do not override the issue's model
     const result = await issueEngine.followUpIssue(
       boundIssueId,
       prompt,
-      resolvedModel,
+      undefined,
       undefined,
       'queue',
       `[Whiteboard] ${body.action}: ${targetNode.label || 'Untitled'}`,
