@@ -4,13 +4,16 @@ import {
   Controls,
   MiniMap,
   ReactFlow,
+  ReactFlowProvider,
   useEdgesState,
+  useNodesInitialized,
   useNodesState,
+  useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { computeLayout } from '@/lib/whiteboard-layout'
+import { buildInitialNodes, computeLayout } from '@/lib/whiteboard-layout'
 import type { WhiteboardNode } from '@/types/kanban'
 import { MindmapNode } from './MindmapNode'
 
@@ -28,7 +31,25 @@ interface WhiteboardCanvasProps {
   onToggleCollapse: (nodeId: string, isCollapsed: boolean) => void
 }
 
-export function WhiteboardCanvas({
+export function WhiteboardCanvas(props: WhiteboardCanvasProps) {
+  const { t } = useTranslation()
+
+  if (props.flatNodes.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        {t('whiteboard.empty')}
+      </div>
+    )
+  }
+
+  return (
+    <ReactFlowProvider>
+      <LayoutedFlow {...props} />
+    </ReactFlowProvider>
+  )
+}
+
+function LayoutedFlow({
   flatNodes,
   collapsedIds,
   askingNodeId,
@@ -37,9 +58,12 @@ export function WhiteboardCanvas({
   onDeleteNode,
   onToggleCollapse,
 }: WhiteboardCanvasProps) {
-  const { t } = useTranslation()
   const [nodes, setNodes, onNodesChange] = useNodesState<XYNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<XYEdge>([])
+  const nodesInitialized = useNodesInitialized()
+  const { fitView } = useReactFlow()
+  const layoutDoneRef = useRef(false)
+  const dataKeyRef = useRef('')
 
   // Listen for custom events from MindmapNode
   useEffect(() => {
@@ -72,19 +96,35 @@ export function WhiteboardCanvas({
     }
   }, [onAddChild, onUpdateNode, onDeleteNode, onToggleCollapse])
 
-  // Recompute layout when nodes or collapsed state changes
+  // Phase 1: set initial nodes at origin for xyflow to measure
+  const dataKey = `${flatNodes.map(n => n.id).join(',')
+  }|${[...collapsedIds].join(',')}`
+  + `|${askingNodeId ?? ''}`
+
   useEffect(() => {
-    let cancelled = false
-    computeLayout(flatNodes, collapsedIds, askingNodeId).then((result) => {
-      if (!cancelled) {
-        setNodes(result.nodes)
-        setEdges(result.edges)
-      }
+    if (dataKey === dataKeyRef.current) return
+    dataKeyRef.current = dataKey
+    layoutDoneRef.current = false
+    const { nodes: initialNodes, edges: initialEdges } = buildInitialNodes(
+      flatNodes,
+      collapsedIds,
+      askingNodeId,
+    )
+    setNodes(initialNodes)
+    setEdges(initialEdges)
+  }, [dataKey, flatNodes, collapsedIds, askingNodeId, setNodes, setEdges])
+
+  // Phase 2: after xyflow measures nodes, run elkjs with real dimensions
+  useEffect(() => {
+    if (!nodesInitialized || layoutDoneRef.current || nodes.length === 0) return
+    layoutDoneRef.current = true
+
+    computeLayout(nodes, edges).then((result) => {
+      setNodes(result.nodes)
+      setEdges(result.edges)
+      requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }))
     })
-    return () => {
-      cancelled = true
-    }
-  }, [flatNodes, collapsedIds, askingNodeId, setNodes, setEdges])
+  }, [nodesInitialized, nodes, edges, setNodes, setEdges, fitView])
 
   const defaultEdgeOptions = useMemo(() => ({
     style: { stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1.5 },
@@ -93,17 +133,8 @@ export function WhiteboardCanvas({
   const proOptions = useMemo(() => ({ hideAttribution: true }), [])
 
   const onNodeDoubleClick = useCallback((_event: React.MouseEvent, node: { id: string }) => {
-    // Focus the label input on double-click (handled by MindmapNode internally)
     void node
   }, [])
-
-  if (flatNodes.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        {t('whiteboard.empty')}
-      </div>
-    )
-  }
 
   return (
     <ReactFlow
