@@ -480,3 +480,20 @@ export interface Note {
   createdAt: string
   updatedAt: string
 }
+
+// ── Whiteboard ─────────────────────────────────────────
+
+export interface WhiteboardNode {
+  id: string
+  projectId: string
+  parentId: string | null
+  label: string
+  content: string
+  icon: string | null
+  sortOrder: string
+  isCollapsed: boolean
+  metadata: Record<string, unknown> | null
+  boundIssueId: string | null
+  createdAt: string
+  updatedAt: string
+}

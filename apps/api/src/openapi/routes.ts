@@ -8,12 +8,14 @@ import { createRoute } from '@hono/zod-openapi'
 import * as z from 'zod'
 import {
   BulkUpdateSchema,
+  BulkUpdateWhiteboardNodeSchema,
   CategorizedCommandsSchema,
   CreateCronJobSchema,
   CreateIssueSchema,
   CreateNoteSchema,
   CreateProjectSchema,
   CreateWebhookSchema,
+  CreateWhiteboardNodeSchema,
   CronJobSchema,
   EngineDiscoveryResultSchema,
   EngineModelSchema,
@@ -37,8 +39,10 @@ import {
   UpdateNoteSchema,
   UpdateProjectSchema,
   UpdateWebhookSchema,
+  UpdateWhiteboardNodeSchema,
   WebhookDeliverySchema,
   WebhookSchema,
+  WhiteboardNodeSchema,
   WorktreeEntrySchema,
   WriteFilterRuleSchema,
 } from './schemas'
@@ -1033,5 +1037,76 @@ export const getGlobalSlashCommands = createRoute({
   responses: {
     200: successResponse(CategorizedCommandsSchema, 'Categorized commands'),
     400: errorResponse('Invalid engine type'),
+  },
+})
+
+// ── Whiteboard ────────────────────────────────────────
+
+export const listWhiteboardNodes = createRoute({
+  method: 'get',
+  path: '/nodes',
+  tags: ['Whiteboard'],
+  summary: 'List all whiteboard nodes for a project',
+  operationId: 'listWhiteboardNodes',
+  responses: {
+    200: successResponse(z.array(WhiteboardNodeSchema), 'Node list'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const createWhiteboardNode = createRoute({
+  method: 'post',
+  path: '/nodes',
+  tags: ['Whiteboard'],
+  summary: 'Create a whiteboard node',
+  operationId: 'createWhiteboardNode',
+  request: { body: { content: { 'application/json': { schema: CreateWhiteboardNodeSchema } } } },
+  responses: {
+    201: successResponse(WhiteboardNodeSchema, 'Created node'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const updateWhiteboardNode = createRoute({
+  method: 'patch',
+  path: '/nodes/{nodeId}',
+  tags: ['Whiteboard'],
+  summary: 'Update a whiteboard node',
+  operationId: 'updateWhiteboardNode',
+  request: {
+    params: z.object({ nodeId: z.string() }),
+    body: { content: { 'application/json': { schema: UpdateWhiteboardNodeSchema } } },
+  },
+  responses: {
+    200: successResponse(WhiteboardNodeSchema, 'Updated node'),
+    404: errorResponse('Node not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const deleteWhiteboardNode = createRoute({
+  method: 'delete',
+  path: '/nodes/{nodeId}',
+  tags: ['Whiteboard'],
+  summary: 'Soft-delete a node and its descendants',
+  operationId: 'deleteWhiteboardNode',
+  request: { params: z.object({ nodeId: z.string() }) },
+  responses: {
+    200: successResponse(z.object({ ids: z.array(z.string()) }), 'Deleted node IDs'),
+    404: errorResponse('Node not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const bulkUpdateWhiteboardNodes = createRoute({
+  method: 'patch',
+  path: '/nodes/bulk',
+  tags: ['Whiteboard'],
+  summary: 'Bulk update nodes (reorder, reparent)',
+  operationId: 'bulkUpdateWhiteboardNodes',
+  request: { body: { content: { 'application/json': { schema: BulkUpdateWhiteboardNodeSchema } } } },
+  responses: {
+    200: successResponse(z.array(WhiteboardNodeSchema), 'Updated nodes'),
+    500: errorResponse('Internal error'),
   },
 })

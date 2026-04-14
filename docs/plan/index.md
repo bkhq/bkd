@@ -29,4 +29,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 
 ## Plans
 
-- [ ] [**PLAN-001 Project whiteboard mindmap technical design**](PLAN-001.md) `2026-04-14`
+- [-] [**PLAN-001 Project whiteboard mindmap technical design**](PLAN-001.md) `2026-04-14`

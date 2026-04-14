@@ -556,6 +556,17 @@
     "maximize": "最大化",
     "restore": "还原"
   },
+  "whiteboard": {
+    "title": "白板",
+    "empty": "暂无节点，创建根节点开始规划。",
+    "createRoot": "创建根节点",
+    "addChild": "添加子节点",
+    "delete": "删除节点",
+    "expand": "展开",
+    "collapse": "折叠",
+    "untitled": "无标题",
+    "backToBoard": "返回看板"
+  },
   "auth": {
     "login": "登录",
     "loginDescription": "登录以访问仪表板",

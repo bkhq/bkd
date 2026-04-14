@@ -556,6 +556,17 @@
     "maximize": "Maximize",
     "restore": "Restore"
   },
+  "whiteboard": {
+    "title": "Whiteboard",
+    "empty": "No nodes yet. Create a root node to get started.",
+    "createRoot": "Create Root Node",
+    "addChild": "Add child node",
+    "delete": "Delete node",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "untitled": "Untitled",
+    "backToBoard": "Back to board"
+  },
   "auth": {
     "login": "Login",
     "loginDescription": "Sign in to access the dashboard",

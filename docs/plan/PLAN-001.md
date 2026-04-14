@@ -1,8 +1,8 @@
 # PLAN-001 Project whiteboard mindmap technical design
 
-- **status**: draft
+- **status**: implementing
 - **createdAt**: 2026-04-14 15:00
-- **approvedAt**: (pending)
+- **approvedAt**: 2026-04-14 15:30
 - **relatedTask**: WB-001
 
 ## Context

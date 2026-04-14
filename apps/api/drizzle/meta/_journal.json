@@ -106,6 +106,20 @@
       "when": 1774526400000,
       "tag": "0014_add_cron_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1774526400001,
+      "tag": "0015_cron_jobs_name_partial_uniq",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1776624000000,
+      "tag": "0016_add_whiteboard_nodes",
+      "breakpoints": true
     }
   ]
 }
