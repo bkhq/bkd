@@ -116,7 +116,7 @@ The `/logs/filter/*` route accepts path-based key/value filter pairs (order-inde
 - Example: `/logs/filter/types/user-message,assistant-message/turn/last3`
 - Pagination via query params: `cursor`, `before`, `limit`
 
-System routes: `/api/engines/*`, `/api/events` (SSE), `/api/settings/*`, `/api/upgrade/*`, `/api/terminal/ws`, `/api/files/*`, `/api/filesystem/*`, `/api/git/*`, `/api/processes/*`, `/api/worktrees/*`.
+System routes: `/api/engines/*`, `/api/events` (SSE), `/api/settings/*`, `/api/upgrade/*`, `/api/terminal/ws`, `/api/files/*`, `/api/filesystem/*`, `/api/git/*`, `/api/processes/*`, `/api/worktrees/*`, `/api/cron/*`, `/api/mcp` (SSE transport).
 
 Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`, `title.ts`. Shared schemas and helpers in `_shared.ts`.
 
@@ -163,6 +163,20 @@ Global SSE endpoint (`GET /api/events`) via Hono `streamSSE`:
 - Event types: `log`, `state`, `done`, `issue-updated`, `changes-summary`, `heartbeat` (15s)
 - Subscribes to `IssueEngine` callbacks + `onIssueUpdated` + `onChangesSummary`
 - `changes-summary.ts`: runs `git status/diff` after each issue settles, pushes stats via SSE
+
+#### Auth (`auth/`)
+
+Optional OIDC + PKCE authentication. When enabled via `AUTH_ISSUER_URL` env var, all `/api/*` routes require a valid JWT Bearer token. Components: `config.ts` (env-based config), `jwt.ts` (sign/verify), `oidc.ts` (OpenID Connect discovery with cache), `middleware.ts` (Hono middleware), `routes.ts` (login callback + token endpoints).
+
+#### Cron System (`cron/`)
+
+Scheduled task execution with cron expressions (powered by `baker` scheduler). DB tables: `cronJobs`, `cronJobLogs`. Supports pluggable actions (`actions/` directory) — each action type (e.g., execute issue, HTTP request) implements a standard interface. Features: auto-pause after 3 consecutive failures, execution logs with pagination, soft-delete.
+
+Routes: `GET/POST /api/cron`, `GET/PATCH/DELETE /api/cron/:id`, `POST /api/cron/:id/run`, `GET /api/cron/:id/logs`, `GET /api/cron/actions`.
+
+#### MCP Server (`mcp/`)
+
+Model Context Protocol server exposed via SSE transport at `POST /api/mcp`. Provides tools for external AI agents to interact with BKD: manage projects/issues, execute/follow-up/cancel issues, read logs, manage cron jobs, and monitor processes. Session-based with `McpServer` from `@modelcontextprotocol/sdk`.
 
 #### Background Jobs (`jobs/`)
 
