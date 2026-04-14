@@ -1050,6 +1050,7 @@ export const listWhiteboardNodes = createRoute({
   operationId: 'listWhiteboardNodes',
   responses: {
     200: successResponse(z.array(WhiteboardNodeSchema), 'Node list'),
+    404: errorResponse('Project not found'),
     500: errorResponse('Internal error'),
   },
 })
@@ -1063,6 +1064,7 @@ export const createWhiteboardNode = createRoute({
   request: { body: { content: { 'application/json': { schema: CreateWhiteboardNodeSchema } } } },
   responses: {
     201: successResponse(WhiteboardNodeSchema, 'Created node'),
+    404: errorResponse('Project not found'),
     500: errorResponse('Internal error'),
   },
 })
@@ -1093,7 +1095,7 @@ export const deleteWhiteboardNode = createRoute({
   request: { params: z.object({ nodeId: z.string() }) },
   responses: {
     200: successResponse(z.object({ ids: z.array(z.string()) }), 'Deleted node IDs'),
-    404: errorResponse('Node not found'),
+    404: errorResponse('Node or project not found'),
     500: errorResponse('Internal error'),
   },
 })
@@ -1107,6 +1109,7 @@ export const bulkUpdateWhiteboardNodes = createRoute({
   request: { body: { content: { 'application/json': { schema: BulkUpdateWhiteboardNodeSchema } } } },
   responses: {
     200: successResponse(z.array(WhiteboardNodeSchema), 'Updated nodes'),
+    404: errorResponse('Project not found'),
     500: errorResponse('Internal error'),
   },
 })

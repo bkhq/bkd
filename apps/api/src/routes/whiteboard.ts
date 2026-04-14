@@ -1,5 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '@/db'
+import { findProject } from '@/db/helpers'
 import { whiteboardNodes } from '@/db/schema'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
@@ -9,15 +10,31 @@ const whiteboardRoutes = createOpenAPIRouter()
 
 const notDeleted = eq(whiteboardNodes.isDeleted, 0)
 
+function serializeMetadata(metadata: Record<string, unknown> | undefined): string | undefined {
+  return metadata !== undefined ? JSON.stringify(metadata) : undefined
+}
+
+function deserializeRow(row: typeof whiteboardNodes.$inferSelect) {
+  return {
+    ...row,
+    metadata: row.metadata ? JSON.parse(row.metadata) : null,
+  }
+}
+
 // GET /nodes
 whiteboardRoutes.openapi(R.listWhiteboardNodes, async (c) => {
   try {
     const projectId = c.req.param('projectId')
+    const project = await findProject(projectId)
+    if (!project) {
+      return c.json({ success: false, error: 'Project not found' }, 404 as const)
+    }
+
     const rows = await db
       .select()
       .from(whiteboardNodes)
-      .where(and(eq(whiteboardNodes.projectId, projectId), notDeleted))
-    return c.json({ success: true, data: rows }, 200 as const)
+      .where(and(eq(whiteboardNodes.projectId, project.id), notDeleted))
+    return c.json({ success: true, data: rows.map(deserializeRow) }, 200 as const)
   } catch (err) {
     logger.error({ err }, 'whiteboard_list_failed')
     return c.json({ success: false, error: 'Failed to list whiteboard nodes' }, 500 as const)
@@ -28,12 +45,17 @@ whiteboardRoutes.openapi(R.listWhiteboardNodes, async (c) => {
 whiteboardRoutes.openapi(R.createWhiteboardNode, async (c) => {
   try {
     const projectId = c.req.param('projectId')
-    const body = c.req.valid('json')
+    const project = await findProject(projectId)
+    if (!project) {
+      return c.json({ success: false, error: 'Project not found' }, 404 as const)
+    }
+
+    const { metadata, ...rest } = c.req.valid('json')
     const [row] = await db
       .insert(whiteboardNodes)
-      .values({ ...body, projectId })
+      .values({ ...rest, metadata: serializeMetadata(metadata), projectId: project.id })
       .returning()
-    return c.json({ success: true, data: row }, 201 as const)
+    return c.json({ success: true, data: deserializeRow(row) }, 201 as const)
   } catch (err) {
     logger.error({ err }, 'whiteboard_create_failed')
     return c.json({ success: false, error: 'Failed to create whiteboard node' }, 500 as const)
@@ -44,21 +66,29 @@ whiteboardRoutes.openapi(R.createWhiteboardNode, async (c) => {
 whiteboardRoutes.openapi(R.updateWhiteboardNode, async (c) => {
   try {
     const projectId = c.req.param('projectId')
+    const project = await findProject(projectId)
+    if (!project) {
+      return c.json({ success: false, error: 'Project not found' }, 404 as const)
+    }
+
     const nodeId = c.req.param('nodeId')
-    const data = c.req.valid('json')
+    const { metadata, ...rest } = c.req.valid('json')
+    const setData: Record<string, unknown> = { ...rest, updatedAt: new Date() }
+    if (metadata !== undefined) setData.metadata = serializeMetadata(metadata)
+
     const [row] = await db
       .update(whiteboardNodes)
-      .set({ ...data, updatedAt: new Date() })
+      .set(setData)
       .where(and(
         eq(whiteboardNodes.id, nodeId),
-        eq(whiteboardNodes.projectId, projectId),
+        eq(whiteboardNodes.projectId, project.id),
         notDeleted,
       ))
       .returning()
     if (!row) {
       return c.json({ success: false, error: 'Node not found' }, 404 as const)
     }
-    return c.json({ success: true, data: row }, 200 as const)
+    return c.json({ success: true, data: deserializeRow(row) }, 200 as const)
   } catch (err) {
     logger.error({ err }, 'whiteboard_update_failed')
     return c.json({ success: false, error: 'Failed to update whiteboard node' }, 500 as const)
@@ -69,6 +99,11 @@ whiteboardRoutes.openapi(R.updateWhiteboardNode, async (c) => {
 whiteboardRoutes.openapi(R.deleteWhiteboardNode, async (c) => {
   try {
     const projectId = c.req.param('projectId')
+    const project = await findProject(projectId)
+    if (!project) {
+      return c.json({ success: false, error: 'Project not found' }, 404 as const)
+    }
+
     const nodeId = c.req.param('nodeId')
 
     // Verify node exists
@@ -77,7 +112,7 @@ whiteboardRoutes.openapi(R.deleteWhiteboardNode, async (c) => {
       .from(whiteboardNodes)
       .where(and(
         eq(whiteboardNodes.id, nodeId),
-        eq(whiteboardNodes.projectId, projectId),
+        eq(whiteboardNodes.projectId, project.id),
         notDeleted,
       ))
     if (!target) {
@@ -88,7 +123,7 @@ whiteboardRoutes.openapi(R.deleteWhiteboardNode, async (c) => {
     const allNodes = await db
       .select({ id: whiteboardNodes.id, parentId: whiteboardNodes.parentId })
       .from(whiteboardNodes)
-      .where(and(eq(whiteboardNodes.projectId, projectId), notDeleted))
+      .where(and(eq(whiteboardNodes.projectId, project.id), notDeleted))
 
     const childrenMap = new Map<string | null, string[]>()
     for (const n of allNodes) {
@@ -124,6 +159,11 @@ whiteboardRoutes.openapi(R.deleteWhiteboardNode, async (c) => {
 whiteboardRoutes.openapi(R.bulkUpdateWhiteboardNodes, async (c) => {
   try {
     const projectId = c.req.param('projectId')
+    const project = await findProject(projectId)
+    if (!project) {
+      return c.json({ success: false, error: 'Project not found' }, 404 as const)
+    }
+
     const { nodes } = c.req.valid('json')
 
     const results = await db.transaction(async (tx) => {
@@ -138,7 +178,7 @@ whiteboardRoutes.openapi(R.bulkUpdateWhiteboardNodes, async (c) => {
           .set(setData)
           .where(and(
             eq(whiteboardNodes.id, node.id),
-            eq(whiteboardNodes.projectId, projectId),
+            eq(whiteboardNodes.projectId, project.id),
             notDeleted,
           ))
           .returning()
@@ -147,7 +187,7 @@ whiteboardRoutes.openapi(R.bulkUpdateWhiteboardNodes, async (c) => {
       return updated
     })
 
-    return c.json({ success: true, data: results }, 200 as const)
+    return c.json({ success: true, data: results.map(deserializeRow) }, 200 as const)
   } catch (err) {
     logger.error({ err }, 'whiteboard_bulk_update_failed')
     return c.json({ success: false, error: 'Failed to bulk update whiteboard nodes' }, 500 as const)
