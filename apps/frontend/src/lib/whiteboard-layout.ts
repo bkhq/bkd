@@ -82,6 +82,8 @@ export async function computeLayout(
       id: elkNode.id,
       type: 'mindmapNode',
       position: { x: elkNode.x ?? 0, y: elkNode.y ?? 0 },
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
       data: {
         ...original,
         hasChildren,

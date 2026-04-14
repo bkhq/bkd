@@ -80,7 +80,7 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
     <div
       className={cn(
         'rounded-lg border bg-card px-4 py-3 shadow-sm transition-shadow',
-        'min-w-[200px] max-w-[320px]',
+        'w-[280px]',
         selected && 'ring-2 ring-primary shadow-md',
       )}
     >
