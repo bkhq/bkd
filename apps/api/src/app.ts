@@ -82,6 +82,7 @@ app.doc31('/api/docs/openapi.json', {
     { name: 'Processes', description: 'Active engine process management' },
     { name: 'Worktrees', description: 'Git worktree management per project' },
     { name: 'Notes', description: 'Scratch notes' },
+    { name: 'Whiteboard', description: 'Project mindmap whiteboard' },
     { name: 'Settings', description: 'Application settings and configuration' },
     { name: 'Webhooks', description: 'Webhook notification management' },
   ],

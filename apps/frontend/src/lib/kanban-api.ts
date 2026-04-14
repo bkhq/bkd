@@ -20,6 +20,7 @@ import type {
   Webhook,
   WebhookDelivery,
   WebhookEventType,
+  WhiteboardNode,
 } from '@/types/kanban'
 import { clearToken, getToken } from './auth'
 
@@ -635,6 +636,35 @@ export const kanbanApi = {
   getGlobalEnvVars: () => get<Record<string, string>>('/api/settings/global-env-vars'),
   setGlobalEnvVars: (vars: Record<string, string>) =>
     put<Record<string, string>>('/api/settings/global-env-vars', { vars }),
+
+  // Whiteboard
+  getWhiteboardNodes: (projectId: string) =>
+    get<WhiteboardNode[]>(`/api/projects/${projectId}/whiteboard/nodes`),
+  createWhiteboardNode: (projectId: string, data: {
+    parentId?: string | null
+    label?: string
+    content?: string
+    icon?: string
+    sortOrder?: string
+    metadata?: Record<string, unknown>
+  }) => post<WhiteboardNode>(`/api/projects/${projectId}/whiteboard/nodes`, data),
+  updateWhiteboardNode: (projectId: string, nodeId: string, data: {
+    parentId?: string | null
+    label?: string
+    content?: string
+    icon?: string
+    sortOrder?: string
+    isCollapsed?: boolean
+    metadata?: Record<string, unknown>
+    boundIssueId?: string | null
+  }) => patch<WhiteboardNode>(`/api/projects/${projectId}/whiteboard/nodes/${nodeId}`, data),
+  deleteWhiteboardNode: (projectId: string, nodeId: string) =>
+    del<{ ids: string[] }>(`/api/projects/${projectId}/whiteboard/nodes/${nodeId}`),
+  bulkUpdateWhiteboardNodes: (projectId: string, nodes: Array<{
+    id: string
+    parentId?: string | null
+    sortOrder?: string
+  }>) => patch<WhiteboardNode[]>(`/api/projects/${projectId}/whiteboard/nodes/bulk`, { nodes }),
 
   // Cron
   getCronJobs: () => get<CronJob[]>('/api/cron'),

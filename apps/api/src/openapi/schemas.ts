@@ -451,3 +451,48 @@ export const CategorizedCommandsSchema = z.object({
     path: z.string(),
   })),
 }).openapi('CategorizedCommands')
+
+// ── Whiteboard schemas ────────────────────────────────
+
+export const WhiteboardNodeSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  parentId: z.string().nullable(),
+  label: z.string(),
+  content: z.string(),
+  icon: z.string().nullable(),
+  sortOrder: z.string(),
+  isCollapsed: z.boolean(),
+  metadata: z.record(z.unknown()).nullable(),
+  boundIssueId: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+}).openapi('WhiteboardNode')
+
+export const CreateWhiteboardNodeSchema = z.object({
+  parentId: z.string().nullable().optional().default(null),
+  label: z.string().max(500).optional().default(''),
+  content: z.string().max(100_000).optional().default(''),
+  icon: z.string().max(10).optional().default(''),
+  sortOrder: z.string().max(50).optional(),
+  metadata: z.record(z.unknown()).optional(),
+}).openapi('CreateWhiteboardNode')
+
+export const UpdateWhiteboardNodeSchema = z.object({
+  parentId: z.string().nullable().optional(),
+  label: z.string().max(500).optional(),
+  content: z.string().max(100_000).optional(),
+  icon: z.string().max(10).optional(),
+  sortOrder: z.string().max(50).optional(),
+  isCollapsed: z.boolean().optional(),
+  metadata: z.record(z.unknown()).optional(),
+  boundIssueId: z.string().nullable().optional(),
+}).openapi('UpdateWhiteboardNode')
+
+export const BulkUpdateWhiteboardNodeSchema = z.object({
+  nodes: z.array(z.object({
+    id: z.string(),
+    parentId: z.string().nullable().optional(),
+    sortOrder: z.string().max(50).optional(),
+  })).min(1).max(500),
+}).openapi('BulkUpdateWhiteboardNode')

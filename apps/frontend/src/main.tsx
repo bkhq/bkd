@@ -55,6 +55,7 @@ const IssueDetailPage = lazy(() => import('./pages/IssueDetailPage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const TerminalPage = lazy(() => import('./pages/TerminalPage'))
 const CronPage = lazy(() => import('./pages/CronPage'))
+const WhiteboardPage = lazy(() => import('./pages/WhiteboardPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const LoginCallbackPage = lazy(() => import('./pages/LoginCallbackPage'))
 const LazyTerminalDrawer = lazy(() =>
@@ -315,6 +316,16 @@ if (!rootElement.innerHTML) {
                     <AuthGate>
                       <ErrorBoundary>
                         <CronPage />
+                      </ErrorBoundary>
+                    </AuthGate>
+                  )}
+                />
+                <Route
+                  path="/projects/:projectId/whiteboard"
+                  element={(
+                    <AuthGate>
+                      <ErrorBoundary>
+                        <WhiteboardPage />
                       </ErrorBoundary>
                     </AuthGate>
                   )}

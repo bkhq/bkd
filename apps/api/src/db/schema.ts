@@ -226,6 +226,29 @@ export const cronJobLogs = sqliteTable(
   ],
 )
 
+export const whiteboardNodes = sqliteTable(
+  'whiteboard_nodes',
+  {
+    id: shortId(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    parentId: text('parent_id'), // self-ref, app-level FK
+    label: text('label').notNull().default(''),
+    content: text('content').notNull().default(''),
+    icon: text('icon').default(''),
+    sortOrder: text('sort_order').notNull().default('a0'),
+    isCollapsed: integer('is_collapsed', { mode: 'boolean' }).notNull().default(false),
+    metadata: text('metadata'), // JSON
+    boundIssueId: text('bound_issue_id').references(() => issues.id),
+    ...commonFields,
+  },
+  table => [
+    index('whiteboard_nodes_project_id_idx').on(table.projectId),
+    index('whiteboard_nodes_parent_id_idx').on(table.parentId),
+  ],
+)
+
 export const issuesLogsToolsCall = sqliteTable(
   'issues_logs_tools_call',
   {

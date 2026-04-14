@@ -39,4 +39,5 @@ export type {
   Webhook,
   WebhookDelivery,
   WebhookEventType,
+  WhiteboardNode,
 } from '@bkd/shared'
