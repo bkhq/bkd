@@ -1,7 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '@/db'
 import { findProject } from '@/db/helpers'
-import { whiteboardNodes } from '@/db/schema'
+import { issues as issuesTable, whiteboardNodes } from '@/db/schema'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
@@ -72,9 +72,21 @@ whiteboardRoutes.openapi(R.updateWhiteboardNode, async (c) => {
     }
 
     const nodeId = c.req.param('nodeId')
-    const { metadata, ...rest } = c.req.valid('json')
+    const { metadata, boundIssueId, ...rest } = c.req.valid('json')
     const setData: Record<string, unknown> = { ...rest, updatedAt: new Date() }
     if (metadata !== undefined) setData.metadata = serializeMetadata(metadata)
+    if (boundIssueId !== undefined) {
+      if (boundIssueId !== null) {
+        const issue = await db
+          .select({ id: issuesTable.id })
+          .from(issuesTable)
+          .where(and(eq(issuesTable.id, boundIssueId), eq(issuesTable.projectId, project.id)))
+        if (issue.length === 0) {
+          return c.json({ success: false, error: 'Bound issue not found in this project' }, 404 as const)
+        }
+      }
+      setData.boundIssueId = boundIssueId
+    }
 
     const [row] = await db
       .update(whiteboardNodes)
@@ -119,7 +131,7 @@ whiteboardRoutes.openapi(R.deleteWhiteboardNode, async (c) => {
       return c.json({ success: false, error: 'Node not found' }, 404 as const)
     }
 
-    // Collect all descendant IDs via iterative BFS
+    // Collect all descendant IDs via iterative BFS (with cycle guard)
     const allNodes = await db
       .select({ id: whiteboardNodes.id, parentId: whiteboardNodes.parentId })
       .from(whiteboardNodes)
@@ -134,9 +146,12 @@ whiteboardRoutes.openapi(R.deleteWhiteboardNode, async (c) => {
     }
 
     const idsToDelete: string[] = []
+    const visited = new Set<string>()
     const queue = [nodeId]
     while (queue.length > 0) {
       const current = queue.pop()!
+      if (visited.has(current)) continue
+      visited.add(current)
       idsToDelete.push(current)
       const children = childrenMap.get(current)
       if (children) queue.push(...children)

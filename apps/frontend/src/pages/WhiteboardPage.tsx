@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { WhiteboardCanvas } from '@/components/whiteboard/WhiteboardCanvas'
 import { WhiteboardHeader } from '@/components/whiteboard/WhiteboardHeader'
@@ -20,15 +20,16 @@ export default function WhiteboardPage() {
 
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
 
-  // Initialize collapsed state from server data
-  useMemo(() => {
+  // Sync collapsed state from server data
+  const collapsedKey = nodes.map(n => `${n.id}:${n.isCollapsed}`).join(',')
+  useEffect(() => {
     const collapsed = new Set<string>()
     for (const n of nodes) {
       if (n.isCollapsed) collapsed.add(n.id)
     }
     setCollapsedIds(collapsed)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes.length])
+  }, [collapsedKey])
 
   const onCreateRoot = useCallback(() => {
     createNode.mutate({ label: project?.name ?? 'Root' })
