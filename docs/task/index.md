@@ -32,3 +32,4 @@ Each task is a single line linking to its detail file. All detailed information 
 ## Tasks
 
 - [x] [**DOCS-001 Add BKD skill installation note to README**](DOCS-001.md) `P2`
+- [ ] [**WB-001 Implement project-level AI-driven mindmap whiteboard**](WB-001.md) `P1`
