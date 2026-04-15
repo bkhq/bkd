@@ -356,6 +356,14 @@ export const kanbanApi = {
       `/api/projects/${projectId}/issues/${issueId}/pending?messageId=${encodeURIComponent(messageId)}`,
     ),
 
+  getPendingMessages: (projectId: string, issueId: string) =>
+    get<Array<{
+      messageId: string
+      content: string
+      metadata: { type: string } | null
+      createdAt: string
+    }>>(`/api/projects/${projectId}/issues/${issueId}/pending`),
+
   autoTitleIssue: async (projectId: string, issueId: string) => {
     const res = await fetch(`/api/projects/${projectId}/issues/${issueId}/auto-title`, {
       method: 'POST',

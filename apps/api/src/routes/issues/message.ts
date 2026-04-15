@@ -326,6 +326,33 @@ message.post('/:id/follow-up', async (c) => {
   }
 })
 
+// GET /api/projects/:projectId/issues/:id/pending — List pending messages
+message.get('/:id/pending', async (c) => {
+  const projectId = c.req.param('projectId')!
+  const project = await findProject(projectId)
+  if (!project) {
+    return c.json({ success: false, error: 'Project not found' }, 404)
+  }
+
+  const issueId = c.req.param('id')!
+  const issue = await getProjectOwnedIssue(project.id, issueId)
+  if (!issue) {
+    return c.json({ success: false, error: 'Issue not found' }, 404)
+  }
+
+  const { getPendingMessages } = await import('@/db/pending-messages')
+  const rows = await getPendingMessages(issueId)
+
+  const entries = rows.map(row => ({
+    messageId: row.id,
+    content: row.content,
+    metadata: row.metadata ? JSON.parse(row.metadata) : null,
+    createdAt: row.createdAt,
+  }))
+
+  return c.json({ success: true, data: entries })
+})
+
 // DELETE /api/projects/:projectId/issues/:id/pending?messageId=... — Recall pending message
 message.delete('/:id/pending', async (c) => {
   const projectId = c.req.param('projectId')!

@@ -45,6 +45,8 @@ export const queryKeys = {
   webhookDeliveries: (id: string) => ['settings', 'webhooks', id, 'deliveries'] as const,
   cronJobs: () => ['cron', 'jobs'] as const,
   cronJobLogs: (jobId: string) => ['cron', 'jobs', jobId, 'logs'] as const,
+  pendingMessages: (projectId: string, issueId: string) =>
+    ['projects', projectId, 'issues', issueId, 'pending'] as const,
 }
 
 export function useProjects() {
