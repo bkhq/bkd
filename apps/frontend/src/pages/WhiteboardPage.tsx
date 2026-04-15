@@ -55,6 +55,35 @@ export default function WhiteboardPage() {
     return root?.boundIssueId ?? null
   }, [nodes])
 
+  // Persistent SSE subscription on bound issue — handles chat-panel-initiated conversations.
+  // When AI completes a turn (from any source), auto-parse ## headings into child nodes on root.
+  // The pendingIssueId subscription handles AskAI-initiated turns with specific node targeting;
+  // this one catches everything else (e.g. user typing directly in the chat panel).
+  useEffect(() => {
+    if (!boundIssueId) return
+    // Skip if an AskAI-initiated turn is active (pendingIssueId handles that)
+    const rootNode = nodes.find(n => !n.parentId)
+    if (!rootNode) return
+
+    const unsub = eventBus.subscribe(boundIssueId, {
+      onLog: () => {},
+      onLogUpdated: () => {},
+      onLogRemoved: () => {},
+      onState: () => {},
+      onDone: () => {
+        // Only auto-parse if NOT already handled by the AskAI pendingIssueId subscription
+        if (pendingIssueId) return
+        parseResponse.mutate(
+          { nodeId: rootNode.id, issueId: boundIssueId },
+          { onSettled: () => setTimeout(refetchNodes, 500) },
+        )
+      },
+    })
+    return unsub
+  // parseResponse intentionally excluded — stable mutation ref
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boundIssueId, pendingIssueId, nodes, refetchNodes])
+
   // Sync collapsed state from server data
   const collapsedKey = nodes.map(n => `${n.id}:${n.isCollapsed}`).join(',')
   useEffect(() => {
