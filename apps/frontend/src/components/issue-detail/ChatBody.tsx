@@ -325,16 +325,6 @@ export function ChatBody({
         </div>
       </div>
 
-      {/* Issue metadata bar — fixed above input */}
-      <IssueDetail
-        issue={issue}
-        projectId={projectId}
-        status={STATUS_MAP.get(issue.statusId)}
-        onUpdate={fields => updateIssue.mutate({ id: issueId, ...fields })}
-        onDelete={handleDelete}
-        isDeleting={deleteIssueMutation.isPending}
-      />
-
       {/* Pending messages — always visible regardless of stream state */}
       {serverPendingMessages && serverPendingMessages.length > 0 && (
         <div className="border-t border-border/30 px-4 py-2 space-y-1.5">
@@ -347,7 +337,7 @@ export function ChatBody({
               <button
                 type="button"
                 onClick={() => handleEditPending(msg.messageId)}
-                className="hidden shrink-0 rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground group-hover:inline-flex"
+                className="shrink-0 rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground inline-flex"
               >
                 {t('common.edit')}
               </button>
@@ -355,6 +345,16 @@ export function ChatBody({
           ))}
         </div>
       )}
+
+      {/* Issue metadata bar — fixed above input */}
+      <IssueDetail
+        issue={issue}
+        projectId={projectId}
+        status={STATUS_MAP.get(issue.statusId)}
+        onUpdate={fields => updateIssue.mutate({ id: issueId, ...fields })}
+        onDelete={handleDelete}
+        isDeleting={deleteIssueMutation.isPending}
+      />
 
       {/* Input */}
       <ChatInput
