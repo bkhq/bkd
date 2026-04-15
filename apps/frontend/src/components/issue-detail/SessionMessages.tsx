@@ -1,4 +1,4 @@
-import type { ChatMessage, NormalizedLogEntry, TaskPlanChatMessage, UserChatMessage } from '@bkd/shared'
+import type { ChatMessage, NormalizedLogEntry, TaskPlanChatMessage } from '@bkd/shared'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { CheckCircle2, ChevronDown, Circle, ListTodo, Loader2 } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -141,7 +141,6 @@ export function SessionMessages(props: {
   isRunning?: boolean
   workingStep?: string | null
   onCancel?: () => void
-  onEditPending?: (messageId: string) => void
   isCancelling?: boolean
   hasOlderLogs?: boolean
   isLoadingOlder?: boolean
@@ -165,7 +164,6 @@ function LegacySessionMessages({
   isRunning = false,
   workingStep,
   onCancel,
-  onEditPending,
   isCancelling = false,
   hasOlderLogs = false,
   isLoadingOlder = false,
@@ -176,7 +174,6 @@ function LegacySessionMessages({
   isRunning?: boolean
   workingStep?: string | null
   onCancel?: () => void
-  onEditPending?: (messageId: string) => void
   isCancelling?: boolean
   hasOlderLogs?: boolean
   isLoadingOlder?: boolean
@@ -283,10 +280,6 @@ function LegacySessionMessages({
         workingStep={workingStep}
         onCancel={onCancel}
       />
-      <PendingMessagesList
-        messages={pendingMessages}
-        onEditPending={onEditPending}
-      />
     </div>
   )
 }
@@ -387,35 +380,3 @@ function ThinkingIndicator({
 }
 
 // ── Pending messages ─────────────────────────────────────
-
-function PendingMessagesList({
-  messages,
-  onEditPending,
-}: {
-  messages: UserChatMessage[]
-  onEditPending?: (messageId: string) => void
-}) {
-  const { t } = useTranslation()
-  if (messages.length === 0) return null
-
-  return (
-    <div className="mt-1 border-t border-border/30 pt-2">
-      {messages.map(msg => (
-        <div key={msg.id} className="group relative">
-          <ChatMessageRow message={msg} />
-          {onEditPending && (msg.status === 'pending' || msg.status === 'done') ?
-              (
-                <button
-                  type="button"
-                  onClick={() => onEditPending(msg.entry.messageId ?? msg.id)}
-                  className="absolute right-2 top-2 hidden rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground group-hover:inline-flex"
-                >
-                  {t('common.edit')}
-                </button>
-              ) :
-            null}
-        </div>
-      ))}
-    </div>
-  )
-}

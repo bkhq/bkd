@@ -565,7 +565,14 @@
     "expand": "展开",
     "collapse": "折叠",
     "untitled": "无标题",
-    "backToBoard": "返回看板"
+    "backToBoard": "返回看板",
+    "askAI": "询问 AI",
+    "quickActions": "快速操作",
+    "actionExplore": "深入探索",
+    "actionExplain": "解释",
+    "actionSimplify": "简化",
+    "actionExamples": "示例",
+    "askPlaceholder": "随便问点什么..."
   },
   "auth": {
     "login": "登录",

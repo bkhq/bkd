@@ -4,6 +4,7 @@ import { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { AskAIPopover } from './AskAIPopover'
 
 interface MindmapNodeData {
   id: string
@@ -13,6 +14,7 @@ interface MindmapNodeData {
   hasChildren: boolean
   isCollapsed: boolean
   parentId: string | null
+  askingNodeId: string | null
   [key: string]: unknown
 }
 
@@ -67,6 +69,12 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
       detail: { nodeId: data.id },
     }))
   }, [data.id])
+
+  const onAskAI = useCallback((nodeId: string, action: string, prompt?: string) => {
+    window.dispatchEvent(new CustomEvent('wb:ask-ai', {
+      detail: { nodeId, action, prompt },
+    }))
+  }, [])
 
   return (
     <div
@@ -127,6 +135,11 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
         >
           <Plus className="h-3.5 w-3.5" />
         </Button>
+        <AskAIPopover
+          nodeId={data.id}
+          isLoading={data.askingNodeId === data.id}
+          onAsk={onAskAI}
+        />
         {data.hasChildren && (
           <Button
             variant="ghost"

@@ -1,7 +1,13 @@
-import { and, eq, inArray } from 'drizzle-orm'
+import { mkdir, stat } from 'node:fs/promises'
+import { resolve } from 'node:path'
+import { and, desc, eq, inArray, max } from 'drizzle-orm'
+import { generateKeyBetween } from 'jittered-fractional-indexing'
 import { db } from '@/db'
-import { findProject } from '@/db/helpers'
+import { findProject, getAppSetting, getDefaultEngine, getEngineDefaultModel } from '@/db/helpers'
 import { issues as issuesTable, whiteboardNodes } from '@/db/schema'
+import { issueEngine } from '@/engines/issue/engine'
+import type { EngineType } from '@/engines/types'
+import { parseProjectEnvVars } from '@/routes/issues/_shared'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
@@ -206,6 +212,229 @@ whiteboardRoutes.openapi(R.bulkUpdateWhiteboardNodes, async (c) => {
   } catch (err) {
     logger.error({ err }, 'whiteboard_bulk_update_failed')
     return c.json({ success: false, error: 'Failed to bulk update whiteboard nodes' }, 500 as const)
+  }
+})
+
+// POST /ask — AI interaction via bound issue follow-up
+whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
+  try {
+    const projectId = c.req.param('projectId')
+    const project = await findProject(projectId)
+    if (!project) {
+      return c.json({ success: false, error: 'Project not found' }, 404 as const)
+    }
+
+    const body = c.req.valid('json')
+
+    // Find the target node
+    const [targetNode] = await db
+      .select()
+      .from(whiteboardNodes)
+      .where(and(eq(whiteboardNodes.id, body.nodeId), eq(whiteboardNodes.projectId, project.id), notDeleted))
+    if (!targetNode) {
+      return c.json({ success: false, error: 'Node not found' }, 404 as const)
+    }
+
+    // Build node path (root → target) for context
+    const allNodes = await db
+      .select()
+      .from(whiteboardNodes)
+      .where(and(eq(whiteboardNodes.projectId, project.id), notDeleted))
+
+    const nodeMap = new Map(allNodes.map(n => [n.id, n]))
+    const path: string[] = []
+    const visitedPath = new Set<string>()
+    let current: typeof targetNode | undefined = targetNode
+    while (current && !visitedPath.has(current.id)) {
+      visitedPath.add(current.id)
+      path.unshift(current.label || 'Untitled')
+      current = current.parentId ? nodeMap.get(current.parentId) : undefined
+    }
+
+    // Build action-specific prompt
+    const contextLines = [
+      `Project: ${project.name}`,
+      `Node path: ${path.join(' > ')}`,
+      targetNode.content ? `Node content:\n${targetNode.content}` : '',
+    ].filter(Boolean).join('\n')
+
+    const actionPrompts: Record<string, string> = {
+      explore: `${contextLines}\n\nGenerate 3-7 subtopics for this node. For each subtopic, output a markdown heading (##) followed by a brief description paragraph. Example:\n\n## Subtopic Title\nBrief description of the subtopic.`,
+      explain: `${contextLines}\n\nExplain this topic in detail. Provide a clear, structured explanation.`,
+      simplify: `${contextLines}\n\nSimplify and rewrite the content of this node to be more concise and easier to understand.`,
+      examples: `${contextLines}\n\nProvide 3-5 concrete examples related to this topic. For each example, output a markdown heading (##) followed by a description.`,
+      custom: `${contextLines}\n\n${body.prompt ?? ''}`,
+    }
+    const prompt = actionPrompts[body.action] ?? actionPrompts.custom
+
+    // Find or create the bound whiteboard issue
+    let boundIssueId = targetNode.boundIssueId
+    // Walk up to root to find a bound issue (with cycle guard)
+    if (!boundIssueId) {
+      const visitedWalk = new Set<string>()
+      let walk: typeof targetNode | undefined = targetNode
+      while (walk && !boundIssueId) {
+        if (visitedWalk.has(walk.id)) break
+        visitedWalk.add(walk.id)
+        boundIssueId = walk.boundIssueId
+        walk = walk.parentId ? nodeMap.get(walk.parentId) : undefined
+      }
+    }
+
+    const resolvedEngine = (body.engineType ?? await getDefaultEngine() ?? 'claude-code') as EngineType
+    let resolvedModel = body.model
+    if (!resolvedModel) {
+      const savedModel = await getEngineDefaultModel(resolvedEngine)
+      if (savedModel && savedModel !== 'auto') resolvedModel = savedModel
+    }
+
+    // SEC-016: Validate and resolve working directory
+    let effectiveWorkingDir: string | undefined
+    if (project.directory) {
+      const resolvedDir = resolve(project.directory)
+      const workspaceRoot = await getAppSetting('workspace:defaultPath')
+      if (workspaceRoot && workspaceRoot !== '/') {
+        const resolvedRoot = resolve(workspaceRoot)
+        if (!resolvedDir.startsWith(`${resolvedRoot}/`) && resolvedDir !== resolvedRoot) {
+          logger.warn({ projectId: project.id, resolvedDir, workspaceRoot: resolvedRoot }, 'whiteboard_workdir_outside_workspace')
+          return c.json({ success: false, error: 'Project directory is outside the configured workspace' }, 500 as const)
+        }
+      }
+      try {
+        await mkdir(resolvedDir, { recursive: true })
+        const s = await stat(resolvedDir)
+        if (!s.isDirectory()) {
+          return c.json({ success: false, error: 'Project directory is not a valid directory' }, 500 as const)
+        }
+        effectiveWorkingDir = resolvedDir
+      } catch (dirErr) {
+        logger.warn({ projectId: project.id, resolvedDir, err: dirErr }, 'whiteboard_workdir_prepare_failed')
+        return c.json({ success: false, error: 'Failed to prepare project working directory' }, 500 as const)
+      }
+    }
+
+    const envVars = parseProjectEnvVars(project.envVars)
+    const displayPrompt = `[Whiteboard] ${body.action}: ${targetNode.label || 'Untitled'}`
+
+    if (!boundIssueId) {
+      // Create a new whiteboard issue
+      const [maxNumRow] = await db
+        .select({ maxNum: max(issuesTable.issueNumber) })
+        .from(issuesTable)
+        .where(eq(issuesTable.projectId, project.id))
+      const issueNumber = (maxNumRow?.maxNum ?? 0) + 1
+      const [lastItem] = await db
+        .select({ sortOrder: issuesTable.sortOrder })
+        .from(issuesTable)
+        .where(and(
+          eq(issuesTable.projectId, project.id),
+          eq(issuesTable.statusId, 'working'),
+          eq(issuesTable.isDeleted, 0),
+        ))
+        .orderBy(desc(issuesTable.sortOrder))
+        .limit(1)
+      const sortOrder = generateKeyBetween(lastItem?.sortOrder ?? null, null)
+
+      const [newIssue] = await db
+        .insert(issuesTable)
+        .values({
+          projectId: project.id,
+          statusId: 'working',
+          issueNumber,
+          title: `[Whiteboard] ${project.name}`,
+          tag: JSON.stringify(['whiteboard']),
+          sortOrder,
+          engineType: resolvedEngine,
+          model: resolvedModel ?? null,
+          prompt,
+        })
+        .returning()
+      boundIssueId = newIssue.id
+
+      // Execute the issue (first turn) — roll back issue on failure
+      try {
+        const result = await issueEngine.executeIssue(boundIssueId, {
+          engineType: resolvedEngine,
+          prompt: project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt,
+          workingDir: effectiveWorkingDir,
+          model: resolvedModel,
+          envVars,
+          displayPrompt,
+        })
+
+        // Bind to the root node after successful execution
+        const rootNode = allNodes.find(n => !n.parentId)
+        if (rootNode) {
+          await db.update(whiteboardNodes)
+            .set({ boundIssueId: newIssue.id, updatedAt: new Date() })
+            .where(eq(whiteboardNodes.id, rootNode.id))
+        }
+
+        return c.json({
+          success: true,
+          data: { issueId: boundIssueId, executionId: result.executionId },
+        }, 200 as const)
+      } catch (execErr) {
+        // Roll back orphan issue on first-turn failure
+        logger.error({ err: execErr, issueId: boundIssueId }, 'whiteboard_first_execute_failed')
+        await db.update(issuesTable)
+          .set({ isDeleted: 1, updatedAt: new Date() })
+          .where(eq(issuesTable.id, boundIssueId))
+        return c.json({ success: false, error: 'Failed to start whiteboard AI session' }, 500 as const)
+      }
+    }
+
+    // Validate bound issue still exists and has a usable session
+    const [boundIssue] = await db
+      .select({ id: issuesTable.id, sessionStatus: issuesTable.sessionStatus, externalSessionId: issuesTable.externalSessionId })
+      .from(issuesTable)
+      .where(and(eq(issuesTable.id, boundIssueId), eq(issuesTable.isDeleted, 0)))
+
+    if (!boundIssue) {
+      // Clear stale binding so next ask creates a fresh issue
+      const rootNode = allNodes.find(n => !n.parentId)
+      if (rootNode) {
+        await db.update(whiteboardNodes)
+          .set({ boundIssueId: null, updatedAt: new Date() })
+          .where(eq(whiteboardNodes.id, rootNode.id))
+      }
+      return c.json({ success: false, error: 'Bound issue was deleted. Please try again.' }, 404 as const)
+    }
+
+    // If the bound issue has no session (e.g. session ID was reset on failure),
+    // re-execute instead of following up on a broken session
+    if (!boundIssue.externalSessionId) {
+      const result = await issueEngine.executeIssue(boundIssueId, {
+        engineType: resolvedEngine,
+        prompt: project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt,
+        workingDir: effectiveWorkingDir,
+        model: resolvedModel,
+        envVars,
+        displayPrompt,
+      })
+      return c.json({
+        success: true,
+        data: { issueId: boundIssueId, executionId: result.executionId },
+      }, 200 as const)
+    }
+
+    // Follow-up on existing bound issue — do not override the issue's model
+    const result = await issueEngine.followUpIssue(
+      boundIssueId,
+      prompt,
+      undefined,
+      undefined,
+      'queue',
+      displayPrompt,
+    )
+
+    return c.json({
+      success: true,
+      data: { issueId: boundIssueId, executionId: result.executionId, queued: false },
+    }, 200 as const)
+  } catch (err) {
+    logger.error({ err }, 'whiteboard_ask_failed')
+    return c.json({ success: false, error: 'Failed to process whiteboard AI request' }, 500 as const)
   }
 })
 

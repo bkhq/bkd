@@ -20,6 +20,7 @@ import {
   useSlashCommands,
   useUpdateIssue,
 } from '@/hooks/use-kanban'
+import { useInvalidatePendingMessages, usePendingMessages } from '@/hooks/use-pending-messages'
 import { kanbanApi } from '@/lib/kanban-api'
 import { STATUS_MAP } from '@/lib/statuses'
 import type { Issue, NormalizedLogEntry } from '@/types/kanban'
@@ -183,15 +184,20 @@ export function ChatBody({
     appendServerMessage,
   } = useSessionState(projectId, issueId, issue)
 
+  // Always fetch pending messages independently of stream state
+  const { data: serverPendingMessages } = usePendingMessages(projectId, issueId)
+  const invalidatePending = useInvalidatePendingMessages()
+
   const handleEditPending = useCallback(async (messageId: string) => {
     try {
       const result = await kanbanApi.deletePendingMessage(projectId, issueId, messageId)
       setPendingEditContent(result.content)
       removeEntries([result.id])
+      invalidatePending(projectId, issueId)
     } catch {
       /* ignore — pending may have been consumed already */
     }
-  }, [projectId, issueId, removeEntries])
+  }, [projectId, issueId, removeEntries, invalidatePending])
 
   // Reset cancelling state when the session settles or a new turn starts.
   // Without the sessionStatus check, a follow-up that keeps isThinking=true
@@ -285,7 +291,6 @@ export function ChatBody({
                 hasOlderLogs={hasOlderLogs}
                 isLoadingOlder={isLoadingOlder}
                 onLoadOlder={loadOlderLogs}
-                onEditPending={handleEditPending}
               />
             </Suspense>
           </div>
@@ -329,6 +334,27 @@ export function ChatBody({
         onDelete={handleDelete}
         isDeleting={deleteIssueMutation.isPending}
       />
+
+      {/* Pending messages — always visible regardless of stream state */}
+      {serverPendingMessages && serverPendingMessages.length > 0 && (
+        <div className="border-t border-border/30 px-4 py-2 space-y-1.5">
+          {serverPendingMessages.map(msg => (
+            <div key={msg.messageId} className="group relative flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
+              <span className="shrink-0 text-xs text-muted-foreground/60">
+                {msg.metadata?.type === 'done' ? '📋' : '⏳'}
+              </span>
+              <span className="flex-1 line-clamp-2 text-muted-foreground">{msg.content}</span>
+              <button
+                type="button"
+                onClick={() => handleEditPending(msg.messageId)}
+                className="hidden shrink-0 rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground group-hover:inline-flex"
+              >
+                {t('common.edit')}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Input */}
       <ChatInput

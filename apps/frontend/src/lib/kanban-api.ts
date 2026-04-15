@@ -356,6 +356,14 @@ export const kanbanApi = {
       `/api/projects/${projectId}/issues/${issueId}/pending?messageId=${encodeURIComponent(messageId)}`,
     ),
 
+  getPendingMessages: (projectId: string, issueId: string) =>
+    get<Array<{
+      messageId: string
+      content: string
+      metadata: { type: string } | null
+      createdAt: string
+    }>>(`/api/projects/${projectId}/issues/${issueId}/pending`),
+
   autoTitleIssue: async (projectId: string, issueId: string) => {
     const res = await fetch(`/api/projects/${projectId}/issues/${issueId}/auto-title`, {
       method: 'POST',
@@ -665,6 +673,16 @@ export const kanbanApi = {
     parentId?: string | null
     sortOrder?: string
   }>) => patch<WhiteboardNode[]>(`/api/projects/${projectId}/whiteboard/nodes/bulk`, { nodes }),
+  whiteboardAsk: (projectId: string, data: {
+    nodeId: string
+    action: 'explore' | 'explain' | 'simplify' | 'examples' | 'custom'
+    prompt?: string
+    engineType?: string
+    model?: string
+  }) => post<{ issueId: string, executionId?: string, queued?: boolean }>(
+    `/api/projects/${projectId}/whiteboard/ask`,
+    data,
+  ),
 
   // Cron
   getCronJobs: () => get<CronJob[]>('/api/cron'),

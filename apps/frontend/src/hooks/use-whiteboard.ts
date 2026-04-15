@@ -112,3 +112,17 @@ export function useBulkUpdateWhiteboardNodes(projectId: string) {
     onSettled: () => qc.invalidateQueries({ queryKey: whiteboardKeys.all(projectId) }),
   })
 }
+
+export function useWhiteboardAsk(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: {
+      nodeId: string
+      action: 'explore' | 'explain' | 'simplify' | 'examples' | 'custom'
+      prompt?: string
+      engineType?: string
+      model?: string
+    }) => kanbanApi.whiteboardAsk(projectId, data),
+    onSettled: () => qc.invalidateQueries({ queryKey: whiteboardKeys.all(projectId) }),
+  })
+}
