@@ -57,15 +57,24 @@ export default function WhiteboardPage() {
     return root?.boundIssueId ?? null
   }, [nodes])
 
+  // Use ref to track AskAI-in-progress so persistent subscription can check without re-subscribing
+  const askInProgressRef = useRef(false)
+
+  // Keep ref in sync with pendingIssueId state
+  useEffect(() => {
+    askInProgressRef.current = !!pendingIssueId
+  }, [pendingIssueId])
+
+  // Keep root node ID in a ref so the persistent subscription can read it without re-subscribing
+  const rootNodeIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    rootNodeIdRef.current = nodes.find(n => !n.parentId)?.id ?? null
+  }, [nodes])
+
   // Persistent SSE subscription on bound issue — handles chat-panel-initiated conversations.
-  // When AI completes a turn (from any source), auto-parse ## headings into child nodes on root.
-  // The pendingIssueId subscription handles AskAI-initiated turns with specific node targeting;
-  // this one catches everything else (e.g. user typing directly in the chat panel).
+  // When AI completes a turn from the chat panel, auto-parse ## headings into child nodes on root.
   useEffect(() => {
     if (!boundIssueId) return
-    // Skip if an AskAI-initiated turn is active (pendingIssueId handles that)
-    const rootNode = nodes.find(n => !n.parentId)
-    if (!rootNode) return
 
     const unsub = eventBus.subscribe(boundIssueId, {
       onLog: () => {},
@@ -73,18 +82,20 @@ export default function WhiteboardPage() {
       onLogRemoved: () => {},
       onState: () => {},
       onDone: () => {
-        // Only auto-parse if NOT already handled by the AskAI pendingIssueId subscription
-        if (pendingIssueId) return
+        // Skip if AskAI subscription is handling this turn
+        if (askInProgressRef.current) return
+        const rootId = rootNodeIdRef.current
+        if (!rootId) return
         parseResponse.mutate(
-          { nodeId: rootNode.id, issueId: boundIssueId },
+          { nodeId: rootId, issueId: boundIssueId },
           { onSettled: () => setTimeout(refetchNodes, 500) },
         )
       },
     })
     return unsub
-  // parseResponse intentionally excluded — stable mutation ref
+  // Only re-subscribe when boundIssueId changes — refs handle the rest
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boundIssueId, pendingIssueId, nodes, refetchNodes])
+  }, [boundIssueId])
 
   // Sync collapsed state from server data
   const collapsedKey = nodes.map(n => `${n.id}:${n.isCollapsed}`).join(',')
