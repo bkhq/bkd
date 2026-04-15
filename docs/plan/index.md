@@ -30,3 +30,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 ## Plans
 
 - [-] [**PLAN-001 Project whiteboard mindmap technical design**](PLAN-001.md) `2026-04-14`
+- [-] [**PLAN-002 Whiteboard UI overhaul — edges, collapse badges, markdown**](PLAN-002.md) `2026-04-15`

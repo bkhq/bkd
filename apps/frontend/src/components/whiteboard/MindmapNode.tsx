@@ -1,7 +1,7 @@
-import { Handle, Position } from '@xyflow/react'
 import { ChevronRight, ListTodo, Plus, Trash2 } from 'lucide-react'
 import { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { MarkdownContent } from '@/components/issue-detail/MarkdownContent'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { AskAIPopover } from './AskAIPopover'
@@ -13,6 +13,7 @@ interface MindmapNodeData {
   icon: string | null
   hasChildren: boolean
   isCollapsed: boolean
+  childCount: number
   parentId: string | null
   parentLabel: string | null
   childLabels: string[]
@@ -35,7 +36,6 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
   const onLabelBlur = useCallback(() => {
     setIsEditing(false)
     if (editLabel !== data.label) {
-      // Dispatch custom event for parent to handle
       window.dispatchEvent(new CustomEvent('wb:update-node', {
         detail: { nodeId: data.id, label: editLabel },
       }))
@@ -104,125 +104,122 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
   }, [data.id])
 
   return (
-    <div
-      className={cn(
-        'group rounded-lg border bg-card px-4 py-3 shadow-sm transition-shadow',
-        'min-w-[200px] max-w-[320px]',
-        selected && 'ring-2 ring-primary shadow-md',
-      )}
-    >
-      {/* Handles */}
-      {data.parentId !== null && (
-        <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-muted-foreground/50" />
-      )}
-      <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-muted-foreground/50" />
+    <div className="relative">
+      {/* Card */}
+      <div
+        className={cn(
+          'group rounded-lg border bg-card px-4 py-3 shadow-sm transition-shadow',
+          'w-[360px]',
+          selected && 'ring-2 ring-primary shadow-md',
+        )}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-2">
+          {data.icon && <span className="text-base shrink-0">{data.icon}</span>}
+          {isEditing
+            ? (
+                <input
+                  className="flex-1 bg-transparent text-sm font-semibold outline-none border-b border-primary"
+                  value={editLabel}
+                  onChange={e => setEditLabel(e.target.value)}
+                  onBlur={onLabelBlur}
+                  onKeyDown={onLabelKeyDown}
+                  autoFocus
+                />
+              )
+            : (
+                <span
+                  className="flex-1 text-sm font-semibold cursor-text"
+                  onDoubleClick={() => setIsEditing(true)}
+                >
+                  {data.label || t('whiteboard.untitled')}
+                </span>
+              )}
+        </div>
 
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        {data.icon && <span className="text-base shrink-0">{data.icon}</span>}
-        {isEditing
+        {/* Content area — markdown rendering or edit textarea */}
+        {isEditingContent
           ? (
-              <input
-                className="flex-1 bg-transparent text-sm font-medium outline-none border-b border-primary"
-                value={editLabel}
-                onChange={e => setEditLabel(e.target.value)}
-                onBlur={onLabelBlur}
-                onKeyDown={onLabelKeyDown}
+              <textarea
+                className="mt-2 w-full resize-none bg-transparent text-xs text-muted-foreground outline-none border rounded px-2 py-1 min-h-[56px]"
+                value={editContent}
+                onChange={e => setEditContent(e.target.value)}
+                onBlur={onContentBlur}
+                onKeyDown={onContentKeyDown}
                 autoFocus
               />
             )
-          : (
-              <span
-                className="flex-1 text-sm font-medium cursor-text truncate"
-                onDoubleClick={() => setIsEditing(true)}
-              >
-                {data.label || t('whiteboard.untitled')}
-              </span>
-            )}
-      </div>
+          : data.content
+            ? (
+                <div
+                  className="mt-2 text-xs text-muted-foreground cursor-text prose prose-xs dark:prose-invert max-w-none [&_table]:text-xs [&_th]:px-2 [&_td]:px-2 [&_th]:py-1 [&_td]:py-1"
+                  onClick={() => {
+                    setIsEditingContent(true); setEditContent(data.content)
+                  }}
+                  title={t('whiteboard.editContent')}
+                >
+                  <MarkdownContent content={data.content} className="text-xs leading-[1.6]" />
+                </div>
+              )
+            : (
+                <p
+                  className="mt-2 text-xs text-muted-foreground/40 cursor-text"
+                  onClick={() => {
+                    setIsEditingContent(true); setEditContent(data.content)
+                  }}
+                >
+                  {t('whiteboard.contentPlaceholder')}
+                </p>
+              )}
 
-      {/* Content area — click to edit */}
-      {isEditingContent
-        ? (
-            <textarea
-              className="mt-1.5 w-full resize-none bg-transparent text-xs text-muted-foreground outline-none border rounded px-1 py-0.5 min-h-[56px]"
-              value={editContent}
-              onChange={e => setEditContent(e.target.value)}
-              onBlur={onContentBlur}
-              onKeyDown={onContentKeyDown}
-              autoFocus
-            />
-          )
-        : (
-            <p
-              className="mt-1.5 text-xs text-muted-foreground line-clamp-3 cursor-text min-h-[1rem]"
-              onClick={() => {
-                setIsEditingContent(true); setEditContent(data.content)
-              }}
-              title={t('whiteboard.editContent')}
-            >
-              {data.content || <span className="opacity-40">{t('whiteboard.contentPlaceholder')}</span>}
-            </p>
+        {/* Toolbar */}
+        <div
+          className="mt-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ opacity: selected ? 1 : undefined }}
+        >
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onAddChild} title={t('whiteboard.addChild')}>
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+          <AskAIPopover
+            nodeId={data.id}
+            nodeLabel={data.label}
+            parentLabel={data.parentLabel ?? undefined}
+            childLabels={data.childLabels}
+            isLoading={data.askingNodeId === data.id}
+            onAsk={onAskAI}
+          />
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onGenerateIssues} title={t('whiteboard.generateIssues')}>
+            <ListTodo className="h-3.5 w-3.5" />
+          </Button>
+          {data.parentId !== null && (
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={onDelete} title={t('whiteboard.delete')}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
           )}
-
-      {/* Toolbar */}
-      <div
-        className="mt-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-        style={{ opacity: selected ? 1 : undefined }}
-      >
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          onClick={onAddChild}
-          title={t('whiteboard.addChild')}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
-        <AskAIPopover
-          nodeId={data.id}
-          nodeLabel={data.label}
-          parentLabel={data.parentLabel ?? undefined}
-          childLabels={data.childLabels}
-          isLoading={data.askingNodeId === data.id}
-          onAsk={onAskAI}
-        />
-        {data.hasChildren && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={onToggleCollapse}
-            title={data.isCollapsed ? t('whiteboard.expand') : t('whiteboard.collapse')}
-          >
-            <ChevronRight className={cn(
-              'h-3.5 w-3.5 transition-transform',
-              !data.isCollapsed && 'rotate-90',
-            )}
-            />
-          </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          onClick={onGenerateIssues}
-          title={t('whiteboard.generateIssues')}
-        >
-          <ListTodo className="h-3.5 w-3.5" />
-        </Button>
-        {data.parentId !== null && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-destructive hover:text-destructive"
-            onClick={onDelete}
-            title={t('whiteboard.delete')}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        )}
+        </div>
       </div>
+
+      {/* Collapse badge — always visible, positioned on the right edge */}
+      {data.hasChildren && (
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          className={cn(
+            'absolute -right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5',
+            'rounded-full border bg-background px-1.5 py-0.5 text-xs text-muted-foreground',
+            'hover:bg-accent hover:text-foreground transition-colors shadow-sm',
+            data.isCollapsed && 'border-primary/40 text-primary',
+          )}
+          title={data.isCollapsed ? t('whiteboard.expand') : t('whiteboard.collapse')}
+        >
+          <span className="tabular-nums font-medium">{data.childCount}</span>
+          <ChevronRight className={cn(
+            'h-3 w-3 transition-transform',
+            !data.isCollapsed && 'rotate-90',
+          )}
+          />
+        </button>
+      )}
     </div>
   )
 })

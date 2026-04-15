@@ -1,9 +1,10 @@
-import type { NodeTypes, Edge as XYEdge, Node as XYNode } from '@xyflow/react'
+import type { EdgeTypes, NodeTypes, Edge as XYEdge, Node as XYNode } from '@xyflow/react'
 import {
   Background,
   Controls,
   MiniMap,
   ReactFlow,
+  ReactFlowProvider,
   useEdgesState,
   useNodesState,
 } from '@xyflow/react'
@@ -12,10 +13,15 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { layoutMindmap } from '@/lib/whiteboard-layout'
 import type { WhiteboardNode } from '@/types/kanban'
+import { MindmapEdge } from './MindmapEdge'
 import { MindmapNode } from './MindmapNode'
 
 const nodeTypes: NodeTypes = {
   mindmapNode: MindmapNode,
+}
+
+const edgeTypes: EdgeTypes = {
+  mindmapEdge: MindmapEdge,
 }
 
 interface WhiteboardCanvasProps {
@@ -104,28 +110,31 @@ export function WhiteboardCanvas({
   }
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onNodeDoubleClick={onNodeDoubleClick}
-      nodeTypes={nodeTypes}
-      defaultEdgeOptions={defaultEdgeOptions}
-      proOptions={proOptions}
-      fitView
-      fitViewOptions={{ padding: 0.3 }}
-      minZoom={0.2}
-      maxZoom={2}
-      nodesDraggable={false}
-    >
-      <Background />
-      <Controls showInteractive={false} />
-      <MiniMap
-        nodeColor="hsl(var(--muted))"
-        maskColor="hsl(var(--background) / 0.7)"
-        className="!bg-background !border-border"
-      />
-    </ReactFlow>
+    <ReactFlowProvider>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onNodeDoubleClick={onNodeDoubleClick}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        defaultEdgeOptions={defaultEdgeOptions}
+        proOptions={proOptions}
+        fitView
+        fitViewOptions={{ padding: 0.3 }}
+        minZoom={0.2}
+        maxZoom={2}
+        nodesDraggable={false}
+      >
+        <Background />
+        <Controls showInteractive={false} />
+        <MiniMap
+          nodeColor="hsl(var(--muted))"
+          maskColor="hsl(var(--background) / 0.7)"
+          className="!bg-background !border-border"
+        />
+      </ReactFlow>
+    </ReactFlowProvider>
   )
 }

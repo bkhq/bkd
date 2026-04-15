@@ -1,10 +1,10 @@
 import type { Edge, Node } from '@xyflow/react'
 import type { WhiteboardNode } from '@/types/kanban'
 
-const NODE_WIDTH = 280
+const NODE_WIDTH = 360
 const NODE_HEIGHT_BASE = 80
-const H_GAP = 60
-const V_GAP = 20
+const H_GAP = 80
+const V_GAP = 24
 
 /**
  * Synchronous tree layout — computes positions and edges in one pass.
@@ -90,6 +90,7 @@ export function layoutMindmap(
       data: {
         ...n,
         hasChildren: children.length > 0,
+        childCount: children.length,
         isCollapsed: collapsedIds.has(n.id),
         askingNodeId: askingNodeId ?? null,
         parentLabel: parent?.label ?? null,
@@ -105,7 +106,7 @@ export function layoutMindmap(
       id: `e-${n.parentId}-${n.id}`,
       source: n.parentId!,
       target: n.id,
-      type: 'smoothstep',
+      type: 'mindmapEdge',
     }))
 
   return { nodes: xyNodes, edges: xyEdges }
