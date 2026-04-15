@@ -24,7 +24,7 @@ export function WhiteboardHeader({ projectId, projectName, onCreateRoot, hasNode
   }, [topic])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
       e.preventDefault()
       handleGenerate()
     }
