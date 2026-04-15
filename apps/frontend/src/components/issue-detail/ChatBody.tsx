@@ -64,7 +64,9 @@ export function useSessionState(
   const hasSession = !!issue?.sessionStatus
   const isTodo = issue?.statusId === 'todo'
   const isDone = issue?.statusId === 'done'
-  const streamEnabled = hasSession || isTodo || isDone
+  // Enable stream for all issue states — pending messages can exist in any state
+  // and must be visible after page refresh
+  const streamEnabled = !!issue || hasSession
 
   const {
     logs,
