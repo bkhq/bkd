@@ -4,7 +4,7 @@ import { and, desc, eq, inArray, max } from 'drizzle-orm'
 import { generateKeyBetween } from 'jittered-fractional-indexing'
 import { db } from '@/db'
 import { findProject, getAppSetting, getDefaultEngine, getEngineDefaultModel } from '@/db/helpers'
-import { issues as issuesTable, whiteboardNodes } from '@/db/schema'
+import { issueLogs, issues as issuesTable, whiteboardNodes } from '@/db/schema'
 import { issueEngine } from '@/engines/issue/engine'
 import type { EngineType } from '@/engines/types'
 import { parseProjectEnvVars } from '@/routes/issues/_shared'
@@ -437,5 +437,214 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
     return c.json({ success: false, error: 'Failed to process whiteboard AI request' }, 500 as const)
   }
 })
+
+// POST /parse-response — parse latest assistant-message and create child nodes
+whiteboardRoutes.openapi(R.parseWhiteboardResponse, async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!
+    const project = await findProject(projectId)
+    if (!project) {
+      return c.json({ success: false, error: 'Project not found' }, 404 as const)
+    }
+
+    const { nodeId, issueId } = c.req.valid('json')
+
+    // Verify parent node belongs to this project
+    const [parentNode] = await db
+      .select()
+      .from(whiteboardNodes)
+      .where(and(
+        eq(whiteboardNodes.id, nodeId),
+        eq(whiteboardNodes.projectId, project.id),
+        notDeleted,
+      ))
+    if (!parentNode) {
+      return c.json({ success: false, error: 'Node not found' }, 404 as const)
+    }
+
+    // Verify the issue belongs to this project
+    const [issue] = await db
+      .select({ id: issuesTable.id })
+      .from(issuesTable)
+      .where(and(
+        eq(issuesTable.id, issueId),
+        eq(issuesTable.projectId, project.id),
+        eq(issuesTable.isDeleted, 0),
+      ))
+    if (!issue) {
+      return c.json({ success: false, error: 'Issue not found' }, 404 as const)
+    }
+
+    // Fetch the latest assistant-message for this issue
+    const [latestLog] = await db
+      .select({ content: issueLogs.content })
+      .from(issueLogs)
+      .where(and(
+        eq(issueLogs.issueId, issueId),
+        eq(issueLogs.entryType, 'assistant-message'),
+      ))
+      .orderBy(desc(issueLogs.createdAt))
+      .limit(1)
+
+    if (!latestLog) {
+      return c.json({ success: false, error: 'No assistant message found for this issue' }, 404 as const)
+    }
+
+    // Parse markdown ## headings into sections
+    const sections = parseMarkdownSections(latestLog.content)
+    if (sections.length === 0) {
+      return c.json({ success: true, data: [] }, 200 as const)
+    }
+
+    // Determine sort orders for new children (append after existing children)
+    const existingChildren = await db
+      .select({ sortOrder: whiteboardNodes.sortOrder })
+      .from(whiteboardNodes)
+      .where(and(
+        eq(whiteboardNodes.parentId, nodeId),
+        notDeleted,
+      ))
+      .orderBy(desc(whiteboardNodes.sortOrder))
+      .limit(1)
+
+    let lastSortOrder = existingChildren[0]?.sortOrder ?? null
+
+    // Insert children in order
+    const created: (typeof whiteboardNodes.$inferSelect)[] = []
+    for (const section of sections) {
+      const sortOrder = generateKeyBetween(lastSortOrder, null)
+      lastSortOrder = sortOrder
+      const [row] = await db
+        .insert(whiteboardNodes)
+        .values({
+          projectId: project.id,
+          parentId: nodeId,
+          label: section.heading,
+          content: section.body,
+          sortOrder,
+        })
+        .returning()
+      if (row) created.push(row)
+    }
+
+    return c.json({ success: true, data: created.map(deserializeRow) }, 200 as const)
+  } catch (err) {
+    logger.error({ err }, 'whiteboard_parse_response_failed')
+    return c.json({ success: false, error: 'Failed to parse whiteboard response' }, 500 as const)
+  }
+})
+
+// POST /generate-issues — recommend issues from selected nodes
+whiteboardRoutes.openapi(R.generateIssuesFromNodes, async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!
+    const project = await findProject(projectId)
+    if (!project) {
+      return c.json({ success: false, error: 'Project not found' }, 404 as const)
+    }
+
+    const { nodeIds } = c.req.valid('json')
+
+    // Fetch all project nodes to resolve descendants
+    const allNodes = await db
+      .select()
+      .from(whiteboardNodes)
+      .where(and(eq(whiteboardNodes.projectId, project.id), notDeleted))
+
+    const nodeMap = new Map(allNodes.map(n => [n.id, n]))
+
+    // Build children map
+    const childrenMap = new Map<string, string[]>()
+    for (const n of allNodes) {
+      if (n.parentId) {
+        const list = childrenMap.get(n.parentId)
+        if (list) list.push(n.id)
+        else childrenMap.set(n.parentId, [n.id])
+      }
+    }
+
+    // For each requested nodeId, collect itself + all descendants
+    const recommendations: Array<{ nodeId: string, title: string, prompt: string }> = []
+
+    for (const nodeId of nodeIds) {
+      const node = nodeMap.get(nodeId)
+      if (!node) continue
+
+      // Collect descendant labels for context
+      const descendants: string[] = []
+      const visited = new Set<string>()
+      const queue = [...(childrenMap.get(nodeId) ?? [])]
+      while (queue.length > 0) {
+        const cid = queue.pop()!
+        if (visited.has(cid)) continue
+        visited.add(cid)
+        const child = nodeMap.get(cid)
+        if (child) {
+          descendants.push(child.label || 'Untitled')
+          queue.push(...(childrenMap.get(cid) ?? []))
+        }
+      }
+
+      // Build ancestor path for context
+      const path: string[] = []
+      const visitedPath = new Set<string>()
+      let current: typeof node | undefined = node
+      while (current && !visitedPath.has(current.id)) {
+        visitedPath.add(current.id)
+        path.unshift(current.label || 'Untitled')
+        current = current.parentId ? nodeMap.get(current.parentId) : undefined
+      }
+
+      const title = node.label || 'Untitled'
+      const contextParts = [
+        `Topic: ${path.join(' > ')}`,
+        node.content ? `Context: ${node.content}` : '',
+        descendants.length > 0 ? `Related subtopics: ${descendants.slice(0, 10).join(', ')}` : '',
+      ].filter(Boolean)
+
+      const prompt = [
+        ...contextParts,
+        '',
+        `Implement: ${title}`,
+      ].join('\n')
+
+      recommendations.push({ nodeId, title, prompt })
+    }
+
+    return c.json({ success: true, data: recommendations }, 200 as const)
+  } catch (err) {
+    logger.error({ err }, 'whiteboard_generate_issues_failed')
+    return c.json({ success: false, error: 'Failed to generate issues' }, 500 as const)
+  }
+})
+
+/**
+ * Parse markdown text with ## headings into heading+body sections.
+ * Each `## Heading` line starts a new section; the body is the text
+ * between this heading and the next.
+ */
+function parseMarkdownSections(text: string): Array<{ heading: string, body: string }> {
+  const lines = text.split('\n')
+  const sections: Array<{ heading: string, body: string }> = []
+  let current: { heading: string, bodyLines: string[] } | null = null
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^## (\S.*)$/)
+    if (headingMatch) {
+      if (current) {
+        sections.push({ heading: current.heading, body: current.bodyLines.join('\n').trim() })
+      }
+      current = { heading: headingMatch[1].trim(), bodyLines: [] }
+    } else if (current) {
+      current.bodyLines.push(line)
+    }
+  }
+
+  if (current) {
+    sections.push({ heading: current.heading, body: current.bodyLines.join('\n').trim() })
+  }
+
+  return sections.filter(s => s.heading.length > 0)
+}
 
 export default whiteboardRoutes

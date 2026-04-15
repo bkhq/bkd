@@ -126,3 +126,19 @@ export function useWhiteboardAsk(projectId: string) {
     onSettled: () => qc.invalidateQueries({ queryKey: whiteboardKeys.all(projectId) }),
   })
 }
+
+export function useParseWhiteboardResponse(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { nodeId: string, issueId: string }) =>
+      kanbanApi.parseWhiteboardResponse(projectId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: whiteboardKeys.all(projectId) }),
+  })
+}
+
+export function useGenerateIssuesFromNodes(projectId: string) {
+  return useMutation({
+    mutationFn: (data: { nodeIds: string[] }) =>
+      kanbanApi.generateIssuesFromNodes(projectId, data),
+  })
+}

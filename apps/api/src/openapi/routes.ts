@@ -25,10 +25,13 @@ import {
   ExecuteIssueResponseSchema,
   ExecuteIssueSchema,
   FollowUpSchema,
+  GeneratedIssueItemSchema,
+  GenerateIssuesFromNodesSchema,
   IssueChangesResponseSchema,
   IssueLogsResponseSchema,
   IssueSchema,
   NoteSchema,
+  ParseWhiteboardResponseSchema,
   ProbeResultSchema,
   ProcessCapacitySchema,
   ProcessInfoSchema,
@@ -1126,6 +1129,34 @@ export const whiteboardAsk = createRoute({
   responses: {
     200: successResponse(WhiteboardAskResponseSchema, 'AI request submitted'),
     404: errorResponse('Project or node not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const parseWhiteboardResponse = createRoute({
+  method: 'post',
+  path: '/parse-response',
+  tags: ['Whiteboard'],
+  summary: 'Parse latest AI assistant-message and create child nodes',
+  operationId: 'parseWhiteboardResponse',
+  request: { body: { content: { 'application/json': { schema: ParseWhiteboardResponseSchema } } } },
+  responses: {
+    200: successResponse(z.array(WhiteboardNodeSchema), 'Created child nodes'),
+    404: errorResponse('Project, node, or issue not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const generateIssuesFromNodes = createRoute({
+  method: 'post',
+  path: '/generate-issues',
+  tags: ['Whiteboard'],
+  summary: 'Generate recommended issues from selected whiteboard nodes',
+  operationId: 'generateIssuesFromNodes',
+  request: { body: { content: { 'application/json': { schema: GenerateIssuesFromNodesSchema } } } },
+  responses: {
+    200: successResponse(z.array(GeneratedIssueItemSchema), 'Recommended issues'),
+    404: errorResponse('Project not found'),
     500: errorResponse('Internal error'),
   },
 })

@@ -572,7 +572,17 @@
     "actionExplain": "Explain",
     "actionSimplify": "Simplify",
     "actionExamples": "Examples",
-    "askPlaceholder": "Ask anything..."
+    "askPlaceholder": "Ask anything...",
+    "suggestedQuestions": "Suggested questions",
+    "editContent": "Click to edit content",
+    "contentPlaceholder": "Add notes...",
+    "generatePlaceholder": "Generate mindmap from topic...",
+    "generate": "Generate",
+    "generateIssuesTitle": "Create Issues from Nodes",
+    "generateIssuesDesc": "Select which nodes to convert into issues on the board.",
+    "generateIssuesEmpty": "No nodes selected.",
+    "createNIssues": "Create {{count}} issue(s)",
+    "generateIssues": "Generate issues"
   },
   "auth": {
     "login": "Login",

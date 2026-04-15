@@ -1,5 +1,5 @@
 import { Handle, Position } from '@xyflow/react'
-import { ChevronRight, Plus, Trash2 } from 'lucide-react'
+import { ChevronRight, ListTodo, Plus, Trash2 } from 'lucide-react'
 import { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,8 @@ interface MindmapNodeData {
   hasChildren: boolean
   isCollapsed: boolean
   parentId: string | null
+  parentLabel: string | null
+  childLabels: string[]
   askingNodeId: string | null
   [key: string]: unknown
 }
@@ -27,6 +29,8 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
   const { t } = useTranslation()
   const [isEditing, setIsEditing] = useState(false)
   const [editLabel, setEditLabel] = useState(data.label)
+  const [isEditingContent, setIsEditingContent] = useState(false)
+  const [editContent, setEditContent] = useState(data.content)
 
   const onLabelBlur = useCallback(() => {
     setIsEditing(false)
@@ -70,11 +74,34 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
     }))
   }, [data.id])
 
+  const onContentBlur = useCallback(() => {
+    setIsEditingContent(false)
+    if (editContent !== data.content) {
+      window.dispatchEvent(new CustomEvent('wb:update-node', {
+        detail: { nodeId: data.id, content: editContent },
+      }))
+    }
+  }, [data.id, data.content, editContent])
+
+  const onContentKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setEditContent(data.content)
+      setIsEditingContent(false)
+    }
+  }, [data.content])
+
   const onAskAI = useCallback((nodeId: string, action: string, prompt?: string) => {
     window.dispatchEvent(new CustomEvent('wb:ask-ai', {
       detail: { nodeId, action, prompt },
     }))
   }, [])
+
+  const onGenerateIssues = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    window.dispatchEvent(new CustomEvent('wb:generate-issues', {
+      detail: { nodeIds: [data.id] },
+    }))
+  }, [data.id])
 
   return (
     <div
@@ -114,12 +141,29 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
             )}
       </div>
 
-      {/* Content preview */}
-      {data.content && (
-        <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">
-          {data.content}
-        </p>
-      )}
+      {/* Content area — click to edit */}
+      {isEditingContent
+        ? (
+            <textarea
+              className="mt-1.5 w-full resize-none bg-transparent text-xs text-muted-foreground outline-none border rounded px-1 py-0.5 min-h-[56px]"
+              value={editContent}
+              onChange={e => setEditContent(e.target.value)}
+              onBlur={onContentBlur}
+              onKeyDown={onContentKeyDown}
+              autoFocus
+            />
+          )
+        : (
+            <p
+              className="mt-1.5 text-xs text-muted-foreground line-clamp-3 cursor-text min-h-[1rem]"
+              onClick={() => {
+                setIsEditingContent(true); setEditContent(data.content)
+              }}
+              title={t('whiteboard.editContent')}
+            >
+              {data.content || <span className="opacity-40">{t('whiteboard.contentPlaceholder')}</span>}
+            </p>
+          )}
 
       {/* Toolbar */}
       <div
@@ -137,6 +181,9 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
         </Button>
         <AskAIPopover
           nodeId={data.id}
+          nodeLabel={data.label}
+          parentLabel={data.parentLabel ?? undefined}
+          childLabels={data.childLabels}
           isLoading={data.askingNodeId === data.id}
           onAsk={onAskAI}
         />
@@ -155,6 +202,15 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
             />
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={onGenerateIssues}
+          title={t('whiteboard.generateIssues')}
+        >
+          <ListTodo className="h-3.5 w-3.5" />
+        </Button>
         {data.parentId !== null && (
           <Button
             variant="ghost"
