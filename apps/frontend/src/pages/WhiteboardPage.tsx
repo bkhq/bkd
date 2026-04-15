@@ -34,8 +34,10 @@ export default function WhiteboardPage() {
 
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const [askingNodeId, setAskingNodeId] = useState<string | null>(null)
-  // pendingParses tracks nodeId per issueId so concurrent asks don't overwrite each other
-  const pendingParsesRef = useRef(new Map<string, string>())
+  // pendingIssueId drives SSE subscription — must be state (not ref) to trigger re-render
+  const [pendingIssueId, setPendingIssueId] = useState<string | null>(null)
+  // Maps issueId → nodeId for parse-response after AI done
+  const pendingNodeRef = useRef<string | null>(null)
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
   const [generatedItems, setGeneratedItems] = useState<GeneratedIssueItem[]>([])
   // Track selected node IDs for generate-issues (last node the user right-clicked via event)
@@ -52,26 +54,17 @@ export default function WhiteboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collapsedKey])
 
-  // Subscribe to SSE for all pending whiteboard issue completions.
+  // Subscribe to SSE for the pending whiteboard issue.
   // When AI completes, auto-call parse-response to create child nodes.
   useEffect(() => {
-    if (!askingNodeId) return
+    if (!pendingIssueId) return
 
-    const parsesMap = pendingParsesRef.current
-    // Find the issueId that this node is waiting on
-    let activeIssueId: string | null = null
-    for (const [iid, nid] of parsesMap) {
-      if (nid === askingNodeId) {
-        activeIssueId = iid; break
-      }
-    }
-    if (!activeIssueId) return
-
-    const issueId = activeIssueId
+    const issueId = pendingIssueId
+    const nodeId = pendingNodeRef.current
 
     const clearLoading = (runParse = false) => {
-      const nodeId = parsesMap.get(issueId)
-      parsesMap.delete(issueId)
+      setPendingIssueId(null)
+      pendingNodeRef.current = null
       setAskingNodeId(null)
       if (runParse && nodeId) {
         parseResponse.mutate(
@@ -101,7 +94,7 @@ export default function WhiteboardPage() {
     }
   // parseResponse intentionally excluded — stable mutation ref
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [askingNodeId, refetchNodes])
+  }, [pendingIssueId, refetchNodes])
 
   const onCreateRoot = useCallback(() => {
     createNode.mutate({ label: project?.name ?? 'Root' })
@@ -138,7 +131,8 @@ export default function WhiteboardPage() {
         { nodeId, action, prompt },
         {
           onSuccess: (data) => {
-            pendingParsesRef.current.set(data.issueId, nodeId)
+            pendingNodeRef.current = nodeId
+            setPendingIssueId(data.issueId)
           },
           onError: () => {
             setAskingNodeId(null)
@@ -162,7 +156,8 @@ export default function WhiteboardPage() {
           { nodeId: rootNode.id, action: 'custom', prompt: `Generate a comprehensive mindmap about: ${topic}. Use ## headings for each main subtopic, with a brief description paragraph under each.` },
           {
             onSuccess: (data) => {
-              pendingParsesRef.current.set(data.issueId, rootNode.id)
+              pendingNodeRef.current = rootNode.id
+              setPendingIssueId(data.issueId)
             },
             onError: () => setAskingNodeId(null),
           },
@@ -178,7 +173,8 @@ export default function WhiteboardPage() {
                 { nodeId: newNode.id, action: 'custom', prompt: `Generate a comprehensive mindmap about: ${topic}. Use ## headings for each main subtopic, with a brief description paragraph under each.` },
                 {
                   onSuccess: (data) => {
-                    pendingParsesRef.current.set(data.issueId, newNode.id)
+                    pendingNodeRef.current = newNode.id
+                    setPendingIssueId(data.issueId)
                   },
                   onError: () => setAskingNodeId(null),
                 },
