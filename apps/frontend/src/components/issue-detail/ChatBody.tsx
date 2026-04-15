@@ -291,7 +291,6 @@ export function ChatBody({
                 hasOlderLogs={hasOlderLogs}
                 isLoadingOlder={isLoadingOlder}
                 onLoadOlder={loadOlderLogs}
-                onEditPending={handleEditPending}
               />
             </Suspense>
           </div>
