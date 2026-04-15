@@ -501,7 +501,7 @@ export const WhiteboardAskSchema = z.object({
   nodeId: z.string(),
   action: z.enum(['explore', 'explain', 'simplify', 'examples', 'custom']),
   prompt: z.string().max(32768).optional(),
-  engineType: z.string().optional(),
+  engineType: z.string().regex(/^(claude-code|codex|acp(:.+)?)$/).optional(),
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
 }).openapi('WhiteboardAsk')
 

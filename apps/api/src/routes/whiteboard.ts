@@ -7,6 +7,7 @@ import { findProject, getAppSetting, getDefaultEngine, getEngineDefaultModel } f
 import { issues as issuesTable, whiteboardNodes } from '@/db/schema'
 import { issueEngine } from '@/engines/issue/engine'
 import type { EngineType } from '@/engines/types'
+import { parseProjectEnvVars } from '@/routes/issues/_shared'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
@@ -302,11 +303,18 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
       try {
         await mkdir(resolvedDir, { recursive: true })
         const s = await stat(resolvedDir)
-        if (s.isDirectory()) effectiveWorkingDir = resolvedDir
-      } catch {
-        logger.warn({ projectId: project.id, resolvedDir }, 'whiteboard_workdir_prepare_failed')
+        if (!s.isDirectory()) {
+          return c.json({ success: false, error: 'Project directory is not a valid directory' }, 500 as const)
+        }
+        effectiveWorkingDir = resolvedDir
+      } catch (dirErr) {
+        logger.warn({ projectId: project.id, resolvedDir, err: dirErr }, 'whiteboard_workdir_prepare_failed')
+        return c.json({ success: false, error: 'Failed to prepare project working directory' }, 500 as const)
       }
     }
+
+    const envVars = parseProjectEnvVars(project.envVars)
+    const displayPrompt = `[Whiteboard] ${body.action}: ${targetNode.label || 'Untitled'}`
 
     if (!boundIssueId) {
       // Create a new whiteboard issue
@@ -343,34 +351,45 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
         .returning()
       boundIssueId = newIssue.id
 
-      // Execute the issue (first turn) — bind root node only after success
-      const result = await issueEngine.executeIssue(boundIssueId, {
-        engineType: resolvedEngine,
-        prompt: project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt,
-        workingDir: effectiveWorkingDir,
-        model: resolvedModel,
-        displayPrompt: `[Whiteboard] ${body.action}: ${targetNode.label || 'Untitled'}`,
-      })
+      // Execute the issue (first turn) — roll back issue on failure
+      try {
+        const result = await issueEngine.executeIssue(boundIssueId, {
+          engineType: resolvedEngine,
+          prompt: project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt,
+          workingDir: effectiveWorkingDir,
+          model: resolvedModel,
+          envVars,
+          displayPrompt,
+        })
 
-      // Bind to the root node after successful execution
-      const rootNode = allNodes.find(n => !n.parentId)
-      if (rootNode) {
-        await db.update(whiteboardNodes)
-          .set({ boundIssueId: newIssue.id, updatedAt: new Date() })
-          .where(eq(whiteboardNodes.id, rootNode.id))
+        // Bind to the root node after successful execution
+        const rootNode = allNodes.find(n => !n.parentId)
+        if (rootNode) {
+          await db.update(whiteboardNodes)
+            .set({ boundIssueId: newIssue.id, updatedAt: new Date() })
+            .where(eq(whiteboardNodes.id, rootNode.id))
+        }
+
+        return c.json({
+          success: true,
+          data: { issueId: boundIssueId, executionId: result.executionId },
+        }, 200 as const)
+      } catch (execErr) {
+        // Roll back orphan issue on first-turn failure
+        logger.error({ err: execErr, issueId: boundIssueId }, 'whiteboard_first_execute_failed')
+        await db.update(issuesTable)
+          .set({ isDeleted: 1, updatedAt: new Date() })
+          .where(eq(issuesTable.id, boundIssueId))
+        return c.json({ success: false, error: 'Failed to start whiteboard AI session' }, 500 as const)
       }
-
-      return c.json({
-        success: true,
-        data: { issueId: boundIssueId, executionId: result.executionId },
-      }, 200 as const)
     }
 
-    // Validate bound issue still exists (may have been soft-deleted from kanban)
+    // Validate bound issue still exists and has a usable session
     const [boundIssue] = await db
-      .select({ id: issuesTable.id })
+      .select({ id: issuesTable.id, sessionStatus: issuesTable.sessionStatus, externalSessionId: issuesTable.externalSessionId })
       .from(issuesTable)
       .where(and(eq(issuesTable.id, boundIssueId), eq(issuesTable.isDeleted, 0)))
+
     if (!boundIssue) {
       // Clear stale binding so next ask creates a fresh issue
       const rootNode = allNodes.find(n => !n.parentId)
@@ -382,6 +401,23 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
       return c.json({ success: false, error: 'Bound issue was deleted. Please try again.' }, 404 as const)
     }
 
+    // If the bound issue has no session (e.g. session ID was reset on failure),
+    // re-execute instead of following up on a broken session
+    if (!boundIssue.externalSessionId) {
+      const result = await issueEngine.executeIssue(boundIssueId, {
+        engineType: resolvedEngine,
+        prompt: project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt,
+        workingDir: effectiveWorkingDir,
+        model: resolvedModel,
+        envVars,
+        displayPrompt,
+      })
+      return c.json({
+        success: true,
+        data: { issueId: boundIssueId, executionId: result.executionId },
+      }, 200 as const)
+    }
+
     // Follow-up on existing bound issue — do not override the issue's model
     const result = await issueEngine.followUpIssue(
       boundIssueId,
@@ -389,7 +425,7 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
       undefined,
       undefined,
       'queue',
-      `[Whiteboard] ${body.action}: ${targetNode.label || 'Untitled'}`,
+      displayPrompt,
     )
 
     return c.json({

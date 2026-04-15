@@ -38,8 +38,18 @@ export default function WhiteboardPage() {
 
   // Subscribe to SSE for the bound whiteboard issue to detect AI completion
   // Uses state (not ref) so changes trigger re-render and new subscription
+  // Includes a 5-minute fallback timeout in case the done event is missed
   useEffect(() => {
     if (!pendingIssueId) return
+
+    const clearLoading = () => {
+      setPendingIssueId(null)
+      setAskingNodeId(null)
+      setTimeout(refetchNodes, 1000)
+    }
+
+    // Fallback: clear loading after 5 min if done event is missed (SSE drop)
+    const fallbackTimer = setTimeout(clearLoading, 5 * 60 * 1000)
 
     const unsub = eventBus.subscribe(pendingIssueId, {
       onLog: () => {},
@@ -47,14 +57,14 @@ export default function WhiteboardPage() {
       onLogRemoved: () => {},
       onState: () => {},
       onDone: () => {
-        setPendingIssueId(null)
-        setAskingNodeId(null)
-        // Refetch nodes after AI completes
-        const timer = setTimeout(refetchNodes, 1000)
-        return () => clearTimeout(timer)
+        clearTimeout(fallbackTimer)
+        clearLoading()
       },
     })
-    return unsub
+    return () => {
+      clearTimeout(fallbackTimer)
+      unsub()
+    }
   }, [pendingIssueId, refetchNodes])
 
   const onCreateRoot = useCallback(() => {
