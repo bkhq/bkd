@@ -1,5 +1,5 @@
 import { Handle, Position } from '@xyflow/react'
-import { ChevronRight, Plus, Trash2 } from 'lucide-react'
+import { ChevronRight, ListTodo, Plus, Trash2 } from 'lucide-react'
 import { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -95,6 +95,13 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
       detail: { nodeId, action, prompt },
     }))
   }, [])
+
+  const onGenerateIssues = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    window.dispatchEvent(new CustomEvent('wb:generate-issues', {
+      detail: { nodeIds: [data.id] },
+    }))
+  }, [data.id])
 
   return (
     <div
@@ -195,6 +202,15 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
             />
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={onGenerateIssues}
+          title={t('whiteboard.generateIssues')}
+        >
+          <ListTodo className="h-3.5 w-3.5" />
+        </Button>
         {data.parentId !== null && (
           <Button
             variant="ghost"

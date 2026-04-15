@@ -581,7 +581,8 @@
     "generateIssuesTitle": "从节点创建任务",
     "generateIssuesDesc": "选择要转换为看板任务的节点。",
     "generateIssuesEmpty": "未选择任何节点。",
-    "createNIssues": "创建 {{count}} 个任务"
+    "createNIssues": "创建 {{count}} 个任务",
+    "generateIssues": "生成任务"
   },
   "auth": {
     "login": "登录",

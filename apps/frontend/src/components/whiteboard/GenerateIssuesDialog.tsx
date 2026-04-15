@@ -62,7 +62,7 @@ export function GenerateIssuesDialog({
       await Promise.all(
         toCreate.map(item =>
           createIssue.mutateAsync({
-            title: item.title,
+            title: item.prompt,
             statusId: 'todo',
           }),
         ),
