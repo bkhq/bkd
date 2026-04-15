@@ -673,6 +673,8 @@ export const kanbanApi = {
     parentId?: string | null
     sortOrder?: string
   }>) => patch<WhiteboardNode[]>(`/api/projects/${projectId}/whiteboard/nodes/bulk`, { nodes }),
+  resetWhiteboard: (projectId: string) =>
+    del<{ count: number }>(`/api/projects/${projectId}/whiteboard/nodes`),
   whiteboardAsk: (projectId: string, data: {
     nodeId: string
     action: 'explore' | 'explain' | 'simplify' | 'examples' | 'custom'

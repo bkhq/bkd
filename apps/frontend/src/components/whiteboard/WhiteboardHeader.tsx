@@ -1,4 +1,4 @@
-import { ArrowLeft, MessageSquare, Plus, Sparkles } from 'lucide-react'
+import { ArrowLeft, MessageSquare, Plus, RotateCcw, Sparkles } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -8,12 +8,13 @@ interface WhiteboardHeaderProps {
   projectId: string
   projectName: string
   onCreateRoot: () => void
+  onReset: () => void
   hasNodes: boolean
   boundIssueId: string | null
   onToggleChat: () => void
 }
 
-export function WhiteboardHeader({ projectId, projectName, onCreateRoot, hasNodes, boundIssueId, onToggleChat }: WhiteboardHeaderProps) {
+export function WhiteboardHeader({ projectId, projectName, onCreateRoot, onReset, hasNodes, boundIssueId, onToggleChat }: WhiteboardHeaderProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [topic, setTopic] = useState('')
@@ -87,6 +88,17 @@ export function WhiteboardHeader({ projectId, projectName, onCreateRoot, hasNode
             title={t('whiteboard.viewChat')}
           >
             <MessageSquare className="h-4 w-4" />
+          </Button>
+        )}
+        {hasNodes && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onReset}
+            title={t('whiteboard.reset')}
+          >
+            <RotateCcw className="h-4 w-4" />
           </Button>
         )}
         {!hasNodes && (

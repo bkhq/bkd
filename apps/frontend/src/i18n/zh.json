@@ -583,7 +583,9 @@
     "generateIssuesEmpty": "未选择任何节点。",
     "createNIssues": "创建 {{count}} 个任务",
     "generateIssues": "生成任务",
-    "viewChat": "查看对话记录"
+    "viewChat": "查看对话记录",
+    "reset": "重置白板",
+    "resetConfirm": "确定要删除所有节点吗？此操作无法撤销。"
   },
   "auth": {
     "login": "登录",

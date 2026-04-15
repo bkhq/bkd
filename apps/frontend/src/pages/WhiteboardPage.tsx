@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import { GenerateIssuesDialog } from '@/components/whiteboard/GenerateIssuesDialog'
 import { WhiteboardCanvas } from '@/components/whiteboard/WhiteboardCanvas'
@@ -27,6 +28,7 @@ interface GeneratedIssueItem {
 }
 
 export default function WhiteboardPage() {
+  const { t } = useTranslation()
   const { projectId = '' } = useParams()
   const { data: project } = useProject(projectId)
   const { data: nodes = [], refetch: refetchNodes } = useWhiteboardNodes(projectId)
@@ -271,6 +273,11 @@ export default function WhiteboardPage() {
         projectId={projectId}
         projectName={project?.name ?? ''}
         onCreateRoot={onCreateRoot}
+        onReset={() => {
+          if (window.confirm(t('whiteboard.resetConfirm'))) {
+            kanbanApi.resetWhiteboard(projectId).then(() => refetchNodes())
+          }
+        }}
         hasNodes={nodes.length > 0}
         boundIssueId={boundIssueId}
         onToggleChat={() => setChatPanelOpen(prev => !prev)}

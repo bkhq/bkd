@@ -583,7 +583,9 @@
     "generateIssuesEmpty": "No nodes selected.",
     "createNIssues": "Create {{count}} issue(s)",
     "generateIssues": "Generate issues",
-    "viewChat": "View chat history"
+    "viewChat": "View chat history",
+    "reset": "Reset whiteboard",
+    "resetConfirm": "Are you sure you want to delete all nodes? This cannot be undone."
   },
   "auth": {
     "login": "Login",

@@ -215,6 +215,28 @@ whiteboardRoutes.openapi(R.bulkUpdateWhiteboardNodes, async (c) => {
   }
 })
 
+// DELETE /nodes — Reset whiteboard (soft-delete all nodes)
+whiteboardRoutes.delete('/nodes', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')
+    const project = await findProject(projectId)
+    if (!project) {
+      return c.json({ success: false, error: 'Project not found' }, 404)
+    }
+
+    const result = await db
+      .update(whiteboardNodes)
+      .set({ isDeleted: 1, updatedAt: new Date() })
+      .where(and(eq(whiteboardNodes.projectId, project.id), notDeleted))
+      .returning({ id: whiteboardNodes.id })
+
+    return c.json({ success: true, data: { count: result.length } })
+  } catch (err) {
+    logger.error({ err }, 'whiteboard_reset_failed')
+    return c.json({ success: false, error: 'Failed to reset whiteboard' }, 500)
+  }
+})
+
 // POST /ask — AI interaction via bound issue follow-up
 whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
   try {
