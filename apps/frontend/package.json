@@ -50,7 +50,6 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "dompurify": "^3.3.1",
-    "elkjs": "^0.11.1",
     "github-markdown-css": "^5.9.0",
     "i18next": "^25.8.13",
     "jittered-fractional-indexing": "^1.0.1",

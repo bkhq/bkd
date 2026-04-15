@@ -4,16 +4,13 @@ import {
   Controls,
   MiniMap,
   ReactFlow,
-  ReactFlowProvider,
   useEdgesState,
-  useNodesInitialized,
   useNodesState,
-  useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { buildInitialNodes, computeLayout } from '@/lib/whiteboard-layout'
+import { layoutMindmap } from '@/lib/whiteboard-layout'
 import type { WhiteboardNode } from '@/types/kanban'
 import { MindmapNode } from './MindmapNode'
 
@@ -31,25 +28,7 @@ interface WhiteboardCanvasProps {
   onToggleCollapse: (nodeId: string, isCollapsed: boolean) => void
 }
 
-export function WhiteboardCanvas(props: WhiteboardCanvasProps) {
-  const { t } = useTranslation()
-
-  if (props.flatNodes.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        {t('whiteboard.empty')}
-      </div>
-    )
-  }
-
-  return (
-    <ReactFlowProvider>
-      <LayoutedFlow {...props} />
-    </ReactFlowProvider>
-  )
-}
-
-function LayoutedFlow({
+export function WhiteboardCanvas({
   flatNodes,
   collapsedIds,
   askingNodeId,
@@ -58,14 +37,10 @@ function LayoutedFlow({
   onDeleteNode,
   onToggleCollapse,
 }: WhiteboardCanvasProps) {
+  const { t } = useTranslation()
   const [nodes, setNodes, onNodesChange] = useNodesState<XYNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<XYEdge>([])
-  const nodesInitialized = useNodesInitialized()
-  const { fitView } = useReactFlow()
-
-  // Track whether we need layout (reset on data change, set after layout done)
-  const [needsLayout, setNeedsLayout] = useState(false)
-  const layoutVersionRef = useRef(0)
+  const fitViewRef = useRef(false)
 
   // Listen for custom events from MindmapNode
   useEffect(() => {
@@ -98,43 +73,17 @@ function LayoutedFlow({
     }
   }, [onAddChild, onUpdateNode, onDeleteNode, onToggleCollapse])
 
-  // Step 1: When data changes, set nodes at origin for xyflow to measure
-  const dataKey = `${flatNodes.map(n => `${n.id}:${n.parentId ?? ''}:${n.label}:${n.content}`).join(',')
-  }|${[...collapsedIds].join(',')}`
-  + `|${askingNodeId ?? ''}`
-  const prevDataKeyRef = useRef('')
-
+  // Synchronous layout — no async, no two-phase, no race conditions
   useEffect(() => {
-    if (dataKey === prevDataKeyRef.current) return
-    prevDataKeyRef.current = dataKey
-    layoutVersionRef.current += 1
-
-    const { nodes: initialNodes, edges: initialEdges } = buildInitialNodes(
+    const { nodes: layoutedNodes, edges: layoutedEdges } = layoutMindmap(
       flatNodes,
       collapsedIds,
       askingNodeId,
     )
-    setNodes(initialNodes)
-    setEdges(initialEdges)
-    setNeedsLayout(true)
-  }, [dataKey, flatNodes, collapsedIds, askingNodeId, setNodes, setEdges])
-
-  // Step 2: After xyflow measures nodes (nodesInitialized), run elkjs layout
-  useEffect(() => {
-    if (!nodesInitialized || !needsLayout || nodes.length === 0) return
-
-    const version = layoutVersionRef.current
-    setNeedsLayout(false)
-
-    computeLayout(nodes, edges).then((result) => {
-      if (layoutVersionRef.current !== version) return
-      setNodes(result.nodes)
-      setEdges(result.edges)
-      requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }))
-    })
-  // Only run when nodesInitialized or needsLayout changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodesInitialized, needsLayout])
+    setNodes(layoutedNodes)
+    setEdges(layoutedEdges)
+    fitViewRef.current = true
+  }, [flatNodes, collapsedIds, askingNodeId, setNodes, setEdges])
 
   const defaultEdgeOptions = useMemo(() => ({
     style: { stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1.5 },
@@ -145,6 +94,14 @@ function LayoutedFlow({
   const onNodeDoubleClick = useCallback((_event: React.MouseEvent, node: { id: string }) => {
     void node
   }, [])
+
+  if (flatNodes.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        {t('whiteboard.empty')}
+      </div>
+    )
+  }
 
   return (
     <ReactFlow

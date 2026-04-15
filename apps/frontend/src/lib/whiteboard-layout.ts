@@ -1,26 +1,20 @@
 import type { Edge, Node } from '@xyflow/react'
-import ELK from 'elkjs/lib/elk.bundled.js'
 import type { WhiteboardNode } from '@/types/kanban'
 
-const elk = new ELK()
-
-const DEFAULT_NODE_WIDTH = 280
-const DEFAULT_NODE_HEIGHT = 80
-
-interface LayoutResult {
-  nodes: Node[]
-  edges: Edge[]
-}
+const NODE_WIDTH = 280
+const NODE_HEIGHT_BASE = 80
+const H_GAP = 60
+const V_GAP = 20
 
 /**
- * Build initial xyflow nodes/edges from flat data (no positions yet).
- * xyflow will mount these to measure their real DOM dimensions.
+ * Synchronous tree layout — computes positions and edges in one pass.
+ * No elkjs, no async, no two-phase rendering needed.
  */
-export function buildInitialNodes(
+export function layoutMindmap(
   flatNodes: WhiteboardNode[],
   collapsedIds: Set<string>,
   askingNodeId?: string | null,
-): LayoutResult {
+): { nodes: Node[], edges: Edge[] } {
   if (flatNodes.length === 0) {
     return { nodes: [], edges: [] }
   }
@@ -30,13 +24,69 @@ export function buildInitialNodes(
   const visibleNodes = collectVisibleNodes(childrenMap, collapsedIds)
   const visibleIds = new Set(visibleNodes.map(n => n.id))
 
+  // Build visible children map (only visible nodes)
+  const visibleChildrenMap = new Map<string, WhiteboardNode[]>()
+  for (const n of visibleNodes) {
+    if (!n.parentId || !visibleIds.has(n.parentId)) continue
+    const list = visibleChildrenMap.get(n.parentId)
+    if (list) list.push(n)
+    else visibleChildrenMap.set(n.parentId, [n])
+  }
+
+  // Compute subtree heights (bottom-up) for vertical centering
+  const subtreeHeight = new Map<string, number>()
+  function getSubtreeHeight(id: string): number {
+    const cached = subtreeHeight.get(id)
+    if (cached !== undefined) return cached
+    const children = visibleChildrenMap.get(id)
+    if (!children || children.length === 0) {
+      subtreeHeight.set(id, NODE_HEIGHT_BASE)
+      return NODE_HEIGHT_BASE
+    }
+    const totalChildHeight = children.reduce((sum, c) => sum + getSubtreeHeight(c.id), 0)
+      + (children.length - 1) * V_GAP
+    const height = Math.max(NODE_HEIGHT_BASE, totalChildHeight)
+    subtreeHeight.set(id, height)
+    return height
+  }
+
+  // Compute positions (root at left, children to the right)
+  const positions = new Map<string, { x: number, y: number }>()
+  const roots = visibleNodes.filter(n => !n.parentId || !visibleIds.has(n.parentId))
+
+  // Layout each root tree
+  let rootY = 0
+  for (const root of roots) {
+    layoutSubtree(root.id, 0, rootY, getSubtreeHeight(root.id))
+    rootY += getSubtreeHeight(root.id) + V_GAP * 2
+  }
+
+  function layoutSubtree(nodeId: string, x: number, yStart: number, availableHeight: number) {
+    // Center this node vertically in its available space
+    const y = yStart + (availableHeight - NODE_HEIGHT_BASE) / 2
+    positions.set(nodeId, { x, y })
+
+    const children = visibleChildrenMap.get(nodeId)
+    if (!children || children.length === 0) return
+
+    const childX = x + NODE_WIDTH + H_GAP
+    let childY = yStart
+    for (const child of children) {
+      const childHeight = getSubtreeHeight(child.id)
+      layoutSubtree(child.id, childX, childY, childHeight)
+      childY += childHeight + V_GAP
+    }
+  }
+
+  // Build xyflow nodes
   const xyNodes: Node[] = visibleNodes.map((n) => {
     const children = childrenMap.get(n.id) ?? []
     const parent = n.parentId ? nodeMap.get(n.parentId) : undefined
+    const pos = positions.get(n.id) ?? { x: 0, y: 0 }
     return {
       id: n.id,
       type: 'mindmapNode',
-      position: { x: 0, y: 0 },
+      position: pos,
       data: {
         ...n,
         hasChildren: children.length > 0,
@@ -48,56 +98,17 @@ export function buildInitialNodes(
     }
   })
 
-  const xyEdges = buildEdges(visibleNodes, visibleIds)
+  // Build edges
+  const xyEdges: Edge[] = visibleNodes
+    .filter(n => n.parentId && visibleIds.has(n.parentId))
+    .map(n => ({
+      id: `e-${n.parentId}-${n.id}`,
+      source: n.parentId!,
+      target: n.id,
+      type: 'smoothstep',
+    }))
 
   return { nodes: xyNodes, edges: xyEdges }
-}
-
-/**
- * Run elkjs layout using measured node dimensions from xyflow DOM.
- * Returns nodes with computed positions.
- */
-export async function computeLayout(
-  currentNodes: Node[],
-  currentEdges: Edge[],
-): Promise<LayoutResult> {
-  if (currentNodes.length === 0) {
-    return { nodes: [], edges: [] }
-  }
-
-  const elkGraph = {
-    id: 'root',
-    layoutOptions: {
-      'elk.algorithm': 'mrtree',
-      'elk.direction': 'RIGHT',
-      'elk.spacing.nodeNode': '40',
-      'elk.layered.spacing.nodeNodeBetweenLayers': '60',
-    },
-    children: currentNodes.map(n => ({
-      id: n.id,
-      width: n.measured?.width ?? DEFAULT_NODE_WIDTH,
-      height: n.measured?.height ?? DEFAULT_NODE_HEIGHT,
-    })),
-    edges: currentEdges.map(e => ({
-      id: e.id,
-      sources: [e.source],
-      targets: [e.target],
-    })),
-  }
-
-  const layout = await elk.layout(elkGraph)
-
-  const positionMap = new Map<string, { x: number, y: number }>()
-  for (const child of layout.children ?? []) {
-    positionMap.set(child.id, { x: child.x ?? 0, y: child.y ?? 0 })
-  }
-
-  const layoutedNodes: Node[] = currentNodes.map(n => ({
-    ...n,
-    position: positionMap.get(n.id) ?? n.position,
-  }))
-
-  return { nodes: layoutedNodes, edges: currentEdges }
 }
 
 function buildChildrenMap(flatNodes: WhiteboardNode[]) {
@@ -130,16 +141,4 @@ function collectVisibleNodes(
     }
   }
   return visibleNodes
-}
-
-function buildEdges(visibleNodes: WhiteboardNode[], visibleIds: Set<string>): Edge[] {
-  return visibleNodes
-    .filter(n => n.parentId && visibleIds.has(n.parentId))
-    .map(n => ({
-      id: `e-${n.parentId}-${n.id}`,
-      source: n.parentId!,
-      target: n.id,
-      type: 'smoothstep',
-      animated: false,
-    }))
 }
