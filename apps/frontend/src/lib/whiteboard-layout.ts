@@ -26,20 +26,27 @@ export function buildInitialNodes(
   }
 
   const childrenMap = buildChildrenMap(flatNodes)
+  const nodeMap = new Map(flatNodes.map(n => [n.id, n]))
   const visibleNodes = collectVisibleNodes(childrenMap, collapsedIds)
   const visibleIds = new Set(visibleNodes.map(n => n.id))
 
-  const xyNodes: Node[] = visibleNodes.map(n => ({
-    id: n.id,
-    type: 'mindmapNode',
-    position: { x: 0, y: 0 },
-    data: {
-      ...n,
-      hasChildren: (childrenMap.get(n.id)?.length ?? 0) > 0,
-      isCollapsed: collapsedIds.has(n.id),
-      askingNodeId: askingNodeId ?? null,
-    },
-  }))
+  const xyNodes: Node[] = visibleNodes.map((n) => {
+    const children = childrenMap.get(n.id) ?? []
+    const parent = n.parentId ? nodeMap.get(n.parentId) : undefined
+    return {
+      id: n.id,
+      type: 'mindmapNode',
+      position: { x: 0, y: 0 },
+      data: {
+        ...n,
+        hasChildren: children.length > 0,
+        isCollapsed: collapsedIds.has(n.id),
+        askingNodeId: askingNodeId ?? null,
+        parentLabel: parent?.label ?? null,
+        childLabels: children.map(c => c.label).filter(Boolean),
+      },
+    }
+  })
 
   const xyEdges = buildEdges(visibleNodes, visibleIds)
 

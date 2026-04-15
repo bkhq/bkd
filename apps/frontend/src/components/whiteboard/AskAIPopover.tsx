@@ -1,5 +1,5 @@
 import { BookOpen, Lightbulb, MessageSquare, Search, Sparkles, Zap } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
@@ -7,17 +7,63 @@ type AskAction = 'explore' | 'explain' | 'simplify' | 'examples' | 'custom'
 
 interface AskAIPopoverProps {
   nodeId: string
+  nodeLabel?: string
+  parentLabel?: string
+  childLabels?: string[]
   isLoading: boolean
   onAsk: (nodeId: string, action: AskAction, prompt?: string) => void
 }
 
-export function AskAIPopover({ nodeId, isLoading, onAsk }: AskAIPopoverProps) {
+/** Generate up to 3 heuristic follow-up questions from node context. */
+function buildSuggestedQuestions(
+  nodeLabel: string,
+  parentLabel: string | undefined,
+  childLabels: string[],
+): string[] {
+  const questions: string[] = []
+  const label = nodeLabel || 'this topic'
+
+  if (childLabels.length > 0) {
+    const first = childLabels[0]!
+    questions.push(`How does ${first} relate to ${label}?`)
+    if (childLabels.length > 1) {
+      const second = childLabels[1]!
+      questions.push(`What are the details of ${second}?`)
+    }
+  }
+  if (parentLabel) {
+    questions.push(`Can you expand on ${label} within the context of ${parentLabel}?`)
+  } else {
+    questions.push(`Can you expand on ${label}?`)
+  }
+
+  return questions.slice(0, 3)
+}
+
+export function AskAIPopover({
+  nodeId,
+  nodeLabel = '',
+  parentLabel,
+  childLabels = [],
+  isLoading,
+  onAsk,
+}: AskAIPopoverProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [customPrompt, setCustomPrompt] = useState('')
 
+  const suggestedQuestions = useMemo(
+    () => buildSuggestedQuestions(nodeLabel, parentLabel, childLabels),
+    [nodeLabel, parentLabel, childLabels],
+  )
+
   const handleAction = useCallback((action: AskAction) => {
     onAsk(nodeId, action)
+    setOpen(false)
+  }, [nodeId, onAsk])
+
+  const handleSuggestedQuestion = useCallback((question: string) => {
+    onAsk(nodeId, 'custom', question)
     setOpen(false)
   }, [nodeId, onAsk])
 
@@ -90,6 +136,27 @@ export function AskAIPopover({ nodeId, isLoading, onAsk }: AskAIPopoverProps) {
             </button>
           </div>
         </div>
+
+        {suggestedQuestions.length > 0 && (
+          <div className="border-t p-3">
+            <p className="text-xs font-medium text-muted-foreground mb-2">
+              {t('whiteboard.suggestedQuestions')}
+            </p>
+            <div className="flex flex-col gap-1">
+              {suggestedQuestions.map(q => (
+                <button
+                  key={q}
+                  type="button"
+                  className="rounded-md px-2.5 py-1.5 text-xs text-left hover:bg-accent text-muted-foreground hover:text-foreground leading-snug"
+                  onClick={() => handleSuggestedQuestion(q)}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="border-t px-3 py-2.5">
           <div className="flex items-center gap-2">
             <MessageSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />

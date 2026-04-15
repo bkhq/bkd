@@ -510,3 +510,18 @@ export const WhiteboardAskResponseSchema = z.object({
   executionId: z.string().optional(),
   queued: z.boolean().optional(),
 }).openapi('WhiteboardAskResponse')
+
+export const ParseWhiteboardResponseSchema = z.object({
+  nodeId: z.string(),
+  issueId: z.string(),
+}).openapi('ParseWhiteboardResponse')
+
+export const GenerateIssuesFromNodesSchema = z.object({
+  nodeIds: z.array(z.string()).min(1).max(50),
+}).openapi('GenerateIssuesFromNodes')
+
+export const GeneratedIssueItemSchema = z.object({
+  nodeId: z.string(),
+  title: z.string(),
+  prompt: z.string(),
+}).openapi('GeneratedIssueItem')
