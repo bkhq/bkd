@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { GenerateIssuesDialog } from '@/components/whiteboard/GenerateIssuesDialog'
 import { WhiteboardCanvas } from '@/components/whiteboard/WhiteboardCanvas'
@@ -15,6 +15,10 @@ import {
 } from '@/hooks/use-whiteboard'
 import { eventBus } from '@/lib/event-bus'
 import { kanbanApi } from '@/lib/kanban-api'
+
+const LazyIssuePanel = lazy(() =>
+  import('@/components/kanban/IssuePanel').then(m => ({ default: m.IssuePanel })),
+)
 
 interface GeneratedIssueItem {
   nodeId: string
@@ -42,8 +46,14 @@ export default function WhiteboardPage() {
   const pendingActionRef = useRef<string | null>(null)
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
   const [generatedItems, setGeneratedItems] = useState<GeneratedIssueItem[]>([])
-  // Track selected node IDs for generate-issues (last node the user right-clicked via event)
+  const [chatPanelOpen, setChatPanelOpen] = useState(false)
   const pendingGenerateNodeIds = useRef<string[]>([])
+
+  // Derive the bound issue ID from the root node
+  const boundIssueId = useMemo(() => {
+    const root = nodes.find(n => !n.parentId)
+    return root?.boundIssueId ?? null
+  }, [nodes])
 
   // Sync collapsed state from server data
   const collapsedKey = nodes.map(n => `${n.id}:${n.isCollapsed}`).join(',')
@@ -233,17 +243,33 @@ export default function WhiteboardPage() {
         projectName={project?.name ?? ''}
         onCreateRoot={onCreateRoot}
         hasNodes={nodes.length > 0}
+        boundIssueId={boundIssueId}
+        onToggleChat={() => setChatPanelOpen(prev => !prev)}
       />
-      <div className="flex-1">
-        <WhiteboardCanvas
-          flatNodes={nodes}
-          collapsedIds={collapsedIds}
-          askingNodeId={askingNodeId}
-          onAddChild={onAddChild}
-          onUpdateNode={onUpdateNode}
-          onDeleteNode={onDeleteNode}
-          onToggleCollapse={onToggleCollapse}
-        />
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1">
+          <WhiteboardCanvas
+            flatNodes={nodes}
+            collapsedIds={collapsedIds}
+            askingNodeId={askingNodeId}
+            onAddChild={onAddChild}
+            onUpdateNode={onUpdateNode}
+            onDeleteNode={onDeleteNode}
+            onToggleCollapse={onToggleCollapse}
+          />
+        </div>
+        {chatPanelOpen && boundIssueId && (
+          <div className="w-[440px] shrink-0 border-l border-border">
+            <Suspense fallback={null}>
+              <LazyIssuePanel
+                projectId={projectId}
+                issueId={boundIssueId}
+                onClose={() => setChatPanelOpen(false)}
+                hideHeaderActions
+              />
+            </Suspense>
+          </div>
+        )}
       </div>
       <GenerateIssuesDialog
         projectId={projectId}

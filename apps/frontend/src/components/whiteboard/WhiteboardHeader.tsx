@@ -1,4 +1,4 @@
-import { ArrowLeft, Plus, Sparkles } from 'lucide-react'
+import { ArrowLeft, MessageSquare, Plus, Sparkles } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -9,9 +9,11 @@ interface WhiteboardHeaderProps {
   projectName: string
   onCreateRoot: () => void
   hasNodes: boolean
+  boundIssueId: string | null
+  onToggleChat: () => void
 }
 
-export function WhiteboardHeader({ projectId, projectName, onCreateRoot, hasNodes }: WhiteboardHeaderProps) {
+export function WhiteboardHeader({ projectId, projectName, onCreateRoot, hasNodes, boundIssueId, onToggleChat }: WhiteboardHeaderProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [topic, setTopic] = useState('')
@@ -30,13 +32,22 @@ export function WhiteboardHeader({ projectId, projectName, onCreateRoot, hasNode
     }
   }, [handleGenerate])
 
+  const handleBack = useCallback(() => {
+    // Go back to previous page if possible, otherwise fall back to project page
+    if (window.history.length > 1) {
+      navigate(-1)
+    } else {
+      navigate(`/projects/${projectId}`)
+    }
+  }, [navigate, projectId])
+
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
       <Button
         variant="ghost"
         size="icon"
         className="h-8 w-8"
-        onClick={() => navigate(`/projects/${projectId}`)}
+        onClick={handleBack}
         title={t('whiteboard.backToBoard')}
       >
         <ArrowLeft className="h-4 w-4" />
@@ -67,6 +78,17 @@ export function WhiteboardHeader({ projectId, projectName, onCreateRoot, hasNode
         )}
       </div>
       <div className="ml-auto flex items-center gap-2">
+        {boundIssueId && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onToggleChat}
+            title={t('whiteboard.viewChat')}
+          >
+            <MessageSquare className="h-4 w-4" />
+          </Button>
+        )}
         {!hasNodes && (
           <Button size="sm" onClick={onCreateRoot}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />

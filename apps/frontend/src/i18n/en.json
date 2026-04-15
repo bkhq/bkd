@@ -582,7 +582,8 @@
     "generateIssuesDesc": "Select which nodes to convert into issues on the board.",
     "generateIssuesEmpty": "No nodes selected.",
     "createNIssues": "Create {{count}} issue(s)",
-    "generateIssues": "Generate issues"
+    "generateIssues": "Generate issues",
+    "viewChat": "View chat history"
   },
   "auth": {
     "login": "Login",
