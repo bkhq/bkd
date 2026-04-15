@@ -6,7 +6,6 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useEdgesState,
-  useNodesInitialized,
   useNodesState,
   useReactFlow,
 } from '@xyflow/react'
@@ -60,9 +59,7 @@ function LayoutedFlow({
 }: WhiteboardCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<XYNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<XYEdge>([])
-  const nodesInitialized = useNodesInitialized()
   const { fitView } = useReactFlow()
-  const layoutDoneRef = useRef(false)
   const dataKeyRef = useRef('')
   const layoutVersionRef = useRef(0)
 
@@ -107,8 +104,9 @@ function LayoutedFlow({
   useEffect(() => {
     if (dataKey === dataKeyRef.current) return
     dataKeyRef.current = dataKey
-    layoutDoneRef.current = false
     layoutVersionRef.current += 1
+    const version = layoutVersionRef.current
+
     const { nodes: initialNodes, edges: initialEdges } = buildInitialNodes(
       flatNodes,
       collapsedIds,
@@ -116,22 +114,31 @@ function LayoutedFlow({
     )
     setNodes(initialNodes)
     setEdges(initialEdges)
-  }, [dataKey, flatNodes, collapsedIds, askingNodeId, setNodes, setEdges])
 
-  // Phase 2: after xyflow measures nodes, run elkjs with real dimensions
-  useEffect(() => {
-    if (!nodesInitialized || layoutDoneRef.current || nodes.length === 0) return
-    layoutDoneRef.current = true
-    const version = layoutVersionRef.current
-
-    computeLayout(nodes, edges).then((result) => {
-      // Ignore stale results if data changed while layout was computing
-      if (layoutVersionRef.current !== version) return
-      setNodes(result.nodes)
-      setEdges(result.edges)
-      requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }))
-    })
-  }, [nodesInitialized, nodes, edges, setNodes, setEdges, fitView])
+    // After xyflow measures the new nodes (next frames), run elkjs layout
+    // with real DOM dimensions and apply positions.
+    const scheduleLayout = () => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (layoutVersionRef.current !== version) return
+          // Read latest nodes/edges from xyflow state (with measured dimensions)
+          setNodes((currentNodes) => {
+            setEdges((currentEdges) => {
+              computeLayout(currentNodes, currentEdges).then((result) => {
+                if (layoutVersionRef.current !== version) return
+                setNodes(result.nodes)
+                setEdges(result.edges)
+                requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }))
+              })
+              return currentEdges
+            })
+            return currentNodes
+          })
+        })
+      })
+    }
+    scheduleLayout()
+  }, [dataKey, flatNodes, collapsedIds, askingNodeId, setNodes, setEdges, fitView])
 
   const defaultEdgeOptions = useMemo(() => ({
     style: { stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1.5 },
