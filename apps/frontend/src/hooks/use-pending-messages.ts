@@ -11,23 +11,15 @@ export function usePendingMessages(projectId: string, issueId: string | null) {
   useEffect(() => {
     if (!issueId) return
 
+    const invalidate = () =>
+      qc.invalidateQueries({ queryKey: queryKeys.pendingMessages(projectId, issueId) })
+
     const unsub = eventBus.subscribe(issueId, {
-      onLog: () => {
-        // A new log entry (e.g. engine consumed pending → emitted user-message) — refresh
-        qc.invalidateQueries({ queryKey: queryKeys.pendingMessages(projectId, issueId) })
-      },
+      onLog: () => {},
       onLogUpdated: () => {},
-      onLogRemoved: () => {
-        // Pending message recalled/deleted
-        qc.invalidateQueries({ queryKey: queryKeys.pendingMessages(projectId, issueId) })
-      },
-      onState: () => {
-        // Session state changed (e.g. running → completed) — pending may have been consumed
-        qc.invalidateQueries({ queryKey: queryKeys.pendingMessages(projectId, issueId) })
-      },
-      onDone: () => {
-        qc.invalidateQueries({ queryKey: queryKeys.pendingMessages(projectId, issueId) })
-      },
+      onLogRemoved: invalidate,
+      onState: invalidate,
+      onDone: invalidate,
     })
     return unsub
   }, [projectId, issueId, qc])
