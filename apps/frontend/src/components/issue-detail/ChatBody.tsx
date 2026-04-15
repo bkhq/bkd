@@ -325,24 +325,33 @@ export function ChatBody({
         </div>
       </div>
 
-      {/* Pending messages — always visible regardless of stream state */}
+      {/* Pending messages — reuses user-message styling from LogEntry */}
       {serverPendingMessages && serverPendingMessages.length > 0 && (
-        <div className="border-t border-border/30 px-4 py-2 space-y-1.5">
-          {serverPendingMessages.map(msg => (
-            <div key={msg.messageId} className="group relative flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
-              <span className="shrink-0 text-xs text-muted-foreground/60">
-                {msg.metadata?.type === 'done' ? '📋' : '⏳'}
-              </span>
-              <span className="flex-1 line-clamp-2 text-muted-foreground">{msg.content}</span>
-              <button
-                type="button"
-                onClick={() => handleEditPending(msg.messageId)}
-                className="shrink-0 rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground inline-flex"
-              >
-                {t('common.edit')}
-              </button>
-            </div>
-          ))}
+        <div className="px-4 py-2 space-y-1">
+          {serverPendingMessages.map((msg) => {
+            const isDone = msg.metadata?.type === 'done'
+            const barColor = isDone
+              ? 'border-emerald-400 bg-emerald-500/[0.06]'
+              : 'border-amber-400 bg-amber-500/[0.06]'
+            return (
+              <div key={msg.messageId} className="group py-1">
+                <div className={`bg-muted/70 px-3 py-2.5 border border-l-[3px] ${barColor}`}>
+                  <div className="flex items-start gap-2">
+                    <span className="flex-1 text-[15px] whitespace-pre-wrap break-words text-foreground leading-[1.75] line-clamp-2">
+                      {msg.content}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleEditPending(msg.messageId)}
+                      className="shrink-0 rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    >
+                      {t('common.edit')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
