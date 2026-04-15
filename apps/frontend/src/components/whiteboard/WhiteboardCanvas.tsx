@@ -2,7 +2,6 @@ import type { EdgeTypes, NodeTypes, Edge as XYEdge, Node as XYNode } from '@xyfl
 import {
   Background,
   Controls,
-  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   useEdgesState,
@@ -129,11 +128,6 @@ export function WhiteboardCanvas({
       >
         <Background />
         <Controls showInteractive={false} />
-        <MiniMap
-          nodeColor="hsl(var(--muted))"
-          maskColor="hsl(var(--background) / 0.7)"
-          className="!bg-background !border-border"
-        />
       </ReactFlow>
     </ReactFlowProvider>
   )
