@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { WhiteboardCanvas } from '@/components/whiteboard/WhiteboardCanvas'
 import { WhiteboardHeader } from '@/components/whiteboard/WhiteboardHeader'
@@ -23,7 +23,7 @@ export default function WhiteboardPage() {
 
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const [askingNodeId, setAskingNodeId] = useState<string | null>(null)
-  const pendingIssueIdRef = useRef<string | null>(null)
+  const [pendingIssueId, setPendingIssueId] = useState<string | null>(null)
 
   // Sync collapsed state from server data
   const collapsedKey = nodes.map(n => `${n.id}:${n.isCollapsed}`).join(',')
@@ -37,17 +37,17 @@ export default function WhiteboardPage() {
   }, [collapsedKey])
 
   // Subscribe to SSE for the bound whiteboard issue to detect AI completion
+  // Uses state (not ref) so changes trigger re-render and new subscription
   useEffect(() => {
-    const issueId = pendingIssueIdRef.current
-    if (!issueId) return
+    if (!pendingIssueId) return
 
-    const unsub = eventBus.subscribe(issueId, {
+    const unsub = eventBus.subscribe(pendingIssueId, {
       onLog: () => {},
       onLogUpdated: () => {},
       onLogRemoved: () => {},
       onState: () => {},
       onDone: () => {
-        pendingIssueIdRef.current = null
+        setPendingIssueId(null)
         setAskingNodeId(null)
         // Refetch nodes after AI completes
         const timer = setTimeout(refetchNodes, 1000)
@@ -55,7 +55,7 @@ export default function WhiteboardPage() {
       },
     })
     return unsub
-  }, [askingNodeId, refetchNodes])
+  }, [pendingIssueId, refetchNodes])
 
   const onCreateRoot = useCallback(() => {
     createNode.mutate({ label: project?.name ?? 'Root' })
@@ -92,7 +92,7 @@ export default function WhiteboardPage() {
         { nodeId, action, prompt },
         {
           onSuccess: (data) => {
-            pendingIssueIdRef.current = data.issueId
+            setPendingIssueId(data.issueId)
           },
           onError: () => {
             setAskingNodeId(null)

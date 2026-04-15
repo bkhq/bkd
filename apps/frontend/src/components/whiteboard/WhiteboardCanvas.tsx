@@ -64,6 +64,7 @@ function LayoutedFlow({
   const { fitView } = useReactFlow()
   const layoutDoneRef = useRef(false)
   const dataKeyRef = useRef('')
+  const layoutVersionRef = useRef(0)
 
   // Listen for custom events from MindmapNode
   useEffect(() => {
@@ -97,7 +98,9 @@ function LayoutedFlow({
   }, [onAddChild, onUpdateNode, onDeleteNode, onToggleCollapse])
 
   // Phase 1: set initial nodes at origin for xyflow to measure
-  const dataKey = `${flatNodes.map(n => n.id).join(',')
+  // Key includes IDs, labels, content, parentIds, collapsed state, and askingNodeId
+  // so any topology or content change triggers a rebuild
+  const dataKey = `${flatNodes.map(n => `${n.id}:${n.parentId ?? ''}:${n.label}:${n.content}`).join(',')
   }|${[...collapsedIds].join(',')}`
   + `|${askingNodeId ?? ''}`
 
@@ -105,6 +108,7 @@ function LayoutedFlow({
     if (dataKey === dataKeyRef.current) return
     dataKeyRef.current = dataKey
     layoutDoneRef.current = false
+    layoutVersionRef.current += 1
     const { nodes: initialNodes, edges: initialEdges } = buildInitialNodes(
       flatNodes,
       collapsedIds,
@@ -118,8 +122,11 @@ function LayoutedFlow({
   useEffect(() => {
     if (!nodesInitialized || layoutDoneRef.current || nodes.length === 0) return
     layoutDoneRef.current = true
+    const version = layoutVersionRef.current
 
     computeLayout(nodes, edges).then((result) => {
+      // Ignore stale results if data changed while layout was computing
+      if (layoutVersionRef.current !== version) return
       setNodes(result.nodes)
       setEdges(result.edges)
       requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }))

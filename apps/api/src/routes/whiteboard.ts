@@ -242,8 +242,10 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
 
     const nodeMap = new Map(allNodes.map(n => [n.id, n]))
     const path: string[] = []
+    const visitedPath = new Set<string>()
     let current: typeof targetNode | undefined = targetNode
-    while (current) {
+    while (current && !visitedPath.has(current.id)) {
+      visitedPath.add(current.id)
       path.unshift(current.label || 'Untitled')
       current = current.parentId ? nodeMap.get(current.parentId) : undefined
     }
@@ -266,10 +268,13 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
 
     // Find or create the bound whiteboard issue
     let boundIssueId = targetNode.boundIssueId
-    // Walk up to root to find a bound issue
+    // Walk up to root to find a bound issue (with cycle guard)
     if (!boundIssueId) {
+      const visitedWalk = new Set<string>()
       let walk: typeof targetNode | undefined = targetNode
       while (walk && !boundIssueId) {
+        if (visitedWalk.has(walk.id)) break
+        visitedWalk.add(walk.id)
         boundIssueId = walk.boundIssueId
         walk = walk.parentId ? nodeMap.get(walk.parentId) : undefined
       }
@@ -359,6 +364,22 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
         success: true,
         data: { issueId: boundIssueId, executionId: result.executionId },
       }, 200 as const)
+    }
+
+    // Validate bound issue still exists (may have been soft-deleted from kanban)
+    const [boundIssue] = await db
+      .select({ id: issuesTable.id })
+      .from(issuesTable)
+      .where(and(eq(issuesTable.id, boundIssueId), eq(issuesTable.isDeleted, 0)))
+    if (!boundIssue) {
+      // Clear stale binding so next ask creates a fresh issue
+      const rootNode = allNodes.find(n => !n.parentId)
+      if (rootNode) {
+        await db.update(whiteboardNodes)
+          .set({ boundIssueId: null, updatedAt: new Date() })
+          .where(eq(whiteboardNodes.id, rootNode.id))
+      }
+      return c.json({ success: false, error: 'Bound issue was deleted. Please try again.' }, 404 as const)
     }
 
     // Follow-up on existing bound issue — do not override the issue's model
