@@ -360,7 +360,7 @@ export const kanbanApi = {
     get<Array<{
       messageId: string
       content: string
-      metadata: { type: string } | null
+      metadata: { type: string, attachments?: Array<{ id: string, name: string, mimeType: string, size: number }>, displayPrompt?: string } | null
       createdAt: string
     }>>(`/api/projects/${projectId}/issues/${issueId}/pending`),
 
