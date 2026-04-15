@@ -14,6 +14,7 @@ import {
   useWhiteboardNodes,
 } from '@/hooks/use-whiteboard'
 import { eventBus } from '@/lib/event-bus'
+import { kanbanApi } from '@/lib/kanban-api'
 
 interface GeneratedIssueItem {
   nodeId: string
@@ -36,8 +37,9 @@ export default function WhiteboardPage() {
   const [askingNodeId, setAskingNodeId] = useState<string | null>(null)
   // pendingIssueId drives SSE subscription — must be state (not ref) to trigger re-render
   const [pendingIssueId, setPendingIssueId] = useState<string | null>(null)
-  // Maps issueId → nodeId for parse-response after AI done
+  // Tracks target nodeId and action type for post-AI-done processing
   const pendingNodeRef = useRef<string | null>(null)
+  const pendingActionRef = useRef<string | null>(null)
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
   const [generatedItems, setGeneratedItems] = useState<GeneratedIssueItem[]>([])
   // Track selected node IDs for generate-issues (last node the user right-clicked via event)
@@ -55,24 +57,40 @@ export default function WhiteboardPage() {
   }, [collapsedKey])
 
   // Subscribe to SSE for the pending whiteboard issue.
-  // When AI completes, auto-call parse-response to create child nodes.
+  // On AI done: explore/examples → parse-response (create children),
+  // explain/simplify → fetch AI response and update node content.
   useEffect(() => {
     if (!pendingIssueId) return
 
     const issueId = pendingIssueId
     const nodeId = pendingNodeRef.current
+    const action = pendingActionRef.current
 
-    const clearLoading = (runParse = false) => {
+    const clearLoading = (handleResult = false) => {
       setPendingIssueId(null)
       pendingNodeRef.current = null
+      pendingActionRef.current = null
       setAskingNodeId(null)
-      if (runParse && nodeId) {
+
+      if (!handleResult || !nodeId) {
+        setTimeout(refetchNodes, 1000)
+        return
+      }
+
+      if (action === 'explain' || action === 'simplify') {
+        // Fetch latest assistant response and update node content directly
+        kanbanApi.getIssueLogs(projectId, issueId, { limit: 1 }).then((data) => {
+          const assistantMsg = data.logs.find(l => l.entryType === 'assistant-message')
+          if (assistantMsg) {
+            updateNode.mutate({ nodeId, content: assistantMsg.content })
+          }
+        }).finally(() => setTimeout(refetchNodes, 500))
+      } else {
+        // explore/examples/custom → parse ## headings into child nodes
         parseResponse.mutate(
           { nodeId, issueId },
           { onSettled: () => setTimeout(refetchNodes, 500) },
         )
-      } else {
-        setTimeout(refetchNodes, 1000)
       }
     }
 
@@ -92,9 +110,9 @@ export default function WhiteboardPage() {
       clearTimeout(fallbackTimer)
       unsub()
     }
-  // parseResponse intentionally excluded — stable mutation ref
+  // parseResponse/updateNode/kanbanApi intentionally excluded — stable refs
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingIssueId, refetchNodes])
+  }, [pendingIssueId, projectId, refetchNodes])
 
   const onCreateRoot = useCallback(() => {
     createNode.mutate({ label: project?.name ?? 'Root' })
@@ -132,6 +150,7 @@ export default function WhiteboardPage() {
         {
           onSuccess: (data) => {
             pendingNodeRef.current = nodeId
+            pendingActionRef.current = action
             setPendingIssueId(data.issueId)
           },
           onError: () => {

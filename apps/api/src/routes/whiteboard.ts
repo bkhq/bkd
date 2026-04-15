@@ -258,11 +258,13 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
       targetNode.content ? `Node content:\n${targetNode.content}` : '',
     ].filter(Boolean).join('\n')
 
+    const structuredFormat = `\n\nIMPORTANT: You MUST respond using ONLY this exact format — one or more sections, each starting with a level-2 markdown heading:\n\n## Section Title\nDescription paragraph for this section.\n\n## Another Section\nAnother description.\n\nDo NOT use any other heading levels (no #, ###, ####). Do NOT use bullet lists or numbered lists as top-level structure. Each ## heading becomes a node in the mindmap.`
+
     const actionPrompts: Record<string, string> = {
-      explore: `${contextLines}\n\nGenerate 3-7 subtopics for this node. For each subtopic, output a markdown heading (##) followed by a brief description paragraph. Example:\n\n## Subtopic Title\nBrief description of the subtopic.`,
-      explain: `${contextLines}\n\nExplain this topic in detail. Provide a clear, structured explanation.`,
-      simplify: `${contextLines}\n\nSimplify and rewrite the content of this node to be more concise and easier to understand.`,
-      examples: `${contextLines}\n\nProvide 3-5 concrete examples related to this topic. For each example, output a markdown heading (##) followed by a description.`,
+      explore: `${contextLines}\n\nGenerate 3-7 subtopics that break down this node into its key aspects or components.${structuredFormat}`,
+      explain: `${contextLines}\n\nExplain this topic in detail. Write a clear, concise explanation in plain paragraphs. Do NOT use ## headings. Your response will replace the node's content directly.`,
+      simplify: `${contextLines}\n\nRewrite the content of this node to be more concise and easier to understand. Do NOT use ## headings. Your response will replace the node's content directly.`,
+      examples: `${contextLines}\n\nProvide 3-5 concrete examples related to this topic.${structuredFormat}`,
       custom: `${contextLines}\n\n${body.prompt ?? ''}`,
     }
     const prompt = actionPrompts[body.action] ?? actionPrompts.custom
