@@ -99,15 +99,25 @@ export function layoutMindmap(
     }
   })
 
-  // Build edges
+  // Build edges with pre-computed positions (avoids per-edge useNodes subscription)
   const xyEdges: Edge[] = visibleNodes
     .filter(n => n.parentId && visibleIds.has(n.parentId))
-    .map(n => ({
-      id: `e-${n.parentId}-${n.id}`,
-      source: n.parentId!,
-      target: n.id,
-      type: 'mindmapEdge',
-    }))
+    .map((n) => {
+      const sourcePos = positions.get(n.parentId!) ?? { x: 0, y: 0 }
+      const targetPos = positions.get(n.id) ?? { x: 0, y: 0 }
+      return {
+        id: `e-${n.parentId}-${n.id}`,
+        source: n.parentId!,
+        target: n.id,
+        type: 'mindmapEdge',
+        data: {
+          sourceX: sourcePos.x + NODE_WIDTH,
+          sourceY: sourcePos.y + NODE_HEIGHT_BASE / 2,
+          targetX: targetPos.x,
+          targetY: targetPos.y + NODE_HEIGHT_BASE / 2,
+        },
+      }
+    })
 
   return { nodes: xyNodes, edges: xyEdges }
 }

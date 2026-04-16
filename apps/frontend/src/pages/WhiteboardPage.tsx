@@ -129,21 +129,20 @@ export default function WhiteboardPage() {
         return
       }
 
-      if (action === 'explain' || action === 'simplify') {
-        // Fetch latest assistant response and update node content directly
-        kanbanApi.getIssueLogs(projectId, issueId, { limit: 1 }).then((data) => {
-          const assistantMsg = data.logs.find(l => l.entryType === 'assistant-message')
-          if (assistantMsg) {
-            updateNode.mutate({ nodeId, content: assistantMsg.content })
-          }
-        }).finally(() => setTimeout(refetchNodes, 500))
-      } else {
-        // explore/examples/custom → parse ## headings into child nodes
-        parseResponse.mutate(
-          { nodeId, issueId },
-          { onSettled: () => setTimeout(refetchNodes, 500) },
-        )
-      }
+      // Always call parse-response (fetches latest assistant-message correctly)
+      // For explain/simplify: use rawContent to update node content
+      // For explore/examples/custom: child nodes are created from ## headings
+      parseResponse.mutate(
+        { nodeId, issueId },
+        {
+          onSuccess: (result) => {
+            if ((action === 'explain' || action === 'simplify') && result.rawContent) {
+              updateNode.mutate({ nodeId, content: result.rawContent })
+            }
+          },
+          onSettled: () => setTimeout(refetchNodes, 500),
+        },
+      )
     }
 
     const fallbackTimer = setTimeout(clearLoading, 5 * 60 * 1000, false)
@@ -179,8 +178,10 @@ export default function WhiteboardPage() {
   }, [updateNode])
 
   const onDeleteNode = useCallback((nodeId: string) => {
-    deleteNode.mutate(nodeId)
-  }, [deleteNode])
+    if (window.confirm(t('whiteboard.deleteConfirm'))) {
+      deleteNode.mutate(nodeId)
+    }
+  }, [deleteNode, t])
 
   const onToggleCollapse = useCallback((nodeId: string, isCollapsed: boolean) => {
     setCollapsedIds((prev) => {
@@ -228,6 +229,7 @@ export default function WhiteboardPage() {
           {
             onSuccess: (data) => {
               pendingNodeRef.current = rootNode.id
+              pendingActionRef.current = 'explore'
               setPendingIssueId(data.issueId)
             },
             onError: () => setAskingNodeId(null),
@@ -245,6 +247,7 @@ export default function WhiteboardPage() {
                 {
                   onSuccess: (data) => {
                     pendingNodeRef.current = newNode.id
+                    pendingActionRef.current = 'explore'
                     setPendingIssueId(data.issueId)
                   },
                   onError: () => setAskingNodeId(null),
@@ -323,10 +326,7 @@ export default function WhiteboardPage() {
         items={generatedItems}
         open={generateDialogOpen}
         onOpenChange={setGenerateDialogOpen}
-        onCreated={(count) => {
-          void count
-          setGenerateDialogOpen(false)
-        }}
+        onCreated={() => setGenerateDialogOpen(false)}
       />
     </div>
   )

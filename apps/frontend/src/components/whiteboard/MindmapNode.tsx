@@ -110,6 +110,7 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
         className={cn(
           'group rounded-lg border bg-card px-4 py-3 shadow-sm transition-shadow',
           'w-[360px]',
+          !data.parentId && 'border-primary/30 bg-primary/[0.03]',
           selected && 'ring-2 ring-primary shadow-md',
         )}
       >

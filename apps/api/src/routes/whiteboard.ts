@@ -517,7 +517,8 @@ whiteboardRoutes.openapi(R.parseWhiteboardResponse, async (c) => {
     // Parse markdown ## headings into sections
     const sections = parseMarkdownSections(latestLog.content)
     if (sections.length === 0) {
-      return c.json({ success: true, data: [] }, 200 as const)
+      // Return raw content so frontend can use it for explain/simplify
+      return c.json({ success: true, data: { nodes: [], rawContent: latestLog.content } }, 200 as const)
     }
 
     // Determine sort orders for new children (append after existing children)
@@ -551,7 +552,7 @@ whiteboardRoutes.openapi(R.parseWhiteboardResponse, async (c) => {
       if (row) created.push(row)
     }
 
-    return c.json({ success: true, data: created.map(deserializeRow) }, 200 as const)
+    return c.json({ success: true, data: { nodes: created.map(deserializeRow), rawContent: latestLog.content } }, 200 as const)
   } catch (err) {
     logger.error({ err }, 'whiteboard_parse_response_failed')
     return c.json({ success: false, error: 'Failed to parse whiteboard response' }, 500 as const)

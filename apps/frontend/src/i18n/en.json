@@ -585,7 +585,12 @@
     "generateIssues": "Generate issues",
     "viewChat": "View chat history",
     "reset": "Reset whiteboard",
-    "resetConfirm": "Are you sure you want to delete all nodes? This cannot be undone."
+    "resetConfirm": "Are you sure you want to delete all nodes? This cannot be undone.",
+    "deleteConfirm": "Delete this node and all its children?",
+    "questionRelate": "How does {{child}} relate to {{label}}?",
+    "questionDetails": "What are the details of {{child}}?",
+    "questionExpandContext": "Can you expand on {{label}} within the context of {{parent}}?",
+    "questionExpand": "Can you expand on {{label}}?"
   },
   "auth": {
     "login": "Login",
