@@ -2,9 +2,20 @@ import type { Edge, Node } from '@xyflow/react'
 import type { WhiteboardNode } from '@/types/kanban'
 
 const NODE_WIDTH = 360
-const NODE_HEIGHT_BASE = 80
+const NODE_HEIGHT_MIN = 80
 const H_GAP = 80
 const V_GAP = 24
+
+/** Estimate node height based on content length. */
+function estimateNodeHeight(node: WhiteboardNode): number {
+  // Header: ~32px, toolbar: ~28px, padding: ~24px = ~84px base
+  const base = 84
+  const content = node.content ?? ''
+  if (!content) return NODE_HEIGHT_MIN
+  // Rough estimate: ~18px per line, ~50 chars per line at 360px width
+  const lines = content.split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / 50)), 0)
+  return Math.max(NODE_HEIGHT_MIN, base + lines * 18)
+}
 
 /**
  * Synchronous tree layout — computes positions and edges in one pass.
@@ -33,19 +44,26 @@ export function layoutMindmap(
     else visibleChildrenMap.set(n.parentId, [n])
   }
 
+  // Pre-compute estimated heights for each node based on content
+  const nodeHeight = new Map<string, number>()
+  for (const n of visibleNodes) {
+    nodeHeight.set(n.id, estimateNodeHeight(n))
+  }
+
   // Compute subtree heights (bottom-up) for vertical centering
   const subtreeHeight = new Map<string, number>()
   function getSubtreeHeight(id: string): number {
     const cached = subtreeHeight.get(id)
     if (cached !== undefined) return cached
+    const selfHeight = nodeHeight.get(id) ?? NODE_HEIGHT_MIN
     const children = visibleChildrenMap.get(id)
     if (!children || children.length === 0) {
-      subtreeHeight.set(id, NODE_HEIGHT_BASE)
-      return NODE_HEIGHT_BASE
+      subtreeHeight.set(id, selfHeight)
+      return selfHeight
     }
     const totalChildHeight = children.reduce((sum, c) => sum + getSubtreeHeight(c.id), 0)
       + (children.length - 1) * V_GAP
-    const height = Math.max(NODE_HEIGHT_BASE, totalChildHeight)
+    const height = Math.max(selfHeight, totalChildHeight)
     subtreeHeight.set(id, height)
     return height
   }
@@ -62,8 +80,9 @@ export function layoutMindmap(
   }
 
   function layoutSubtree(nodeId: string, x: number, yStart: number, availableHeight: number) {
+    const selfHeight = nodeHeight.get(nodeId) ?? NODE_HEIGHT_MIN
     // Center this node vertically in its available space
-    const y = yStart + (availableHeight - NODE_HEIGHT_BASE) / 2
+    const y = yStart + (availableHeight - selfHeight) / 2
     positions.set(nodeId, { x, y })
 
     const children = visibleChildrenMap.get(nodeId)
@@ -99,15 +118,27 @@ export function layoutMindmap(
     }
   })
 
-  // Build edges
+  // Build edges with pre-computed positions (avoids per-edge useNodes subscription)
   const xyEdges: Edge[] = visibleNodes
     .filter(n => n.parentId && visibleIds.has(n.parentId))
-    .map(n => ({
-      id: `e-${n.parentId}-${n.id}`,
-      source: n.parentId!,
-      target: n.id,
-      type: 'mindmapEdge',
-    }))
+    .map((n) => {
+      const sourcePos = positions.get(n.parentId!) ?? { x: 0, y: 0 }
+      const targetPos = positions.get(n.id) ?? { x: 0, y: 0 }
+      const sourceH = nodeHeight.get(n.parentId!) ?? NODE_HEIGHT_MIN
+      const targetH = nodeHeight.get(n.id) ?? NODE_HEIGHT_MIN
+      return {
+        id: `e-${n.parentId}-${n.id}`,
+        source: n.parentId!,
+        target: n.id,
+        type: 'mindmapEdge',
+        data: {
+          sourceX: sourcePos.x + NODE_WIDTH,
+          sourceY: sourcePos.y + sourceH / 2,
+          targetX: targetPos.x,
+          targetY: targetPos.y + targetH / 2,
+        },
+      }
+    })
 
   return { nodes: xyNodes, edges: xyEdges }
 }

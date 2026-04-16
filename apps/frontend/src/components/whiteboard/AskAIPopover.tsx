@@ -14,27 +14,26 @@ interface AskAIPopoverProps {
   onAsk: (nodeId: string, action: AskAction, prompt?: string) => void
 }
 
-/** Generate up to 3 heuristic follow-up questions from node context. */
+/** Generate up to 3 heuristic follow-up questions from node context using i18n. */
 function buildSuggestedQuestions(
+  t: (key: string, opts?: Record<string, string>) => string,
   nodeLabel: string,
   parentLabel: string | undefined,
   childLabels: string[],
 ): string[] {
   const questions: string[] = []
-  const label = nodeLabel || 'this topic'
+  const label = nodeLabel || t('whiteboard.untitled')
 
   if (childLabels.length > 0) {
-    const first = childLabels[0]!
-    questions.push(`How does ${first} relate to ${label}?`)
+    questions.push(t('whiteboard.questionRelate', { child: childLabels[0]!, label }))
     if (childLabels.length > 1) {
-      const second = childLabels[1]!
-      questions.push(`What are the details of ${second}?`)
+      questions.push(t('whiteboard.questionDetails', { child: childLabels[1]! }))
     }
   }
   if (parentLabel) {
-    questions.push(`Can you expand on ${label} within the context of ${parentLabel}?`)
+    questions.push(t('whiteboard.questionExpandContext', { label, parent: parentLabel }))
   } else {
-    questions.push(`Can you expand on ${label}?`)
+    questions.push(t('whiteboard.questionExpand', { label }))
   }
 
   return questions.slice(0, 3)
@@ -53,8 +52,8 @@ export function AskAIPopover({
   const [customPrompt, setCustomPrompt] = useState('')
 
   const suggestedQuestions = useMemo(
-    () => buildSuggestedQuestions(nodeLabel, parentLabel, childLabels),
-    [nodeLabel, parentLabel, childLabels],
+    () => buildSuggestedQuestions(t, nodeLabel, parentLabel, childLabels),
+    [t, nodeLabel, parentLabel, childLabels],
   )
 
   const handleAction = useCallback((action: AskAction) => {

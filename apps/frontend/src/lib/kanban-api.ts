@@ -685,8 +685,8 @@ export const kanbanApi = {
     `/api/projects/${projectId}/whiteboard/ask`,
     data,
   ),
-  parseWhiteboardResponse: (projectId: string, data: { nodeId: string, issueId: string }) =>
-    post<WhiteboardNode[]>(`/api/projects/${projectId}/whiteboard/parse-response`, data),
+  parseWhiteboardResponse: (projectId: string, data: { nodeId: string, issueId: string, skipInsert?: boolean }) =>
+    post<{ nodes: WhiteboardNode[], rawContent: string }>(`/api/projects/${projectId}/whiteboard/parse-response`, data),
   generateIssuesFromNodes: (projectId: string, data: { nodeIds: string[] }) =>
     post<Array<{ nodeId: string, title: string, prompt: string }>>(
       `/api/projects/${projectId}/whiteboard/generate-issues`,

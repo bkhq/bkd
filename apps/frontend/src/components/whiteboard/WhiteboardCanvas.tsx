@@ -6,9 +6,10 @@ import {
   ReactFlowProvider,
   useEdgesState,
   useNodesState,
+  useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { layoutMindmap } from '@/lib/whiteboard-layout'
 import type { WhiteboardNode } from '@/types/kanban'
@@ -33,7 +34,25 @@ interface WhiteboardCanvasProps {
   onToggleCollapse: (nodeId: string, isCollapsed: boolean) => void
 }
 
-export function WhiteboardCanvas({
+export function WhiteboardCanvas(props: WhiteboardCanvasProps) {
+  const { t } = useTranslation()
+
+  if (props.flatNodes.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        {t('whiteboard.empty')}
+      </div>
+    )
+  }
+
+  return (
+    <ReactFlowProvider>
+      <LayoutedFlow {...props} />
+    </ReactFlowProvider>
+  )
+}
+
+function LayoutedFlow({
   flatNodes,
   collapsedIds,
   askingNodeId,
@@ -42,10 +61,9 @@ export function WhiteboardCanvas({
   onDeleteNode,
   onToggleCollapse,
 }: WhiteboardCanvasProps) {
-  const { t } = useTranslation()
   const [nodes, setNodes, onNodesChange] = useNodesState<XYNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<XYEdge>([])
-  const fitViewRef = useRef(false)
+  const { fitView } = useReactFlow()
 
   // Listen for custom events from MindmapNode
   useEffect(() => {
@@ -78,7 +96,7 @@ export function WhiteboardCanvas({
     }
   }, [onAddChild, onUpdateNode, onDeleteNode, onToggleCollapse])
 
-  // Synchronous layout — no async, no two-phase, no race conditions
+  // Synchronous layout + auto fitView after every change
   useEffect(() => {
     const { nodes: layoutedNodes, edges: layoutedEdges } = layoutMindmap(
       flatNodes,
@@ -87,8 +105,9 @@ export function WhiteboardCanvas({
     )
     setNodes(layoutedNodes)
     setEdges(layoutedEdges)
-    fitViewRef.current = true
-  }, [flatNodes, collapsedIds, askingNodeId, setNodes, setEdges])
+    // fitView after React renders the new nodes
+    requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }))
+  }, [flatNodes, collapsedIds, askingNodeId, setNodes, setEdges, fitView])
 
   const defaultEdgeOptions = useMemo(() => ({
     style: { stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1.5 },
@@ -96,39 +115,24 @@ export function WhiteboardCanvas({
 
   const proOptions = useMemo(() => ({ hideAttribution: true }), [])
 
-  const onNodeDoubleClick = useCallback((_event: React.MouseEvent, node: { id: string }) => {
-    void node
-  }, [])
-
-  if (flatNodes.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        {t('whiteboard.empty')}
-      </div>
-    )
-  }
-
   return (
-    <ReactFlowProvider>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeDoubleClick={onNodeDoubleClick}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        defaultEdgeOptions={defaultEdgeOptions}
-        proOptions={proOptions}
-        fitView
-        fitViewOptions={{ padding: 0.3 }}
-        minZoom={0.2}
-        maxZoom={2}
-        nodesDraggable={false}
-      >
-        <Background />
-        <Controls showInteractive={false} />
-      </ReactFlow>
-    </ReactFlowProvider>
+    <ReactFlow
+      nodes={nodes}
+      edges={edges}
+      onNodesChange={onNodesChange}
+      onEdgesChange={onEdgesChange}
+      nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
+      defaultEdgeOptions={defaultEdgeOptions}
+      proOptions={proOptions}
+      fitView
+      fitViewOptions={{ padding: 0.3 }}
+      minZoom={0.2}
+      maxZoom={2}
+      nodesDraggable={false}
+    >
+      <Background />
+      <Controls showInteractive={false} />
+    </ReactFlow>
   )
 }

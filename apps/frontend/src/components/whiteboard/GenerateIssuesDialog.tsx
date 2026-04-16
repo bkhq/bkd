@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -39,11 +39,9 @@ export function GenerateIssuesDialog({
 
   // Reset selection when items change
   const itemKey = items.map(i => i.nodeId).join(',')
-  const [lastKey, setLastKey] = useState(itemKey)
-  if (itemKey !== lastKey) {
-    setLastKey(itemKey)
+  useEffect(() => {
     setSelected(new Set(items.map(i => i.nodeId)))
-  }
+  }, [itemKey, items])
 
   const toggleItem = useCallback((nodeId: string) => {
     setSelected((prev) => {

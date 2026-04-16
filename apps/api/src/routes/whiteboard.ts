@@ -471,7 +471,7 @@ whiteboardRoutes.openapi(R.parseWhiteboardResponse, async (c) => {
       return c.json({ success: false, error: 'Project not found' }, 404 as const)
     }
 
-    const { nodeId, issueId } = c.req.valid('json')
+    const { nodeId, issueId, skipInsert } = c.req.valid('json')
 
     // Verify parent node belongs to this project
     const [parentNode] = await db
@@ -499,25 +499,42 @@ whiteboardRoutes.openapi(R.parseWhiteboardResponse, async (c) => {
       return c.json({ success: false, error: 'Issue not found' }, 404 as const)
     }
 
-    // Fetch the latest assistant-message for this issue
-    const [latestLog] = await db
-      .select({ content: issueLogs.content })
+    // Fetch latest visible assistant-messages; filter out hidden meta entries
+    // (metadata.type='system') in application layer since metadata is JSON text.
+    const candidateLogs = await db
+      .select({ content: issueLogs.content, metadata: issueLogs.metadata })
       .from(issueLogs)
       .where(and(
         eq(issueLogs.issueId, issueId),
         eq(issueLogs.entryType, 'assistant-message'),
+        eq(issueLogs.visible, 1),
+        eq(issueLogs.isDeleted, 0),
       ))
       .orderBy(desc(issueLogs.createdAt))
-      .limit(1)
+      .limit(10)
+
+    const latestLog = candidateLogs.find((log) => {
+      if (!log.metadata) return true
+      try {
+        return JSON.parse(log.metadata)?.type !== 'system'
+      } catch {
+        return true
+      }
+    })
 
     if (!latestLog) {
       return c.json({ success: false, error: 'No assistant message found for this issue' }, 404 as const)
     }
 
+    // If skipInsert, return raw content only (for explain/simplify)
+    if (skipInsert) {
+      return c.json({ success: true, data: { nodes: [], rawContent: latestLog.content } }, 200 as const)
+    }
+
     // Parse markdown ## headings into sections
     const sections = parseMarkdownSections(latestLog.content)
     if (sections.length === 0) {
-      return c.json({ success: true, data: [] }, 200 as const)
+      return c.json({ success: true, data: { nodes: [], rawContent: latestLog.content } }, 200 as const)
     }
 
     // Determine sort orders for new children (append after existing children)
@@ -551,7 +568,7 @@ whiteboardRoutes.openapi(R.parseWhiteboardResponse, async (c) => {
       if (row) created.push(row)
     }
 
-    return c.json({ success: true, data: created.map(deserializeRow) }, 200 as const)
+    return c.json({ success: true, data: { nodes: created.map(deserializeRow), rawContent: latestLog.content } }, 200 as const)
   } catch (err) {
     logger.error({ err }, 'whiteboard_parse_response_failed')
     return c.json({ success: false, error: 'Failed to parse whiteboard response' }, 500 as const)

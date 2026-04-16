@@ -1,3 +1,4 @@
+import { updateIssueSession } from '@/engines/engine-store'
 import type { NormalizedLogEntry } from '@/engines/types'
 import { appEvents } from '@/events'
 import { logger } from '@/logger'
@@ -46,6 +47,17 @@ export function persistUserMessage(
   const messageId = (eventData.entry as { messageId?: string }).messageId ?? null
   if (messageId) {
     ctx.userMessageIds.set(`${issueId}:${turnIdx}`, messageId)
+  }
+
+  // Overwrite the issue's stored prompt with the latest user message so that
+  // auto-retry (spawnRetry) replays the most recent input instead of the
+  // original — potentially very long — issue description. Skip for meta-turn
+  // system messages (e.g. auto-title) so they don't pollute the retry prompt.
+  const isMetaSystemTurn = metadata?.type === 'system' && !displayPrompt
+  if (!isMetaSystemTurn) {
+    void updateIssueSession(issueId, { prompt }).catch(err =>
+      logger.warn({ issueId, err }, 'update_issue_prompt_failed'),
+    )
   }
   return messageId
 }

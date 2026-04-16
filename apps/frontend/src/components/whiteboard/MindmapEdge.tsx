@@ -1,30 +1,19 @@
 import type { EdgeProps } from '@xyflow/react'
-import { useNodes } from '@xyflow/react'
 import { memo } from 'react'
 
-const NODE_WIDTH = 360
-
 /**
- * Custom bezier edge that calculates path from node positions directly,
- * bypassing xyflow's handle-based path calculation which requires DOM measurement.
+ * Custom bezier edge that reads source/target positions from edge data
+ * (injected by layoutMindmap), avoiding per-edge useNodes() subscription.
  */
 export const MindmapEdge = memo(({
-  source,
-  target,
+  data,
   style,
 }: EdgeProps) => {
-  const nodes = useNodes()
-  const sourceNode = nodes.find(n => n.id === source)
-  const targetNode = nodes.find(n => n.id === target)
+  const sourceX = (data?.sourceX as number) ?? 0
+  const sourceY = (data?.sourceY as number) ?? 0
+  const targetX = (data?.targetX as number) ?? 0
+  const targetY = (data?.targetY as number) ?? 0
 
-  if (!sourceNode || !targetNode) return null
-
-  const sourceX = sourceNode.position.x + NODE_WIDTH
-  const sourceY = sourceNode.position.y + (sourceNode.measured?.height ?? 80) / 2
-  const targetX = targetNode.position.x
-  const targetY = targetNode.position.y + (targetNode.measured?.height ?? 80) / 2
-
-  // Horizontal distance for control points (creates a smooth S-curve)
   const controlOffset = Math.min(Math.abs(targetX - sourceX) * 0.4, 80)
 
   const path = `M ${sourceX} ${sourceY} C ${sourceX + controlOffset} ${sourceY}, ${targetX - controlOffset} ${targetY}, ${targetX} ${targetY}`

@@ -130,7 +130,7 @@ export function useWhiteboardAsk(projectId: string) {
 export function useParseWhiteboardResponse(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { nodeId: string, issueId: string }) =>
+    mutationFn: (data: { nodeId: string, issueId: string, skipInsert?: boolean }) =>
       kanbanApi.parseWhiteboardResponse(projectId, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: whiteboardKeys.all(projectId) }),
   })

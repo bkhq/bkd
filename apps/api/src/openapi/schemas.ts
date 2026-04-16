@@ -514,7 +514,13 @@ export const WhiteboardAskResponseSchema = z.object({
 export const ParseWhiteboardResponseSchema = z.object({
   nodeId: z.string(),
   issueId: z.string(),
+  skipInsert: z.boolean().optional(),
 }).openapi('ParseWhiteboardResponse')
+
+export const ParseWhiteboardResultSchema = z.object({
+  nodes: z.array(WhiteboardNodeSchema),
+  rawContent: z.string(),
+}).openapi('ParseWhiteboardResult')
 
 export const GenerateIssuesFromNodesSchema = z.object({
   nodeIds: z.array(z.string()).min(1).max(50),
