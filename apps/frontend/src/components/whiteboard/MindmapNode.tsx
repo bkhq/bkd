@@ -135,7 +135,7 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
           {isEditing
             ? (
                 <input
-                  className="flex-1 bg-transparent text-sm font-semibold outline-none border-b border-primary"
+                  className="nodrag flex-1 bg-transparent text-sm font-semibold outline-none border-b border-primary"
                   value={editLabel}
                   onChange={e => setEditLabel(e.target.value)}
                   onBlur={onLabelBlur}
@@ -145,7 +145,7 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
               )
             : (
                 <span
-                  className="flex-1 text-sm font-semibold cursor-text"
+                  className="nodrag flex-1 text-sm font-semibold cursor-text"
                   onDoubleClick={() => setIsEditing(true)}
                 >
                   {data.label || t('whiteboard.untitled')}
@@ -157,7 +157,7 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
         {isEditingContent
           ? (
               <textarea
-                className="mt-2 w-full resize-none bg-transparent text-xs text-muted-foreground outline-none border rounded px-2 py-1 min-h-[56px]"
+                className="nodrag mt-2 w-full resize-none bg-transparent text-xs text-muted-foreground outline-none border rounded px-2 py-1 min-h-[56px]"
                 value={editContent}
                 onChange={e => setEditContent(e.target.value)}
                 onBlur={onContentBlur}
@@ -168,7 +168,7 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
           : data.content
             ? (
                 <div
-                  className="mt-2 text-xs text-muted-foreground cursor-text prose prose-xs dark:prose-invert max-w-none [&_table]:text-xs [&_th]:px-2 [&_td]:px-2 [&_th]:py-1 [&_td]:py-1"
+                  className="nodrag mt-2 text-xs text-muted-foreground cursor-text prose prose-xs dark:prose-invert max-w-none [&_table]:text-xs [&_th]:px-2 [&_td]:px-2 [&_th]:py-1 [&_td]:py-1"
                   onClick={() => {
                     setIsEditingContent(true); setEditContent(data.content)
                   }}
@@ -179,7 +179,7 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
               )
             : (
                 <p
-                  className="mt-2 text-xs text-muted-foreground/40 cursor-text"
+                  className="nodrag mt-2 text-xs text-muted-foreground/40 cursor-text"
                   onClick={() => {
                     setIsEditingContent(true); setEditContent(data.content)
                   }}
@@ -194,7 +194,7 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
         isVisible={selected}
         position={Position.Bottom}
         offset={8}
-        className="flex items-center gap-0.5 rounded-full border bg-background px-1.5 py-1 shadow-md"
+        className="nodrag flex items-center gap-0.5 rounded-full border bg-background px-1.5 py-1 shadow-md"
       >
         <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={onAddChild} title={t('whiteboard.addChild')}>
           <Plus className="h-3.5 w-3.5" />
@@ -223,7 +223,7 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
           type="button"
           onClick={onToggleCollapse}
           className={cn(
-            'absolute -right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5',
+            'nodrag absolute -right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5',
             'rounded-full border bg-background px-1.5 py-0.5 text-xs text-muted-foreground',
             'hover:bg-accent hover:text-foreground transition-colors shadow-sm',
             data.isCollapsed && 'border-primary/40 text-primary',
