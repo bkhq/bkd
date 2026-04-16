@@ -5,13 +5,14 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useEdgesState,
+  useNodesInitialized,
   useNodesState,
   useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { layoutMindmap } from '@/lib/whiteboard-layout'
+import { layoutMindmap, relayoutWithMeasured } from '@/lib/whiteboard-layout'
 import type { WhiteboardNode } from '@/types/kanban'
 import { MindmapNode } from './MindmapNode'
 
@@ -60,7 +61,9 @@ function LayoutedFlow({
 }: WhiteboardCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<XYNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<XYEdge>([])
-  const { fitView, getIntersectingNodes } = useReactFlow()
+  const { fitView, getIntersectingNodes, getNodes } = useReactFlow()
+  const nodesInitialized = useNodesInitialized()
+  const layoutVersionRef = useRef(0)
 
   // Listen for custom events from MindmapNode
   useEffect(() => {
@@ -93,7 +96,7 @@ function LayoutedFlow({
     }
   }, [onAddChild, onUpdateNode, onDeleteNode, onToggleCollapse])
 
-  // Synchronous layout + auto fitView after every change
+  // Phase 1: initial layout with estimated heights
   useEffect(() => {
     const { nodes: layoutedNodes, edges: layoutedEdges } = layoutMindmap(
       flatNodes,
@@ -102,8 +105,22 @@ function LayoutedFlow({
     )
     setNodes(layoutedNodes)
     setEdges(layoutedEdges)
+    layoutVersionRef.current += 1
+  }, [flatNodes, collapsedIds, askingNodeId, setNodes, setEdges])
+
+  // Phase 2: after xyflow measures DOM, re-run dagre with actual heights to fix overlap
+  useEffect(() => {
+    if (!nodesInitialized || nodes.length === 0) return
+    const version = layoutVersionRef.current
+    const measuredNodes = getNodes()
+    // Only re-layout if any measured height differs from position assumptions
+    const relayouted = relayoutWithMeasured(flatNodes, collapsedIds, measuredNodes)
+    // Skip if another update has happened
+    if (layoutVersionRef.current !== version) return
+    setNodes(relayouted)
     requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }))
-  }, [flatNodes, collapsedIds, askingNodeId, setNodes, setEdges, fitView])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodesInitialized, flatNodes, collapsedIds])
 
   const defaultEdgeOptions = useMemo(() => ({
     style: { stroke: 'var(--muted-foreground)', strokeWidth: 1.5, opacity: 0.6 },

@@ -3,20 +3,51 @@ import dagre from 'dagre'
 import type { WhiteboardNode } from '@/types/kanban'
 
 const NODE_WIDTH = 360
+const NODESEP = 60
+const RANKSEP = 100
 
-/** Estimate node height based on content length (for initial layout before DOM measurement). */
+/** Estimate node height from content length (initial pass before DOM measurement). */
 function estimateNodeHeight(node: WhiteboardNode): number {
-  const base = 72 // header + padding
+  const base = 88 // header + padding + bottom spacing
   const content = node.content ?? ''
   if (!content) return base
-  // Rough estimate: ~18px per line, ~50 chars per line at 360px width
-  const lines = content.split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / 50)), 0)
-  return Math.max(base, base + lines * 18)
+  const lines = content.split('\n').reduce(
+    (sum, line) => sum + Math.max(1, Math.ceil(line.length / 50)),
+    0,
+  )
+  return Math.max(base, base + lines * 20)
+}
+
+function buildDagreGraph(
+  visibleNodes: WhiteboardNode[],
+  visibleIds: Set<string>,
+  getHeight: (nodeId: string) => number,
+) {
+  const g = new dagre.graphlib.Graph()
+  g.setGraph({
+    rankdir: 'LR',
+    nodesep: NODESEP,
+    ranksep: RANKSEP,
+    marginx: 20,
+    marginy: 20,
+  })
+  g.setDefaultEdgeLabel(() => ({}))
+
+  for (const n of visibleNodes) {
+    g.setNode(n.id, { width: NODE_WIDTH, height: getHeight(n.id) })
+  }
+  for (const n of visibleNodes) {
+    if (n.parentId && visibleIds.has(n.parentId)) {
+      g.setEdge(n.parentId, n.id)
+    }
+  }
+  dagre.layout(g)
+  return g
 }
 
 /**
- * Synchronous tree layout using dagre.
- * Handles variable node sizes and prevents overlap automatically.
+ * Initial layout using estimated heights.
+ * Used on first render and whenever node topology changes.
  */
 export function layoutMindmap(
   flatNodes: WhiteboardNode[],
@@ -32,33 +63,11 @@ export function layoutMindmap(
   const visibleNodes = collectVisibleNodes(childrenMap, collapsedIds)
   const visibleIds = new Set(visibleNodes.map(n => n.id))
 
-  // Build dagre graph — left-to-right tree layout
-  const g = new dagre.graphlib.Graph()
-  g.setGraph({
-    rankdir: 'LR',
-    nodesep: 24,
-    ranksep: 80,
-    marginx: 20,
-    marginy: 20,
+  const g = buildDagreGraph(visibleNodes, visibleIds, (id) => {
+    const n = nodeMap.get(id)
+    return n ? estimateNodeHeight(n) : 100
   })
-  g.setDefaultEdgeLabel(() => ({}))
 
-  // Add nodes with estimated dimensions
-  for (const n of visibleNodes) {
-    g.setNode(n.id, { width: NODE_WIDTH, height: estimateNodeHeight(n) })
-  }
-
-  // Add edges (parent → child)
-  for (const n of visibleNodes) {
-    if (n.parentId && visibleIds.has(n.parentId)) {
-      g.setEdge(n.parentId, n.id)
-    }
-  }
-
-  dagre.layout(g)
-
-  // Build xyflow nodes with positions from dagre
-  // dagre positions are node centers — convert to top-left
   const xyNodes: Node[] = visibleNodes.map((n) => {
     const children = childrenMap.get(n.id) ?? []
     const parent = n.parentId ? nodeMap.get(n.parentId) : undefined
@@ -82,7 +91,6 @@ export function layoutMindmap(
     }
   })
 
-  // Build edges using xyflow's built-in smoothstep
   const xyEdges: Edge[] = visibleNodes
     .filter(n => n.parentId && visibleIds.has(n.parentId))
     .map(n => ({
@@ -93,6 +101,41 @@ export function layoutMindmap(
     }))
 
   return { nodes: xyNodes, edges: xyEdges }
+}
+
+/**
+ * Re-layout using DOM-measured heights from xyflow's node.measured.
+ * Run after useNodesInitialized becomes true to fix overlap from estimation errors.
+ */
+export function relayoutWithMeasured(
+  flatNodes: WhiteboardNode[],
+  collapsedIds: Set<string>,
+  measuredNodes: Node[],
+): Node[] {
+  if (flatNodes.length === 0 || measuredNodes.length === 0) return measuredNodes
+
+  const childrenMap = buildChildrenMap(flatNodes)
+  const visibleNodes = collectVisibleNodes(childrenMap, collapsedIds)
+  const visibleIds = new Set(visibleNodes.map(n => n.id))
+
+  const measuredMap = new Map(
+    measuredNodes.map(n => [n.id, n.measured?.height ?? 100]),
+  )
+
+  const g = buildDagreGraph(visibleNodes, visibleIds, id => measuredMap.get(id) ?? 100)
+
+  return measuredNodes.map((n) => {
+    const dagreNode = g.node(n.id)
+    if (!dagreNode) return n
+    const height = n.measured?.height ?? dagreNode.height
+    return {
+      ...n,
+      position: {
+        x: dagreNode.x - NODE_WIDTH / 2,
+        y: dagreNode.y - height / 2,
+      },
+    }
+  })
 }
 
 function buildChildrenMap(flatNodes: WhiteboardNode[]) {
