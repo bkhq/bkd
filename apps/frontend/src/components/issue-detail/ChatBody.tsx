@@ -24,6 +24,7 @@ import { useInvalidatePendingMessages, usePendingMessages } from '@/hooks/use-pe
 import { formatFileSize } from '@/lib/format'
 import { kanbanApi } from '@/lib/kanban-api'
 import { STATUS_MAP } from '@/lib/statuses'
+import { useChatFilterStore } from '@/stores/chat-filter-store'
 import type { Issue, NormalizedLogEntry } from '@/types/kanban'
 import { ChatInput } from './ChatInput'
 import { IssueDetail } from './IssueDetail'
@@ -58,6 +59,12 @@ function deriveWorkingStep(logs: NormalizedLogEntry[]): string | null {
 
 // ---------- exported hook (for title bars that need isThinking) ----------
 
+const ONLY_MODE_TYPE_LIST: readonly string[] = [
+  'user-message',
+  'assistant-message',
+  'thinking',
+]
+
 export function useSessionState(
   projectId: string,
   issueId: string | null,
@@ -67,6 +74,9 @@ export function useSessionState(
   const isTodo = issue?.statusId === 'todo'
   const isDone = issue?.statusId === 'done'
   const streamEnabled = hasSession || isTodo || isDone
+
+  const onlyMode = useChatFilterStore(s => s.onlyMode)
+  const streamTypes = onlyMode ? ONLY_MODE_TYPE_LIST : undefined
 
   const {
     logs,
@@ -82,6 +92,7 @@ export function useSessionState(
     issueId: streamEnabled ? issueId : null,
     sessionStatus: issue?.sessionStatus ?? null,
     enabled: !!(issueId && streamEnabled),
+    types: streamTypes,
   })
 
   // Merge SSE-derived status with React Query status for resilience.

@@ -181,13 +181,15 @@
     "pluginSearch": "Search plugins...",
     "noPlugins": "No matching plugins",
     "refreshLogs": "Refresh logs",
+    "onlyMode": "Only mode (user / assistant / thinking)",
+    "onlyModeActive": "Only mode is on — hiding tool calls and system messages",
     "worktree": "Worktree",
     "worktreeBranch": "Branch",
     "worktreePath": "Path",
     "clearSession": "Clear session ID",
     "clearSessionConfirmTitle": "Clear session ID?",
     "clearSessionConfirmDescription": "This will clear the CLI session ID so the next run starts fresh. Use this when the session has grown so large that resume triggers \"Prompt is too long\". The issue history remains intact.",
-    "clearSessionAction": "Clear session"
+    "clearSessionAction": "Reset session ID"
   },
   "diff": {
     "changes": "Changes",
