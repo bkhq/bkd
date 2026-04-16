@@ -132,11 +132,12 @@ export default function WhiteboardPage() {
       // Always call parse-response (fetches latest assistant-message correctly)
       // For explain/simplify: use rawContent to update node content
       // For explore/examples/custom: child nodes are created from ## headings
+      const isContentUpdate = action === 'explain' || action === 'simplify'
       parseResponse.mutate(
-        { nodeId, issueId },
+        { nodeId, issueId, skipInsert: isContentUpdate },
         {
           onSuccess: (result) => {
-            if ((action === 'explain' || action === 'simplify') && result.rawContent) {
+            if (isContentUpdate && result.rawContent) {
               updateNode.mutate({ nodeId, content: result.rawContent })
             }
           },

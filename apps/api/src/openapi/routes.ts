@@ -32,6 +32,7 @@ import {
   IssueSchema,
   NoteSchema,
   ParseWhiteboardResponseSchema,
+  ParseWhiteboardResultSchema,
   ProbeResultSchema,
   ProcessCapacitySchema,
   ProcessInfoSchema,
@@ -1141,7 +1142,7 @@ export const parseWhiteboardResponse = createRoute({
   operationId: 'parseWhiteboardResponse',
   request: { body: { content: { 'application/json': { schema: ParseWhiteboardResponseSchema } } } },
   responses: {
-    200: successResponse(z.array(WhiteboardNodeSchema), 'Created child nodes'),
+    200: successResponse(ParseWhiteboardResultSchema, 'Parsed response with nodes and raw content'),
     404: errorResponse('Project, node, or issue not found'),
     500: errorResponse('Internal error'),
   },

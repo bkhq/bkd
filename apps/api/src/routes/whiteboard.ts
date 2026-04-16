@@ -471,7 +471,7 @@ whiteboardRoutes.openapi(R.parseWhiteboardResponse, async (c) => {
       return c.json({ success: false, error: 'Project not found' }, 404 as const)
     }
 
-    const { nodeId, issueId } = c.req.valid('json')
+    const { nodeId, issueId, skipInsert } = c.req.valid('json')
 
     // Verify parent node belongs to this project
     const [parentNode] = await db
@@ -514,10 +514,14 @@ whiteboardRoutes.openapi(R.parseWhiteboardResponse, async (c) => {
       return c.json({ success: false, error: 'No assistant message found for this issue' }, 404 as const)
     }
 
+    // If skipInsert, return raw content only (for explain/simplify)
+    if (skipInsert) {
+      return c.json({ success: true, data: { nodes: [], rawContent: latestLog.content } }, 200 as const)
+    }
+
     // Parse markdown ## headings into sections
     const sections = parseMarkdownSections(latestLog.content)
     if (sections.length === 0) {
-      // Return raw content so frontend can use it for explain/simplify
       return c.json({ success: true, data: { nodes: [], rawContent: latestLog.content } }, 200 as const)
     }
 
