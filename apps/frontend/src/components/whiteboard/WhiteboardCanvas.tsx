@@ -106,7 +106,7 @@ function LayoutedFlow({
   }, [flatNodes, collapsedIds, askingNodeId, setNodes, setEdges, fitView])
 
   const defaultEdgeOptions = useMemo(() => ({
-    style: { stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1.5 },
+    style: { stroke: 'var(--muted-foreground)', strokeWidth: 1.5, opacity: 0.6 },
     type: 'smoothstep',
   }), [])
 
