@@ -104,11 +104,11 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
   }, [data.id])
 
   return (
-    <div className="relative">
-      {/* Card */}
+    <div className="group relative">
+      {/* Card — content only, no toolbar */}
       <div
         className={cn(
-          'group rounded-lg border bg-card px-4 py-3 shadow-sm transition-shadow',
+          'rounded-lg border bg-card px-4 py-3 shadow-sm transition-shadow',
           'w-[360px]',
           !data.parentId && 'border-primary/30 bg-primary/[0.03]',
           selected && 'ring-2 ring-primary shadow-md',
@@ -172,32 +172,36 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
                   {t('whiteboard.contentPlaceholder')}
                 </p>
               )}
+      </div>
 
-        {/* Toolbar */}
-        <div
-          className="mt-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-          style={{ opacity: selected ? 1 : undefined }}
-        >
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onAddChild} title={t('whiteboard.addChild')}>
-            <Plus className="h-3.5 w-3.5" />
+      {/* Floating toolbar — outside the card, appears on hover/selected */}
+      <div
+        className={cn(
+          'absolute left-1/2 -translate-x-1/2 top-full mt-2',
+          'flex items-center gap-0.5 rounded-full border bg-background px-1.5 py-1 shadow-md',
+          'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity',
+          selected && 'opacity-100 pointer-events-auto',
+        )}
+      >
+        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={onAddChild} title={t('whiteboard.addChild')}>
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
+        <AskAIPopover
+          nodeId={data.id}
+          nodeLabel={data.label}
+          parentLabel={data.parentLabel ?? undefined}
+          childLabels={data.childLabels}
+          isLoading={data.askingNodeId === data.id}
+          onAsk={onAskAI}
+        />
+        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={onGenerateIssues} title={t('whiteboard.generateIssues')}>
+          <ListTodo className="h-3.5 w-3.5" />
+        </Button>
+        {data.parentId !== null && (
+          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full text-destructive hover:text-destructive" onClick={onDelete} title={t('whiteboard.delete')}>
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
-          <AskAIPopover
-            nodeId={data.id}
-            nodeLabel={data.label}
-            parentLabel={data.parentLabel ?? undefined}
-            childLabels={data.childLabels}
-            isLoading={data.askingNodeId === data.id}
-            onAsk={onAskAI}
-          />
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onGenerateIssues} title={t('whiteboard.generateIssues')}>
-            <ListTodo className="h-3.5 w-3.5" />
-          </Button>
-          {data.parentId !== null && (
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={onDelete} title={t('whiteboard.delete')}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Collapse badge — always visible, positioned on the right edge */}
