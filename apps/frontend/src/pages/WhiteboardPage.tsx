@@ -137,7 +137,8 @@ export default function WhiteboardPage() {
         { nodeId, issueId, skipInsert: isContentUpdate },
         {
           onSuccess: (result) => {
-            if (isContentUpdate && result.rawContent) {
+            // Use typeof check so empty string still triggers update
+            if (isContentUpdate && typeof result.rawContent === 'string') {
               updateNode.mutate({ nodeId, content: result.rawContent })
             }
           },

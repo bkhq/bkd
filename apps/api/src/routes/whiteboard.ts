@@ -499,16 +499,28 @@ whiteboardRoutes.openapi(R.parseWhiteboardResponse, async (c) => {
       return c.json({ success: false, error: 'Issue not found' }, 404 as const)
     }
 
-    // Fetch the latest assistant-message for this issue
-    const [latestLog] = await db
-      .select({ content: issueLogs.content })
+    // Fetch latest visible assistant-messages; filter out hidden meta entries
+    // (metadata.type='system') in application layer since metadata is JSON text.
+    const candidateLogs = await db
+      .select({ content: issueLogs.content, metadata: issueLogs.metadata })
       .from(issueLogs)
       .where(and(
         eq(issueLogs.issueId, issueId),
         eq(issueLogs.entryType, 'assistant-message'),
+        eq(issueLogs.visible, 1),
+        eq(issueLogs.isDeleted, 0),
       ))
       .orderBy(desc(issueLogs.createdAt))
-      .limit(1)
+      .limit(10)
+
+    const latestLog = candidateLogs.find((log) => {
+      if (!log.metadata) return true
+      try {
+        return JSON.parse(log.metadata)?.type !== 'system'
+      } catch {
+        return true
+      }
+    })
 
     if (!latestLog) {
       return c.json({ success: false, error: 'No assistant message found for this issue' }, 404 as const)
