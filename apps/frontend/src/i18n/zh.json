@@ -188,7 +188,7 @@
     "clearSession": "清空 Session ID",
     "clearSessionConfirmTitle": "清空 Session ID？",
     "clearSessionConfirmDescription": "这将清空 CLI 的 session ID，下次执行时会开启全新会话。当会话过大导致 resume 时出现 \"Prompt is too long\" 时使用。Issue 历史记录会保留。",
-    "clearSessionAction": "清空会话"
+    "clearSessionAction": "重置 Session ID"
   },
   "diff": {
     "changes": "更改",

@@ -189,7 +189,7 @@
     "clearSession": "Clear session ID",
     "clearSessionConfirmTitle": "Clear session ID?",
     "clearSessionConfirmDescription": "This will clear the CLI session ID so the next run starts fresh. Use this when the session has grown so large that resume triggers \"Prompt is too long\". The issue history remains intact.",
-    "clearSessionAction": "Clear session"
+    "clearSessionAction": "Reset session ID"
   },
   "diff": {
     "changes": "Changes",
