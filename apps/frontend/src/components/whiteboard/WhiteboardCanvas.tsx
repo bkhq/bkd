@@ -49,6 +49,16 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps) {
   )
 }
 
+/** Build structural signature: anything that affects tree topology and triggers re-layout */
+function buildStructureKey(flatNodes: WhiteboardNode[], collapsedIds: Set<string>): string {
+  const structure = flatNodes
+    .map(n => `${n.id}:${n.parentId ?? ''}:${n.sortOrder}`)
+    .sort()
+    .join(',')
+  const collapsed = [...collapsedIds].sort().join(',')
+  return `${structure}|${collapsed}`
+}
+
 function LayoutedFlow({
   flatNodes,
   collapsedIds,
@@ -63,7 +73,9 @@ function LayoutedFlow({
   const [edges, setEdges, onEdgesChange] = useEdgesState<XYEdge>([])
   const { fitView, getIntersectingNodes, getNodes } = useReactFlow()
   const nodesInitialized = useNodesInitialized()
-  const layoutVersionRef = useRef(0)
+  const structureKey = buildStructureKey(flatNodes, collapsedIds)
+  const prevStructureRef = useRef('')
+  const hasFitInitialRef = useRef(false)
 
   // Listen for custom events from MindmapNode
   useEffect(() => {
@@ -96,8 +108,11 @@ function LayoutedFlow({
     }
   }, [onAddChild, onUpdateNode, onDeleteNode, onToggleCollapse])
 
-  // Phase 1: initial layout with estimated heights
+  // Structural layout — only runs when tree structure changes (add/remove/reparent/collapse)
   useEffect(() => {
+    if (prevStructureRef.current === structureKey) return
+    prevStructureRef.current = structureKey
+
     const { nodes: layoutedNodes, edges: layoutedEdges } = layoutMindmap(
       flatNodes,
       collapsedIds,
@@ -105,22 +120,47 @@ function LayoutedFlow({
     )
     setNodes(layoutedNodes)
     setEdges(layoutedEdges)
-    layoutVersionRef.current += 1
-  }, [flatNodes, collapsedIds, askingNodeId, setNodes, setEdges])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [structureKey])
 
-  // Phase 2: after xyflow measures DOM, re-run dagre with actual heights to fix overlap
+  // Patch node data (label/content/icon) in place without re-layout
+  useEffect(() => {
+    setNodes(currentNodes => currentNodes.map((n) => {
+      const fresh = flatNodes.find(f => f.id === n.id)
+      if (!fresh) return n
+      // Keep position; only update data fields that can change without affecting layout
+      return {
+        ...n,
+        data: {
+          ...n.data,
+          label: fresh.label,
+          content: fresh.content,
+          icon: fresh.icon,
+          askingNodeId: askingNodeId ?? null,
+        },
+      }
+    }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flatNodes, askingNodeId])
+
+  // One-shot measured re-layout on structural changes only
+  const measuredVersionRef = useRef('')
   useEffect(() => {
     if (!nodesInitialized || nodes.length === 0) return
-    const version = layoutVersionRef.current
+    if (measuredVersionRef.current === structureKey) return
+    measuredVersionRef.current = structureKey
+
     const measuredNodes = getNodes()
-    // Only re-layout if any measured height differs from position assumptions
     const relayouted = relayoutWithMeasured(flatNodes, collapsedIds, measuredNodes)
-    // Skip if another update has happened
-    if (layoutVersionRef.current !== version) return
     setNodes(relayouted)
-    requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }))
+
+    // Only fitView on first mount to avoid jarring zoom on every edit
+    if (!hasFitInitialRef.current) {
+      hasFitInitialRef.current = true
+      requestAnimationFrame(() => fitView({ padding: 0.3, duration: 400 }))
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodesInitialized, flatNodes, collapsedIds])
+  }, [nodesInitialized, structureKey])
 
   const defaultEdgeOptions = useMemo(() => ({
     style: { stroke: 'var(--muted-foreground)', strokeWidth: 1.5, opacity: 0.6 },
@@ -135,12 +175,11 @@ function LayoutedFlow({
       .filter(n => n.id !== draggedNode.id)
     const dropTarget = intersections[0]
     if (!dropTarget) {
-      // Dropped in empty space — snap back to layout by triggering re-layout
+      // Dropped in empty space — snap back by re-running layout
       const { nodes: relayouted } = layoutMindmap(flatNodes, collapsedIds, askingNodeId)
       setNodes(relayouted)
       return
     }
-    // Prevent circular parent: can't drop a node onto its own descendant
     const draggedId = draggedNode.id
     const targetId = dropTarget.id
     if (isDescendantOf(flatNodes, targetId, draggedId)) {
