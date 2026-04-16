@@ -397,6 +397,18 @@ export function useRestartIssue(projectId: string) {
   })
 }
 
+export function useClearIssueSession(projectId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (issueId: string) => kanbanApi.clearIssueSession(projectId, issueId),
+    onSuccess: (_data, issueId) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.issue(projectId, issueId),
+      })
+    },
+  })
+}
+
 export function useCancelIssue(projectId: string) {
   const queryClient = useQueryClient()
   return useMutation({

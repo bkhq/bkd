@@ -35,8 +35,6 @@ export async function followUpIssue(
     )
     const issue = await getIssueWithSession(issueId)
     if (!issue) throw new Error(`Issue not found: ${issueId}`)
-    if (!issue.sessionFields.externalSessionId)
-      throw new Error('No external session ID for follow-up')
     if (!issue.sessionFields.engineType) throw new Error('No engine type set on issue')
 
     const engineType = issue.sessionFields.engineType

@@ -1,6 +1,7 @@
 import { mkdir, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { findProject, getAppSetting } from '@/db/helpers'
+import { updateIssueSession } from '@/engines/engine-store'
 import { issueEngine } from '@/engines/issue'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
@@ -163,6 +164,55 @@ command.openapi(R.restartIssue, async (c) => {
         error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
       },
       'issue_restart_failed',
+    )
+    return c.json(
+      {
+        success: false,
+        error: 'Operation failed',
+      },
+      400 as const,
+    )
+  }
+})
+
+// POST /api/projects/:projectId/issues/:issueId/clear-session — Clear external
+// session id so the next run starts fresh (used when the CLI session has grown
+// so large that resume triggers "Prompt is too long").
+command.openapi(R.clearIssueSession, async (c) => {
+  const projectId = c.req.param('projectId')!
+  const project = await findProject(projectId)
+  if (!project) {
+    return c.json({ success: false, error: 'Project not found' }, 404 as const)
+  }
+
+  const issueId = c.req.param('issueId')!
+  const issue = await getProjectOwnedIssue(project.id, issueId)
+  if (!issue) {
+    return c.json({ success: false, error: 'Issue not found' }, 404 as const)
+  }
+
+  if (issue.sessionStatus === 'running' || issue.sessionStatus === 'pending') {
+    return c.json(
+      {
+        success: false,
+        error: 'Cancel the active session before clearing its session id',
+      },
+      400 as const,
+    )
+  }
+
+  try {
+    await updateIssueSession(issueId, { externalSessionId: null })
+    logger.info({ projectId: project.id, issueId }, 'issue_session_cleared')
+    return c.json({ success: true, data: { issueId } }, 200 as const)
+  } catch (error) {
+    logger.warn(
+      {
+        projectId: project.id,
+        issueId,
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+      },
+      'issue_clear_session_failed',
     )
     return c.json(
       {

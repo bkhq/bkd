@@ -156,6 +156,7 @@
     "placeholder": "继续处理此任务...",
     "placeholderTodo": "输入消息（将在执行开始时发送）",
     "pendingMessage": "已排队",
+    "pendingCount_other": "{{count}} 条排队消息",
     "doneMessage": "已完成",
     "busyAction": {
       "label": "运行中策略",
@@ -181,7 +182,11 @@
     "refreshLogs": "刷新日志",
     "worktree": "工作树",
     "worktreeBranch": "分支",
-    "worktreePath": "路径"
+    "worktreePath": "路径",
+    "clearSession": "清空 Session ID",
+    "clearSessionConfirmTitle": "清空 Session ID？",
+    "clearSessionConfirmDescription": "这将清空 CLI 的 session ID，下次执行时会开启全新会话。当会话过大导致 resume 时出现 \"Prompt is too long\" 时使用。Issue 历史记录会保留。",
+    "clearSessionAction": "清空会话"
   },
   "diff": {
     "changes": "更改",

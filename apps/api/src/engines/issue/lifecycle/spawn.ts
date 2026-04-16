@@ -253,8 +253,6 @@ export async function spawnFollowUpProcess(
   )
   const issue = await getIssueWithSession(issueId)
   if (!issue) throw new Error(`Issue not found: ${issueId}`)
-  if (!issue.sessionFields.externalSessionId)
-    throw new Error('No external session ID for follow-up')
   if (!issue.sessionFields.engineType) throw new Error('No engine type set on issue')
 
   // Safety guard: kill any existing subprocess for this issue to prevent
@@ -327,17 +325,22 @@ export async function spawnFollowUpProcess(
 
   let spawned: SpawnedProcess
   try {
-    spawned = await spawnWithSessionFallback(executor, issueId, {
+    const baseSpawnOpts = {
       workingDir,
       prompt,
-      sessionId: issue.sessionFields.externalSessionId,
       model: effectiveModel,
       permissionMode: permOptions.permissionMode,
       projectId: issue.projectId,
       envVars: projCtx.envVars,
       systemPrompt: projCtx.systemPrompt,
       agent: acpAgent,
-    })
+    }
+    spawned = issue.sessionFields.externalSessionId
+      ? await spawnWithSessionFallback(executor, issueId, {
+          ...baseSpawnOpts,
+          sessionId: issue.sessionFields.externalSessionId,
+        })
+      : await spawnFresh(executor, issueId, baseSpawnOpts)
   } catch (spawnError) {
     // Spawn failed after we already emitted 'running' and persisted the user
     // message.  Revert the session status so the issue doesn't get stuck in

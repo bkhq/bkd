@@ -156,6 +156,8 @@
     "placeholder": "Continue working on this task...",
     "placeholderTodo": "Type a message (queued until execution starts)",
     "pendingMessage": "Queued",
+    "pendingCount_one": "{{count}} queued message",
+    "pendingCount_other": "{{count}} queued messages",
     "doneMessage": "Completed",
     "busyAction": {
       "label": "Busy strategy",
@@ -181,7 +183,11 @@
     "refreshLogs": "Refresh logs",
     "worktree": "Worktree",
     "worktreeBranch": "Branch",
-    "worktreePath": "Path"
+    "worktreePath": "Path",
+    "clearSession": "Clear session ID",
+    "clearSessionConfirmTitle": "Clear session ID?",
+    "clearSessionConfirmDescription": "This will clear the CLI session ID so the next run starts fresh. Use this when the session has grown so large that resume triggers \"Prompt is too long\". The issue history remains intact.",
+    "clearSessionAction": "Clear session"
   },
   "diff": {
     "changes": "Changes",

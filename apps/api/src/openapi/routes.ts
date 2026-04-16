@@ -400,6 +400,20 @@ export const cancelIssue = createRoute({
   },
 })
 
+export const clearIssueSession = createRoute({
+  method: 'post',
+  path: '/{issueId}/clear-session',
+  tags: ['Issue Commands'],
+  summary: 'Clear external session id so next run starts fresh',
+  operationId: 'clearIssueSession',
+  request: { params: projectIssueParams },
+  responses: {
+    200: successResponse(z.object({ issueId: z.string() }), 'Session cleared'),
+    400: errorResponse('Clear failed'),
+    404: errorResponse('Issue not found'),
+  },
+})
+
 export const getSlashCommands = createRoute({
   method: 'get',
   path: '/{issueId}/slash-commands',

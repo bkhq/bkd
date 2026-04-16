@@ -1,4 +1,5 @@
 import {
+  Eraser,
   FileText,
   FolderOpen,
   Image as ImageIcon,
@@ -11,6 +12,16 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EngineIcon } from '@/components/EngineIcons'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -29,7 +40,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
-import { useEngineAvailability, useEngineSettings, useFollowUpIssue } from '@/hooks/use-kanban'
+import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue } from '@/hooks/use-kanban'
 import { formatFileSize, formatModelName } from '@/lib/format'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { BusyAction, EngineModel, SessionStatus } from '@/types/kanban'
@@ -158,6 +169,8 @@ export function ChatInput({
   const dragCleanupRef = useRef<(() => void) | null>(null)
 
   const followUp = useFollowUpIssue(projectId ?? '')
+  const clearSession = useClearIssueSession(projectId ?? '')
+  const [clearSessionOpen, setClearSessionOpen] = useState(false)
   const changesSummary = useChangesSummary(projectId, issueId ?? undefined)
   const changedCount = changesSummary?.fileCount ?? 0
   const additions = changesSummary?.additions ?? 0
@@ -288,6 +301,17 @@ export function ChatInput({
       return prev.filter((_, i) => i !== index)
     })
   }, [])
+
+  const handleClearSession = async () => {
+    if (!issueId) return
+    try {
+      await clearSession.mutateAsync(issueId)
+      setClearSessionOpen(false)
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : String(err))
+      setTimeout(setSendError, 5000, null)
+    }
+  }
 
   const handleSend = async () => {
     if (!canSend || !issueId || isSendingRef.current) return
@@ -713,20 +737,55 @@ export function ChatInput({
             </Button>
           </div>
 
-          <Button type="button" disabled={!canSend || followUp.isPending} onClick={handleSend}>
-            {followUp.isPending ?
-                (
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 className="size-3.5 animate-spin" />
-                    {t('session.sending')}
-                  </span>
-                ) :
-                (
-                  t('chat.send')
-                )}
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              title={t('chat.clearSession')}
+              disabled={!issueId || isSessionActive || clearSession.isPending}
+              onClick={() => setClearSessionOpen(true)}
+            >
+              <Eraser className="size-4" />
+            </Button>
+            <Button type="button" disabled={!canSend || followUp.isPending} onClick={handleSend}>
+              {followUp.isPending ?
+                  (
+                    <span className="flex items-center gap-1.5">
+                      <Loader2 className="size-3.5 animate-spin" />
+                      {t('session.sending')}
+                    </span>
+                  ) :
+                  (
+                    t('chat.send')
+                  )}
+            </Button>
+          </div>
         </div>
       </div>
+
+      <AlertDialog open={clearSessionOpen} onOpenChange={setClearSessionOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('chat.clearSessionConfirmTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('chat.clearSessionConfirmDescription')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearSession} disabled={clearSession.isPending}>
+              {clearSession.isPending ?
+                  (
+                    <span className="flex items-center gap-1.5">
+                      <Loader2 className="size-3.5 animate-spin" />
+                      {t('chat.clearSessionAction')}
+                    </span>
+                  ) :
+                  (
+                    t('chat.clearSessionAction')
+                  )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* File preview modal — shadcn Dialog */}
       {previewFile ?

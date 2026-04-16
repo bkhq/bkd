@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpToLine, Clock, FileText, Image } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronRight, Clock, FileText, Image } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -188,6 +188,7 @@ export function ChatBody({
   // Always fetch pending messages independently of stream state
   const { data: serverPendingMessages } = usePendingMessages(projectId, issueId)
   const invalidatePending = useInvalidatePendingMessages()
+  const [pendingCollapsed, setPendingCollapsed] = useState(false)
 
   const handleEditPending = useCallback(async (messageId: string) => {
     try {
@@ -328,7 +329,22 @@ export function ChatBody({
 
       {/* Pending messages — reuses user-message styling from LogEntry */}
       {serverPendingMessages && serverPendingMessages.length > 0 && (
-        <div className="px-4 py-2 space-y-1">
+        <div className="px-4 pt-2">
+          <button
+            type="button"
+            onClick={() => setPendingCollapsed(v => !v)}
+            className="w-full flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/50 transition-colors"
+          >
+            {pendingCollapsed
+              ? <ChevronRight className="h-3 w-3" />
+              : <ChevronDown className="h-3 w-3" />}
+            <Clock className="h-2.5 w-2.5 text-amber-500/70" />
+            <span>{t('chat.pendingCount', { count: serverPendingMessages.length })}</span>
+          </button>
+        </div>
+      )}
+      {serverPendingMessages && serverPendingMessages.length > 0 && !pendingCollapsed && (
+        <div className="px-4 pb-2 pt-1 space-y-1 max-h-[30vh] overflow-y-auto">
           {serverPendingMessages.map((msg) => {
             const isDone = msg.metadata?.type === 'done'
             const barColor = isDone

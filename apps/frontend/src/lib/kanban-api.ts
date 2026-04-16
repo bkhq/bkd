@@ -341,6 +341,12 @@ export const kanbanApi = {
   restartIssue: (projectId: string, issueId: string) =>
     post<ExecuteIssueResponse>(`/api/projects/${projectId}/issues/${issueId}/restart`, {}),
 
+  clearIssueSession: (projectId: string, issueId: string) =>
+    post<{ issueId: string }>(
+      `/api/projects/${projectId}/issues/${issueId}/clear-session`,
+      {},
+    ),
+
   deletePendingMessage: (projectId: string, issueId: string, messageId: string) =>
     del<{
       id: string
