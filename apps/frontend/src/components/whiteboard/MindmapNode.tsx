@@ -1,4 +1,4 @@
-import { Handle, Position } from '@xyflow/react'
+import { Handle, NodeToolbar, Position } from '@xyflow/react'
 import { ChevronRight, ListTodo, Plus, Trash2 } from 'lucide-react'
 import { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -189,36 +189,33 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
               )}
       </div>
 
-      {/* Floating toolbar — outside the card, appears on hover/selected */}
-      <div
-        className={cn(
-          'absolute left-1/2 -translate-x-1/2 top-full pt-2',
-          'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity',
-          selected && 'opacity-100 pointer-events-auto',
-        )}
+      {/* Floating toolbar — xyflow NodeToolbar renders to viewport, not clipped by siblings */}
+      <NodeToolbar
+        isVisible={selected}
+        position={Position.Bottom}
+        offset={8}
+        className="flex items-center gap-0.5 rounded-full border bg-background px-1.5 py-1 shadow-md"
       >
-        <div className="flex items-center gap-0.5 rounded-full border bg-background px-1.5 py-1 shadow-md">
-          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={onAddChild} title={t('whiteboard.addChild')}>
-            <Plus className="h-3.5 w-3.5" />
+        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={onAddChild} title={t('whiteboard.addChild')}>
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
+        <AskAIPopover
+          nodeId={data.id}
+          nodeLabel={data.label}
+          parentLabel={data.parentLabel ?? undefined}
+          childLabels={data.childLabels}
+          isLoading={data.askingNodeId === data.id}
+          onAsk={onAskAI}
+        />
+        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={onGenerateIssues} title={t('whiteboard.generateIssues')}>
+          <ListTodo className="h-3.5 w-3.5" />
+        </Button>
+        {data.parentId !== null && (
+          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full text-destructive hover:text-destructive" onClick={onDelete} title={t('whiteboard.delete')}>
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
-          <AskAIPopover
-            nodeId={data.id}
-            nodeLabel={data.label}
-            parentLabel={data.parentLabel ?? undefined}
-            childLabels={data.childLabels}
-            isLoading={data.askingNodeId === data.id}
-            onAsk={onAskAI}
-          />
-          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={onGenerateIssues} title={t('whiteboard.generateIssues')}>
-            <ListTodo className="h-3.5 w-3.5" />
-          </Button>
-          {data.parentId !== null && (
-            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full text-destructive hover:text-destructive" onClick={onDelete} title={t('whiteboard.delete')}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
-        </div>
-      </div>
+        )}
+      </NodeToolbar>
 
       {/* Collapse badge — always visible, positioned on the right edge */}
       {data.hasChildren && (
