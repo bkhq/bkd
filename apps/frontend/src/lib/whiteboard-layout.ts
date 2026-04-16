@@ -1,25 +1,22 @@
 import type { Edge, Node } from '@xyflow/react'
+import dagre from 'dagre'
 import type { WhiteboardNode } from '@/types/kanban'
 
 const NODE_WIDTH = 360
-const NODE_HEIGHT_MIN = 80
-const H_GAP = 80
-const V_GAP = 24
 
-/** Estimate node height based on content length. */
+/** Estimate node height based on content length (for initial layout before DOM measurement). */
 function estimateNodeHeight(node: WhiteboardNode): number {
-  // Header: ~32px, toolbar: ~28px, padding: ~24px = ~84px base
-  const base = 84
+  const base = 72 // header + padding
   const content = node.content ?? ''
-  if (!content) return NODE_HEIGHT_MIN
+  if (!content) return base
   // Rough estimate: ~18px per line, ~50 chars per line at 360px width
   const lines = content.split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / 50)), 0)
-  return Math.max(NODE_HEIGHT_MIN, base + lines * 18)
+  return Math.max(base, base + lines * 18)
 }
 
 /**
- * Synchronous tree layout — computes positions and edges in one pass.
- * No elkjs, no async, no two-phase rendering needed.
+ * Synchronous tree layout using dagre.
+ * Handles variable node sizes and prevents overlap automatically.
  */
 export function layoutMindmap(
   flatNodes: WhiteboardNode[],
@@ -35,77 +32,44 @@ export function layoutMindmap(
   const visibleNodes = collectVisibleNodes(childrenMap, collapsedIds)
   const visibleIds = new Set(visibleNodes.map(n => n.id))
 
-  // Build visible children map (only visible nodes)
-  const visibleChildrenMap = new Map<string, WhiteboardNode[]>()
+  // Build dagre graph — left-to-right tree layout
+  const g = new dagre.graphlib.Graph()
+  g.setGraph({
+    rankdir: 'LR',
+    nodesep: 24,
+    ranksep: 80,
+    marginx: 20,
+    marginy: 20,
+  })
+  g.setDefaultEdgeLabel(() => ({}))
+
+  // Add nodes with estimated dimensions
   for (const n of visibleNodes) {
-    if (!n.parentId || !visibleIds.has(n.parentId)) continue
-    const list = visibleChildrenMap.get(n.parentId)
-    if (list) list.push(n)
-    else visibleChildrenMap.set(n.parentId, [n])
+    g.setNode(n.id, { width: NODE_WIDTH, height: estimateNodeHeight(n) })
   }
 
-  // Pre-compute estimated heights for each node based on content
-  const nodeHeight = new Map<string, number>()
+  // Add edges (parent → child)
   for (const n of visibleNodes) {
-    nodeHeight.set(n.id, estimateNodeHeight(n))
-  }
-
-  // Compute subtree heights (bottom-up) for vertical centering
-  const subtreeHeight = new Map<string, number>()
-  function getSubtreeHeight(id: string): number {
-    const cached = subtreeHeight.get(id)
-    if (cached !== undefined) return cached
-    const selfHeight = nodeHeight.get(id) ?? NODE_HEIGHT_MIN
-    const children = visibleChildrenMap.get(id)
-    if (!children || children.length === 0) {
-      subtreeHeight.set(id, selfHeight)
-      return selfHeight
-    }
-    const totalChildHeight = children.reduce((sum, c) => sum + getSubtreeHeight(c.id), 0)
-      + (children.length - 1) * V_GAP
-    const height = Math.max(selfHeight, totalChildHeight)
-    subtreeHeight.set(id, height)
-    return height
-  }
-
-  // Compute positions (root at left, children to the right)
-  const positions = new Map<string, { x: number, y: number }>()
-  const roots = visibleNodes.filter(n => !n.parentId || !visibleIds.has(n.parentId))
-
-  // Layout each root tree
-  let rootY = 0
-  for (const root of roots) {
-    layoutSubtree(root.id, 0, rootY, getSubtreeHeight(root.id))
-    rootY += getSubtreeHeight(root.id) + V_GAP * 2
-  }
-
-  function layoutSubtree(nodeId: string, x: number, yStart: number, availableHeight: number) {
-    const selfHeight = nodeHeight.get(nodeId) ?? NODE_HEIGHT_MIN
-    // Center this node vertically in its available space
-    const y = yStart + (availableHeight - selfHeight) / 2
-    positions.set(nodeId, { x, y })
-
-    const children = visibleChildrenMap.get(nodeId)
-    if (!children || children.length === 0) return
-
-    const childX = x + NODE_WIDTH + H_GAP
-    let childY = yStart
-    for (const child of children) {
-      const childHeight = getSubtreeHeight(child.id)
-      layoutSubtree(child.id, childX, childY, childHeight)
-      childY += childHeight + V_GAP
+    if (n.parentId && visibleIds.has(n.parentId)) {
+      g.setEdge(n.parentId, n.id)
     }
   }
 
-  // Build xyflow nodes
+  dagre.layout(g)
+
+  // Build xyflow nodes with positions from dagre
+  // dagre positions are node centers — convert to top-left
   const xyNodes: Node[] = visibleNodes.map((n) => {
     const children = childrenMap.get(n.id) ?? []
     const parent = n.parentId ? nodeMap.get(n.parentId) : undefined
-    const pos = positions.get(n.id) ?? { x: 0, y: 0 }
+    const dagreNode = g.node(n.id)
+    const position = dagreNode
+      ? { x: dagreNode.x - NODE_WIDTH / 2, y: dagreNode.y - dagreNode.height / 2 }
+      : { x: 0, y: 0 }
     return {
       id: n.id,
       type: 'mindmapNode',
-      position: pos,
+      position,
       data: {
         ...n,
         hasChildren: children.length > 0,
@@ -118,27 +82,15 @@ export function layoutMindmap(
     }
   })
 
-  // Build edges with pre-computed positions (avoids per-edge useNodes subscription)
+  // Build edges using xyflow's built-in smoothstep
   const xyEdges: Edge[] = visibleNodes
     .filter(n => n.parentId && visibleIds.has(n.parentId))
-    .map((n) => {
-      const sourcePos = positions.get(n.parentId!) ?? { x: 0, y: 0 }
-      const targetPos = positions.get(n.id) ?? { x: 0, y: 0 }
-      const sourceH = nodeHeight.get(n.parentId!) ?? NODE_HEIGHT_MIN
-      const targetH = nodeHeight.get(n.id) ?? NODE_HEIGHT_MIN
-      return {
-        id: `e-${n.parentId}-${n.id}`,
-        source: n.parentId!,
-        target: n.id,
-        type: 'mindmapEdge',
-        data: {
-          sourceX: sourcePos.x + NODE_WIDTH,
-          sourceY: sourcePos.y + sourceH / 2,
-          targetX: targetPos.x,
-          targetY: targetPos.y + targetH / 2,
-        },
-      }
-    })
+    .map(n => ({
+      id: `e-${n.parentId}-${n.id}`,
+      source: n.parentId!,
+      target: n.id,
+      type: 'smoothstep',
+    }))
 
   return { nodes: xyNodes, edges: xyEdges }
 }

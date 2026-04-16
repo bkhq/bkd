@@ -1,3 +1,4 @@
+import { Handle, Position } from '@xyflow/react'
 import { ChevronRight, ListTodo, Plus, Trash2 } from 'lucide-react'
 import { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -108,12 +109,26 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
       {/* Card — content only, no toolbar */}
       <div
         className={cn(
-          'rounded-lg border bg-card px-4 py-3 shadow-sm transition-shadow',
+          'relative rounded-lg border bg-card px-4 py-3 shadow-sm transition-shadow',
           'w-[360px]',
           !data.parentId && 'border-primary/30 bg-primary/[0.03]',
           selected && 'ring-2 ring-primary shadow-md',
         )}
       >
+        {/* Handles — xyflow uses these as edge connection points */}
+        {data.parentId !== null && (
+          <Handle
+            type="target"
+            position={Position.Left}
+            className="!w-2 !h-2 !bg-muted-foreground/40 !border-none"
+          />
+        )}
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="!w-2 !h-2 !bg-muted-foreground/40 !border-none"
+        />
+
         {/* Header */}
         <div className="flex items-center gap-2">
           {data.icon && <span className="text-base shrink-0">{data.icon}</span>}

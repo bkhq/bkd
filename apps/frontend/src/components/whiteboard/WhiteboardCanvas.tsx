@@ -1,4 +1,4 @@
-import type { EdgeTypes, NodeTypes, Edge as XYEdge, Node as XYNode } from '@xyflow/react'
+import type { NodeTypes, Edge as XYEdge, Node as XYNode } from '@xyflow/react'
 import {
   Background,
   Controls,
@@ -9,19 +9,14 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { layoutMindmap } from '@/lib/whiteboard-layout'
 import type { WhiteboardNode } from '@/types/kanban'
-import { MindmapEdge } from './MindmapEdge'
 import { MindmapNode } from './MindmapNode'
 
 const nodeTypes: NodeTypes = {
   mindmapNode: MindmapNode,
-}
-
-const edgeTypes: EdgeTypes = {
-  mindmapEdge: MindmapEdge,
 }
 
 interface WhiteboardCanvasProps {
@@ -32,6 +27,7 @@ interface WhiteboardCanvasProps {
   onUpdateNode: (nodeId: string, data: Record<string, unknown>) => void
   onDeleteNode: (nodeId: string) => void
   onToggleCollapse: (nodeId: string, isCollapsed: boolean) => void
+  onReparent: (nodeId: string, newParentId: string) => void
 }
 
 export function WhiteboardCanvas(props: WhiteboardCanvasProps) {
@@ -60,10 +56,11 @@ function LayoutedFlow({
   onUpdateNode,
   onDeleteNode,
   onToggleCollapse,
+  onReparent,
 }: WhiteboardCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<XYNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<XYEdge>([])
-  const { fitView } = useReactFlow()
+  const { fitView, getIntersectingNodes } = useReactFlow()
 
   // Listen for custom events from MindmapNode
   useEffect(() => {
@@ -105,15 +102,37 @@ function LayoutedFlow({
     )
     setNodes(layoutedNodes)
     setEdges(layoutedEdges)
-    // fitView after React renders the new nodes
     requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }))
   }, [flatNodes, collapsedIds, askingNodeId, setNodes, setEdges, fitView])
 
   const defaultEdgeOptions = useMemo(() => ({
     style: { stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1.5 },
+    type: 'smoothstep',
   }), [])
 
   const proOptions = useMemo(() => ({ hideAttribution: true }), [])
+
+  // Drag-to-reparent: when a node is dropped on another, reparent it.
+  const onNodeDragStop = useCallback((_e: React.MouseEvent, draggedNode: XYNode) => {
+    const intersections = getIntersectingNodes(draggedNode)
+      .filter(n => n.id !== draggedNode.id)
+    const dropTarget = intersections[0]
+    if (!dropTarget) {
+      // Dropped in empty space — snap back to layout by triggering re-layout
+      const { nodes: relayouted } = layoutMindmap(flatNodes, collapsedIds, askingNodeId)
+      setNodes(relayouted)
+      return
+    }
+    // Prevent circular parent: can't drop a node onto its own descendant
+    const draggedId = draggedNode.id
+    const targetId = dropTarget.id
+    if (isDescendantOf(flatNodes, targetId, draggedId)) {
+      const { nodes: relayouted } = layoutMindmap(flatNodes, collapsedIds, askingNodeId)
+      setNodes(relayouted)
+      return
+    }
+    onReparent(draggedId, targetId)
+  }, [getIntersectingNodes, onReparent, flatNodes, collapsedIds, askingNodeId, setNodes])
 
   return (
     <ReactFlow
@@ -121,18 +140,31 @@ function LayoutedFlow({
       edges={edges}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
+      onNodeDragStop={onNodeDragStop}
       nodeTypes={nodeTypes}
-      edgeTypes={edgeTypes}
       defaultEdgeOptions={defaultEdgeOptions}
       proOptions={proOptions}
       fitView
       fitViewOptions={{ padding: 0.3 }}
       minZoom={0.2}
       maxZoom={2}
-      nodesDraggable={false}
+      nodesDraggable
     >
       <Background />
       <Controls showInteractive={false} />
     </ReactFlow>
   )
+}
+
+/** Check if `candidateAncestor` is an ancestor of `nodeId` in the tree. */
+function isDescendantOf(flatNodes: WhiteboardNode[], nodeId: string, candidateAncestor: string): boolean {
+  const nodeMap = new Map(flatNodes.map(n => [n.id, n]))
+  const visited = new Set<string>()
+  let current = nodeMap.get(nodeId)
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id)
+    if (current.parentId === candidateAncestor) return true
+    current = current.parentId ? nodeMap.get(current.parentId) : undefined
+  }
+  return false
 }

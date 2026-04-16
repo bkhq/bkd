@@ -308,6 +308,7 @@ export default function WhiteboardPage() {
             onUpdateNode={onUpdateNode}
             onDeleteNode={onDeleteNode}
             onToggleCollapse={onToggleCollapse}
+            onReparent={(nodeId, newParentId) => updateNode.mutate({ nodeId, parentId: newParentId })}
           />
         </div>
         {chatPanelOpen && boundIssueId && (
