@@ -10,6 +10,12 @@ interface UseIssueStreamOptions {
   issueId: string | null
   sessionStatus?: SessionStatus | null
   enabled?: boolean
+  /**
+   * Server-side entry-type filter. When set, the initial fetch and
+   * load-older pagination use /logs/filter/types/..., and incoming SSE
+   * events are filtered client-side to the same set.
+   */
+  types?: readonly string[]
 }
 
 interface UseIssueStreamReturn {
@@ -81,7 +87,16 @@ export function useIssueStream({
   issueId,
   sessionStatus: externalStatus,
   enabled = true,
+  types,
 }: UseIssueStreamOptions): UseIssueStreamReturn {
+  // Stable identity: re-memoizes only when the set of types actually changes.
+  const typesKey = types && types.length > 0 ? types.toSorted().join(',') : ''
+  const typesFilter = useMemo(
+    () => (typesKey ? typesKey.split(',') : undefined),
+    [typesKey],
+  )
+  const typesSetRef = useRef<Set<string> | null>(null)
+  typesSetRef.current = typesFilter ? new Set(typesFilter) : null
   // Live logs: initial load + SSE entries, capped at MAX_LIVE_LOGS
   const [liveLogs, setLiveLogs] = useState<NormalizedLogEntry[]>([])
   // Older logs: loaded via "Load More", no cap (user-initiated)
@@ -292,7 +307,7 @@ export function useIssueStream({
     setIsLoadingOlder(true)
 
     kanbanApi
-      .getIssueLogs(projectId, issueId, { before: olderCursorRef.current })
+      .getIssueLogs(projectId, issueId, { before: olderCursorRef.current, types: typesFilter })
       .then((data) => {
         if (!data.logs.length) {
           setHasOlderLogs(false)
@@ -318,7 +333,7 @@ export function useIssueStream({
       .finally(() => {
         setIsLoadingOlder(false)
       })
-  }, [projectId, issueId, isLoadingOlder])
+  }, [projectId, issueId, isLoadingOlder, typesFilter])
 
   useEffect(() => {
     if (!issueId || !enabled) {
@@ -328,13 +343,13 @@ export function useIssueStream({
       return
     }
 
-    const scope = `${projectId}:${issueId}`
+    const scope = `${projectId}:${issueId}:${typesKey}`
     if (streamScopeRef.current !== scope) {
       streamScopeRef.current = scope
       setSessionStatus(externalStatus ?? null)
       clearLogs()
     }
-  }, [projectId, issueId, enabled, clearLogs, externalStatus])
+  }, [projectId, issueId, enabled, clearLogs, externalStatus, typesKey])
 
   useEffect(() => {
     if (!issueId || !enabled) return
@@ -352,11 +367,11 @@ export function useIssueStream({
   useEffect(() => {
     if (!issueId || !enabled) return
 
-    const scope = `${projectId}:${issueId}`
+    const scope = `${projectId}:${issueId}:${typesKey}`
     let cancelled = false
 
     kanbanApi
-      .getIssueLogs(projectId, issueId)
+      .getIssueLogs(projectId, issueId, typesFilter ? { types: typesFilter } : undefined)
       .then((data) => {
         if (cancelled || streamScopeRef.current !== scope) return
 
@@ -405,7 +420,9 @@ export function useIssueStream({
     // race: the HTTP response can overwrite SSE entries that arrived between
     // the request and response, making messages appear/disappear/reappear.
     // refreshCounter is included so that refreshLogs() can trigger a re-fetch.
-  }, [projectId, issueId, enabled, markSeen, _refreshCounter])
+    // typesKey / typesFilter are included so that toggling the server-side
+    // filter invalidates both scope and this effect.
+  }, [projectId, issueId, enabled, markSeen, _refreshCounter, typesKey, typesFilter])
 
   // Subscribe to live SSE events for this issue.
   useEffect(() => {
@@ -420,9 +437,16 @@ export function useIssueStream({
         // Always allow error messages through even after done (race: stderr
         // entries may arrive after the terminal state event)
         if (doneReceivedRef.current && entry.entryType !== 'error-message') return
+        // Respect server-side types filter: drop SSE events whose type is not
+        // in the active filter set. Without this, live events would bypass the
+        // filter and contaminate the 500-entry live cap with hidden entries.
+        const allowed = typesSetRef.current
+        if (allowed && !allowed.has(entry.entryType)) return
         appendEntry(entry)
       },
       onLogUpdated: (entry) => {
+        const allowed = typesSetRef.current
+        if (allowed && !allowed.has(entry.entryType)) return
         upsertEntry(entry)
       },
       onLogRemoved: (messageIds) => {

@@ -180,6 +180,8 @@
     "pluginSearch": "搜索插件...",
     "noPlugins": "没有匹配的插件",
     "refreshLogs": "刷新日志",
+    "onlyMode": "精简模式（仅用户 / 助手 / 思考）",
+    "onlyModeActive": "精简模式已开启 — 隐藏工具调用与系统消息",
     "worktree": "工作树",
     "worktreeBranch": "分支",
     "worktreePath": "路径",

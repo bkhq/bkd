@@ -181,6 +181,8 @@
     "pluginSearch": "Search plugins...",
     "noPlugins": "No matching plugins",
     "refreshLogs": "Refresh logs",
+    "onlyMode": "Only mode (user / assistant / thinking)",
+    "onlyModeActive": "Only mode is on — hiding tool calls and system messages",
     "worktree": "Worktree",
     "worktreeBranch": "Branch",
     "worktreePath": "Path",

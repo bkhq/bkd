@@ -381,16 +381,19 @@ export const kanbanApi = {
   getIssueLogs: (
     projectId: string,
     issueId: string,
-    opts?: { before?: string, cursor?: string, limit?: number },
+    opts?: { before?: string, cursor?: string, limit?: number, types?: readonly string[] },
   ) => {
     const params = new URLSearchParams()
     if (opts?.before) params.set('before', opts.before)
     if (opts?.cursor) params.set('cursor', opts.cursor)
     if (opts?.limit) params.set('limit', String(opts.limit))
     const qs = params.toString()
-    return get<IssueLogsResponse>(
-      `/api/projects/${projectId}/issues/${issueId}/logs${qs ? `?${qs}` : ''}`,
-    )
+    const base = `/api/projects/${projectId}/issues/${issueId}/logs`
+    const filterSegment =
+      opts?.types && opts.types.length > 0
+        ? `/filter/types/${opts.types.join(',')}`
+        : ''
+    return get<IssueLogsResponse>(`${base}${filterSegment}${qs ? `?${qs}` : ''}`)
   },
   getSlashCommands: (projectId: string, issueId: string) =>
     get<CategorizedCommands>(`/api/projects/${projectId}/issues/${issueId}/slash-commands`),
