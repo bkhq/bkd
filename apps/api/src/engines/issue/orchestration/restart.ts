@@ -131,7 +131,6 @@ export async function restartIssue(
       line => normalizer.parse(line),
       turnIndex,
       worktreePath,
-      false,
       () => handleTurnCompleted(ctx, issueId, executionId),
       worktreePath ? baseDir : undefined,
       workingDir,

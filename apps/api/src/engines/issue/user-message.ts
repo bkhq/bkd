@@ -20,19 +20,12 @@ export function persistUserMessage(
   metadata?: Record<string, unknown>,
 ): string | null {
   const turnIdx = ctx.turnIndexes.get(executionId) ?? 0
-  // When displayPrompt is provided on a meta turn, the user wants this message visible.
-  // Strip type:'system' so isVisible() won't hide it.
-  let entryMeta = metadata
-  if (displayPrompt && metadata?.type === 'system') {
-    const { type: _type, ...rest } = metadata
-    entryMeta = Object.keys(rest).length > 0 ? rest : undefined
-  }
   const entry: NormalizedLogEntry = {
     entryType: 'user-message',
     content: (displayPrompt ?? prompt).trim(),
     turnIndex: turnIdx,
     timestamp: new Date().toISOString(),
-    ...(entryMeta ? { metadata: entryMeta } : {}),
+    ...(metadata ? { metadata } : {}),
   }
 
   // Emit through pipeline — handles DB persist (order 10), ring buffer (order 20),
@@ -51,14 +44,10 @@ export function persistUserMessage(
 
   // Overwrite the issue's stored prompt with the latest user message so that
   // auto-retry (spawnRetry) replays the most recent input instead of the
-  // original — potentially very long — issue description. Skip for meta-turn
-  // system messages (e.g. meta follow-ups) so they don't pollute the retry prompt.
-  const isMetaSystemTurn = metadata?.type === 'system' && !displayPrompt
-  if (!isMetaSystemTurn) {
-    void updateIssueSession(issueId, { prompt }).catch(err =>
-      logger.warn({ issueId, err }, 'update_issue_prompt_failed'),
-    )
-  }
+  // original — potentially very long — issue description.
+  void updateIssueSession(issueId, { prompt }).catch(err =>
+    logger.warn({ issueId, err }, 'update_issue_prompt_failed'),
+  )
   return messageId
 }
 
@@ -90,10 +79,7 @@ export function sendInputToRunningProcess(
   const nextTurn = getNextTurnIndex(issueId)
   ctx.turnIndexes.set(managed.executionId, nextTurn)
 
-  dispatch(managed, {
-    type: 'START_TURN',
-    metaTurn: metadata?.type === 'system',
-  })
+  dispatch(managed, { type: 'START_TURN' })
   // Emit running state BEFORE user message so the frontend resets doneReceivedRef
   // and accepts the subsequent user message SSE event.
   emitStateChange(issueId, managed.executionId, 'running')
@@ -108,7 +94,6 @@ export function sendInputToRunningProcess(
       executionId: managed.executionId,
       pid: getPidFromManaged(managed),
       promptChars: prompt.length,
-      metaTurn: managed.metaTurn,
     },
     'issue_process_input_sent',
   )

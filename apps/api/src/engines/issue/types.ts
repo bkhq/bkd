@@ -29,11 +29,6 @@ export interface ManagedProcess {
    *  from re-settling on exit, and is reset when a new turn starts.
    */
   turnSettled: boolean
-  /**
-   * True when the current turn was initiated by a meta (system) follow-up.
-   *  All log entries in this turn will be tagged with `type: 'system'` and hidden by isVisible().
-   */
-  metaTurn: boolean
   slashCommands: string[]
   agents: string[]
   plugins: Array<{ name: string, path: string }>

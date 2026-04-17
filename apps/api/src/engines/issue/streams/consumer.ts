@@ -97,11 +97,6 @@ export async function consumeStream(
           })
         }
 
-        // Tag all entries in a meta turn so they are hidden from the frontend
-        if (managed.metaTurn) {
-          entry.metadata = { ...entry.metadata, type: 'system' }
-        }
-
         // Claude may emit execution noise after interrupt (e.g. request aborted /
         // rust-analyzer crash). Suppress noise entries within 5s of the last interrupt.
         const recentInterrupt =

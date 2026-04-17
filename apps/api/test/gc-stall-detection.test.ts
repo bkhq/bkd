@@ -48,7 +48,6 @@ function makeManagedProcess(
     queueCancelRequested: false,
     logicalFailure: false,
     turnSettled: false,
-    metaTurn: false,
     keepAlive: false,
     lastActivityAt: new Date(),
     slashCommands: [],

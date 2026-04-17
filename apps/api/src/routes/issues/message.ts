@@ -46,7 +46,6 @@ async function parseFollowUpBody(c: {
     model?: string
     permissionMode?: string
     busyAction?: string
-    meta?: boolean
     displayPrompt?: string
     files: File[]
   } |
@@ -62,7 +61,6 @@ async function parseFollowUpBody(c: {
     const model = fd.get('model')
     const permissionMode = fd.get('permissionMode')
     const busyAction = fd.get('busyAction')
-    const meta = fd.get('meta')
     const displayPrompt = fd.get('displayPrompt')
     const files: File[] = []
     for (const entry of fd.getAll('files')) {
@@ -95,7 +93,6 @@ async function parseFollowUpBody(c: {
       model: typeof model === 'string' ? model : undefined,
       permissionMode: typeof permissionMode === 'string' ? permissionMode : undefined,
       busyAction: typeof busyAction === 'string' ? busyAction : undefined,
-      meta: meta === 'true' || meta === '1' ? true : undefined,
       displayPrompt: typeof displayPrompt === 'string' ? displayPrompt : undefined,
       files,
     }
@@ -271,7 +268,7 @@ message.post('/:id/follow-up', async (c) => {
     const isCommand = firstWord.startsWith('/') && knownCommands.includes(firstWord)
     const followUpMeta: Record<string, unknown> = {
       ...attachmentsMeta,
-      ...(parsed.meta ? { type: 'system' } : isCommand ? { type: 'command' } : {}),
+      ...(isCommand ? { type: 'command' } : {}),
     }
     const hasFollowUpMeta = Object.keys(followUpMeta).length > 0
     const result = await issueEngine.followUpIssue(

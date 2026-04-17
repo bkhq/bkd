@@ -82,7 +82,6 @@ describe('turn completion pending-flush regression', () => {
       queueCancelRequested: false,
       logicalFailure: false,
       turnSettled: false,
-      metaTurn: false,
       slashCommands: [],
       agents: [],
       plugins: [],

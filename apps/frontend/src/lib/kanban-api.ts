@@ -302,7 +302,6 @@ export const kanbanApi = {
     permissionMode?: PermissionMode
     busyAction?: BusyAction
     files?: File[]
-    meta?: boolean
     displayPrompt?: string
   }) => {
     if (opts.files && opts.files.length > 0) {
@@ -311,7 +310,6 @@ export const kanbanApi = {
       if (opts.model) fd.append('model', opts.model)
       if (opts.permissionMode) fd.append('permissionMode', opts.permissionMode)
       if (opts.busyAction) fd.append('busyAction', opts.busyAction)
-      if (opts.meta) fd.append('meta', 'true')
       if (opts.displayPrompt) fd.append('displayPrompt', opts.displayPrompt)
       for (const file of opts.files) fd.append('files', file)
       return postFormData<ExecuteIssueResponse>(
@@ -326,7 +324,6 @@ export const kanbanApi = {
         ...(opts.model ? { model: opts.model } : {}),
         ...(opts.permissionMode ? { permissionMode: opts.permissionMode } : {}),
         ...(opts.busyAction ? { busyAction: opts.busyAction } : {}),
-        ...(opts.meta ? { meta: true } : {}),
         ...(opts.displayPrompt ? { displayPrompt: opts.displayPrompt } : {}),
       },
     )

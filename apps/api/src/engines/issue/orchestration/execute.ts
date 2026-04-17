@@ -153,7 +153,6 @@ export async function executeIssue(
       line => normalizer.parse(line),
       0,
       worktreePath,
-      false,
       () => handleTurnCompleted(ctx, issueId, executionId),
       worktreePath ? baseDir : undefined,
       workingDir,

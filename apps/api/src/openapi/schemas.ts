@@ -185,7 +185,6 @@ export const FollowUpSchema = z.object({
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
   busyAction: z.enum(['queue', 'cancel']).optional(),
-  meta: z.boolean().optional(),
   displayPrompt: z.string().max(500).optional(),
 }).openapi('FollowUp')
 

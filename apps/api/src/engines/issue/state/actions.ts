@@ -1,5 +1,5 @@
 export type ManagedAction =
-  | { type: 'START_TURN', metaTurn: boolean } |
+  | { type: 'START_TURN' } |
   { type: 'TURN_COMPLETED' } |
   { type: 'SET_EXIT_CODE', exitCode: number | undefined } |
   { type: 'MARK_COMPLETED' } |

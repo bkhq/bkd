@@ -18,7 +18,6 @@ export function dispatch(managed: ManagedProcess, action: ManagedAction): void {
       managed.cancelEscalationId = undefined // Invalidate stale cancel escalation
       managed.stallDetectedAt = undefined
       managed.stallProbeAt = undefined
-      managed.metaTurn = action.metaTurn
       // Cancel any pending settle timer — a new turn started before the
       // grace period expired, so the issue should stay in 'working'.
       if (managed.settleTimer) {
@@ -30,7 +29,6 @@ export function dispatch(managed: ManagedProcess, action: ManagedAction): void {
     case 'TURN_COMPLETED':
       managed.turnInFlight = false
       managed.queueCancelRequested = false
-      managed.metaTurn = false
       managed.turnSettled = true
       // lastInterruptAt is NOT reset here — it stays set through the full
       // stream drain cycle so isCancelledNoiseEntry filtering works. It is
