@@ -16,6 +16,12 @@ async function clearProbeState(): Promise<void> {
     .where(inArray(appSettingsTable.key, ['probe:engines', 'probe:models']))
 }
 
+// Default 5s per-test timeout is too tight on CI runners: earlier test files
+// kick off fire-and-forget real probes (see `probe_engine_failed` logs for
+// `acp timed out after 15000ms`) that contend for the event loop, so bump the
+// per-test timeout for this file.
+const TEST_TIMEOUT_MS = 30_000
+
 describe('startup probe deep behavior', () => {
   beforeEach(async () => {
     await clearProbeState()
@@ -77,7 +83,7 @@ describe('startup probe deep behavior', () => {
       ;(engineRegistry as any).getAll = originalGetAll
       await clearProbeState()
     }
-  })
+  }, TEST_TIMEOUT_MS)
 
   test('after clearing cache and DB, a new call runs a fresh live probe', async () => {
     let availabilityCalls = 0
@@ -125,5 +131,5 @@ describe('startup probe deep behavior', () => {
       ;(engineRegistry as any).getAll = originalGetAll
       await clearProbeState()
     }
-  })
+  }, TEST_TIMEOUT_MS)
 })
