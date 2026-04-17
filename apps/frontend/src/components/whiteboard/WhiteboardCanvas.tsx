@@ -27,7 +27,7 @@ const nodeTypes: NodeTypes = {
 interface WhiteboardCanvasProps {
   flatNodes: WhiteboardNode[]
   collapsedIds: Set<string>
-  askingNodeId: string | null
+  askingNodeIds: Set<string>
   onAddChild: (parentId: string) => void
   onUpdateNode: (nodeId: string, data: Record<string, unknown>) => void
   onDeleteNode: (nodeId: string) => void
@@ -66,13 +66,15 @@ function buildStructureKey(flatNodes: WhiteboardNode[], collapsedIds: Set<string
 function LayoutedFlow({
   flatNodes,
   collapsedIds,
-  askingNodeId,
+  askingNodeIds,
   onAddChild,
   onUpdateNode,
   onDeleteNode,
   onToggleCollapse,
   onReparent,
 }: WhiteboardCanvasProps) {
+  // Stable string signature — Set identity changes every render from parent.
+  const askingKey = [...askingNodeIds].toSorted().join(',')
   const [nodes, setNodes, onNodesChange] = useNodesState<XYNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<XYEdge>([])
   const { fitView, getIntersectingNodes } = useReactFlow()
@@ -120,7 +122,7 @@ function LayoutedFlow({
     const { nodes: layoutedNodes, edges: layoutedEdges } = layoutMindmap(
       flatNodes,
       collapsedIds,
-      askingNodeId,
+      askingNodeIds,
     )
     setNodes(layoutedNodes)
     setEdges(layoutedEdges)
@@ -140,12 +142,12 @@ function LayoutedFlow({
           label: fresh.label,
           content: fresh.content,
           icon: fresh.icon,
-          askingNodeId: askingNodeId ?? null,
+          askingNodeIds,
         },
       }
     }))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flatNodes, askingNodeId])
+  }, [flatNodes, askingKey])
 
   // One-shot measured re-layout on structural changes only.
   //

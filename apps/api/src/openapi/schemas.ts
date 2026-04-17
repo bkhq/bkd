@@ -463,7 +463,7 @@ export const WhiteboardNodeSchema = z.object({
   icon: z.string().nullable(),
   sortOrder: z.string(),
   isCollapsed: z.boolean(),
-  metadata: z.record(z.unknown()).nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
   boundIssueId: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -475,7 +475,7 @@ export const CreateWhiteboardNodeSchema = z.object({
   content: z.string().max(100_000).optional().default(''),
   icon: z.string().max(10).optional().default(''),
   sortOrder: z.string().max(50).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 }).openapi('CreateWhiteboardNode')
 
 export const UpdateWhiteboardNodeSchema = z.object({
@@ -485,7 +485,7 @@ export const UpdateWhiteboardNodeSchema = z.object({
   icon: z.string().max(10).optional(),
   sortOrder: z.string().max(50).optional(),
   isCollapsed: z.boolean().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   boundIssueId: z.string().nullable().optional(),
 }).openapi('UpdateWhiteboardNode')
 

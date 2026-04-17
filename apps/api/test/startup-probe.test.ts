@@ -4,17 +4,28 @@ import { cacheDel, cacheDelByPrefix } from '../src/cache'
 import { db } from '../src/db'
 import { appSettings as appSettingsTable } from '../src/db/schema'
 import { engineRegistry } from '../src/engines/executors'
-import { getEngineDiscovery } from '../src/engines/startup-probe'
+import { __resetProbeInFlightForTests, getEngineDiscovery } from '../src/engines/startup-probe'
 import type { EngineExecutor } from '../src/engines/types'
 import './setup'
 
 async function clearProbeState(): Promise<void> {
+  // Reset the module-level in-flight probe first. On CI an earlier test file
+  // may have kicked off a real probe (visible as `acp timed out after 15000ms`
+  // logs) that's still in flight when we run; without this reset our mocked
+  // probe would dedupe onto the real one and never call our fake executor.
+  __resetProbeInFlightForTests()
   await cacheDel('engines:available')
   await cacheDelByPrefix('engines:models:')
   await db
     .delete(appSettingsTable)
     .where(inArray(appSettingsTable.key, ['probe:engines', 'probe:models']))
 }
+
+// Default 5s per-test timeout is too tight on CI runners: earlier test files
+// kick off fire-and-forget real probes (see `probe_engine_failed` logs for
+// `acp timed out after 15000ms`) that contend for the event loop, so bump the
+// per-test timeout for this file.
+const TEST_TIMEOUT_MS = 30_000
 
 describe('startup probe deep behavior', () => {
   beforeEach(async () => {
@@ -77,7 +88,7 @@ describe('startup probe deep behavior', () => {
       ;(engineRegistry as any).getAll = originalGetAll
       await clearProbeState()
     }
-  })
+  }, TEST_TIMEOUT_MS)
 
   test('after clearing cache and DB, a new call runs a fresh live probe', async () => {
     let availabilityCalls = 0
@@ -125,5 +136,5 @@ describe('startup probe deep behavior', () => {
       ;(engineRegistry as any).getAll = originalGetAll
       await clearProbeState()
     }
-  })
+  }, TEST_TIMEOUT_MS)
 })

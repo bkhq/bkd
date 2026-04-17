@@ -5,14 +5,12 @@ import {
   ChevronDown,
   CircleAlert,
   CircleCheck,
-  Copy,
   Download,
   FileText,
   Filter,
   FolderOpen,
   Info,
   Loader2,
-  Network,
   RefreshCw,
   RotateCcw,
   Search,
@@ -55,7 +53,6 @@ import {
   useGlobalEnvVars,
   useLogPageSize,
   useMaxConcurrentExecutions,
-  useMcpSettings,
   useProbeEngines,
   useRestartWithUpgrade,
   useRestoreDeletedIssue,
@@ -71,7 +68,6 @@ import {
   useUpdateDefaultEngine,
   useUpdateEngineHiddenModels,
   useUpdateEngineModelSetting,
-  useUpdateMcpSettings,
   useUpdateServerInfo,
   useUpdateWorkspacePath,
   useUpgradeCheck,
@@ -108,7 +104,6 @@ export function AppSettingsDialog({
       { id: 'logs', label: t('settings.tabLogs'), icon: FileText },
       { id: 'cleanup', label: t('settings.tabCleanup'), icon: Trash2 },
       { id: 'recycleBin', label: t('settings.tabRecycleBin'), icon: Trash },
-      { id: 'mcp', label: t('settings.tabMcp'), icon: Network },
       { id: 'webhooks', label: t('settings.tabWebhooks'), icon: Webhook },
       { id: 'upgrade', label: t('settings.tabUpgrade'), icon: ArrowDownToLine },
       { id: 'about', label: t('settings.tabAbout'), icon: Info },
@@ -131,7 +126,6 @@ export function AppSettingsDialog({
           {active === 'logs' && <LogsSection open={open} />}
           {active === 'cleanup' && <CleanupSection open={open} />}
           {active === 'recycleBin' && <RecycleBinSection open={open} />}
-          {active === 'mcp' && <McpSection open={open} />}
           {active === 'webhooks' && <WebhookSection open={open} />}
           {active === 'upgrade' && <UpgradeSection open={open} />}
           {active === 'about' && <AboutSection open={open} />}
@@ -749,84 +743,6 @@ function LogLine({ line, highlight = '' }: { line: string, highlight?: string })
       <span>
         <HighlightText text={msg} highlight={highlight} />
       </span>
-    </div>
-  )
-}
-
-function McpSection({ open }: { open: boolean }) {
-  const { t } = useTranslation()
-  const { data: mcpData } = useMcpSettings(open)
-  const updateMcp = useUpdateMcpSettings()
-  const [copied, setCopied] = useState(false)
-
-  const enabled = mcpData?.enabled ?? false
-  const { data: serverInfo } = useServerInfo(open)
-  const serverUrl = serverInfo?.url || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000')
-
-  const configJson = JSON.stringify(
-    {
-      mcpServers: {
-        bkd: {
-          type: 'http',
-          url: `${serverUrl}/api/mcp`,
-        },
-      },
-    },
-    null,
-    2,
-  )
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(configJson)
-    setCopied(true)
-    setTimeout(setCopied, 2000, false)
-  }, [configJson])
-
-  return (
-    <div className="space-y-4">
-      {/* Enable toggle */}
-      <div className="flex items-center justify-between">
-        <div>
-          <span className="text-sm font-medium">{t('settings.mcpEnabled')}</span>
-          <p className="text-[11px] text-muted-foreground">
-            {t('settings.mcpEnabledHint')}
-          </p>
-        </div>
-        <Switch
-          size="sm"
-          checked={enabled}
-          onCheckedChange={checked => updateMcp.mutate({ enabled: checked })}
-        />
-      </div>
-
-      {!enabled && (
-        <p className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
-          {t('settings.mcpDisabledNotice')}
-        </p>
-      )}
-
-      {enabled && (
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">{t('settings.mcpConfigTitle')}</Label>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 text-xs"
-              onClick={handleCopy}
-            >
-              <Copy className="mr-1 size-3" />
-              {copied ? t('settings.mcpCopied') : t('settings.mcpCopy')}
-            </Button>
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            {t('settings.mcpConfigHint')}
-          </p>
-          <pre className="rounded-md bg-muted/50 p-3 text-xs font-mono overflow-x-auto whitespace-pre">
-            {configJson}
-          </pre>
-        </div>
-      )}
     </div>
   )
 }

@@ -469,12 +469,6 @@ export const kanbanApi = {
   updateServerInfo: (data: { name?: string, url?: string }) =>
     patch<{ name: string | null, url: string | null }>('/api/settings/server-info', data),
 
-  // MCP Settings
-  getMcpSettings: () =>
-    get<{ enabled: boolean }>('/api/settings/mcp'),
-  updateMcpSettings: (data: { enabled?: boolean }) =>
-    patch<{ enabled: boolean }>('/api/settings/mcp', data),
-
   // System Logs
   getSystemLogs: (lines = 200) =>
     get<{ lines: string[], fileSize: number, totalLines: number }>(

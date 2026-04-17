@@ -1,13 +1,11 @@
 /**
  * Whiteboard-specific prompt builders.
  *
- * The whiteboard AI is a mindmap assistant. Instead of returning structured
- * markdown for the server to parse, it operates directly on the whiteboard
- * via MCP tools (whiteboard-get-tree / whiteboard-add-node / whiteboard-update-node /
- * whiteboard-delete-node / whiteboard-move-node).
+ * The whiteboard AI is a mindmap assistant. It returns structured markdown
+ * that the server parses (via /parse-response) to create child nodes.
  *
  * Two prompt shapes:
- *  - System prompt (sent once at session start): rules of engagement + tool reference
+ *  - System prompt (sent once at session start): rules of engagement
  *  - Turn prompt (per request): tree snapshot + active node + user intent
  */
 
@@ -22,28 +20,12 @@ export function buildWhiteboardSystemPrompt(projectId: string, projectName: stri
     'The user interacts with a tree-structured whiteboard. Each node has: id, parentId, label,',
     'content (free-form body, markdown allowed), icon (short emoji), and sortOrder.',
     '',
-    'You have access to 5 MCP tools that mutate the whiteboard directly. Prefer these over',
-    'writing structured output that the server must parse.',
-    '',
-    '  whiteboard-get-tree     — Fetch the current tree. Call this first whenever you need',
-    '                            fresh IDs or structure (the snapshot in the turn prompt may',
-    '                            already be stale after your own edits).',
-    '  whiteboard-add-node     — Append a child under parentId. Use for expand/explore tasks.',
-    '  whiteboard-update-node  — Change label/content/icon of an existing node. Use for',
-    '                            explain/rewrite/simplify tasks.',
-    '  whiteboard-delete-node  — Remove a node and its subtree. Use sparingly — confirm intent.',
-    '  whiteboard-move-node    — Re-parent or reorder. Use for restructuring.',
-    '',
-    `Always pass projectId="${projectId}" when calling whiteboard-* tools.`,
-    '',
-    'Working style:',
-    '- When the user asks you to expand/explore a node, create 3-7 children via whiteboard-add-node.',
-    '- When the user asks you to explain/rewrite a node\'s body, use whiteboard-update-node on',
-    '  that node\'s content field.',
-    '- Keep node labels short (under ~60 chars). Put detail in content.',
-    '- After mutations, give the user a brief one-line summary of what you changed.',
-    '- If the user asks a question that doesn\'t require mutation (e.g. "what does this mean?"),',
-    '  just answer in chat — do not create nodes.',
+    'Output format:',
+    '- When the user asks you to expand/explore a node, respond with 3-7 markdown "## headings".',
+    '  Each heading becomes a new child node\'s label. The body under each heading becomes the',
+    '  child\'s content. Keep headings short (under ~60 chars).',
+    '- When the user asks a question that doesn\'t require mutation (e.g. "what does this mean?"),',
+    '  just answer in chat — do not emit headings.',
   ].join('\n')
 }
 
@@ -65,8 +47,7 @@ export function buildWhiteboardTurnPrompt(options: {
     label: r.label || '',
     icon: r.icon ?? '',
     sortOrder: r.sortOrder,
-    // Truncate long content in the snapshot to keep the prompt compact;
-    // the AI can call whiteboard-get-tree or read the full node if needed.
+    // Truncate long content in the snapshot to keep the prompt compact.
     content: r.content.length > 400 ? `${r.content.slice(0, 400)}…` : r.content,
   }))
 

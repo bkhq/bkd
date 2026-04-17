@@ -9,6 +9,7 @@ import {
   useCreateWhiteboardNode,
   useDeleteWhiteboardNode,
   useGenerateIssuesFromNodes,
+  useParseWhiteboardResponse,
   useUpdateWhiteboardNode,
   useWhiteboardAsk,
   useWhiteboardNodes,
@@ -36,14 +37,49 @@ export default function WhiteboardPage() {
   const updateNode = useUpdateWhiteboardNode(projectId)
   const deleteNode = useDeleteWhiteboardNode(projectId)
   const askAI = useWhiteboardAsk(projectId)
+  const parseResponse = useParseWhiteboardResponse(projectId)
   const generateIssues = useGenerateIssuesFromNodes(projectId)
 
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
-  const [askingNodeId, setAskingNodeId] = useState<string | null>(null)
+  // Spinners for nodes whose asks are in-flight. Derived from askingCountsRef
+  // below — counts (not a Set) so multiple concurrent asks on the same node
+  // each track independently and a single completion/error only clears one.
+  const [askingNodeIds, setAskingNodeIds] = useState<Set<string>>(new Set())
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
   const [generatedItems, setGeneratedItems] = useState<GeneratedIssueItem[]>([])
   const [chatPanelOpen, setChatPanelOpen] = useState(false)
   const pendingGenerateNodeIds = useRef<string[]>([])
+  // In-flight whiteboard asks awaiting SSE `done`. Keyed by executionId so
+  // unrelated `done` events on the same bound issue (e.g. user chatting in
+  // the IssuePanel) don't dequeue a whiteboard ask and attach stray output
+  // to a random node.
+  const pendingAsksRef = useRef<Array<{ executionId: string, nodeId: string }>>([])
+  // Counts so same-node asks track independently: dropping one error must
+  // not hide the spinner for a still-pending sibling ask on that node.
+  const askingCountsRef = useRef<Map<string, number>>(new Map())
+
+  const syncAskingState = useCallback(() => {
+    setAskingNodeIds(new Set(askingCountsRef.current.keys()))
+  }, [])
+
+  const incAsking = useCallback((nodeId: string) => {
+    const m = askingCountsRef.current
+    m.set(nodeId, (m.get(nodeId) ?? 0) + 1)
+    syncAskingState()
+  }, [syncAskingState])
+
+  const decAsking = useCallback((nodeId: string) => {
+    const m = askingCountsRef.current
+    const cur = m.get(nodeId) ?? 0
+    if (cur <= 1) m.delete(nodeId)
+    else m.set(nodeId, cur - 1)
+    syncAskingState()
+  }, [syncAskingState])
+
+  const trackAsk = useCallback((executionId: string | undefined, nodeId: string) => {
+    if (!executionId) return
+    pendingAsksRef.current = [...pendingAsksRef.current, { executionId, nodeId }]
+  }, [])
 
   // Derive the bound issue ID from the root node
   const boundIssueId = useMemo(() => {
@@ -51,31 +87,58 @@ export default function WhiteboardPage() {
     return root?.boundIssueId ?? null
   }, [nodes])
 
-  // SSE subscription on the bound whiteboard issue — refetch nodes whenever
-  // the AI finishes a turn. The AI mutates the whiteboard directly via MCP
-  // tools, so the only thing the UI needs to do on `done` is reload.
+  // SSE subscription on the bound whiteboard issue — when a turn finishes,
+  // parse the AI's markdown reply into child nodes under the focal node, then
+  // refetch. Without this call the AI's response never materializes as nodes.
   useEffect(() => {
     if (!boundIssueId) return
 
-    let refetchTimer: ReturnType<typeof setTimeout> | null = null
+    const parseTimers = new Set<ReturnType<typeof setTimeout>>()
     const unsub = eventBus.subscribe(boundIssueId, {
       onLog: () => {},
       onLogUpdated: () => {},
       onLogRemoved: () => {},
       onState: () => {},
-      onDone: () => {
-        setAskingNodeId(null)
-        // Delay slightly so the last tool-call commit is flushed before refetch
-        if (refetchTimer) clearTimeout(refetchTimer)
-        refetchTimer = setTimeout(refetchNodes, 500)
+      onDone: ({ executionId, finalStatus }) => {
+        // The bound whiteboard issue also serves as the chat panel's session,
+        // so every turn on this issue emits `done` — including non-whiteboard
+        // chat replies. Look up the originating ask by executionId; if this
+        // completion wasn't triggered by a whiteboard ask, ignore it.
+        const queue = pendingAsksRef.current
+        const idx = queue.findIndex(p => p.executionId === executionId)
+        if (idx === -1) return
+        const { nodeId: parentNodeId } = queue[idx]
+        pendingAsksRef.current = [...queue.slice(0, idx), ...queue.slice(idx + 1)]
+        decAsking(parentNodeId)
+        // Only parse on successful turns — failed/cancelled turns have no
+        // fresh assistant message and would otherwise make /parse-response
+        // fall back to a prior reply, inserting stale headings under the
+        // focal node.
+        if (finalStatus !== 'completed') {
+          refetchNodes()
+          return
+        }
+        // Small delay so the final assistant-message row is flushed before we
+        // ask the server to parse it. Timer is tracked in parseTimers and
+        // cleared on unmount (see return cleanup below).
+        // eslint-disable-next-line react-web-api/no-leaked-timeout
+        const timer = setTimeout(() => {
+          parseTimers.delete(timer)
+          parseResponse.mutate(
+            { nodeId: parentNodeId, issueId: boundIssueId },
+            { onSettled: () => refetchNodes() },
+          )
+        }, 500)
+        parseTimers.add(timer)
       },
     })
     return () => {
-      if (refetchTimer) clearTimeout(refetchTimer)
+      for (const t of parseTimers) clearTimeout(t)
+      parseTimers.clear()
       unsub()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boundIssueId])
+  }, [boundIssueId, decAsking])
 
   // Sync collapsed state from server data
   const collapsedKey = nodes.map(n => `${n.id}:${n.isCollapsed}`).join(',')
@@ -136,35 +199,39 @@ export default function WhiteboardPage() {
   }, [updateNode])
 
   // Handle wb:ask-ai custom event from MindmapNode.
-  // The AI updates nodes directly via MCP tools; we just show a spinner on the
-  // focal node until SSE `done` fires.
+  // The server parses the AI's markdown reply into new child nodes; we just
+  // show a spinner on the focal node until SSE `done` fires.
   useEffect(() => {
     function handleAskAI(e: Event) {
       const { nodeId, prompt } = (e as CustomEvent).detail as { nodeId: string, prompt: string }
       if (!prompt) return
-      setAskingNodeId(nodeId)
+      incAsking(nodeId)
       askAI.mutate(
         { nodeId, prompt },
         {
-          onError: () => setAskingNodeId(null),
+          onSuccess: ({ executionId }) => trackAsk(executionId, nodeId),
+          onError: () => decAsking(nodeId),
         },
       )
     }
     window.addEventListener('wb:ask-ai', handleAskAI)
     return () => window.removeEventListener('wb:ask-ai', handleAskAI)
-  }, [askAI])
+  }, [askAI, incAsking, decAsking, trackAsk])
 
   // Handle wb:generate-tree event from WhiteboardHeader
   useEffect(() => {
     function handleGenerateTree(e: Event) {
       const { topic } = (e as CustomEvent).detail as { topic: string }
-      const treePrompt = `Generate a comprehensive mindmap about: ${topic}. Use the whiteboard-add-node tool to create 3-7 top-level subtopics as children of the root node, each with a short paragraph in content.`
+      const treePrompt = `Generate a comprehensive mindmap about: ${topic}. Output 3-7 top-level subtopics as markdown "## headings"; the paragraph under each heading becomes that subtopic's content.`
       const rootNode = nodes.find(n => !n.parentId)
       if (rootNode) {
-        setAskingNodeId(rootNode.id)
+        incAsking(rootNode.id)
         askAI.mutate(
           { nodeId: rootNode.id, prompt: treePrompt },
-          { onError: () => setAskingNodeId(null) },
+          {
+            onSuccess: ({ executionId }) => trackAsk(executionId, rootNode.id),
+            onError: () => decAsking(rootNode.id),
+          },
         )
       } else {
         // Create root with the topic label, then ask
@@ -172,10 +239,13 @@ export default function WhiteboardPage() {
           { label: topic },
           {
             onSuccess: (newNode) => {
-              setAskingNodeId(newNode.id)
+              incAsking(newNode.id)
               askAI.mutate(
                 { nodeId: newNode.id, prompt: treePrompt },
-                { onError: () => setAskingNodeId(null) },
+                {
+                  onSuccess: ({ executionId }) => trackAsk(executionId, newNode.id),
+                  onError: () => decAsking(newNode.id),
+                },
               )
             },
           },
@@ -184,7 +254,7 @@ export default function WhiteboardPage() {
     }
     window.addEventListener('wb:generate-tree', handleGenerateTree)
     return () => window.removeEventListener('wb:generate-tree', handleGenerateTree)
-  }, [askAI, createNode, nodes])
+  }, [askAI, createNode, nodes, incAsking, decAsking, trackAsk])
 
   // Handle wb:generate-issues event (can be dispatched from node context menu in future)
   useEffect(() => {
@@ -225,7 +295,7 @@ export default function WhiteboardPage() {
           <WhiteboardCanvas
             flatNodes={nodes}
             collapsedIds={collapsedIds}
-            askingNodeId={askingNodeId}
+            askingNodeIds={askingNodeIds}
             onAddChild={onAddChild}
             onUpdateNode={onUpdateNode}
             onDeleteNode={onDeleteNode}

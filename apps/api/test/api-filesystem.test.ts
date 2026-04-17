@@ -1,11 +1,27 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeAll, describe, expect, test } from 'bun:test'
 import { existsSync, rmdirSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { eq } from 'drizzle-orm'
+import { cacheDel } from '../src/cache'
+import { db } from '../src/db'
+import { appSettings as appSettingsTable } from '../src/db/schema'
 import { expectSuccess, get, post } from './helpers'
 /**
  * Filesystem API tests.
  */
 import './setup'
+
+// Other test files (e.g. api-process-state-regression) mutate
+// `workspace:defaultPath`. On CI the restore can leave the setting pointing at
+// `homedir()` instead of unset, which makes the default-path tests below hit
+// the 403 branch. Clear it explicitly so these tests exercise the no-workspace
+// code path regardless of file ordering.
+beforeAll(async () => {
+  await db
+    .delete(appSettingsTable)
+    .where(eq(appSettingsTable.key, 'workspace:defaultPath'))
+  await cacheDel('app_setting:workspace:defaultPath')
+})
 
 describe('GET /api/filesystem/dirs', () => {
   test('lists dirs from cwd by default', async () => {

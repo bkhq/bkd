@@ -49,8 +49,11 @@ data/
 
 # Claude Code
 .claude.json
-.claude/
+.claude/*
+!.claude/skills/
+!.claude/settings.json
 .bkd/
+.mcp.json
 
 # Superpowers plugin docs
 docs/superpowers/
@@ -77,3 +80,5 @@ tmp/
 
 # runtime worktree
 worktrees
+# Added by code-review-graph
+.code-review-graph/

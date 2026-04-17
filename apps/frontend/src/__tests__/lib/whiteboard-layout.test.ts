@@ -31,17 +31,17 @@ describe('layoutMindmap collapse', () => {
   ]
 
   it('shows everything when nothing is collapsed', () => {
-    const { nodes } = layoutMindmap(tree, new Set(), null)
+    const { nodes } = layoutMindmap(tree, new Set())
     expect(nodes.map(n => n.id).sort()).toEqual(['c1', 'c2', 'gc1', 'gc2', 'root'])
   })
 
   it('hides descendants of a collapsed node', () => {
-    const { nodes } = layoutMindmap(tree, new Set(['c1']), null)
+    const { nodes } = layoutMindmap(tree, new Set(['c1']))
     expect(nodes.map(n => n.id).sort()).toEqual(['c1', 'c2', 'root'])
   })
 
   it('hides all children when root is collapsed', () => {
-    const { nodes } = layoutMindmap(tree, new Set(['root']), null)
+    const { nodes } = layoutMindmap(tree, new Set(['root']))
     expect(nodes.map(n => n.id)).toEqual(['root'])
   })
 })
