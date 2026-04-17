@@ -52,8 +52,8 @@ export default function WhiteboardPage() {
   }, [nodes])
 
   // SSE subscription on the bound whiteboard issue — refetch nodes whenever
-  // the AI finishes a turn. The AI mutates the whiteboard directly via MCP
-  // tools, so the only thing the UI needs to do on `done` is reload.
+  // the AI finishes a turn. The server parses the AI's markdown response into
+  // new child nodes, so the only thing the UI needs to do on `done` is reload.
   useEffect(() => {
     if (!boundIssueId) return
 
@@ -136,8 +136,8 @@ export default function WhiteboardPage() {
   }, [updateNode])
 
   // Handle wb:ask-ai custom event from MindmapNode.
-  // The AI updates nodes directly via MCP tools; we just show a spinner on the
-  // focal node until SSE `done` fires.
+  // The server parses the AI's markdown reply into new child nodes; we just
+  // show a spinner on the focal node until SSE `done` fires.
   useEffect(() => {
     function handleAskAI(e: Event) {
       const { nodeId, prompt } = (e as CustomEvent).detail as { nodeId: string, prompt: string }

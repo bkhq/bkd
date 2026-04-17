@@ -467,14 +467,10 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
   }
 })
 
-// POST /parse-response — DEGRADED FALLBACK: parse latest assistant-message and
-// create child nodes from `## headings`.
-//
-// In the tool-first flow the AI mutates the whiteboard directly via the
-// whiteboard-* MCP tools, so the frontend usually does not need to call this.
-// It exists as a safety net for engines that don't have MCP tool access (or
-// when the AI simply returns structured markdown). Callers should treat it as
-// a best-effort extraction.
+// POST /parse-response — parse the latest assistant-message and create child
+// nodes from `## headings`. The whiteboard AI returns structured markdown and
+// this endpoint converts each top-level heading into a child node under the
+// given parent. Callers should treat it as a best-effort extraction.
 whiteboardRoutes.openapi(R.parseWhiteboardResponse, async (c) => {
   try {
     const projectId = c.req.param('projectId')!
@@ -675,10 +671,6 @@ whiteboardRoutes.openapi(R.generateIssuesFromNodes, async (c) => {
  * Parse markdown text with ## headings into heading+body sections.
  * Each `## Heading` line starts a new section; the body is the text
  * between this heading and the next.
- *
- * DEGRADED FALLBACK only — the primary whiteboard flow now uses MCP tools
- * (whiteboard-add-node / whiteboard-update-node) so the AI mutates the board
- * directly without markdown parsing.
  */
 function parseMarkdownSections(text: string): Array<{ heading: string, body: string }> {
   const lines = text.split('\n')

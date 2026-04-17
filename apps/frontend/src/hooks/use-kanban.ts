@@ -39,7 +39,6 @@ export const queryKeys = {
   serverInfo: () => ['settings', 'serverInfo'] as const,
   systemInfo: () => ['settings', 'systemInfo'] as const,
   reviewIssues: () => ['issues', 'review'] as const,
-  mcpSettings: () => ['settings', 'mcpSettings'] as const,
   globalEnvVars: () => ['settings', 'globalEnvVars'] as const,
   webhooks: () => ['settings', 'webhooks'] as const,
   webhookDeliveries: (id: string) => ['settings', 'webhooks', id, 'deliveries'] as const,
@@ -617,30 +616,6 @@ export function useUpdateServerInfo() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.serverInfo() })
       queryClient.invalidateQueries({ queryKey: queryKeys.systemInfo() })
-    },
-  })
-}
-
-// --- MCP Settings hooks ---
-
-export function useMcpSettings(enabled = false) {
-  return useQuery({
-    queryKey: queryKeys.mcpSettings(),
-    queryFn: () => kanbanApi.getMcpSettings(),
-    enabled,
-    staleTime: STALE_TIME.CONFIG,
-  })
-}
-
-export function useUpdateMcpSettings() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (data: { enabled?: boolean }) =>
-      kanbanApi.updateMcpSettings(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.mcpSettings(),
-      })
     },
   })
 }
