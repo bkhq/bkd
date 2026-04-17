@@ -1,7 +1,6 @@
 import {
   Eraser,
   FileText,
-  Filter,
   FolderOpen,
   Image as ImageIcon,
   Loader2,
@@ -43,7 +42,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
 import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue } from '@/hooks/use-kanban'
 import { formatFileSize, formatModelName } from '@/lib/format'
-import { useChatFilterStore } from '@/stores/chat-filter-store'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { BusyAction, EngineModel, SessionStatus } from '@/types/kanban'
 
@@ -98,8 +96,6 @@ export function ChatInput({
   onPendingEditConsumed?: () => void
 }) {
   const { t } = useTranslation()
-  const onlyMode = useChatFilterStore(s => s.onlyMode)
-  const toggleOnlyMode = useChatFilterStore(s => s.toggleOnlyMode)
   const draftKey = issueId ? `bkd:draft:${issueId}` : null
   // Ref tracks current issueId so async callbacks (handleSend) can compare
   // against the live value rather than the stale closure capture.
@@ -738,15 +734,6 @@ export function ChatInput({
               onClick={onRefreshLogs}
             >
               <RefreshCw className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              title={onlyMode ? t('chat.onlyModeActive') : t('chat.onlyMode')}
-              onClick={toggleOnlyMode}
-              className={onlyMode ? 'bg-primary/[0.08] ring-1 ring-primary/20 text-foreground' : ''}
-            >
-              <Filter className="size-4" />
             </Button>
           </div>
 

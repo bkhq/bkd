@@ -1,29 +1,31 @@
 import { create } from 'zustand'
 
 interface ChatFilterStore {
-  onlyMode: boolean
-  setOnlyMode: (value: boolean) => void
-  toggleOnlyMode: () => void
+  devMode: boolean
+  setDevMode: (value: boolean) => void
+  toggleDevMode: () => void
 }
 
-const STORAGE_KEY = 'bkd-chat-only-mode'
+const STORAGE_KEY = 'bkd-chat-dev-mode'
 
-function loadOnlyMode(): boolean {
+function loadDevMode(): boolean {
   if (typeof window === 'undefined') return false
   return localStorage.getItem(STORAGE_KEY) === 'true'
 }
 
 export const useChatFilterStore = create<ChatFilterStore>((set, get) => ({
-  onlyMode: loadOnlyMode(),
+  // devMode=false (default) → concise view: user / assistant / thinking only.
+  // devMode=true            → full raw view including tool-use / system-message.
+  devMode: loadDevMode(),
 
-  setOnlyMode: (value) => {
+  setDevMode: (value) => {
     localStorage.setItem(STORAGE_KEY, String(value))
-    set({ onlyMode: value })
+    set({ devMode: value })
   },
 
-  toggleOnlyMode: () => {
-    const next = !get().onlyMode
+  toggleDevMode: () => {
+    const next = !get().devMode
     localStorage.setItem(STORAGE_KEY, String(next))
-    set({ onlyMode: next })
+    set({ devMode: next })
   },
 }))

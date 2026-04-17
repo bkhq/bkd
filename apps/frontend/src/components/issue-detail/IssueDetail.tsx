@@ -1,4 +1,4 @@
-import { ChevronDown, GitBranch, Tag, Trash2, Zap } from 'lucide-react'
+import { ChevronDown, GitBranch, Tag, Trash2, Wrench, Zap } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { useProjectWorktrees } from '@/hooks/use-kanban'
 import { tStatus } from '@/lib/i18n-utils'
 import type { StatusDefinition, StatusId } from '@/lib/statuses'
 import { STATUSES } from '@/lib/statuses'
+import { useChatFilterStore } from '@/stores/chat-filter-store'
 import type { Issue } from '@/types/kanban'
 
 export const badgeBase =
@@ -37,6 +38,8 @@ export function IssueDetail({
   const [showWorktree, setShowWorktree] = useState(false)
   const worktreeRef = useRef<HTMLDivElement>(null)
   useClickOutside(worktreeRef, showWorktree, () => setShowWorktree(false))
+  const devMode = useChatFilterStore(s => s.devMode)
+  const toggleDevMode = useChatFilterStore(s => s.toggleDevMode)
 
   const { data: worktrees } = useProjectWorktrees(issue.useWorktree && projectId ? projectId : '')
   const worktreeEntry = useMemo(
@@ -85,6 +88,23 @@ export function IssueDetail({
             </Button>
           ) :
         null}
+
+      {/* Dev mode toggle — reveals tool calls and system messages */}
+      <Button
+        type="button"
+        onClick={toggleDevMode}
+        size="sm"
+        variant="outline"
+        className={`${badgeButtonBase} cursor-pointer transition-colors ${
+          devMode
+            ? 'border-primary/40 bg-primary/10 text-primary hover:opacity-80'
+            : 'border-border/50 bg-muted/20 text-muted-foreground/60 hover:text-foreground hover:border-border'
+        }`}
+        title={devMode ? t('chat.devModeActive') : t('chat.devMode')}
+      >
+        <Wrench className="h-3 w-3" />
+        <span>{t('issue.devMode')}</span>
+      </Button>
 
       {/* Tags — editable (comma-separated) */}
       {editingTag ?

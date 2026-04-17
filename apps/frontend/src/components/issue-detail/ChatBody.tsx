@@ -59,7 +59,10 @@ function deriveWorkingStep(logs: NormalizedLogEntry[]): string | null {
 
 // ---------- exported hook (for title bars that need isThinking) ----------
 
-const ONLY_MODE_TYPE_LIST: readonly string[] = [
+// When devMode is off (default concise view), the stream is filtered to
+// these entry types only. Turning devMode on removes the filter and shows
+// all raw entries (tool-use, system-message, etc.).
+const CONCISE_TYPE_LIST: readonly string[] = [
   'user-message',
   'assistant-message',
   'thinking',
@@ -75,8 +78,8 @@ export function useSessionState(
   const isDone = issue?.statusId === 'done'
   const streamEnabled = hasSession || isTodo || isDone
 
-  const onlyMode = useChatFilterStore(s => s.onlyMode)
-  const streamTypes = onlyMode ? ONLY_MODE_TYPE_LIST : undefined
+  const devMode = useChatFilterStore(s => s.devMode)
+  const streamTypes = devMode ? undefined : CONCISE_TYPE_LIST
 
   const {
     logs,

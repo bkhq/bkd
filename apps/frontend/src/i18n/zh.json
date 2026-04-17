@@ -111,7 +111,8 @@
     "deleteConfirm": "确定要删除此任务吗？此操作无法撤销。",
     "deleteWithChildren": "此任务包含子任务，子任务也将一并删除。",
     "deleting": "删除中...",
-    "keepAlive": "保持活跃 — 防止空闲超时自动终止进程"
+    "keepAlive": "保持活跃 — 防止空闲超时自动终止进程",
+    "devMode": "开发者视图"
   },
   "createIssue": {
     "model": "模型",
@@ -180,8 +181,8 @@
     "pluginSearch": "搜索插件...",
     "noPlugins": "没有匹配的插件",
     "refreshLogs": "刷新日志",
-    "onlyMode": "精简模式（仅用户 / 助手 / 思考）",
-    "onlyModeActive": "精简模式已开启 — 隐藏工具调用与系统消息",
+    "devMode": "开启开发者视图（显示工具调用与系统消息）",
+    "devModeActive": "开发者视图已开启 — 显示所有原始日志",
     "worktree": "工作树",
     "worktreeBranch": "分支",
     "worktreePath": "路径",
