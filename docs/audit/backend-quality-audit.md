@@ -179,7 +179,7 @@ The global `app.onError` in `app.ts:51-78` properly returns `{success: false, er
 | Severity | Location | Issue |
 |----------|----------|-------|
 | MEDIUM | `routes/issues/message.ts:54-101` | Multipart follow-up uses manual validation instead of `followUpSchema` Zod schema — two validation paths may drift |
-| MEDIUM | `routes/issues/command.ts:150` | `restart`, `cancel`, `auto-title` route params not Zod-validated |
+| MEDIUM | `routes/issues/command.ts:150` | `restart`, `cancel` route params not Zod-validated |
 | LOW | `routes/settings/webhooks.ts:195-221` | Channel-specific URL validation done imperatively outside Zod schema |
 
 ### Pagination

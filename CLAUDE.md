@@ -106,7 +106,6 @@ GET            /api/projects/:projectId/issues/:id/logs
 GET            /api/projects/:projectId/issues/:id/logs/filter/*
 GET/POST       /api/projects/:projectId/issues/:id/attachments
 GET            /api/projects/:projectId/issues/:id/changes
-POST           /api/projects/:projectId/issues/:id/auto-title
 GET            /api/projects/:projectId/issues/:id/slash-commands
 ```
 
@@ -118,7 +117,7 @@ The `/logs/filter/*` route accepts path-based key/value filter pairs (order-inde
 
 System routes: `/api/engines/*`, `/api/events` (SSE), `/api/settings/*`, `/api/upgrade/*`, `/api/terminal/ws`, `/api/files/*`, `/api/filesystem/*`, `/api/git/*`, `/api/processes/*`, `/api/worktrees/*`, `/api/cron/*`, `/api/mcp` (SSE transport).
 
-Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`, `title.ts`. Shared schemas and helpers in `_shared.ts`.
+Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`. Shared schemas and helpers in `_shared.ts`.
 
 #### Engine System (`engines/`)
 

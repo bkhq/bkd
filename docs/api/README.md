@@ -67,7 +67,7 @@ gzip/deflate compression on all routes except SSE (`/api/events`), streaming (`*
 | [system.md](./system.md) | Health check, status, runtime, auth |
 | [projects.md](./projects.md) | Project CRUD, archive, sort |
 | [issues.md](./issues.md) | Issue CRUD, bulk update, duplicate, export, review |
-| [execution.md](./execution.md) | Execute, follow-up, restart, cancel, auto-title, slash commands |
+| [execution.md](./execution.md) | Execute, follow-up, restart, cancel, slash commands |
 | [logs.md](./logs.md) | Issue logs (paginated, filtered) |
 | [changes.md](./changes.md) | Git changes and file diffs |
 | [attachments.md](./attachments.md) | File attachments |

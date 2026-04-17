@@ -163,7 +163,7 @@ engines/
     ├── lifecycle/              — spawn, completion, settlement
     ├── streams/                — Async stdout consumer, log classification
     ├── persistence/            — DB writes for logs + tool calls
-    ├── pipeline/               — Token aggregation, failure detection, auto-title
+    ├── pipeline/               — Token aggregation, failure detection
     ├── state/                  — State machine actions
     ├── process/                — Per-issue lock (chained Promises)
     ├── store/                  — Execution store, message rebuilder

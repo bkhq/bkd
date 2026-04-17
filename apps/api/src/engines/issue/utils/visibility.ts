@@ -10,7 +10,7 @@ import type { NormalizedLogEntry } from '@/engines/types'
  *  - DB post-filter (queries.ts) — trims paginated results
  */
 export function isVisible(entry: NormalizedLogEntry): boolean {
-  // Meta-turn entries (auto-title etc.) are always hidden
+  // Meta-turn entries (system follow-ups) are always hidden
   if (entry.metadata?.type === 'system') return false
 
   // Entry types with no user-facing value — suppress at SSE + DB boundary

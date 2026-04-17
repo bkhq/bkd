@@ -9,7 +9,6 @@ import exportRoute from './export'
 import logs from './logs'
 import message from './message'
 import query from './query'
-import title from './title'
 import update from './update'
 
 const issues = createOpenAPIRouter()
@@ -19,7 +18,6 @@ issues.route('/', update)
 issues.route('/', del)
 issues.route('/', duplicate)
 issues.route('/', exportRoute)
-issues.route('/', title)
 issues.route('/', command)
 issues.route('/', message)
 issues.route('/', attachments)

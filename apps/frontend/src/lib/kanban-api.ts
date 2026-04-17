@@ -370,14 +370,6 @@ export const kanbanApi = {
       createdAt: string
     }>>(`/api/projects/${projectId}/issues/${issueId}/pending`),
 
-  autoTitleIssue: async (projectId: string, issueId: string) => {
-    const res = await fetch(`/api/projects/${projectId}/issues/${issueId}/auto-title`, {
-      method: 'POST',
-    })
-    if (!res.ok) throw new Error(`Auto-title failed: ${res.status}`)
-    return res.json()
-  },
-
   getIssueLogs: (
     projectId: string,
     issueId: string,

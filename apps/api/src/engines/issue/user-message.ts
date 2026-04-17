@@ -52,7 +52,7 @@ export function persistUserMessage(
   // Overwrite the issue's stored prompt with the latest user message so that
   // auto-retry (spawnRetry) replays the most recent input instead of the
   // original — potentially very long — issue description. Skip for meta-turn
-  // system messages (e.g. auto-title) so they don't pollute the retry prompt.
+  // system messages (e.g. meta follow-ups) so they don't pollute the retry prompt.
   const isMetaSystemTurn = metadata?.type === 'system' && !displayPrompt
   if (!isMetaSystemTurn) {
     void updateIssueSession(issueId, { prompt }).catch(err =>

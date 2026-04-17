@@ -1,6 +1,5 @@
 import { appEvents } from '@/events'
 import type { EngineContext } from '../context'
-import { registerAutoTitleStage } from './auto-title'
 import { registerFailureDetectStage } from './failure-detect'
 import { registerPersistStage } from './persist'
 import { registerRingBufferStage } from './ring-buffer'
@@ -13,7 +12,6 @@ import { registerTokenUsageStage } from './token-usage'
  *   order 10   — DB persistence + messageId enrichment  (persist.ts)
  *   order 15   — token usage accumulation               (token-usage.ts)
  *   order 20   — ring buffer push                       (ring-buffer.ts)
- *   order 30   — auto-title extraction                  (auto-title.ts)
  *   order 40   — logical failure detection              (failure-detect.ts)
  *   order 100  — SSE broadcast (registered by routes/events.ts)
  *
@@ -31,6 +29,5 @@ export function registerLogPipeline(ctx: EngineContext): void {
   registerPersistStage(ctx, on)
   registerTokenUsageStage(ctx, on)
   registerRingBufferStage(ctx, on)
-  registerAutoTitleStage(ctx, on)
   registerFailureDetectStage(ctx, on)
 }

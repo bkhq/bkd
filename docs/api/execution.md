@@ -69,12 +69,6 @@ Cancel active execution.
 
 **Response:** `{ issueId, status }`
 
-## POST .../auto-title
-
-Auto-generate a title using AI. Sends a system-level follow-up with the auto-title prompt. Moves `review` to `working` automatically; rejects `todo` and `done`.
-
-**Response:** `{ executionId, issueId }`
-
 ## GET .../slash-commands
 
 Get available slash commands for the issue's engine type.

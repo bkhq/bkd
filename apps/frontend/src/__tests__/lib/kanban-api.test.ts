@@ -87,34 +87,6 @@ describe('kanbanApi.getIssues', () => {
   })
 })
 
-describe('kanbanApi.autoTitleIssue', () => {
-  it('calls POST /api/projects/:projectId/issues/:issueId/auto-title', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ success: true, data: {} }),
-    })
-
-    await kanbanApi.autoTitleIssue('proj-1', 'issue-1')
-
-    const [url, options] = mockFetch.mock.calls[0]
-    expect(url).toBe('/api/projects/proj-1/issues/issue-1/auto-title')
-    expect(options.method).toBe('POST')
-  })
-
-  it('throws on non-ok response', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: () => Promise.resolve({ success: false, error: 'fail' }),
-    })
-
-    await expect(kanbanApi.autoTitleIssue('proj-1', 'issue-1')).rejects.toThrow(
-      'Auto-title failed: 500',
-    )
-  })
-})
-
 describe('kanbanApi.followUpIssue', () => {
   it('calls POST with JSON body when no files', async () => {
     mockFetch.mockResolvedValueOnce(mockJsonResponse({ issueId: 'issue-1' }))

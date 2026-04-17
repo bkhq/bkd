@@ -1,9 +1,9 @@
-import { ArrowLeft, Check, Link, Sparkles } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowLeft, Check, Link } from 'lucide-react'
+import { lazy, Suspense, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { useAutoTitleIssue, useIssue, useUpdateIssue } from '@/hooks/use-kanban'
+import { useIssue, useUpdateIssue } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import { getIssueUrl } from '@/stores/server-store'
@@ -49,51 +49,6 @@ export function ChatArea({
   const closeFileBrowser = useFileBrowserStore(s => s.close)
 
   const updateIssue = useUpdateIssue(projectId)
-  const autoTitle = useAutoTitleIssue(projectId)
-  const [isAutoTitling, setIsAutoTitling] = useState(false)
-  const titleBeforeAutoRef = useRef<string | null>(null)
-
-  // Detect title change to clear auto-titling state
-
-  useEffect(() => {
-    if (isAutoTitling && titleBeforeAutoRef.current !== null && issue) {
-      if (issue.title !== titleBeforeAutoRef.current) {
-        setIsAutoTitling(false)
-        titleBeforeAutoRef.current = null
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- issue?.title already covers the null check
-  }, [isAutoTitling, issue?.title])
-
-  // Reset auto-titling when session fails
-  useEffect(() => {
-    if (isAutoTitling && issue?.sessionStatus === 'failed') {
-      setIsAutoTitling(false)
-      titleBeforeAutoRef.current = null
-    }
-  }, [isAutoTitling, issue?.sessionStatus])
-
-  // Safety timeout — clear auto-titling after 30s
-  useEffect(() => {
-    if (!isAutoTitling) return
-    const timer = setTimeout(() => {
-      setIsAutoTitling(false)
-      titleBeforeAutoRef.current = null
-    }, 30_000)
-    return () => clearTimeout(timer)
-  }, [isAutoTitling])
-
-  const handleAutoTitle = useCallback(() => {
-    if (!issue) return
-    titleBeforeAutoRef.current = issue.title
-    setIsAutoTitling(true)
-    autoTitle.mutate(issueId, {
-      onError: () => {
-        setIsAutoTitling(false)
-        titleBeforeAutoRef.current = null
-      },
-    })
-  }, [issue, autoTitle, issueId])
 
   const saveTitle = useCallback(() => {
     const trimmed = titleDraft.trim()
@@ -200,22 +155,6 @@ export function ChatArea({
                   )}
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`h-7 w-7 shrink-0 transition-colors ${
-              isAutoTitling ?
-                'text-violet-600 dark:text-violet-400 animate-pulse' :
-                issue.sessionStatus ?
-                  'text-muted-foreground hover:text-violet-600 dark:hover:text-violet-400' :
-                  'text-muted-foreground/30 cursor-not-allowed'
-            }`}
-            title={t('issue.autoTitle')}
-            disabled={!issue.sessionStatus || isAutoTitling}
-            onClick={handleAutoTitle}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-          </Button>
           <Button
             variant="ghost"
             size="icon"

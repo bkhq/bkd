@@ -157,7 +157,6 @@ GET            /api/projects/:projectId/issues/:id/logs
 GET            /api/projects/:projectId/issues/:id/logs/filter/*
 GET/POST       /api/projects/:projectId/issues/:id/attachments
 GET            /api/projects/:projectId/issues/:id/changes
-POST           /api/projects/:projectId/issues/:id/auto-title
 GET            /api/projects/:projectId/issues/:id/slash-commands
 ```
 

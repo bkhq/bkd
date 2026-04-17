@@ -373,18 +373,6 @@ export function useFollowUpIssue(projectId: string) {
   })
 }
 
-export function useAutoTitleIssue(projectId: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (issueId: string) => kanbanApi.autoTitleIssue(projectId, issueId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.issues(projectId),
-      })
-    },
-  })
-}
-
 export function useRestartIssue(projectId: string) {
   const queryClient = useQueryClient()
   return useMutation({

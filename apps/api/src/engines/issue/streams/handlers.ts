@@ -6,8 +6,8 @@ import { appEvents } from '@/events'
 
 /**
  * Emit entry to the unified event bus. All processing (DB persistence,
- * ring buffer, auto-title, logical failure detection) is handled by
- * pipeline subscribers registered in pipeline.ts.
+ * ring buffer, logical failure detection) is handled by pipeline
+ * subscribers registered in pipeline.ts.
  */
 export function handleStreamEntry(
   issueId: string,
