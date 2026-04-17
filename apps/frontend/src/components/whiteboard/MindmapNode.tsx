@@ -1,6 +1,6 @@
 import { Handle, NodeToolbar, Position } from '@xyflow/react'
 import { ChevronRight, ListTodo, Plus, Trash2 } from 'lucide-react'
-import { memo, useCallback, useState } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MarkdownContent } from '@/components/issue-detail/MarkdownContent'
 import { Button } from '@/components/ui/button'
@@ -33,6 +33,21 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
   const [editLabel, setEditLabel] = useState(data.label)
   const [isEditingContent, setIsEditingContent] = useState(false)
   const [editContent, setEditContent] = useState(data.content)
+
+  // Auto-enter label edit mode when `wb:focus-node-label` targets this node.
+  // Dispatched by WhiteboardPage after creating a new empty-label child so
+  // the user can type immediately instead of double-clicking to edit.
+  useEffect(() => {
+    function handleFocus(e: Event) {
+      const { nodeId } = (e as CustomEvent).detail as { nodeId: string }
+      if (nodeId === data.id) {
+        setEditLabel(data.label)
+        setIsEditing(true)
+      }
+    }
+    window.addEventListener('wb:focus-node-label', handleFocus)
+    return () => window.removeEventListener('wb:focus-node-label', handleFocus)
+  }, [data.id, data.label])
 
   const onLabelBlur = useCallback(() => {
     setIsEditing(false)
@@ -91,9 +106,9 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
     }
   }, [data.content])
 
-  const onAskAI = useCallback((nodeId: string, action: string, prompt?: string) => {
+  const onAskAI = useCallback((nodeId: string, prompt: string) => {
     window.dispatchEvent(new CustomEvent('wb:ask-ai', {
-      detail: { nodeId, action, prompt },
+      detail: { nodeId, prompt },
     }))
   }, [])
 
@@ -153,7 +168,10 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
               )}
         </div>
 
-        {/* Content area — markdown rendering or edit textarea */}
+        {/* Content area — markdown rendering or edit textarea.
+            Uses double-click to enter edit mode (consistent with label editing)
+            so that single clicks on links, tables, or text selection in the
+            rendered markdown don't drop the user into a textarea by accident. */}
         {isEditingContent
           ? (
               <textarea
@@ -169,7 +187,7 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
             ? (
                 <div
                   className="nodrag mt-2 text-xs text-muted-foreground cursor-text prose prose-xs dark:prose-invert max-w-none [&_table]:text-xs [&_th]:px-2 [&_td]:px-2 [&_th]:py-1 [&_td]:py-1"
-                  onClick={() => {
+                  onDoubleClick={() => {
                     setIsEditingContent(true); setEditContent(data.content)
                   }}
                   title={t('whiteboard.editContent')}
@@ -180,7 +198,7 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
             : (
                 <p
                   className="nodrag mt-2 text-xs text-muted-foreground/40 cursor-text"
-                  onClick={() => {
+                  onDoubleClick={() => {
                     setIsEditingContent(true); setEditContent(data.content)
                   }}
                 >

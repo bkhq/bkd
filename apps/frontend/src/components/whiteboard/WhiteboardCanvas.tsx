@@ -12,7 +12,11 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { layoutMindmap, relayoutWithMeasured } from '@/lib/whiteboard-layout'
+import {
+  getVisibleNodeIds,
+  layoutMindmap,
+  relayoutWithMeasured,
+} from '@/lib/whiteboard-layout'
 import type { WhiteboardNode } from '@/types/kanban'
 import { MindmapNode } from './MindmapNode'
 
@@ -55,7 +59,7 @@ function buildStructureKey(flatNodes: WhiteboardNode[], collapsedIds: Set<string
     .map(n => `${n.id}:${n.parentId ?? ''}:${n.sortOrder}`)
     .sort()
     .join(',')
-  const collapsed = [...collapsedIds].sort().join(',')
+  const collapsed = [...collapsedIds].toSorted().join(',')
   return `${structure}|${collapsed}`
 }
 
@@ -71,7 +75,7 @@ function LayoutedFlow({
 }: WhiteboardCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<XYNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<XYEdge>([])
-  const { fitView, getIntersectingNodes, getNodes } = useReactFlow()
+  const { fitView, getIntersectingNodes } = useReactFlow()
   const nodesInitialized = useNodesInitialized()
   const structureKey = buildStructureKey(flatNodes, collapsedIds)
   const prevStructureRef = useRef('')
@@ -143,15 +147,31 @@ function LayoutedFlow({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flatNodes, askingNodeId])
 
-  // One-shot measured re-layout on structural changes only
+  // One-shot measured re-layout on structural changes only.
+  //
+  // CRITICAL ordering detail: the structural effect above calls `setNodes()`
+  // with the new visible list, but that update is batched and only commits
+  // on the NEXT render. If this effect runs in the SAME render as the
+  // structural one, `nodes` (and `getNodes()`) still reflect the OLD list —
+  // iterating it and calling `setNodes(relayouted)` would overwrite the
+  // structural result, re-introducing hidden nodes (e.g. children of a
+  // just-collapsed parent). To prevent that, we gate on a match between the
+  // current `nodes` array and the expected visible set for this structureKey.
+  // On the first render after a structural change the gate rejects; on the
+  // next render (after commit) it passes and we apply measured heights.
   const measuredVersionRef = useRef('')
   useEffect(() => {
     if (!nodesInitialized || nodes.length === 0) return
     if (measuredVersionRef.current === structureKey) return
-    measuredVersionRef.current = structureKey
 
-    const measuredNodes = getNodes()
-    const relayouted = relayoutWithMeasured(flatNodes, collapsedIds, measuredNodes)
+    const visibleIds = getVisibleNodeIds(flatNodes, collapsedIds)
+    if (nodes.length !== visibleIds.size) return
+    for (const n of nodes) {
+      if (!visibleIds.has(n.id)) return
+    }
+
+    measuredVersionRef.current = structureKey
+    const relayouted = relayoutWithMeasured(flatNodes, collapsedIds, nodes)
     setNodes(relayouted)
 
     // Only fitView on first mount to avoid jarring zoom on every edit
@@ -160,7 +180,7 @@ function LayoutedFlow({
       requestAnimationFrame(() => fitView({ padding: 0.3, duration: 400 }))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodesInitialized, structureKey])
+  }, [nodesInitialized, structureKey, nodes])
 
   const defaultEdgeOptions = useMemo(() => ({
     style: { stroke: 'var(--muted-foreground)', strokeWidth: 1.5, opacity: 0.6 },
@@ -170,25 +190,32 @@ function LayoutedFlow({
   const proOptions = useMemo(() => ({ hideAttribution: true }), [])
 
   // Drag-to-reparent: when a node is dropped on another, reparent it.
+  //
+  // When the drop is invalid (empty space or cycle-inducing), we snap back by
+  // recomputing the layout with `relayoutWithMeasured` against the current
+  // xyflow nodes. That preserves each node's DOM-measured height, so snapping
+  // back looks identical to the pre-drag state instead of briefly collapsing
+  // to estimated heights (which caused a visible flash).
+  const snapBackToLayout = useCallback(() => {
+    setNodes(current => relayoutWithMeasured(flatNodes, collapsedIds, current))
+  }, [flatNodes, collapsedIds, setNodes])
+
   const onNodeDragStop = useCallback((_e: React.MouseEvent, draggedNode: XYNode) => {
     const intersections = getIntersectingNodes(draggedNode)
       .filter(n => n.id !== draggedNode.id)
     const dropTarget = intersections[0]
     if (!dropTarget) {
-      // Dropped in empty space — snap back by re-running layout
-      const { nodes: relayouted } = layoutMindmap(flatNodes, collapsedIds, askingNodeId)
-      setNodes(relayouted)
+      snapBackToLayout()
       return
     }
     const draggedId = draggedNode.id
     const targetId = dropTarget.id
     if (isDescendantOf(flatNodes, targetId, draggedId)) {
-      const { nodes: relayouted } = layoutMindmap(flatNodes, collapsedIds, askingNodeId)
-      setNodes(relayouted)
+      snapBackToLayout()
       return
     }
     onReparent(draggedId, targetId)
-  }, [getIntersectingNodes, onReparent, flatNodes, collapsedIds, askingNodeId, setNodes])
+  }, [getIntersectingNodes, onReparent, flatNodes, snapBackToLayout])
 
   return (
     <ReactFlow

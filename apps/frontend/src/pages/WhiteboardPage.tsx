@@ -9,13 +9,13 @@ import {
   useCreateWhiteboardNode,
   useDeleteWhiteboardNode,
   useGenerateIssuesFromNodes,
-  useParseWhiteboardResponse,
   useUpdateWhiteboardNode,
   useWhiteboardAsk,
   useWhiteboardNodes,
 } from '@/hooks/use-whiteboard'
 import { eventBus } from '@/lib/event-bus'
 import { kanbanApi } from '@/lib/kanban-api'
+import { computeNextSortOrder } from '@/lib/whiteboard-layout'
 
 const LazyIssuePanel = lazy(() =>
   import('@/components/kanban/IssuePanel').then(m => ({ default: m.IssuePanel })),
@@ -36,16 +36,10 @@ export default function WhiteboardPage() {
   const updateNode = useUpdateWhiteboardNode(projectId)
   const deleteNode = useDeleteWhiteboardNode(projectId)
   const askAI = useWhiteboardAsk(projectId)
-  const parseResponse = useParseWhiteboardResponse(projectId)
   const generateIssues = useGenerateIssuesFromNodes(projectId)
 
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const [askingNodeId, setAskingNodeId] = useState<string | null>(null)
-  // pendingIssueId drives SSE subscription — must be state (not ref) to trigger re-render
-  const [pendingIssueId, setPendingIssueId] = useState<string | null>(null)
-  // Tracks target nodeId and action type for post-AI-done processing
-  const pendingNodeRef = useRef<string | null>(null)
-  const pendingActionRef = useRef<string | null>(null)
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
   const [generatedItems, setGeneratedItems] = useState<GeneratedIssueItem[]>([])
   const [chatPanelOpen, setChatPanelOpen] = useState(false)
@@ -57,43 +51,29 @@ export default function WhiteboardPage() {
     return root?.boundIssueId ?? null
   }, [nodes])
 
-  // Use ref to track AskAI-in-progress so persistent subscription can check without re-subscribing
-  const askInProgressRef = useRef(false)
-
-  // Keep ref in sync with pendingIssueId state
-  useEffect(() => {
-    askInProgressRef.current = !!pendingIssueId
-  }, [pendingIssueId])
-
-  // Keep root node ID in a ref so the persistent subscription can read it without re-subscribing
-  const rootNodeIdRef = useRef<string | null>(null)
-  useEffect(() => {
-    rootNodeIdRef.current = nodes.find(n => !n.parentId)?.id ?? null
-  }, [nodes])
-
-  // Persistent SSE subscription on bound issue — handles chat-panel-initiated conversations.
-  // When AI completes a turn from the chat panel, auto-parse ## headings into child nodes on root.
+  // SSE subscription on the bound whiteboard issue — refetch nodes whenever
+  // the AI finishes a turn. The AI mutates the whiteboard directly via MCP
+  // tools, so the only thing the UI needs to do on `done` is reload.
   useEffect(() => {
     if (!boundIssueId) return
 
+    let refetchTimer: ReturnType<typeof setTimeout> | null = null
     const unsub = eventBus.subscribe(boundIssueId, {
       onLog: () => {},
       onLogUpdated: () => {},
       onLogRemoved: () => {},
       onState: () => {},
       onDone: () => {
-        // Skip if AskAI subscription is handling this turn
-        if (askInProgressRef.current) return
-        const rootId = rootNodeIdRef.current
-        if (!rootId) return
-        parseResponse.mutate(
-          { nodeId: rootId, issueId: boundIssueId },
-          { onSettled: () => setTimeout(refetchNodes, 500) },
-        )
+        setAskingNodeId(null)
+        // Delay slightly so the last tool-call commit is flushed before refetch
+        if (refetchTimer) clearTimeout(refetchTimer)
+        refetchTimer = setTimeout(refetchNodes, 500)
       },
     })
-    return unsub
-  // Only re-subscribe when boundIssueId changes — refs handle the rest
+    return () => {
+      if (refetchTimer) clearTimeout(refetchTimer)
+      unsub()
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boundIssueId])
 
@@ -108,72 +88,32 @@ export default function WhiteboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collapsedKey])
 
-  // Subscribe to SSE for the pending whiteboard issue.
-  // On AI done: explore/examples → parse-response (create children),
-  // explain/simplify → fetch AI response and update node content.
-  useEffect(() => {
-    if (!pendingIssueId) return
-
-    const issueId = pendingIssueId
-    const nodeId = pendingNodeRef.current
-    const action = pendingActionRef.current
-
-    const clearLoading = (handleResult = false) => {
-      setPendingIssueId(null)
-      pendingNodeRef.current = null
-      pendingActionRef.current = null
-      setAskingNodeId(null)
-
-      if (!handleResult || !nodeId) {
-        setTimeout(refetchNodes, 1000)
-        return
-      }
-
-      // Always call parse-response (fetches latest assistant-message correctly)
-      // For explain/simplify: use rawContent to update node content
-      // For explore/examples/custom: child nodes are created from ## headings
-      const isContentUpdate = action === 'explain' || action === 'simplify'
-      parseResponse.mutate(
-        { nodeId, issueId, skipInsert: isContentUpdate },
-        {
-          onSuccess: (result) => {
-            // Use typeof check so empty string still triggers update
-            if (isContentUpdate && typeof result.rawContent === 'string') {
-              updateNode.mutate({ nodeId, content: result.rawContent })
-            }
-          },
-          onSettled: () => setTimeout(refetchNodes, 500),
-        },
-      )
-    }
-
-    const fallbackTimer = setTimeout(clearLoading, 5 * 60 * 1000, false)
-
-    const unsub = eventBus.subscribe(issueId, {
-      onLog: () => {},
-      onLogUpdated: () => {},
-      onLogRemoved: () => {},
-      onState: () => {},
-      onDone: () => {
-        clearTimeout(fallbackTimer)
-        clearLoading(true)
-      },
-    })
-    return () => {
-      clearTimeout(fallbackTimer)
-      unsub()
-    }
-  // parseResponse/updateNode/kanbanApi intentionally excluded — stable refs
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingIssueId, projectId, refetchNodes])
-
   const onCreateRoot = useCallback(() => {
-    createNode.mutate({ label: project?.name ?? 'Root' })
-  }, [createNode, project?.name])
+    const sortOrder = computeNextSortOrder(nodes, null)
+    createNode.mutate({ label: project?.name ?? 'Root', sortOrder })
+  }, [createNode, nodes, project?.name])
 
   const onAddChild = useCallback((parentId: string) => {
-    createNode.mutate({ parentId, label: '' })
-  }, [createNode])
+    const sortOrder = computeNextSortOrder(nodes, parentId)
+    createNode.mutate(
+      { parentId, label: '', sortOrder },
+      {
+        onSuccess: (newNode) => {
+          // New empty-label child: dispatch a focus event so the freshly
+          // mounted MindmapNode enters label-edit mode automatically.
+          // Using a requestAnimationFrame gives xyflow a tick to mount the
+          // node before the event fires.
+          if (!newNode.label) {
+            requestAnimationFrame(() => {
+              window.dispatchEvent(new CustomEvent('wb:focus-node-label', {
+                detail: { nodeId: newNode.id },
+              }))
+            })
+          }
+        },
+      },
+    )
+  }, [createNode, nodes])
 
   const onUpdateNode = useCallback((nodeId: string, data: Record<string, unknown>) => {
     updateNode.mutate({ nodeId, ...data })
@@ -195,22 +135,18 @@ export default function WhiteboardPage() {
     updateNode.mutate({ nodeId, isCollapsed })
   }, [updateNode])
 
-  // Handle wb:ask-ai custom event from MindmapNode
+  // Handle wb:ask-ai custom event from MindmapNode.
+  // The AI updates nodes directly via MCP tools; we just show a spinner on the
+  // focal node until SSE `done` fires.
   useEffect(() => {
     function handleAskAI(e: Event) {
-      const { nodeId, action, prompt } = (e as CustomEvent).detail
+      const { nodeId, prompt } = (e as CustomEvent).detail as { nodeId: string, prompt: string }
+      if (!prompt) return
       setAskingNodeId(nodeId)
       askAI.mutate(
-        { nodeId, action, prompt },
+        { nodeId, prompt },
         {
-          onSuccess: (data) => {
-            pendingNodeRef.current = nodeId
-            pendingActionRef.current = action
-            setPendingIssueId(data.issueId)
-          },
-          onError: () => {
-            setAskingNodeId(null)
-          },
+          onError: () => setAskingNodeId(null),
         },
       )
     }
@@ -222,38 +158,24 @@ export default function WhiteboardPage() {
   useEffect(() => {
     function handleGenerateTree(e: Event) {
       const { topic } = (e as CustomEvent).detail as { topic: string }
-      // Find or use root node; if none, create root first then ask
+      const treePrompt = `Generate a comprehensive mindmap about: ${topic}. Use the whiteboard-add-node tool to create 3-7 top-level subtopics as children of the root node, each with a short paragraph in content.`
       const rootNode = nodes.find(n => !n.parentId)
       if (rootNode) {
         setAskingNodeId(rootNode.id)
         askAI.mutate(
-          { nodeId: rootNode.id, action: 'custom', prompt: `Generate a comprehensive mindmap about: ${topic}. Use ## headings for each main subtopic, with a brief description paragraph under each.` },
-          {
-            onSuccess: (data) => {
-              pendingNodeRef.current = rootNode.id
-              pendingActionRef.current = 'explore'
-              setPendingIssueId(data.issueId)
-            },
-            onError: () => setAskingNodeId(null),
-          },
+          { nodeId: rootNode.id, prompt: treePrompt },
+          { onError: () => setAskingNodeId(null) },
         )
       } else {
-        // Create root node with the topic label, then ask
+        // Create root with the topic label, then ask
         createNode.mutate(
           { label: topic },
           {
             onSuccess: (newNode) => {
               setAskingNodeId(newNode.id)
               askAI.mutate(
-                { nodeId: newNode.id, action: 'custom', prompt: `Generate a comprehensive mindmap about: ${topic}. Use ## headings for each main subtopic, with a brief description paragraph under each.` },
-                {
-                  onSuccess: (data) => {
-                    pendingNodeRef.current = newNode.id
-                    pendingActionRef.current = 'explore'
-                    setPendingIssueId(data.issueId)
-                  },
-                  onError: () => setAskingNodeId(null),
-                },
+                { nodeId: newNode.id, prompt: treePrompt },
+                { onError: () => setAskingNodeId(null) },
               )
             },
           },
@@ -308,7 +230,10 @@ export default function WhiteboardPage() {
             onUpdateNode={onUpdateNode}
             onDeleteNode={onDeleteNode}
             onToggleCollapse={onToggleCollapse}
-            onReparent={(nodeId, newParentId) => updateNode.mutate({ nodeId, parentId: newParentId })}
+            onReparent={(nodeId, newParentId) => {
+              const sortOrder = computeNextSortOrder(nodes, newParentId, nodeId)
+              updateNode.mutate({ nodeId, parentId: newParentId, sortOrder })
+            }}
           />
         </div>
         {chatPanelOpen && boundIssueId && (
