@@ -827,6 +827,42 @@ describe('ClaudeLogNormalizer', () => {
       expect(entries[0]!.content).toBe('hook result')
       expect(entries[0]!.metadata?.hookName).toBe('pre-commit')
     })
+
+    test('session_state_changed with state=idle marks turn completed', () => {
+      const entries = parseAll(
+        normalizer,
+        line({
+          type: 'system',
+          subtype: 'session_state_changed',
+          state: 'idle',
+          session_id: 'sess-1',
+        }),
+      )
+      expect(entries).toHaveLength(1)
+      expect(entries[0]!.entryType).toBe('system-message')
+      expect(entries[0]!.metadata?.turnCompleted).toBe(true)
+      expect(entries[0]!.metadata?.state).toBe('idle')
+    })
+
+    test('session_state_changed with non-idle state is suppressed', () => {
+      const running = normalizer.parse(
+        line({
+          type: 'system',
+          subtype: 'session_state_changed',
+          state: 'running',
+        }),
+      )
+      expect(running).toBeNull()
+
+      const awaiting = normalizer.parse(
+        line({
+          type: 'system',
+          subtype: 'session_state_changed',
+          state: 'requires_action',
+        }),
+      )
+      expect(awaiting).toBeNull()
+    })
   })
 
   describe('result error handling', () => {

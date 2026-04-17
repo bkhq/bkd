@@ -28,6 +28,9 @@ export interface ClaudeSystem {
   tools?: unknown[]
   apiKeySource?: string
   status?: string
+  // session_state_changed carries the authoritative turn-over signal
+  // ('idle' after the bg-agent do-while exits).
+  state?: 'idle' | 'running' | 'requires_action' | string
   slash_commands?: string[]
   plugins?: Array<{ name: string, path: string }>
   agents?: string[]
