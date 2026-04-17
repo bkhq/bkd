@@ -206,7 +206,8 @@ logs.get('/:id/logs/filter/*', async (c) => {
   const resolved = await resolveIssue(c, 'id')
   if ('error' in resolved) return resolved.error
 
-  const filterPath = c.req.param('*')
+  const match = c.req.path.match(/\/logs\/filter\/(.*)$/)
+  const filterPath = match?.[1] ?? ''
   if (!filterPath) {
     // /logs/filter/ with nothing after → return all logs
     const pagination = await parsePagination(c)
