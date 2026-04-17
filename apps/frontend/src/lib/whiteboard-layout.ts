@@ -145,6 +145,10 @@ export function relayoutWithMeasured(
  * existing siblings. `excludeNodeId` removes the node itself from the sibling
  * pool when reparenting — otherwise we'd anchor against our own stale key and
  * generateKeyBetween would throw.
+ *
+ * We also cap the new key by the smallest key in the whole tree that sits
+ * above `lastKey`. Without an upper bound the jittered generator can produce
+ * a key that overshoots into another subtree's range.
  */
 export function computeNextSortOrder(
   allNodes: WhiteboardNode[],
@@ -159,7 +163,12 @@ export function computeNextSortOrder(
     .map(n => n.sortOrder)
     .toSorted()
     .at(-1) ?? null
-  return generateKeyBetween(lastKey, null)
+  const upperBound = allNodes
+    .filter(n => n.id !== excludeNodeId && (lastKey === null || n.sortOrder > lastKey))
+    .map(n => n.sortOrder)
+    .toSorted()
+    .at(0) ?? null
+  return generateKeyBetween(lastKey, upperBound)
 }
 
 /**
