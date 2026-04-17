@@ -112,7 +112,7 @@
     "deleteWithChildren": "This issue has sub-issues that will also be deleted.",
     "deleting": "Deleting...",
     "keepAlive": "Keep Alive — prevent idle timeout from terminating the process",
-    "devMode": "Developer View"
+    "devMode": "Dev"
   },
   "createIssue": {
     "model": "Model",
