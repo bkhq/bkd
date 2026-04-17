@@ -120,6 +120,13 @@
       "when": 1776624000000,
       "tag": "0016_add_whiteboard_nodes",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1776902400000,
+      "tag": "0017_issues_is_hidden",
+      "breakpoints": true
     }
   ]
 }

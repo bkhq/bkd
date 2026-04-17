@@ -121,6 +121,7 @@ export const IssueSchema = z.object({
   useWorktree: z.boolean(),
   isPinned: z.boolean(),
   keepAlive: z.boolean(),
+  isHidden: z.boolean(),
   engineType: z.string().nullable(),
   sessionStatus: z.enum(['pending', 'running', 'completed', 'failed', 'cancelled']).nullable(),
   prompt: z.string().nullable(),
@@ -498,9 +499,10 @@ export const BulkUpdateWhiteboardNodeSchema = z.object({
 }).openapi('BulkUpdateWhiteboardNode')
 
 export const WhiteboardAskSchema = z.object({
-  nodeId: z.string(),
-  action: z.enum(['explore', 'explain', 'simplify', 'examples', 'custom']),
-  prompt: z.string().max(32768).optional(),
+  // Optional "active" node — provides focal context for the user's request.
+  // If omitted, the AI operates on the whole tree without a specific focus.
+  nodeId: z.string().optional(),
+  prompt: z.string().min(1).max(32768),
   engineType: z.string().regex(/^(claude-code|codex|acp(:.+)?)$/).optional(),
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
 }).openapi('WhiteboardAsk')

@@ -685,9 +685,9 @@ export const kanbanApi = {
   resetWhiteboard: (projectId: string) =>
     del<{ count: number }>(`/api/projects/${projectId}/whiteboard/nodes`),
   whiteboardAsk: (projectId: string, data: {
-    nodeId: string
-    action: 'explore' | 'explain' | 'simplify' | 'examples' | 'custom'
-    prompt?: string
+    // Optional focal node (context); omit to ask about the whole board.
+    nodeId?: string
+    prompt: string
     engineType?: string
     model?: string
   }) => post<{ issueId: string, executionId?: string, queued?: boolean }>(

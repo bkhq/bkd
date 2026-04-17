@@ -1,9 +1,7 @@
-import { BookOpen, Lightbulb, MessageSquare, Search, Sparkles, Zap } from 'lucide-react'
+import { MessageSquare, Sparkles } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-
-type AskAction = 'explore' | 'explain' | 'simplify' | 'examples' | 'custom'
 
 interface AskAIPopoverProps {
   nodeId: string
@@ -11,7 +9,7 @@ interface AskAIPopoverProps {
   parentLabel?: string
   childLabels?: string[]
   isLoading: boolean
-  onAsk: (nodeId: string, action: AskAction, prompt?: string) => void
+  onAsk: (nodeId: string, prompt: string) => void
 }
 
 /** Generate up to 3 heuristic follow-up questions from node context using i18n. */
@@ -49,36 +47,27 @@ export function AskAIPopover({
 }: AskAIPopoverProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const [customPrompt, setCustomPrompt] = useState('')
+  const [prompt, setPrompt] = useState('')
 
   const suggestedQuestions = useMemo(
     () => buildSuggestedQuestions(t, nodeLabel, parentLabel, childLabels),
     [t, nodeLabel, parentLabel, childLabels],
   )
 
-  const handleAction = useCallback((action: AskAction) => {
-    onAsk(nodeId, action)
+  const handleSubmit = useCallback((text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    onAsk(nodeId, trimmed)
+    setPrompt('')
     setOpen(false)
   }, [nodeId, onAsk])
-
-  const handleSuggestedQuestion = useCallback((question: string) => {
-    onAsk(nodeId, 'custom', question)
-    setOpen(false)
-  }, [nodeId, onAsk])
-
-  const handleCustomSubmit = useCallback(() => {
-    if (!customPrompt.trim()) return
-    onAsk(nodeId, 'custom', customPrompt.trim())
-    setCustomPrompt('')
-    setOpen(false)
-  }, [nodeId, customPrompt, onAsk])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
-      handleCustomSubmit()
+      handleSubmit(prompt)
     }
-  }, [handleCustomSubmit])
+  }, [handleSubmit, prompt])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -92,52 +81,27 @@ export function AskAIPopover({
           : <Sparkles className="h-3.5 w-3.5" />}
       </PopoverTrigger>
       <PopoverContent
-        className="w-72 p-0"
+        className="w-80 p-0"
         side="right"
         align="start"
       >
-        <div className="p-3">
-          <p className="text-xs font-medium text-muted-foreground mb-2">
-            {t('whiteboard.quickActions')}
-          </p>
-          <div className="flex flex-col gap-1">
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm hover:bg-accent text-left"
-              onClick={() => handleAction('explore')}
-            >
-              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              {t('whiteboard.actionExplore')}
-            </button>
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm hover:bg-accent text-left"
-              onClick={() => handleAction('explain')}
-            >
-              <BookOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              {t('whiteboard.actionExplain')}
-            </button>
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm hover:bg-accent text-left"
-              onClick={() => handleAction('simplify')}
-            >
-              <Zap className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              {t('whiteboard.actionSimplify')}
-            </button>
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm hover:bg-accent text-left"
-              onClick={() => handleAction('examples')}
-            >
-              <Lightbulb className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              {t('whiteboard.actionExamples')}
-            </button>
+        <div className="px-3 py-2.5 border-b">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <input
+              type="text"
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              placeholder={t('whiteboard.askPlaceholder')}
+              value={prompt}
+              onChange={e => setPrompt(e.target.value)}
+              onKeyDown={handleKeyDown}
+              autoFocus
+            />
           </div>
         </div>
 
         {suggestedQuestions.length > 0 && (
-          <div className="border-t p-3">
+          <div className="p-3">
             <p className="text-xs font-medium text-muted-foreground mb-2">
               {t('whiteboard.suggestedQuestions')}
             </p>
@@ -147,7 +111,7 @@ export function AskAIPopover({
                   key={q}
                   type="button"
                   className="rounded-md px-2.5 py-1.5 text-xs text-left hover:bg-accent text-muted-foreground hover:text-foreground leading-snug"
-                  onClick={() => handleSuggestedQuestion(q)}
+                  onClick={() => handleSubmit(q)}
                 >
                   {q}
                 </button>
@@ -155,20 +119,6 @@ export function AskAIPopover({
             </div>
           </div>
         )}
-
-        <div className="border-t px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <input
-              type="text"
-              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              placeholder={t('whiteboard.askPlaceholder')}
-              value={customPrompt}
-              onChange={e => setCustomPrompt(e.target.value)}
-              onKeyDown={handleKeyDown}
-            />
-          </div>
-        </div>
       </PopoverContent>
     </Popover>
   )

@@ -8,6 +8,7 @@ import { customAlphabet } from 'nanoid'
 import * as z from 'zod'
 import { cacheDel, cacheDelByPrefix } from '@/cache'
 import { registerCronMcpTools } from '@/cron/mcp'
+import { registerWhiteboardMcpTools } from './whiteboard-tools'
 import { db } from '@/db'
 import { findProject, getAppSetting, getDefaultEngine, getEngineDefaultModel, getServerUrl } from '@/db/helpers'
 import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
@@ -318,7 +319,11 @@ export function createMcpServer(): McpServer {
     const project = await findProject(projectId)
     if (!project) return errorResult('Project not found')
 
-    const conditions = [eq(issuesTable.projectId, project.id), eq(issuesTable.isDeleted, 0)]
+    const conditions = [
+      eq(issuesTable.projectId, project.id),
+      eq(issuesTable.isDeleted, 0),
+      eq(issuesTable.isHidden, false),
+    ]
 
     const rows = await db
       .select()
@@ -910,6 +915,10 @@ export function createMcpServer(): McpServer {
   // ==================== Cron Tools ====================
 
   registerCronMcpTools(server)
+
+  // ==================== Whiteboard Tools ====================
+
+  registerWhiteboardMcpTools(server)
 
   return server
 }

@@ -111,6 +111,7 @@ export function serializeIssue(row: IssueRow) {
     useWorktree: row.useWorktree,
     isPinned: row.isPinned,
     keepAlive: row.keepAlive,
+    isHidden: row.isHidden,
     // Session fields
     engineType: row.engineType ?? null,
     sessionStatus: row.sessionStatus ?? null,

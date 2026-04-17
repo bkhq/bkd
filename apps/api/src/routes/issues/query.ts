@@ -19,7 +19,11 @@ query.openapi(R.listIssues, async (c) => {
   const rows = await db
     .select()
     .from(issuesTable)
-    .where(and(eq(issuesTable.projectId, project.id), eq(issuesTable.isDeleted, 0)))
+    .where(and(
+      eq(issuesTable.projectId, project.id),
+      eq(issuesTable.isDeleted, 0),
+      eq(issuesTable.isHidden, false),
+    ))
     .orderBy(desc(issuesTable.isPinned), desc(issuesTable.statusUpdatedAt))
 
   return c.json({

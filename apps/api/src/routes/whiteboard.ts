@@ -11,6 +11,7 @@ import { parseProjectEnvVars } from '@/routes/issues/_shared'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
+import { buildWhiteboardSystemPrompt, buildWhiteboardTurnPrompt } from './whiteboard-prompt'
 
 const whiteboardRoutes = createOpenAPIRouter()
 
@@ -248,55 +249,41 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
 
     const body = c.req.valid('json')
 
-    // Find the target node
-    const [targetNode] = await db
-      .select()
-      .from(whiteboardNodes)
-      .where(and(eq(whiteboardNodes.id, body.nodeId), eq(whiteboardNodes.projectId, project.id), notDeleted))
-    if (!targetNode) {
-      return c.json({ success: false, error: 'Node not found' }, 404 as const)
-    }
-
-    // Build node path (root → target) for context
+    // Snapshot the whole whiteboard tree for the AI
     const allNodes = await db
       .select()
       .from(whiteboardNodes)
       .where(and(eq(whiteboardNodes.projectId, project.id), notDeleted))
 
     const nodeMap = new Map(allNodes.map(n => [n.id, n]))
-    const path: string[] = []
-    const visitedPath = new Set<string>()
-    let current: typeof targetNode | undefined = targetNode
-    while (current && !visitedPath.has(current.id)) {
-      visitedPath.add(current.id)
-      path.unshift(current.label || 'Untitled')
-      current = current.parentId ? nodeMap.get(current.parentId) : undefined
+
+    // Optional active node — focal context for the user's intent
+    let activeNode: typeof allNodes[number] | null = null
+    if (body.nodeId) {
+      const found = allNodes.find(n => n.id === body.nodeId) ?? null
+      if (!found) {
+        return c.json({ success: false, error: 'Node not found' }, 404 as const)
+      }
+      activeNode = found
     }
 
-    // Build action-specific prompt
-    const contextLines = [
-      `Project: ${project.name}`,
-      `Node path: ${path.join(' > ')}`,
-      targetNode.content ? `Node content:\n${targetNode.content}` : '',
-    ].filter(Boolean).join('\n')
+    // Turn prompt: tree snapshot + active-node focus + user intent.
+    // System prompt is only prepended on the very first turn (below).
+    const turnPrompt = buildWhiteboardTurnPrompt({
+      rows: allNodes,
+      activeNodeId: activeNode?.id,
+      userPrompt: body.prompt,
+    })
 
-    const structuredFormat = `\n\nIMPORTANT: You MUST respond using ONLY this exact format — one or more sections, each starting with a level-2 markdown heading:\n\n## Section Title\nDescription paragraph for this section.\n\n## Another Section\nAnother description.\n\nDo NOT use any other heading levels (no #, ###, ####). Do NOT use bullet lists or numbered lists as top-level structure. Each ## heading becomes a node in the mindmap.`
+    // Find or create the bound whiteboard issue. The whiteboard binds a single
+    // shared conversation to the root node so every ask continues the same session.
+    const rootNode = allNodes.find(n => !n.parentId) ?? null
+    let boundIssueId: string | null = rootNode?.boundIssueId ?? null
 
-    const actionPrompts: Record<string, string> = {
-      explore: `${contextLines}\n\nGenerate 3-7 subtopics that break down this node into its key aspects or components.${structuredFormat}`,
-      explain: `${contextLines}\n\nExplain this topic in detail. Write a clear, concise explanation in plain paragraphs. Do NOT use ## headings. Your response will replace the node's content directly.`,
-      simplify: `${contextLines}\n\nRewrite the content of this node to be more concise and easier to understand. Do NOT use ## headings. Your response will replace the node's content directly.`,
-      examples: `${contextLines}\n\nProvide 3-5 concrete examples related to this topic.${structuredFormat}`,
-      custom: `${contextLines}\n\n${body.prompt ?? ''}`,
-    }
-    const prompt = actionPrompts[body.action] ?? actionPrompts.custom
-
-    // Find or create the bound whiteboard issue
-    let boundIssueId = targetNode.boundIssueId
-    // Walk up to root to find a bound issue (with cycle guard)
-    if (!boundIssueId) {
+    // Legacy: tree may have bound issue anchored on a non-root node. Walk to find it.
+    if (!boundIssueId && activeNode) {
       const visitedWalk = new Set<string>()
-      let walk: typeof targetNode | undefined = targetNode
+      let walk: typeof activeNode | undefined = activeNode
       while (walk && !boundIssueId) {
         if (visitedWalk.has(walk.id)) break
         visitedWalk.add(walk.id)
@@ -338,7 +325,23 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
     }
 
     const envVars = parseProjectEnvVars(project.envVars)
-    const displayPrompt = `[Whiteboard] ${body.action}: ${targetNode.label || 'Untitled'}`
+
+    // Short, user-facing label for the log UI. We prefer the user's intent (truncated)
+    // over a hard-coded action tag — the action enum is gone.
+    const intentPreview = body.prompt.replace(/\s+/g, ' ').slice(0, 80)
+    const displayPrompt = activeNode
+      ? `[Whiteboard] ${activeNode.label || 'Untitled'}: ${intentPreview}`
+      : `[Whiteboard] ${intentPreview}`
+
+    // First turn prompt = whiteboard system prompt + project system prompt + turn prompt.
+    // Follow-up turns only send the turn prompt (the AI already has the whiteboard
+    // system instructions from the first turn's session state).
+    const whiteboardSystem = buildWhiteboardSystemPrompt(project.id, project.name)
+    const firstTurnPrompt = [
+      whiteboardSystem,
+      project.systemPrompt ?? '',
+      turnPrompt,
+    ].filter(Boolean).join('\n\n')
 
     if (!boundIssueId) {
       // Create a new whiteboard issue
@@ -370,7 +373,10 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
           sortOrder,
           engineType: resolvedEngine,
           model: resolvedModel ?? null,
-          prompt,
+          prompt: turnPrompt,
+          // Hidden from regular issue listings — the whiteboard has its own
+          // chat surface for this conversation.
+          isHidden: true,
         })
         .returning()
       boundIssueId = newIssue.id
@@ -379,7 +385,7 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
       try {
         const result = await issueEngine.executeIssue(boundIssueId, {
           engineType: resolvedEngine,
-          prompt: project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt,
+          prompt: firstTurnPrompt,
           workingDir: effectiveWorkingDir,
           model: resolvedModel,
           envVars,
@@ -387,7 +393,6 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
         })
 
         // Bind to the root node after successful execution
-        const rootNode = allNodes.find(n => !n.parentId)
         if (rootNode) {
           await db.update(whiteboardNodes)
             .set({ boundIssueId: newIssue.id, updatedAt: new Date() })
@@ -416,7 +421,6 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
 
     if (!boundIssue) {
       // Clear stale binding so next ask creates a fresh issue
-      const rootNode = allNodes.find(n => !n.parentId)
       if (rootNode) {
         await db.update(whiteboardNodes)
           .set({ boundIssueId: null, updatedAt: new Date() })
@@ -426,11 +430,11 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
     }
 
     // If the bound issue has no session (e.g. session ID was reset on failure),
-    // re-execute instead of following up on a broken session
+    // re-execute — treat this as a "first turn" and re-send the full system prompt.
     if (!boundIssue.externalSessionId) {
       const result = await issueEngine.executeIssue(boundIssueId, {
         engineType: resolvedEngine,
-        prompt: project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt,
+        prompt: firstTurnPrompt,
         workingDir: effectiveWorkingDir,
         model: resolvedModel,
         envVars,
@@ -442,10 +446,11 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
       }, 200 as const)
     }
 
-    // Follow-up on existing bound issue — do not override the issue's model
+    // Follow-up on existing bound issue — only turn prompt, system already in session.
+    // Do not override the issue's model.
     const result = await issueEngine.followUpIssue(
       boundIssueId,
-      prompt,
+      turnPrompt,
       undefined,
       undefined,
       'queue',
@@ -462,7 +467,14 @@ whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
   }
 })
 
-// POST /parse-response — parse latest assistant-message and create child nodes
+// POST /parse-response — DEGRADED FALLBACK: parse latest assistant-message and
+// create child nodes from `## headings`.
+//
+// In the tool-first flow the AI mutates the whiteboard directly via the
+// whiteboard-* MCP tools, so the frontend usually does not need to call this.
+// It exists as a safety net for engines that don't have MCP tool access (or
+// when the AI simply returns structured markdown). Callers should treat it as
+// a best-effort extraction.
 whiteboardRoutes.openapi(R.parseWhiteboardResponse, async (c) => {
   try {
     const projectId = c.req.param('projectId')!
@@ -663,6 +675,10 @@ whiteboardRoutes.openapi(R.generateIssuesFromNodes, async (c) => {
  * Parse markdown text with ## headings into heading+body sections.
  * Each `## Heading` line starts a new section; the body is the text
  * between this heading and the next.
+ *
+ * DEGRADED FALLBACK only — the primary whiteboard flow now uses MCP tools
+ * (whiteboard-add-node / whiteboard-update-node) so the AI mutates the board
+ * directly without markdown parsing.
  */
 function parseMarkdownSections(text: string): Array<{ heading: string, body: string }> {
   const lines = text.split('\n')

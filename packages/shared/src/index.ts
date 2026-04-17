@@ -41,6 +41,9 @@ export interface Issue {
   useWorktree: boolean
   isPinned: boolean
   keepAlive: boolean
+  // Hidden from default listings (e.g. whiteboard-bound sessions). The issue
+  // remains fetchable by id and still runs through the IssueEngine lifecycle.
+  isHidden: boolean
   engineType: EngineType | null
   sessionStatus: SessionStatus | null
   prompt: string | null
