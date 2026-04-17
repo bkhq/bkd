@@ -296,6 +296,11 @@ function expandAcpEngines(discovery: EngineDiscovery): EngineDiscovery {
 // In-flight probe dedup: prevents concurrent live probes from spawning duplicate processes
 let probeInFlight: Promise<EngineDiscovery> | null = null
 
+/** Test-only: clear the in-flight probe so a subsequent call starts fresh. */
+export function __resetProbeInFlightForTests(): void {
+  probeInFlight = null
+}
+
 /**
  * Unified entry point for getting engine data.
  * Lookup order: memory cache → DB → live probe.

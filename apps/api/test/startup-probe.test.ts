@@ -4,11 +4,16 @@ import { cacheDel, cacheDelByPrefix } from '../src/cache'
 import { db } from '../src/db'
 import { appSettings as appSettingsTable } from '../src/db/schema'
 import { engineRegistry } from '../src/engines/executors'
-import { getEngineDiscovery } from '../src/engines/startup-probe'
+import { __resetProbeInFlightForTests, getEngineDiscovery } from '../src/engines/startup-probe'
 import type { EngineExecutor } from '../src/engines/types'
 import './setup'
 
 async function clearProbeState(): Promise<void> {
+  // Reset the module-level in-flight probe first. On CI an earlier test file
+  // may have kicked off a real probe (visible as `acp timed out after 15000ms`
+  // logs) that's still in flight when we run; without this reset our mocked
+  // probe would dedupe onto the real one and never call our fake executor.
+  __resetProbeInFlightForTests()
   await cacheDel('engines:available')
   await cacheDelByPrefix('engines:models:')
   await db
