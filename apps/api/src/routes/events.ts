@@ -77,6 +77,7 @@ events.get('/', async (c) => {
         })
         writeEvent('done', {
           issueId: data.issueId,
+          executionId: data.executionId,
           finalStatus: data.finalStatus,
         })
       })

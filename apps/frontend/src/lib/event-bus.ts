@@ -7,7 +7,7 @@ export interface IssueEventHandler {
   onLogUpdated: (entry: NormalizedLogEntry) => void
   onLogRemoved: (messageIds: string[]) => void
   onState: (data: { executionId: string, state: SessionStatus }) => void
-  onDone: (data: { finalStatus: SessionStatus }) => void
+  onDone: (data: { executionId: string, finalStatus: SessionStatus }) => void
 }
 
 export type ChangesSummaryData = ChangesSummary
@@ -115,9 +115,13 @@ class EventBus {
       try {
         const data = JSON.parse(e.data) as {
           issueId: string
+          executionId: string
           finalStatus: SessionStatus
         }
-        this.dispatch(data.issueId, h => h.onDone({ finalStatus: data.finalStatus }))
+        this.dispatch(data.issueId, h => h.onDone({
+          executionId: data.executionId,
+          finalStatus: data.finalStatus,
+        }))
         this.notifyActivity(data.issueId)
       } catch {
         /* ignore */
