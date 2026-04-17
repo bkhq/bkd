@@ -41,17 +41,41 @@ export default function WhiteboardPage() {
   const generateIssues = useGenerateIssuesFromNodes(projectId)
 
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
-  const [askingNodeId, setAskingNodeId] = useState<string | null>(null)
+  // Spinners for nodes whose asks are in-flight. Set because asks queue up on
+  // the same whiteboard issue — the server processes them one turn at a time
+  // but the UI should show all pending nodes as "asking" until each turn's
+  // `done` fires.
+  const [askingNodeIds, setAskingNodeIds] = useState<Set<string>>(new Set())
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
   const [generatedItems, setGeneratedItems] = useState<GeneratedIssueItem[]>([])
   const [chatPanelOpen, setChatPanelOpen] = useState(false)
   const pendingGenerateNodeIds = useRef<string[]>([])
-  // Mirror askingNodeId into a ref so the SSE onDone closure (bound once per
-  // boundIssueId) can read the latest focal node when the turn finishes.
-  const askingNodeIdRef = useRef<string | null>(null)
-  useEffect(() => {
-    askingNodeIdRef.current = askingNodeId
-  }, [askingNodeId])
+  // FIFO queue of focal node IDs waiting for their turn to complete. The SSE
+  // `done` closure is bound once per boundIssueId and is not re-created when
+  // the user starts another ask, so we can't read the "current" focal node
+  // via state/ref at done time — we'd race and attribute A's completion to
+  // whichever node was most recently asked. Shift the head of the queue on
+  // each `done` so each turn's reply lands under the node that triggered it.
+  const pendingAsksRef = useRef<string[]>([])
+
+  const enqueueAsk = useCallback((nodeId: string) => {
+    pendingAsksRef.current = [...pendingAsksRef.current, nodeId]
+    setAskingNodeIds((prev) => {
+      const next = new Set(prev)
+      next.add(nodeId)
+      return next
+    })
+  }, [])
+
+  const dropAsk = useCallback((nodeId: string) => {
+    pendingAsksRef.current = pendingAsksRef.current.filter(id => id !== nodeId)
+    setAskingNodeIds((prev) => {
+      if (!prev.has(nodeId)) return prev
+      const next = new Set(prev)
+      next.delete(nodeId)
+      return next
+    })
+  }, [])
 
   // Derive the bound issue ID from the root node
   const boundIssueId = useMemo(() => {
@@ -65,19 +89,40 @@ export default function WhiteboardPage() {
   useEffect(() => {
     if (!boundIssueId) return
 
-    let parseTimer: ReturnType<typeof setTimeout> | null = null
+    const parseTimers = new Set<ReturnType<typeof setTimeout>>()
     const unsub = eventBus.subscribe(boundIssueId, {
       onLog: () => {},
       onLogUpdated: () => {},
       onLogRemoved: () => {},
       onState: () => {},
-      onDone: () => {
-        const parentNodeId = askingNodeIdRef.current
-        setAskingNodeId(null)
-        if (parseTimer) clearTimeout(parseTimer)
+      onDone: ({ finalStatus }) => {
+        // Attribute this completion to the oldest in-flight ask (FIFO order).
+        // Server processes asks sequentially per issue, so the head of the
+        // queue owns this `done`.
+        const [parentNodeId, ...rest] = pendingAsksRef.current
+        pendingAsksRef.current = rest
+        if (parentNodeId) {
+          setAskingNodeIds((prev) => {
+            if (!prev.has(parentNodeId)) return prev
+            const next = new Set(prev)
+            next.delete(parentNodeId)
+            return next
+          })
+        }
+        // Only parse on successful turns — failed/cancelled turns have no
+        // fresh assistant message and would otherwise make /parse-response
+        // fall back to a prior reply, inserting stale headings under the
+        // focal node.
+        if (finalStatus !== 'completed') {
+          refetchNodes()
+          return
+        }
         // Small delay so the final assistant-message row is flushed before we
-        // ask the server to parse it.
-        parseTimer = setTimeout(() => {
+        // ask the server to parse it. Timer is tracked in parseTimers and
+        // cleared on unmount (see return cleanup below).
+        // eslint-disable-next-line react-web-api/no-leaked-timeout
+        const timer = setTimeout(() => {
+          parseTimers.delete(timer)
           if (parentNodeId) {
             parseResponse.mutate(
               { nodeId: parentNodeId, issueId: boundIssueId },
@@ -87,10 +132,12 @@ export default function WhiteboardPage() {
             refetchNodes()
           }
         }, 500)
+        parseTimers.add(timer)
       },
     })
     return () => {
-      if (parseTimer) clearTimeout(parseTimer)
+      for (const t of parseTimers) clearTimeout(t)
+      parseTimers.clear()
       unsub()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -161,17 +208,17 @@ export default function WhiteboardPage() {
     function handleAskAI(e: Event) {
       const { nodeId, prompt } = (e as CustomEvent).detail as { nodeId: string, prompt: string }
       if (!prompt) return
-      setAskingNodeId(nodeId)
+      enqueueAsk(nodeId)
       askAI.mutate(
         { nodeId, prompt },
         {
-          onError: () => setAskingNodeId(null),
+          onError: () => dropAsk(nodeId),
         },
       )
     }
     window.addEventListener('wb:ask-ai', handleAskAI)
     return () => window.removeEventListener('wb:ask-ai', handleAskAI)
-  }, [askAI])
+  }, [askAI, enqueueAsk, dropAsk])
 
   // Handle wb:generate-tree event from WhiteboardHeader
   useEffect(() => {
@@ -180,10 +227,10 @@ export default function WhiteboardPage() {
       const treePrompt = `Generate a comprehensive mindmap about: ${topic}. Output 3-7 top-level subtopics as markdown "## headings"; the paragraph under each heading becomes that subtopic's content.`
       const rootNode = nodes.find(n => !n.parentId)
       if (rootNode) {
-        setAskingNodeId(rootNode.id)
+        enqueueAsk(rootNode.id)
         askAI.mutate(
           { nodeId: rootNode.id, prompt: treePrompt },
-          { onError: () => setAskingNodeId(null) },
+          { onError: () => dropAsk(rootNode.id) },
         )
       } else {
         // Create root with the topic label, then ask
@@ -191,10 +238,10 @@ export default function WhiteboardPage() {
           { label: topic },
           {
             onSuccess: (newNode) => {
-              setAskingNodeId(newNode.id)
+              enqueueAsk(newNode.id)
               askAI.mutate(
                 { nodeId: newNode.id, prompt: treePrompt },
-                { onError: () => setAskingNodeId(null) },
+                { onError: () => dropAsk(newNode.id) },
               )
             },
           },
@@ -203,7 +250,7 @@ export default function WhiteboardPage() {
     }
     window.addEventListener('wb:generate-tree', handleGenerateTree)
     return () => window.removeEventListener('wb:generate-tree', handleGenerateTree)
-  }, [askAI, createNode, nodes])
+  }, [askAI, createNode, nodes, enqueueAsk, dropAsk])
 
   // Handle wb:generate-issues event (can be dispatched from node context menu in future)
   useEffect(() => {
@@ -244,7 +291,7 @@ export default function WhiteboardPage() {
           <WhiteboardCanvas
             flatNodes={nodes}
             collapsedIds={collapsedIds}
-            askingNodeId={askingNodeId}
+            askingNodeIds={askingNodeIds}
             onAddChild={onAddChild}
             onUpdateNode={onUpdateNode}
             onDeleteNode={onDeleteNode}

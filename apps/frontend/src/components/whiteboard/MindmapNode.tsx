@@ -18,7 +18,7 @@ interface MindmapNodeData {
   parentId: string | null
   parentLabel: string | null
   childLabels: string[]
-  askingNodeId: string | null
+  askingNodeIds: Set<string>
   [key: string]: unknown
 }
 
@@ -222,7 +222,7 @@ export const MindmapNode = memo(({ data, selected }: MindmapNodeProps) => {
           nodeLabel={data.label}
           parentLabel={data.parentLabel ?? undefined}
           childLabels={data.childLabels}
-          isLoading={data.askingNodeId === data.id}
+          isLoading={data.askingNodeIds.has(data.id)}
           onAsk={onAskAI}
         />
         <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={onGenerateIssues} title={t('whiteboard.generateIssues')}>

@@ -53,7 +53,7 @@ function buildDagreGraph(
 export function layoutMindmap(
   flatNodes: WhiteboardNode[],
   collapsedIds: Set<string>,
-  askingNodeId?: string | null,
+  askingNodeIds?: Set<string>,
 ): { nodes: Node[], edges: Edge[] } {
   if (flatNodes.length === 0) {
     return { nodes: [], edges: [] }
@@ -85,7 +85,7 @@ export function layoutMindmap(
         hasChildren: children.length > 0,
         childCount: children.length,
         isCollapsed: collapsedIds.has(n.id),
-        askingNodeId: askingNodeId ?? null,
+        askingNodeIds: askingNodeIds ?? new Set<string>(),
         parentLabel: parent?.label ?? null,
         childLabels: children.map(c => c.label).filter(Boolean),
       },
