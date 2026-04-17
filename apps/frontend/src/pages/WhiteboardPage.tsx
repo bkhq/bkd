@@ -9,6 +9,7 @@ import {
   useCreateWhiteboardNode,
   useDeleteWhiteboardNode,
   useGenerateIssuesFromNodes,
+  useParseWhiteboardResponse,
   useUpdateWhiteboardNode,
   useWhiteboardAsk,
   useWhiteboardNodes,
@@ -36,6 +37,7 @@ export default function WhiteboardPage() {
   const updateNode = useUpdateWhiteboardNode(projectId)
   const deleteNode = useDeleteWhiteboardNode(projectId)
   const askAI = useWhiteboardAsk(projectId)
+  const parseResponse = useParseWhiteboardResponse(projectId)
   const generateIssues = useGenerateIssuesFromNodes(projectId)
 
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
@@ -44,6 +46,12 @@ export default function WhiteboardPage() {
   const [generatedItems, setGeneratedItems] = useState<GeneratedIssueItem[]>([])
   const [chatPanelOpen, setChatPanelOpen] = useState(false)
   const pendingGenerateNodeIds = useRef<string[]>([])
+  // Mirror askingNodeId into a ref so the SSE onDone closure (bound once per
+  // boundIssueId) can read the latest focal node when the turn finishes.
+  const askingNodeIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    askingNodeIdRef.current = askingNodeId
+  }, [askingNodeId])
 
   // Derive the bound issue ID from the root node
   const boundIssueId = useMemo(() => {
@@ -51,27 +59,38 @@ export default function WhiteboardPage() {
     return root?.boundIssueId ?? null
   }, [nodes])
 
-  // SSE subscription on the bound whiteboard issue — refetch nodes whenever
-  // the AI finishes a turn. The server parses the AI's markdown response into
-  // new child nodes, so the only thing the UI needs to do on `done` is reload.
+  // SSE subscription on the bound whiteboard issue — when a turn finishes,
+  // parse the AI's markdown reply into child nodes under the focal node, then
+  // refetch. Without this call the AI's response never materializes as nodes.
   useEffect(() => {
     if (!boundIssueId) return
 
-    let refetchTimer: ReturnType<typeof setTimeout> | null = null
+    let parseTimer: ReturnType<typeof setTimeout> | null = null
     const unsub = eventBus.subscribe(boundIssueId, {
       onLog: () => {},
       onLogUpdated: () => {},
       onLogRemoved: () => {},
       onState: () => {},
       onDone: () => {
+        const parentNodeId = askingNodeIdRef.current
         setAskingNodeId(null)
-        // Delay slightly so the last tool-call commit is flushed before refetch
-        if (refetchTimer) clearTimeout(refetchTimer)
-        refetchTimer = setTimeout(refetchNodes, 500)
+        if (parseTimer) clearTimeout(parseTimer)
+        // Small delay so the final assistant-message row is flushed before we
+        // ask the server to parse it.
+        parseTimer = setTimeout(() => {
+          if (parentNodeId) {
+            parseResponse.mutate(
+              { nodeId: parentNodeId, issueId: boundIssueId },
+              { onSettled: () => refetchNodes() },
+            )
+          } else {
+            refetchNodes()
+          }
+        }, 500)
       },
     })
     return () => {
-      if (refetchTimer) clearTimeout(refetchTimer)
+      if (parseTimer) clearTimeout(parseTimer)
       unsub()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,7 +177,7 @@ export default function WhiteboardPage() {
   useEffect(() => {
     function handleGenerateTree(e: Event) {
       const { topic } = (e as CustomEvent).detail as { topic: string }
-      const treePrompt = `Generate a comprehensive mindmap about: ${topic}. Use the whiteboard-add-node tool to create 3-7 top-level subtopics as children of the root node, each with a short paragraph in content.`
+      const treePrompt = `Generate a comprehensive mindmap about: ${topic}. Output 3-7 top-level subtopics as markdown "## headings"; the paragraph under each heading becomes that subtopic's content.`
       const rootNode = nodes.find(n => !n.parentId)
       if (rootNode) {
         setAskingNodeId(rootNode.id)

@@ -47,8 +47,7 @@ export function buildWhiteboardTurnPrompt(options: {
     label: r.label || '',
     icon: r.icon ?? '',
     sortOrder: r.sortOrder,
-    // Truncate long content in the snapshot to keep the prompt compact;
-    // the AI can call whiteboard-get-tree or read the full node if needed.
+    // Truncate long content in the snapshot to keep the prompt compact.
     content: r.content.length > 400 ? `${r.content.slice(0, 400)}…` : r.content,
   }))
 
