@@ -9,13 +9,15 @@ interface ChatFilterStore {
 const STORAGE_KEY = 'bkd-chat-dev-mode'
 
 function loadDevMode(): boolean {
-  if (typeof window === 'undefined') return false
-  return localStorage.getItem(STORAGE_KEY) === 'true'
+  if (typeof window === 'undefined') return true
+  const stored = localStorage.getItem(STORAGE_KEY)
+  if (stored === null) return true
+  return stored === 'true'
 }
 
 export const useChatFilterStore = create<ChatFilterStore>((set, get) => ({
-  // devMode=false (default) → concise view: user / assistant / thinking only.
-  // devMode=true            → full raw view including tool-use / system-message.
+  // devMode=true (default)  → full raw view including tool-use / system-message.
+  // devMode=false           → concise view: user / assistant / thinking only.
   devMode: loadDevMode(),
 
   setDevMode: (value) => {
