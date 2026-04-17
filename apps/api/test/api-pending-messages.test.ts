@@ -380,10 +380,12 @@ describe('Flush pending messages for existing sessions', () => {
     })
 
     // Force flushPendingAsFollowUp -> issueEngine.followUpIssue to fail:
-    // missing externalSessionId causes followUp guard to throw.
+    // missing engineType triggers the `No engine type set on issue` guard in
+    // followUpIssue. (Nulling externalSessionId no longer works — the spawn
+    // path falls back to `spawnFresh` and succeeds under the mock executor.)
     await db
       .update(issuesTable)
-      .set({ externalSessionId: null })
+      .set({ engineType: null })
       .where(eq(issuesTable.id, issue.id))
 
     // Trigger flush path (shouldFlush=true). Failure must NOT consume pending.
