@@ -1,5 +1,6 @@
 import type { Edge, Node } from '@xyflow/react'
 import dagre from 'dagre'
+import { generateKeyBetween } from 'jittered-fractional-indexing'
 import type { WhiteboardNode } from '@/types/kanban'
 
 const NODE_WIDTH = 360
@@ -136,6 +137,44 @@ export function relayoutWithMeasured(
       },
     }
   })
+}
+
+/**
+ * Compute a fractional sort key strictly greater than the last sibling under
+ * `parentId`, so a new or reparented child appends without colliding with
+ * existing siblings. `excludeNodeId` removes the node itself from the sibling
+ * pool when reparenting — otherwise we'd anchor against our own stale key and
+ * generateKeyBetween would throw.
+ */
+export function computeNextSortOrder(
+  allNodes: WhiteboardNode[],
+  parentId: string | null,
+  excludeNodeId?: string,
+): string {
+  const siblings = allNodes.filter(
+    n => n.parentId === parentId && n.id !== excludeNodeId,
+  )
+  if (siblings.length === 0) return generateKeyBetween(null, null)
+  const lastKey = siblings
+    .map(n => n.sortOrder)
+    .toSorted()
+    .at(-1) ?? null
+  return generateKeyBetween(lastKey, null)
+}
+
+/**
+ * Compute the set of visible node IDs for a given tree state.
+ * Used to gate the measured re-layout effect on whether the xyflow
+ * node state has already committed the structural change (collapse/expand/
+ * add/remove/reparent) — see WhiteboardCanvas.
+ */
+export function getVisibleNodeIds(
+  flatNodes: WhiteboardNode[],
+  collapsedIds: Set<string>,
+): Set<string> {
+  const childrenMap = buildChildrenMap(flatNodes)
+  const visible = collectVisibleNodes(childrenMap, collapsedIds)
+  return new Set(visible.map(n => n.id))
 }
 
 function buildChildrenMap(flatNodes: WhiteboardNode[]) {
