@@ -31,7 +31,7 @@ function deserializeRow(row: typeof whiteboardNodes.$inferSelect) {
 // GET /nodes
 whiteboardRoutes.openapi(R.listWhiteboardNodes, async (c) => {
   try {
-    const projectId = c.req.param('projectId')
+    const projectId = c.req.param('projectId')!
     const project = await findProject(projectId)
     if (!project) {
       return c.json({ success: false, error: 'Project not found' }, 404 as const)
@@ -51,7 +51,7 @@ whiteboardRoutes.openapi(R.listWhiteboardNodes, async (c) => {
 // POST /nodes
 whiteboardRoutes.openapi(R.createWhiteboardNode, async (c) => {
   try {
-    const projectId = c.req.param('projectId')
+    const projectId = c.req.param('projectId')!
     const project = await findProject(projectId)
     if (!project) {
       return c.json({ success: false, error: 'Project not found' }, 404 as const)
@@ -72,7 +72,7 @@ whiteboardRoutes.openapi(R.createWhiteboardNode, async (c) => {
 // PATCH /nodes/:nodeId
 whiteboardRoutes.openapi(R.updateWhiteboardNode, async (c) => {
   try {
-    const projectId = c.req.param('projectId')
+    const projectId = c.req.param('projectId')!
     const project = await findProject(projectId)
     if (!project) {
       return c.json({ success: false, error: 'Project not found' }, 404 as const)
@@ -117,7 +117,7 @@ whiteboardRoutes.openapi(R.updateWhiteboardNode, async (c) => {
 // DELETE /nodes/:nodeId (soft delete node + descendants)
 whiteboardRoutes.openapi(R.deleteWhiteboardNode, async (c) => {
   try {
-    const projectId = c.req.param('projectId')
+    const projectId = c.req.param('projectId')!
     const project = await findProject(projectId)
     if (!project) {
       return c.json({ success: false, error: 'Project not found' }, 404 as const)
@@ -180,7 +180,7 @@ whiteboardRoutes.openapi(R.deleteWhiteboardNode, async (c) => {
 // PATCH /nodes/bulk
 whiteboardRoutes.openapi(R.bulkUpdateWhiteboardNodes, async (c) => {
   try {
-    const projectId = c.req.param('projectId')
+    const projectId = c.req.param('projectId')!
     const project = await findProject(projectId)
     if (!project) {
       return c.json({ success: false, error: 'Project not found' }, 404 as const)
@@ -219,7 +219,7 @@ whiteboardRoutes.openapi(R.bulkUpdateWhiteboardNodes, async (c) => {
 // DELETE /nodes — Reset whiteboard (soft-delete all nodes)
 whiteboardRoutes.delete('/nodes', async (c) => {
   try {
-    const projectId = c.req.param('projectId')
+    const projectId = c.req.param('projectId')!
     const project = await findProject(projectId)
     if (!project) {
       return c.json({ success: false, error: 'Project not found' }, 404)
@@ -241,7 +241,7 @@ whiteboardRoutes.delete('/nodes', async (c) => {
 // POST /ask — AI interaction via bound issue follow-up
 whiteboardRoutes.openapi(R.whiteboardAsk, async (c) => {
   try {
-    const projectId = c.req.param('projectId')
+    const projectId = c.req.param('projectId')!
     const project = await findProject(projectId)
     if (!project) {
       return c.json({ success: false, error: 'Project not found' }, 404 as const)
