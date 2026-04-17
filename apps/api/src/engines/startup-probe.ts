@@ -2,7 +2,7 @@ import { cacheGet, cacheSet } from '@/cache'
 import { getProbeResults, saveProbeResults, setAppSetting } from '@/db/helpers'
 import { refreshSlashCommandsCacheForEngine, slashCommandsKey } from '@/engines/issue/queries'
 import { logger } from '@/logger'
-import { ClaudeCodeExecutor, engineRegistry } from './executors'
+import { ClaudeCodeExecutor, ClaudeCodeSdkExecutor, engineRegistry } from './executors'
 import type { AcpAgentId } from './executors/acp/agents'
 import { getAcpAgents } from './executors/acp/agents'
 import type { EngineAvailability, EngineModel, EngineType } from './types'
@@ -164,7 +164,9 @@ async function discoverSlashCommands(installed: EngineAvailability[]): Promise<v
     if (engine.engineType !== 'claude-code') continue
 
     const executor = engineRegistry.get('claude-code')
-    if (!(executor instanceof ClaudeCodeExecutor)) continue
+    if (!(executor instanceof ClaudeCodeExecutor) && !(executor instanceof ClaudeCodeSdkExecutor)) {
+      continue
+    }
 
     try {
       const result = await withTimeout(

@@ -5,14 +5,44 @@ import type {
   EngineRegistry,
   EngineType,
 } from '@/engines/types'
+import { logger } from '@/logger'
 import { AcpExecutor } from './acp'
 import { ClaudeCodeExecutor } from './claude'
+import { ClaudeCodeSdkExecutor } from './claude-sdk'
 import { CodexExecutor } from './codex'
 
 // Re-export executor classes
 export { AcpExecutor } from './acp'
 export { ClaudeCodeExecutor } from './claude'
+export { ClaudeCodeSdkExecutor } from './claude-sdk'
 export { CodexExecutor } from './codex'
+
+/**
+ * Backend selector for the `claude-code` engine. Controlled by
+ * `CLAUDE_ENGINE_BACKEND` env var:
+ *   - `sdk`    — Anthropic's `@anthropic-ai/claude-agent-sdk` (migration target)
+ *   - `legacy` — hand-rolled stream-json executor (default during rollout)
+ *
+ * See PLAN-003.
+ */
+export type ClaudeBackend = 'sdk' | 'legacy'
+
+export function getClaudeBackend(): ClaudeBackend {
+  const raw = (process.env.CLAUDE_ENGINE_BACKEND ?? '').trim().toLowerCase()
+  if (raw === 'sdk') return 'sdk'
+  if (raw === 'legacy') return 'legacy'
+  return 'legacy'
+}
+
+export function createClaudeExecutor(): EngineExecutor {
+  const backend = getClaudeBackend()
+  if (backend === 'sdk') {
+    logger.info({ backend }, 'claude_backend_selected')
+    return new ClaudeCodeSdkExecutor()
+  }
+  logger.info({ backend }, 'claude_backend_selected')
+  return new ClaudeCodeExecutor()
+}
 
 /**
  * Default engine registry — manages all executor instances.
@@ -62,7 +92,7 @@ function createRegistry(): EngineRegistry {
   const registry = new DefaultEngineRegistry()
 
   // Register all supported executors
-  registry.register(new ClaudeCodeExecutor())
+  registry.register(createClaudeExecutor())
   registry.register(new CodexExecutor())
   registry.register(new AcpExecutor())
 

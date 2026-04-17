@@ -68,6 +68,7 @@ interface WsLike {
 interface TerminalMeta {
   wsRaw: WsLike | null
   graceTimer: ReturnType<typeof setTimeout> | null
+  pty: Subprocess
 }
 
 const MAX_SESSIONS = 10
@@ -88,7 +89,7 @@ function killSession(id: string): void {
   if (!entry) return
   if (entry.meta.graceTimer) clearTimeout(entry.meta.graceTimer)
   try {
-    entry.subprocess.terminal?.close()
+    entry.meta.pty.terminal?.close()
   } catch {
     /* already closed */
   }
@@ -150,7 +151,7 @@ app.post('/terminal', (c) => {
   // We need a reference the PTY data callback can close over
   // to forward output to the attached WS. The meta object is
   // shared by reference with the PM entry.
-  const meta: TerminalMeta = { wsRaw: null, graceTimer: null }
+  const meta: TerminalMeta = { wsRaw: null, graceTimer: null, pty: null as unknown as Subprocess }
 
   const proc = Bun.spawn([defaultShell, '-l'], {
     terminal: {
@@ -177,6 +178,8 @@ app.post('/terminal', (c) => {
       LC_CTYPE: process.env.LC_CTYPE || 'C.UTF-8',
     },
   }) as unknown as Subprocess
+
+  meta.pty = proc
 
   try {
     terminalPM.register(id, proc, meta, {
@@ -236,12 +239,13 @@ app.get(
         myWsRaw = ws.raw as WsLike
         entry.meta.wsRaw = myWsRaw
 
-        logger.info({ id, pid: entry.subprocess.pid }, 'terminal_ws_attached')
+        logger.info({ id, pid: entry.handle.pid }, 'terminal_ws_attached')
       },
 
       onMessage(evt) {
         const entry = terminalPM.get(id)
-        if (!entry?.subprocess?.terminal) return
+        const pty = entry?.meta.pty
+        if (!pty?.terminal) return
 
         const raw =
           evt.data instanceof ArrayBuffer ?
@@ -257,14 +261,14 @@ app.get(
         if (type === 0) {
           // Input: [0x00][...data]
           const input = new TextDecoder().decode(raw.slice(1))
-          entry.subprocess.terminal.write(input)
+          pty.terminal.write(input)
         } else if (type === 1 && raw.length >= 5) {
           // Resize: [0x01][cols:u16BE][rows:u16BE]
           const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength)
           const cols = view.getUint16(1, false)
           const rows = view.getUint16(3, false)
           if (cols > 0 && cols <= MAX_COLS && rows > 0 && rows <= MAX_ROWS) {
-            entry.subprocess.terminal.resize(cols, rows)
+            pty.terminal.resize(cols, rows)
           }
         }
       },
@@ -332,7 +336,7 @@ app.post(
 
     const { cols, rows } = c.req.valid('json')
     try {
-      entry.subprocess.terminal?.resize(cols, rows)
+      entry.meta.pty.terminal?.resize(cols, rows)
     } catch {
       /* terminal closed */
     }
@@ -348,7 +352,7 @@ app.delete('/terminal/:id', (c) => {
     return c.json({ success: false, error: 'Session not found' }, 404)
   }
 
-  logger.info({ id, pid: entry.subprocess.pid }, 'terminal_session_killed')
+  logger.info({ id, pid: entry.handle.pid }, 'terminal_session_killed')
   killSession(id)
 
   return c.json({ success: true })

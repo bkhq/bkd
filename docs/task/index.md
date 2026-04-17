@@ -36,3 +36,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [-] [**WB-002 Improve whiteboard node UI, edges, and markdown rendering**](WB-002.md) `P1`
 - [x] [**WB-003 Refactor whiteboard AI: hidden sessions + MCP tools**](WB-003.md) `P1`
 - [x] [**WB-004 Whiteboard manual editing UX fixes**](WB-004.md) `P1`
+- [-] [**ENG-001 Migrate claude executor to @anthropic-ai/claude-agent-sdk**](ENG-001.md) `P2`
