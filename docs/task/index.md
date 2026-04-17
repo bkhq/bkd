@@ -34,3 +34,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**DOCS-001 Add BKD skill installation note to README**](DOCS-001.md) `P2`
 - [-] [**WB-001 Implement project-level AI-driven mindmap whiteboard**](WB-001.md) `P1`
 - [-] [**WB-002 Improve whiteboard node UI, edges, and markdown rendering**](WB-002.md) `P1`
+- [x] [**WB-003 Refactor whiteboard AI: hidden sessions + MCP tools**](WB-003.md) `P1`
+- [-] [**WB-004 Whiteboard manual editing UX fixes**](WB-004.md) `P1`
