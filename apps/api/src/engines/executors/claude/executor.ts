@@ -92,6 +92,11 @@ const CLAUDE_MODELS: EngineModel[] = [
     isDefault: false,
   },
   { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', isDefault: true },
+  {
+    id: 'claude-opus-4-7[1m]',
+    name: 'Claude Opus 4.7 (1M)',
+    isDefault: false,
+  },
   { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', isDefault: false },
   {
     id: 'claude-opus-4-6[1m]',
