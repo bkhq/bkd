@@ -10,8 +10,13 @@ import type { ProcessHandle } from '@/engines/process-handle'
  *     `ProcessManager.forceKill()` and the post-timeout escalation in
  *     `ProcessManager.terminate()`. A second SIGKILL is a no-op.
  *   - `kill()` / `kill(non-9)` (SIGTERM-equivalent) → `Query.interrupt()`
- *     (graceful stop). Subsequent soft kills are no-ops while the query is
- *     still alive; once interrupted, a later `kill(9)` still hard-closes.
+ *     (graceful stop). A soft kill is deduped only while its own
+ *     `interrupt()` RPC is still in-flight; once that promise settles, a
+ *     subsequent soft kill fires a fresh interrupt. This preserves the retry
+ *     behavior of `engines/issue/orchestration/cancel.ts` (which calls
+ *     `cancel()` up to `CANCEL_MAX_RETRIES` times before hard-killing) and
+ *     lets users interrupt later turns of a long-lived SDK session after an
+ *     earlier cancel. A hard-closed handle rejects further soft kills.
  *   - `exited` → resolved by the executor's consumer loop via `settle()` when
  *     the async generator finishes (normal result, thrown error, or
  *     post-interrupt/post-close settle). `0` for normal end, non-zero when the
@@ -24,7 +29,7 @@ export class SdkProcessHandle implements ProcessHandle {
   readonly exited: Promise<number>
 
   private resolveExited!: (code: number) => void
-  private softInterrupted = false
+  private softInterruptInFlight = false
   private hardClosed = false
   private settled = false
 
@@ -45,11 +50,16 @@ export class SdkProcessHandle implements ProcessHandle {
       }
       return
     }
-    if (this.softInterrupted || this.hardClosed) return
-    this.softInterrupted = true
-    void this.query.interrupt().catch(() => {
-      /* already interrupted / closed */
-    })
+    if (this.hardClosed || this.softInterruptInFlight) return
+    this.softInterruptInFlight = true
+    void this.query
+      .interrupt()
+      .catch(() => {
+        /* already interrupted / closed */
+      })
+      .finally(() => {
+        this.softInterruptInFlight = false
+      })
   }
 
   /**

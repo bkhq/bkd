@@ -71,13 +71,27 @@ function makeMockQuery(): Query & {
 }
 
 describe('SdkProcessHandle', () => {
-  test('soft kill (no signal) triggers interrupt; subsequent soft kills are no-ops', () => {
+  test('soft kills while interrupt is in-flight are deduped', () => {
     const q = makeMockQuery()
     const handle = new SdkProcessHandle(q)
     handle.kill()
     handle.kill()
     handle.kill()
     expect(q.interruptCount).toBe(1)
+    expect(q.closeCount).toBe(0)
+  })
+
+  test('a fresh soft kill after the prior interrupt resolves fires a new interrupt', async () => {
+    const q = makeMockQuery()
+    const handle = new SdkProcessHandle(q)
+    handle.kill()
+    // Let the mock interrupt() microtask + the handle's .finally() reset settle.
+    await new Promise(resolve => setTimeout(resolve, 0))
+    handle.kill()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    handle.kill()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(q.interruptCount).toBe(3)
     expect(q.closeCount).toBe(0)
   })
 
