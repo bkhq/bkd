@@ -1,4 +1,4 @@
-import type { Subprocess } from '@/engines/spawn'
+import type { ProcessHandle } from '@/engines/process-handle'
 
 // ---------- Types ----------
 
@@ -9,7 +9,7 @@ const TERMINAL_STATES: ReadonlySet<ProcessState> = new Set(['completed', 'failed
 export interface ManagedEntry<TMeta> {
   readonly id: string
   readonly group?: string
-  readonly subprocess: Subprocess
+  readonly handle: ProcessHandle
   state: ProcessState
   readonly startedAt: Date
   finishedAt?: Date
@@ -104,7 +104,7 @@ export class ProcessManager<TMeta> {
 
   register(
     id: string,
-    subprocess: Subprocess,
+    handle: ProcessHandle,
     meta: TMeta,
     opts?: { group?: string, startAsRunning?: boolean },
   ): ManagedEntry<TMeta> {
@@ -121,7 +121,7 @@ export class ProcessManager<TMeta> {
     const entry: ManagedEntry<TMeta> = {
       id,
       group: opts?.group,
-      subprocess,
+      handle,
       state: opts?.startAsRunning ? 'running' : 'spawning',
       startedAt: new Date(),
       meta,
@@ -169,12 +169,12 @@ export class ProcessManager<TMeta> {
 
     const killTimeout = setTimeout(() => {
       try {
-        entry.subprocess.kill(9)
+        entry.handle.kill(9)
         this.log.info?.(
           {
             pm: this.name,
             id,
-            pid: (entry.subprocess as { pid?: number }).pid,
+            pid: entry.handle.pid,
           },
           'pm_sigkill_sent',
         )
@@ -184,7 +184,7 @@ export class ProcessManager<TMeta> {
     }, this.killTimeoutMs)
 
     try {
-      await entry.subprocess.exited
+      await entry.handle.exited
     } catch (err) {
       this.log.debug?.({ pm: this.name, id, err }, 'pm_terminate_exited_error')
     } finally {
@@ -216,9 +216,9 @@ export class ProcessManager<TMeta> {
   forceKill(id: string): void {
     const entry = this.entries.get(id)
     if (!entry) return
-    const pid = (entry.subprocess as { pid?: number }).pid
+    const pid = entry.handle.pid
     try {
-      entry.subprocess.kill(9)
+      entry.handle.kill(9)
       this.log.info?.({ pm: this.name, id, group: entry.group, pid }, 'pm_force_kill')
     } catch {
       this.log.debug?.({ pm: this.name, id, pid }, 'pm_force_kill_already_dead')
@@ -375,7 +375,7 @@ export class ProcessManager<TMeta> {
   }
 
   private monitorExit(entry: ManagedEntry<TMeta>): void {
-    void entry.subprocess.exited
+    void entry.handle.exited
       .then((exitCode) => {
         const code = exitCode ?? 1
         entry.exitCode = code
@@ -387,7 +387,7 @@ export class ProcessManager<TMeta> {
             group: entry.group,
             exitCode: code,
             prevState: entry.state,
-            pid: (entry.subprocess as { pid?: number }).pid,
+            pid: entry.handle.pid,
           },
           'pm_process_exited',
         )

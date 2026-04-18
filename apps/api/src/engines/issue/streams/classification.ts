@@ -3,15 +3,20 @@ import type { NormalizedLogEntry } from '@/engines/types'
 // ---------- Pure classification functions ----------
 
 export function isTurnCompletionEntry(entry: NormalizedLogEntry): boolean {
+  // Explicit signals set by the normalizer when it recognizes a turn-over
+  // message. These cover:
+  //  - Claude `type: 'result'` → turnCompleted + resultSubtype
+  //  - Claude `type: 'system', subtype: 'session_state_changed', state: 'idle'`
+  //    → turnCompleted (the SDK's "authoritative turn-over signal")
+  //  - Codex / ACP normalizers setting turnCompleted on their own completions.
+  // A looser fallback keyed on `metadata.duration` was removed: it duplicated
+  // the result path and risked false positives on background task
+  // notifications whose usage blocks also carry a duration_ms field.
   if (entry.metadata?.turnCompleted === true) return true
   if (entry.metadata && Object.hasOwn(entry.metadata, 'resultSubtype')) {
     return true
   }
-  return (
-    entry.entryType === 'system-message' &&
-    !!entry.metadata &&
-    Object.hasOwn(entry.metadata, 'duration')
-  )
+  return false
 }
 
 export function isCancelledNoiseEntry(entry: NormalizedLogEntry): boolean {

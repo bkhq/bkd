@@ -41,14 +41,71 @@ export function generateToolContent(toolName: string, input: Record<string, unkn
       return String(input.query ?? toolName)
     case 'Task':
       return input.description ? `Task: ${input.description}` : 'Task'
-    case 'Agent':
-      return input.description ? `Agent: ${input.description}` : String(input.prompt ?? 'Agent')
+    case 'Agent': {
+      // SDK AgentInput (0.2.113) carries identity + lifecycle hints we should
+      // surface: subagent_type, model, run_in_background, isolation, name.
+      const subtype = typeof input.subagent_type === 'string' ? input.subagent_type : undefined
+      const description = typeof input.description === 'string' ? input.description : undefined
+      const prompt = typeof input.prompt === 'string' ? input.prompt : undefined
+      const body = description ?? prompt ?? 'Agent'
+      const prefix = subtype ? `[${subtype}] ` : ''
+
+      const flags: string[] = []
+      if (typeof input.model === 'string') flags.push(input.model)
+      if (input.run_in_background === true) flags.push('bg')
+      if (input.isolation === 'worktree') flags.push('worktree')
+      if (typeof input.name === 'string' && input.name.length > 0) {
+        flags.push(`as ${input.name}`)
+      }
+      const suffix = flags.length > 0 ? ` (${flags.join(', ')})` : ''
+      return `${prefix}${body}${suffix}`
+    }
     case 'TodoWrite':
       return 'TODO list updated'
     case 'ExitPlanMode':
       return String(input.plan ?? 'Plan submitted')
     case 'NotebookEdit':
       return String(input.notebook_path ?? toolName)
+    case 'ScheduleWakeup': {
+      const delay = input.delaySeconds
+      const reason = typeof input.reason === 'string' ? input.reason : undefined
+      if (typeof delay === 'number') {
+        return reason ? `wake in ${delay}s — ${reason}` : `wake in ${delay}s`
+      }
+      return reason ?? 'ScheduleWakeup'
+    }
+    case 'Monitor': {
+      // Claude CLI runtime tool for streaming background task output.
+      // No published schema — accept common shapes defensively.
+      const taskId = input.task_id ?? input.taskId ?? input.shell_id
+      const cmd = input.command ?? input.until
+      if (taskId) return `monitor ${String(taskId)}`
+      if (cmd) return `monitor ${String(cmd)}`
+      return 'Monitor'
+    }
+    case 'TaskOutput':
+      return input.task_id ? `output ${String(input.task_id)}` : 'TaskOutput'
+    case 'TaskStop':
+      return input.task_id || input.shell_id
+        ? `stop ${String(input.task_id ?? input.shell_id)}`
+        : 'TaskStop'
+    case 'AskUserQuestion': {
+      const qs = input.questions
+      if (Array.isArray(qs) && qs.length > 0) {
+        const first = qs[0] as { question?: unknown }
+        const q = typeof first?.question === 'string' ? first.question : undefined
+        if (q) return qs.length > 1 ? `${q} (+${qs.length - 1})` : q
+      }
+      return 'AskUserQuestion'
+    }
+    case 'EnterWorktree': {
+      const target = input.path ?? input.name
+      return target ? `worktree: ${String(target)}` : 'EnterWorktree (new)'
+    }
+    case 'ExitWorktree': {
+      const action = typeof input.action === 'string' ? input.action : 'exit'
+      return `worktree ${action}`
+    }
     // Server-side tools
     case 'code_execution':
     case 'bash_code_execution':

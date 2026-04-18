@@ -118,6 +118,23 @@ export class ClaudeLogNormalizer {
       case 'stop_hook_summary':
         // Suppress — no user-facing value
         return null
+      case 'session_state_changed':
+        // SDK marks `state === 'idle'` as the authoritative turn-over signal
+        // (fires after heldBackResult flushes and the bg-agent loop exits).
+        // Surface it as turn-completion so sessions that never receive a
+        // `type: 'result'` still settle. running/requires_action are noise.
+        if (data.state !== 'idle') return null
+        return {
+          entryType: 'system-message',
+          content: '',
+          timestamp: data.timestamp,
+          metadata: {
+            subtype: data.subtype,
+            state: data.state,
+            turnCompleted: true,
+            sessionId: data.session_id,
+          },
+        }
       case 'status':
         if (data.status) {
           return {

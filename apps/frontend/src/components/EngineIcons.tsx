@@ -28,6 +28,32 @@ export function ClaudeIcon(props: IconProps) {
   )
 }
 
+/** Claude Code SDK — sunburst with inner ring to mark the SDK variant */
+export function ClaudeSdkIcon(props: IconProps) {
+  const cx = 12
+  const cy = 12
+  const rInner = 4.6
+  const rLong = 10.5
+  const rShort = 8
+  const rays = 16
+  const paths: string[] = []
+  for (let i = 0; i < rays; i++) {
+    const angle = (Math.PI * 2 * i) / rays - Math.PI / 2
+    const rOuter = i % 2 === 0 ? rLong : rShort
+    const x1 = cx + rInner * Math.cos(angle)
+    const y1 = cy + rInner * Math.sin(angle)
+    const x2 = cx + rOuter * Math.cos(angle)
+    const y2 = cy + rOuter * Math.sin(angle)
+    paths.push(`M${x1.toFixed(2)},${y1.toFixed(2)}L${x2.toFixed(2)},${y2.toFixed(2)}`)
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d={paths.join('')} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx={cx} cy={cy} r={3.4} stroke="currentColor" strokeWidth="1.3" fill="none" />
+    </svg>
+  )
+}
+
 /** OpenAI / Codex */
 export function CodexIcon(props: IconProps) {
   return (
@@ -70,6 +96,7 @@ export function GeminiIcon(props: IconProps) {
 
 const ENGINE_ICONS: Partial<Record<string, React.FC<IconProps>>> = {
   'claude-code': ClaudeIcon,
+  'claude-code-sdk': ClaudeSdkIcon,
   'codex': CodexIcon,
   'acp': GeminiIcon,
   'acp:gemini': GeminiIcon,
