@@ -385,8 +385,22 @@ function cleanAgentResult(raw: string): string {
 }
 
 export function AgentToolItem({ item }: { item: ToolGroupItem }) {
-  const input = item.action.metadata?.input as { description?: string, prompt?: string } | undefined
+  const input = item.action.metadata?.input as {
+    description?: string
+    prompt?: string
+    subagent_type?: string
+    model?: string
+    run_in_background?: boolean
+    isolation?: string
+    name?: string
+  } | undefined
   const description = input?.description || input?.prompt || 'Agent'
+  const subtype = input?.subagent_type
+  const badges: string[] = []
+  if (input?.model) badges.push(input.model)
+  if (input?.run_in_background) badges.push('bg')
+  if (input?.isolation === 'worktree') badges.push('worktree')
+  if (input?.name) badges.push(`as ${input.name}`)
   const rawContent = item.result?.content || item.action.content || ''
   const resultContent = cleanAgentResult(rawContent)
   const hasError = isItemError(item)
@@ -396,10 +410,17 @@ export function AgentToolItem({ item }: { item: ToolGroupItem }) {
       collapsible
       summary={(
         <div className="flex items-center gap-2 min-w-0">
-          <ToolLabel label="Agent" icon={Users} />
+          <ToolLabel label={subtype ? `Agent: ${subtype}` : 'Agent'} icon={Users} />
           <code className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono truncate">
             {description}
           </code>
+          {badges.length > 0 && (
+            <span className="shrink-0 text-[10px] text-muted-foreground/70">
+              {badges.map(b => (
+                <span key={b} className="ml-1 rounded bg-muted/40 px-1 py-0.5">{b}</span>
+              ))}
+            </span>
+          )}
         </div>
       )}
     >

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { ClaudeLogNormalizer } from '@/engines/executors/claude'
+import { generateToolContent } from '@/engines/executors/claude/normalizer-tool'
 import type { NormalizedLogEntry } from '@/engines/types'
 
 function line(obj: Record<string, unknown>): string {
@@ -882,5 +883,122 @@ describe('ClaudeLogNormalizer', () => {
       expect(entries[0]!.content).toContain('Something went wrong')
       expect(entries[0]!.metadata?.isError).toBe(true)
     })
+  })
+})
+
+describe('generateToolContent — SDK 0.2.113 new tools', () => {
+  test('ScheduleWakeup with delay + reason', () => {
+    expect(generateToolContent('ScheduleWakeup', { delaySeconds: 120, reason: 'poll build' }))
+      .toBe('wake in 120s — poll build')
+  })
+
+  test('ScheduleWakeup with delay only', () => {
+    expect(generateToolContent('ScheduleWakeup', { delaySeconds: 60 })).toBe('wake in 60s')
+  })
+
+  test('ScheduleWakeup with neither — falls back to tool name', () => {
+    expect(generateToolContent('ScheduleWakeup', {})).toBe('ScheduleWakeup')
+  })
+
+  test('Monitor by task_id', () => {
+    expect(generateToolContent('Monitor', { task_id: 'abc123' })).toBe('monitor abc123')
+  })
+
+  test('Monitor by command fallback', () => {
+    expect(generateToolContent('Monitor', { command: 'bun test' })).toBe('monitor bun test')
+  })
+
+  test('Monitor with no fields', () => {
+    expect(generateToolContent('Monitor', {})).toBe('Monitor')
+  })
+
+  test('TaskOutput extracts task_id', () => {
+    expect(generateToolContent('TaskOutput', { task_id: 't-1', block: true, timeout: 1000 }))
+      .toBe('output t-1')
+  })
+
+  test('TaskStop extracts task_id (or legacy shell_id)', () => {
+    expect(generateToolContent('TaskStop', { task_id: 't-1' })).toBe('stop t-1')
+    expect(generateToolContent('TaskStop', { shell_id: 's-9' })).toBe('stop s-9')
+  })
+
+  test('AskUserQuestion extracts first question', () => {
+    expect(generateToolContent('AskUserQuestion', {
+      questions: [
+        { question: 'Which DB?', header: 'DB', options: [] },
+      ],
+    })).toBe('Which DB?')
+  })
+
+  test('AskUserQuestion indicates multiple questions', () => {
+    expect(generateToolContent('AskUserQuestion', {
+      questions: [
+        { question: 'Which DB?' },
+        { question: 'Which cache?' },
+      ],
+    })).toBe('Which DB? (+1)')
+  })
+
+  test('EnterWorktree by path', () => {
+    expect(generateToolContent('EnterWorktree', { path: '/tmp/wt-1' })).toBe('worktree: /tmp/wt-1')
+  })
+
+  test('EnterWorktree without path/name → new', () => {
+    expect(generateToolContent('EnterWorktree', {})).toBe('EnterWorktree (new)')
+  })
+
+  test('ExitWorktree reports action', () => {
+    expect(generateToolContent('ExitWorktree', { action: 'remove' })).toBe('worktree remove')
+    expect(generateToolContent('ExitWorktree', {})).toBe('worktree exit')
+  })
+})
+
+describe('generateToolContent — Agent (sub-agent)', () => {
+  test('description only — legacy compatible body', () => {
+    expect(generateToolContent('Agent', { description: 'Investigate bug' }))
+      .toBe('Investigate bug')
+  })
+
+  test('subagent_type surfaces as prefix', () => {
+    expect(generateToolContent('Agent', {
+      description: 'Find files',
+      subagent_type: 'Explore',
+    })).toBe('[Explore] Find files')
+  })
+
+  test('model + background + worktree render as trailing flags', () => {
+    expect(generateToolContent('Agent', {
+      description: 'Plan migration',
+      subagent_type: 'Plan',
+      model: 'opus',
+      run_in_background: true,
+      isolation: 'worktree',
+    })).toBe('[Plan] Plan migration (opus, bg, worktree)')
+  })
+
+  test('name is rendered as "as <name>"', () => {
+    expect(generateToolContent('Agent', {
+      description: 'Reviewer',
+      subagent_type: 'code-reviewer',
+      name: 'reviewer-1',
+    })).toBe('[code-reviewer] Reviewer (as reviewer-1)')
+  })
+
+  test('falls back to prompt when description missing', () => {
+    expect(generateToolContent('Agent', {
+      prompt: 'Do the thing',
+      subagent_type: 'general-purpose',
+    })).toBe('[general-purpose] Do the thing')
+  })
+
+  test('empty input falls back to literal "Agent"', () => {
+    expect(generateToolContent('Agent', {})).toBe('Agent')
+  })
+
+  test('ignores unknown isolation values', () => {
+    expect(generateToolContent('Agent', {
+      description: 'x',
+      isolation: 'container',
+    })).toBe('x')
   })
 })
