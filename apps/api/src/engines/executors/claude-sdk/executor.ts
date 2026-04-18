@@ -370,12 +370,13 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
     label: 'spawn' | 'followup',
     extra: Partial<Options>,
   ): Promise<SpawnedProcess> {
+    // Prefer an externally-resolved binary (e.g. /work/bin/claude or a user
+    // install) when present. When absent, leave `pathToClaudeCodeExecutable`
+    // undefined so the SDK falls back to resolving `@anthropic-ai/claude-code`
+    // from its own dependency graph. This keeps the engine usable in
+    // deployments that ship only the SDK + peer package without a separate
+    // global `claude` binary.
     const binaryPath = resolveClaudeBinary()
-    if (!binaryPath) {
-      throw new Error(
-        'Claude Code binary not found. Install via `bun install -g @anthropic-ai/claude-code` or place it under /work/bin/claude.',
-      )
-    }
 
     const permissionMode = options.permissionMode ?? 'auto'
     const sdkPermissionMode = mapPermissionMode(permissionMode)
@@ -395,7 +396,7 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
     const userExtra: Record<string, string> = { ...(options.env ?? {}), ...(env.vars ?? {}) }
     const sdkOptions: Options = {
       cwd: options.workingDir,
-      pathToClaudeCodeExecutable: binaryPath,
+      ...(binaryPath ? { pathToClaudeCodeExecutable: binaryPath } : {}),
       executable: 'bun',
       env: {
         ...safeEnv(userExtra, 'claude-code-sdk'),
