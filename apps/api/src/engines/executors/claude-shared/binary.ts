@@ -1,5 +1,6 @@
+import { createRequire } from 'node:module'
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { resolveCommand } from '@/engines/spawn'
 import type { EngineAvailability, EngineModel } from '@/engines/types'
 
@@ -19,6 +20,59 @@ export function resolveClaudeBinary(): string | null {
   }
   if (existsSync('/usr/local/bin/claude')) return '/usr/local/bin/claude'
   return null
+}
+
+/**
+ * Replicates the Agent SDK's internal fallback resolution for its bundled
+ * `claude` binary: first the platform-specific optional packages
+ * (`@anthropic-ai/claude-agent-sdk-<platform>-<arch>[-musl]/claude`), then a
+ * sibling `cli.js` next to the SDK entry point. Returned path — if any — is
+ * safe to pass as `pathToClaudeCodeExecutable` and is also what the SDK itself
+ * would spawn when the option is omitted.
+ *
+ * Separated from `resolveClaudeBinary()` so availability/discovery can report
+ * "installed" in SDK-only deployments (no standalone global `claude` binary)
+ * while still distinguishing externally-installed binaries for users who want
+ * to pin a specific version.
+ */
+export function resolveSdkBundledClaudeBinary(): string | null {
+  const platform = process.platform
+  const arch = process.arch
+  const exe = platform === 'win32' ? '.exe' : ''
+  const candidates = platform === 'linux'
+    ? [
+        `@anthropic-ai/claude-agent-sdk-linux-${arch}-musl/claude${exe}`,
+        `@anthropic-ai/claude-agent-sdk-linux-${arch}/claude${exe}`,
+      ]
+    : [`@anthropic-ai/claude-agent-sdk-${platform}-${arch}/claude${exe}`]
+
+  const req = createRequire(import.meta.url)
+  for (const spec of candidates) {
+    try {
+      return req.resolve(spec)
+    } catch {
+      /* try next */
+    }
+  }
+
+  try {
+    const sdkPkg = req.resolve('@anthropic-ai/claude-agent-sdk/package.json')
+    const sibling = join(dirname(sdkPkg), 'cli.js')
+    if (existsSync(sibling)) return sibling
+  } catch {
+    /* SDK not resolvable — no fallback possible */
+  }
+
+  return null
+}
+
+/**
+ * Unified resolution: prefer an externally-installed standalone `claude`
+ * binary, then fall back to the SDK-bundled binary. Returns `null` only when
+ * neither is resolvable, which means the SDK itself would also fail to spawn.
+ */
+export function resolveAnyClaudeBinary(): string | null {
+  return resolveClaudeBinary() ?? resolveSdkBundledClaudeBinary()
 }
 
 export function getClaudeAuthStatus(): EngineAvailability['authStatus'] {

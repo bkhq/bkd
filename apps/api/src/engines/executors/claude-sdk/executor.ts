@@ -28,7 +28,7 @@ import type {
 } from '@/engines/types'
 import { logger } from '@/logger'
 import { ROOT_DIR } from '@/root'
-import { CLAUDE_MODELS, getClaudeAuthStatus, resolveClaudeBinary } from '../claude-shared/binary'
+import { CLAUDE_MODELS, getClaudeAuthStatus, resolveAnyClaudeBinary, resolveClaudeBinary } from '../claude-shared/binary'
 import { SdkProcessHandle } from './handle'
 import { ClaudeSdkNormalizer, stringifyMessage } from './normalizer'
 import { PushableStream } from './pushable-stream'
@@ -234,7 +234,10 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
 
   async getAvailability(): Promise<EngineAvailability> {
     try {
-      const binaryPath = resolveClaudeBinary()
+      // Accept either an externally-installed binary or the SDK-bundled one
+      // from `@anthropic-ai/claude-agent-sdk-<platform>-<arch>`. If neither
+      // resolves, the SDK itself would also fail, so we report uninstalled.
+      const binaryPath = resolveAnyClaudeBinary()
       if (!binaryPath) {
         return {
           engineType: 'claude-code-sdk',
@@ -307,10 +310,15 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
     plugins: Array<{ name: string, path: string }>
     initReceived: boolean
   }> {
-    const binaryPath = resolveClaudeBinary()
+    // Discovery works as long as *some* binary (external or SDK-bundled) is
+    // resolvable. When only the SDK-bundled one exists we omit
+    // `pathToClaudeCodeExecutable` and let the SDK resolve it itself, so the
+    // spawned discovery query uses the exact same binary as execution would.
+    const binaryPath = resolveAnyClaudeBinary()
     if (!binaryPath) {
       return { slashCommands: [], agents: [], plugins: [], initReceived: false }
     }
+    const externalBinary = resolveClaudeBinary()
 
     const pushable = new PushableStream<SDKUserMessage>()
     let q: Query | null = null
@@ -320,7 +328,7 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
         prompt: pushable,
         options: {
           cwd: workingDir,
-          pathToClaudeCodeExecutable: binaryPath,
+          ...(externalBinary ? { pathToClaudeCodeExecutable: externalBinary } : {}),
           executable: 'bun',
           env: safeEnv(undefined, 'claude-code-sdk') as unknown as Record<string, string>,
           permissionMode: 'auto',
