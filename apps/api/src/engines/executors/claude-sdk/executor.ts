@@ -312,11 +312,14 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
         withTimeout(q.supportedAgents(), 15_000, null as Array<{ name: string }> | null),
       ])
 
-      // At least one SDK call must have completed (not timed out) for us to
-      // treat discovery as successful. Empty-but-completed lists are valid
-      // (e.g. a workspace with no custom agents) and should still clear
-      // previously cached data via `initReceived: true`.
-      const initReceived = commandsResult !== null || agentsResult !== null
+      // Require BOTH SDK calls to complete (not time out) before treating
+      // discovery as authoritative. Empty-but-completed lists are fine — they
+      // mean "no commands/agents in this workspace" and should still clear
+      // stale cache entries. But if one call times out while the other
+      // returns, we cannot safely overwrite the prior cache for the failed
+      // field without erasing valid metadata, so we report `initReceived:
+      // false` and let `startup-probe` keep the previously cached values.
+      const initReceived = commandsResult !== null && agentsResult !== null
 
       return {
         slashCommands: (commandsResult ?? []).map(c => c.name),
