@@ -426,7 +426,10 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
       stdout: bridge.stdout,
       stderr: bridge.stderr,
       cancel: () => {
-        pushable.close()
+        // Soft cancel: interrupt the current turn but keep the prompt stream
+        // open so follow-up turns via `protocolHandler.sendUserMessage` remain
+        // deliverable. `protocolHandler.close()` is the explicit shutdown that
+        // closes the pushable and the underlying query.
         bridge.handle.kill()
       },
       protocolHandler: {

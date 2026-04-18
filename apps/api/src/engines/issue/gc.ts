@@ -71,9 +71,22 @@ function terminateAndSettle(
   })
 }
 
-/** Check if a process is still alive via kill(pid, 0). */
-function isProcessAlive(pid: number | undefined): boolean {
-  if (!pid) return false
+/**
+ * Check if a process is still alive.
+ *
+ * Preferred path (`pid` known): `process.kill(pid, 0)`.
+ * Fallback (`pid` undefined, e.g. SDK-backed handles): delegate to the
+ * handle's own `isAlive()` probe. If neither is available we assume the
+ * process is alive — safer than letting stall GC force-kill healthy queries
+ * whose backend simply doesn't expose a pid.
+ */
+function isProcessAlive(
+  pid: number | undefined,
+  handle?: { isAlive?: () => boolean },
+): boolean {
+  if (pid === undefined) {
+    return handle?.isAlive?.() ?? true
+  }
   try {
     process.kill(pid, 0)
     return true
@@ -145,8 +158,9 @@ export function gcSweep(ctx: EngineContext): void {
         if (managed.turnInFlight) {
           const silenceMs = now - managed.lastActivityAt.getTime()
           if (silenceMs > KEEPALIVE_STALL_TIMEOUT_MS) {
-            const pid = (managed.process.subprocess as { pid?: number }).pid
-            const alive = isProcessAlive(pid)
+            const sp = managed.process.subprocess as { pid?: number, isAlive?: () => boolean }
+            const pid = sp.pid
+            const alive = isProcessAlive(pid, sp)
             if (!alive) {
               const stallMinutes = Math.round(silenceMs / 60000)
               logger.warn(
@@ -178,7 +192,8 @@ export function gcSweep(ctx: EngineContext): void {
       //   Tier 3 (+ STALL_INTERRUPT_GRACE_MS): No response after interrupt → force kill
       if (managed.turnInFlight) {
         const silenceMs = now - managed.lastActivityAt.getTime()
-        const pid = (managed.process.subprocess as { pid?: number }).pid
+        const sp = managed.process.subprocess as { pid?: number, isAlive?: () => boolean }
+        const pid = sp.pid
 
         // Tier 3: interrupt was sent but process still hasn't responded
         if (
@@ -219,7 +234,7 @@ export function gcSweep(ctx: EngineContext): void {
           now - managed.stallDetectedAt.getTime() > STALL_LIVENESS_GRACE_MS
         ) {
           const stallMinutes = Math.round(silenceMs / 60000)
-          const alive = isProcessAlive(pid)
+          const alive = isProcessAlive(pid, sp)
           if (!alive) {
             // Process already dead — skip interrupt, just terminate
             logger.warn(
@@ -278,7 +293,7 @@ export function gcSweep(ctx: EngineContext): void {
           !managed.stallProbeAt &&
           silenceMs > STREAM_STALL_TIMEOUT_MS
         ) {
-          const alive = isProcessAlive(pid)
+          const alive = isProcessAlive(pid, sp)
           const stallMinutes = Math.round(silenceMs / 60000)
           logger.warn(
             {

@@ -71,14 +71,56 @@ function makeMockQuery(): Query & {
 }
 
 describe('SdkProcessHandle', () => {
-  test('first kill triggers interrupt, second triggers close, third is no-op', () => {
+  test('soft kill (no signal) triggers interrupt; subsequent soft kills are no-ops', () => {
     const q = makeMockQuery()
     const handle = new SdkProcessHandle(q)
     handle.kill()
     handle.kill()
     handle.kill()
     expect(q.interruptCount).toBe(1)
+    expect(q.closeCount).toBe(0)
+  })
+
+  test('kill(9) hard-closes immediately without going through interrupt', () => {
+    const q = makeMockQuery()
+    const handle = new SdkProcessHandle(q)
+    handle.kill(9)
+    expect(q.interruptCount).toBe(0)
     expect(q.closeCount).toBe(1)
+  })
+
+  test('kill(9) after soft interrupt still force-closes', () => {
+    const q = makeMockQuery()
+    const handle = new SdkProcessHandle(q)
+    handle.kill()
+    handle.kill(9)
+    expect(q.interruptCount).toBe(1)
+    expect(q.closeCount).toBe(1)
+  })
+
+  test('repeated kill(9) is a no-op on the second call', () => {
+    const q = makeMockQuery()
+    const handle = new SdkProcessHandle(q)
+    handle.kill(9)
+    handle.kill(9)
+    expect(q.closeCount).toBe(1)
+  })
+
+  test('soft kill after hard close is a no-op', () => {
+    const q = makeMockQuery()
+    const handle = new SdkProcessHandle(q)
+    handle.kill(9)
+    handle.kill()
+    expect(q.interruptCount).toBe(0)
+    expect(q.closeCount).toBe(1)
+  })
+
+  test('isAlive reflects settle state', () => {
+    const q = makeMockQuery()
+    const handle = new SdkProcessHandle(q)
+    expect(handle.isAlive()).toBe(true)
+    handle.settle(0)
+    expect(handle.isAlive()).toBe(false)
   })
 
   test('settle resolves exited promise exactly once', async () => {

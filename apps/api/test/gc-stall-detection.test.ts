@@ -405,6 +405,63 @@ describe('gcSweep — stream stall detection', () => {
     )
   })
 
+  test('SDK-backed process (pid undefined, isAlive=true) is detected, not killed', () => {
+    // Reproduces Codex review P1: handles without a pid were force-killed at
+    // Tier 1 because isProcessAlive(undefined) returned false. With the
+    // ProcessHandle.isAlive fallback, a live SDK query should only advance to
+    // stall detection, not straight to termination.
+    const stalledAt = new Date(Date.now() - STREAM_STALL_TIMEOUT_MS - 60_000)
+    const managed = makeManagedProcess({
+      issueId: 'issue-sdk-alive',
+      executionId: 'exec-sdk-alive',
+      turnInFlight: true,
+      lastActivityAt: stalledAt,
+      process: {
+        subprocess: { pid: undefined, isAlive: () => true },
+      } as unknown as ManagedProcess['process'],
+    })
+    const { ctx, forceKillCalls } = makeContext([
+      { id: 'exec-sdk-alive', meta: managed },
+    ])
+
+    gcSweep(ctx)
+
+    expect(forceKillCalls).not.toContain('exec-sdk-alive')
+    expect(managed.stallDetectedAt).toBeDefined()
+    expect(mockEmitDiagnosticLog).toHaveBeenCalledWith(
+      'issue-sdk-alive',
+      'exec-sdk-alive',
+      expect.stringContaining('stall detected'),
+      expect.objectContaining({ event: 'stall_detected' }),
+    )
+  })
+
+  test('SDK-backed process (pid undefined, isAlive=false) is terminated at Tier 1', () => {
+    const stalledAt = new Date(Date.now() - STREAM_STALL_TIMEOUT_MS - 60_000)
+    const managed = makeManagedProcess({
+      issueId: 'issue-sdk-dead',
+      executionId: 'exec-sdk-dead',
+      turnInFlight: true,
+      lastActivityAt: stalledAt,
+      process: {
+        subprocess: { pid: undefined, isAlive: () => false },
+      } as unknown as ManagedProcess['process'],
+    })
+    const { ctx, forceKillCalls } = makeContext([
+      { id: 'exec-sdk-dead', meta: managed },
+    ])
+
+    gcSweep(ctx)
+
+    expect(forceKillCalls).toContain('exec-sdk-dead')
+    expect(mockEmitDiagnosticLog).toHaveBeenCalledWith(
+      'issue-sdk-dead',
+      'exec-sdk-dead',
+      expect.stringContaining('process already dead'),
+      expect.objectContaining({ event: 'stall_process_dead' }),
+    )
+  })
+
   test('does NOT detect or kill process within stall timeout', () => {
     const managed = makeManagedProcess({
       issueId: 'issue-recovered',

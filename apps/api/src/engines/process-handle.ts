@@ -13,4 +13,10 @@ export interface ProcessHandle {
   readonly pid?: number
   readonly exited: Promise<number>
   kill: (signal?: number) => void
+  /**
+   * Optional liveness probe for backends that do not expose a PID.
+   * When present, stall GC uses this in place of `process.kill(pid, 0)`.
+   * Returning `true` means "still running"; `false` means "definitely dead".
+   */
+  isAlive?: () => boolean
 }

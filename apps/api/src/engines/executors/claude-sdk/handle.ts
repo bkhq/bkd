@@ -6,20 +6,26 @@ import type { ProcessHandle } from '@/engines/process-handle'
  * the narrow `ProcessHandle` contract.
  *
  * Lifecycle mapping:
- *   - `kill()` first call → `Query.interrupt()` (graceful stop, equivalent to SIGTERM)
- *   - `kill()` second call → `Query.close()` (force terminate, equivalent to SIGKILL)
- *   - further calls → no-op
- *   - `exited` → Promise resolved by the executor's consumer loop when the
- *     async generator finishes (normal result, thrown error, or post-interrupt
- *     settle). `0` for normal end, non-zero when SDK surfaces an error.
- *   - `pid` → undefined (SDK doesn't expose the child PID)
+ *   - `kill(9)` (SIGKILL) → immediate `Query.close()` (force terminate). Used by
+ *     `ProcessManager.forceKill()` and the post-timeout escalation in
+ *     `ProcessManager.terminate()`. A second SIGKILL is a no-op.
+ *   - `kill()` / `kill(non-9)` (SIGTERM-equivalent) → `Query.interrupt()`
+ *     (graceful stop). Subsequent soft kills are no-ops while the query is
+ *     still alive; once interrupted, a later `kill(9)` still hard-closes.
+ *   - `exited` → resolved by the executor's consumer loop via `settle()` when
+ *     the async generator finishes (normal result, thrown error, or
+ *     post-interrupt/post-close settle). `0` for normal end, non-zero when the
+ *     SDK surfaces an error.
+ *   - `pid` → undefined (SDK doesn't expose the child PID). Stall GC should
+ *     use `isAlive()` instead.
  */
 export class SdkProcessHandle implements ProcessHandle {
   readonly pid: number | undefined = undefined
   readonly exited: Promise<number>
 
   private resolveExited!: (code: number) => void
-  private killCount = 0
+  private softInterrupted = false
+  private hardClosed = false
   private settled = false
 
   constructor(private readonly query: Query) {
@@ -28,22 +34,31 @@ export class SdkProcessHandle implements ProcessHandle {
     })
   }
 
-  kill(_signal?: number): void {
-    this.killCount += 1
-    if (this.killCount === 1) {
-      void this.query.interrupt().catch(() => {
-        /* already interrupted / closed */
-      })
-      return
-    }
-    if (this.killCount === 2) {
+  kill(signal?: number): void {
+    if (signal === 9) {
+      if (this.hardClosed) return
+      this.hardClosed = true
       try {
         this.query.close()
       } catch {
         /* already closed */
       }
+      return
     }
-    // 3+ calls: no-op
+    if (this.softInterrupted || this.hardClosed) return
+    this.softInterrupted = true
+    void this.query.interrupt().catch(() => {
+      /* already interrupted / closed */
+    })
+  }
+
+  /**
+   * Liveness probe for stall GC. `pid` is always undefined for SDK handles, so
+   * `process.kill(pid, 0)` isn't usable. We report alive until the consumer
+   * loop settles (which happens on normal end, error, or after `close()`).
+   */
+  isAlive(): boolean {
+    return !this.settled
   }
 
   /**
