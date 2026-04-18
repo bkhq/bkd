@@ -70,6 +70,7 @@ export function GeminiIcon(props: IconProps) {
 
 const ENGINE_ICONS: Partial<Record<string, React.FC<IconProps>>> = {
   'claude-code': ClaudeIcon,
+  'claude-code-sdk': ClaudeIcon,
   'codex': CodexIcon,
   'acp': GeminiIcon,
   'acp:gemini': GeminiIcon,

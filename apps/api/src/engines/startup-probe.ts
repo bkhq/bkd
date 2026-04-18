@@ -161,9 +161,9 @@ async function discoverSlashCommands(installed: EngineAvailability[]): Promise<v
   }
 
   for (const engine of installed) {
-    if (engine.engineType !== 'claude-code') continue
+    if (engine.engineType !== 'claude-code' && engine.engineType !== 'claude-code-sdk') continue
 
-    const executor = engineRegistry.get('claude-code')
+    const executor = engineRegistry.get(engine.engineType)
     if (!(executor instanceof ClaudeCodeExecutor) && !(executor instanceof ClaudeCodeSdkExecutor)) {
       continue
     }
@@ -172,7 +172,7 @@ async function discoverSlashCommands(installed: EngineAvailability[]): Promise<v
       const result = await withTimeout(
         executor.discoverSlashCommandsAndAgents(process.cwd()),
         DISCOVERY_TIMEOUT_MS,
-        'claude-code:discovery',
+        `${engine.engineType}:discovery`,
       )
 
       // Only persist when init was actually received. If the process timed
@@ -184,14 +184,14 @@ async function discoverSlashCommands(installed: EngineAvailability[]): Promise<v
       }
 
       await setAppSetting(
-        slashCommandsKey('claude-code'),
+        slashCommandsKey(engine.engineType),
         JSON.stringify({
           commands: result.slashCommands,
           agents: result.agents,
           plugins: result.plugins,
         }),
       )
-      await refreshSlashCommandsCacheForEngine('claude-code')
+      await refreshSlashCommandsCacheForEngine(engine.engineType)
 
       logger.info(
         {

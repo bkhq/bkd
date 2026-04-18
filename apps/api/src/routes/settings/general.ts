@@ -233,7 +233,7 @@ general.openapi(R.setServerInfo, async (c) => {
 
 // GET /api/settings/slash-commands?engine=claude-code
 general.openapi(R.getGlobalSlashCommands, async (c) => {
-  const validEngines = ['claude-code', 'codex', 'acp']
+  const validEngines = ['claude-code', 'claude-code-sdk', 'codex', 'acp']
   const rawEngine = c.req.query('engine')
   if (rawEngine && !validEngines.includes(rawEngine) && !rawEngine.startsWith('acp:')) {
     return c.json({ success: false, error: `Invalid engine type: ${rawEngine}` }, 400 as const)

@@ -177,7 +177,7 @@ function startBridge(q: Query, label: string, issueId: string | undefined): {
 }
 
 export class ClaudeCodeSdkExecutor implements EngineExecutor {
-  readonly engineType = 'claude-code' as const
+  readonly engineType = 'claude-code-sdk' as const
   readonly protocol = 'stream-json' as const
   readonly capabilities: EngineCapability[] = ['session-fork', 'context-usage', 'plan-mode']
 
@@ -208,7 +208,7 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
       const binaryPath = resolveClaudeBinary()
       if (!binaryPath) {
         return {
-          engineType: 'claude-code',
+          engineType: 'claude-code-sdk',
           installed: false,
           authStatus: 'unknown',
         }
@@ -223,7 +223,7 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
         stdin: 'ignore',
         stdout: 'pipe',
         stderr: 'pipe',
-        env: safeEnv(resolved.env, 'claude-code'),
+        env: safeEnv(resolved.env, 'claude-code-sdk'),
       })
 
       const timer = setTimeout(() => proc.kill(), 10000)
@@ -231,14 +231,14 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
       clearTimeout(timer)
 
       if (exitCode !== 0) {
-        return { engineType: 'claude-code', installed: false, authStatus: 'unknown' }
+        return { engineType: 'claude-code-sdk', installed: false, authStatus: 'unknown' }
       }
 
       const stdout = await new Response(proc.stdout).text()
       const version = stdout.match(/(\d+\.\d+\.\d[\w.-]*)/)?.[1]
 
       return {
-        engineType: 'claude-code',
+        engineType: 'claude-code-sdk',
         installed: true,
         version,
         binaryPath,
@@ -246,7 +246,7 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
       }
     } catch (error) {
       return {
-        engineType: 'claude-code',
+        engineType: 'claude-code-sdk',
         installed: false,
         authStatus: 'unknown',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -293,7 +293,7 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
           cwd: workingDir,
           pathToClaudeCodeExecutable: binaryPath,
           executable: 'bun',
-          env: safeEnv(undefined, 'claude-code') as unknown as Record<string, string>,
+          env: safeEnv(undefined, 'claude-code-sdk') as unknown as Record<string, string>,
           permissionMode: 'auto',
           disallowedTools: ['AskUserQuestion'],
           settingSources: ['user', 'project', 'local'],
@@ -355,7 +355,7 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
       pathToClaudeCodeExecutable: binaryPath,
       executable: 'bun',
       env: {
-        ...safeEnv(undefined, 'claude-code'),
+        ...safeEnv(undefined, 'claude-code-sdk'),
         ...(options.env ?? {}),
         ...(env.vars ?? {}),
         NPM_CONFIG_LOGLEVEL: 'error',

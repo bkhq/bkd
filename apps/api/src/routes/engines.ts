@@ -15,7 +15,7 @@ import { BUILT_IN_PROFILES } from '@/engines/types'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 
-const ENGINE_TYPES = ['claude-code', 'codex', 'acp'] as const
+const ENGINE_TYPES = ['claude-code', 'claude-code-sdk', 'codex', 'acp'] as const
 
 /** Accept both base engine types and known virtual ACP types (e.g. "acp:codex") */
 const engineTypeOrAcpEnum = z.string().refine(

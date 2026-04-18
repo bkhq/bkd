@@ -18,10 +18,10 @@ export { ClaudeCodeSdkExecutor } from './claude-sdk'
 export { CodexExecutor } from './codex'
 
 /**
- * Backend selector for the `claude-code` engine. Controlled by
- * `CLAUDE_ENGINE_BACKEND` env var:
- *   - `sdk`    — Anthropic's `@anthropic-ai/claude-agent-sdk` (migration target)
- *   - `legacy` — hand-rolled stream-json executor (default during rollout)
+ * Legacy backend selector. Deprecated — both executors are now registered as
+ * independent `claude-code` (legacy) and `claude-code-sdk` engine types so
+ * users can choose per-issue in the UI. Kept for test compatibility and so
+ * operators running older configs see a clear deprecation signal in logs.
  *
  * See PLAN-003.
  */
@@ -32,16 +32,6 @@ export function getClaudeBackend(): ClaudeBackend {
   if (raw === 'sdk') return 'sdk'
   if (raw === 'legacy') return 'legacy'
   return 'legacy'
-}
-
-export function createClaudeExecutor(): EngineExecutor {
-  const backend = getClaudeBackend()
-  if (backend === 'sdk') {
-    logger.info({ backend }, 'claude_backend_selected')
-    return new ClaudeCodeSdkExecutor()
-  }
-  logger.info({ backend }, 'claude_backend_selected')
-  return new ClaudeCodeExecutor()
 }
 
 /**
@@ -91,8 +81,17 @@ export const engineRegistry: EngineRegistry = createRegistry()
 function createRegistry(): EngineRegistry {
   const registry = new DefaultEngineRegistry()
 
-  // Register all supported executors
-  registry.register(createClaudeExecutor())
+  // Register all supported executors. `claude-code` (legacy) and
+  // `claude-code-sdk` (SDK-backed) are both available — users pick per issue.
+  const backend = getClaudeBackend()
+  if (process.env.CLAUDE_ENGINE_BACKEND) {
+    logger.info(
+      { backend },
+      'claude_engine_backend_env_deprecated_pick_claude_code_sdk_in_ui',
+    )
+  }
+  registry.register(new ClaudeCodeExecutor())
+  registry.register(new ClaudeCodeSdkExecutor())
   registry.register(new CodexExecutor())
   registry.register(new AcpExecutor())
 
