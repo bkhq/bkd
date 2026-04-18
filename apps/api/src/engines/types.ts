@@ -47,6 +47,24 @@ export interface FileChange {
   newText: string
 }
 
+export interface TaskPlanItem {
+  content: string
+  status: string
+  activeForm?: string
+}
+
+export interface UserQuestionOption {
+  label: string
+  description?: string
+  recommended?: boolean
+}
+
+export interface UserQuestionItem {
+  question: string
+  options?: UserQuestionOption[]
+  multiSelect?: boolean
+}
+
 // Tool action discriminated union
 export type ToolAction =
   | { kind: 'file-read', path: string } |
@@ -59,6 +77,22 @@ export type ToolAction =
   } |
   { kind: 'search', query: string } |
   { kind: 'web-fetch', url: string } |
+  {
+    kind: 'agent'
+    subagentType?: string
+    description?: string
+    prompt?: string
+    model?: string
+    runInBackground?: boolean
+    isolation?: string
+    name?: string
+  } |
+  { kind: 'task-plan', items: TaskPlanItem[] } |
+  {
+    kind: 'user-question'
+    questions: UserQuestionItem[]
+    recommendedIndex?: number
+  } |
   { kind: 'tool', toolName: string, arguments?: unknown, result?: unknown } |
   { kind: 'other', description: string }
 

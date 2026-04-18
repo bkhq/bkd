@@ -210,6 +210,67 @@ signature), `executors/claude-sdk/executor.ts` (updated `makeUserMessage`).
 triggers the model to continue its turn with the answer injected. `bun test:api`
 adds integration test that mocks the registry + protocolHandler.
 
+### Step 3b — Auto-mode auto-answer by recommendation
+
+When the issue is running in **auto mode** (`permissionPolicy === 'auto'`), the
+UI is expected not to block on user input. AskUserQuestion violates that
+contract by design — so in auto mode we must answer the question ourselves
+without waiting for the user.
+
+**Behaviour**
+
+- On `AskUserQuestion` tool_use detection, check the current issue's
+  permission policy (stored per-session; default `'auto'`).
+- If `policy !== 'auto'` → follow Step 3 as written (register question, wait
+  for UI answer).
+- If `policy === 'auto'` → resolve the question programmatically and inject
+  a synthetic `tool_result` immediately.
+
+**Selection strategy (ordered)**
+
+1. **Explicit `(Recommended)` marker** — if any option's `label` contains the
+   case-insensitive suffix `(Recommended)`, select that option. This matches
+   the `ScheduleWakeup`-style convention used in Claude Code skills (see
+   `gsd-code-review` etc.).
+2. **Explicit `recommended: true` field** — if we extend the schema later and
+   the SDK/plugin provides a structured flag, prefer that over (1).
+3. **AI evaluation fallback** — when neither marker exists, call a lightweight
+   model (e.g. the engine's current model via a one-shot `query()` or the
+   in-process LLM wrapper reused from `upgrade/` notes generation) with:
+   - System: "You are choosing on behalf of the user in autonomous mode. Pick
+     the option the user most likely wants. Respond with the exact option
+     `label` only."
+   - User: the `question` text + JSON-serialized options.
+   - Parse the reply, match case-insensitively against option labels, fall
+     back to the first option if no match.
+
+The chosen answer is injected via the same `tool_result` path as Step 3
+(`IssueEngine.answerQuestion`), and a synthetic log entry is persisted with
+`metadata.autoAnswered = true` + `metadata.selectionReason` (`'recommended'`,
+`'ai-evaluated'`, or `'default-first'`) so the chat timeline shows the choice
+and the user can audit why.
+
+**Files**:
+
+- `engines/issue/ask-user-question.ts` — add `resolveAutoAnswer(pending,
+  policy, engineCtx)` helper.
+- `executors/claude-sdk/executor.ts` — in the tool_use detection branch,
+  branch on policy and call `resolveAutoAnswer` instead of registering for
+  UI.
+- New `engines/issue/ai-pick-option.ts` — thin wrapper around a short model
+  call; no streaming, 30s timeout, falls back to first option on any error.
+- `engines/types.ts` — add `permissionPolicy` to the session context passed
+  through `SpawnOptions` if not already threaded.
+
+**Exit criteria**:
+
+- Prompt that triggers AskUserQuestion while `policy === 'auto'` completes
+  the turn without UI interaction, with a log entry showing the auto-picked
+  answer and reason.
+- Prompt that triggers AskUserQuestion while `policy !== 'auto'` still
+  surfaces the question bubble (Step 4).
+- Integration test covers all three selection strategies.
+
 ### Step 4 — Frontend question bubble + answer flow
 
 - Add `AskUserQuestionBubble.tsx` under
@@ -287,6 +348,15 @@ AskUserQuestion.
    the run after N unanswered prompts (N=5 default, behind an app setting).
 8. **i18n drift** — missed translation keys fail lint. Run `bun run lint`
    before merging.
+9. **Auto-mode AI selection cost / latency** — Step 3b's AI evaluation
+   fallback spends a small model call per question. Mitigation: only invoked
+   when (1) and (2) fail; short prompt, capped at 30s; falls back to first
+   option on timeout. Log entry records the reason so mis-selections are
+   auditable.
+10. **Auto-mode wrong choice** — AI may pick a destructive option if labels
+    are ambiguous. Mitigation: auto-answer logs include the full question +
+    selected label so users can intervene in subsequent turns; future work
+    can add an opt-in "pause on auto-mode questions" setting per issue.
 
 ## Verification Plan
 

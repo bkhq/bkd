@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  Bot,
   Check,
   CheckCircle2,
   Circle,
@@ -8,12 +9,17 @@ import {
   Eye,
   FileEdit,
   FileText,
+  FolderGit2,
   Globe,
+  HelpCircle,
   Image,
   ListTodo,
   Loader2,
+  Monitor as MonitorIcon,
+  Octagon,
   Search,
   Terminal,
+  Timer,
   Wrench,
 } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
@@ -52,6 +58,29 @@ function getToolIcon(action?: ToolAction) {
       return { Icon: Search, color: 'text-purple-500' }
     case 'web-fetch':
       return { Icon: Globe, color: 'text-cyan-500' }
+    case 'agent':
+      return { Icon: Bot, color: 'text-fuchsia-500' }
+    case 'task-plan':
+      return { Icon: ListTodo, color: 'text-indigo-500' }
+    case 'user-question':
+      return { Icon: HelpCircle, color: 'text-sky-500' }
+    case 'tool': {
+      switch (action.toolName) {
+        case 'ScheduleWakeup':
+          return { Icon: Timer, color: 'text-teal-500' }
+        case 'Monitor':
+          return { Icon: MonitorIcon, color: 'text-emerald-500' }
+        case 'TaskOutput':
+          return { Icon: Eye, color: 'text-blue-500' }
+        case 'TaskStop':
+          return { Icon: Octagon, color: 'text-red-500' }
+        case 'EnterWorktree':
+        case 'ExitWorktree':
+          return { Icon: FolderGit2, color: 'text-orange-500' }
+        default:
+          return { Icon: Wrench, color: 'text-muted-foreground' }
+      }
+    }
     default:
       return { Icon: Wrench, color: 'text-muted-foreground' }
   }
@@ -60,7 +89,7 @@ function getToolIcon(action?: ToolAction) {
 function getToolLabel(
   action: ToolAction | undefined,
   toolName: string | undefined,
-  t: (key: string) => string,
+  t: (key: string, opts?: Record<string, unknown>) => string,
 ) {
   if (!action) return ''
   switch (action.kind) {
@@ -77,8 +106,73 @@ function getToolLabel(
       return `${t('session.tool.search')}: ${action.query}`
     case 'web-fetch':
       return `${t('session.tool.webFetch')}: ${action.url}`
-    case 'tool':
-      return action.toolName
+    case 'agent': {
+      const body = action.description || action.prompt || t('session.tool.agent')
+      const subtype = action.subagentType ? `[${action.subagentType}] ` : ''
+      const flags: string[] = []
+      if (action.model) flags.push(action.model)
+      if (action.runInBackground) flags.push('bg')
+      if (action.isolation === 'worktree') flags.push('worktree')
+      if (action.name) flags.push(`as ${action.name}`)
+      const suffix = flags.length > 0 ? ` (${flags.join(', ')})` : ''
+      return `${t('session.tool.agent')}: ${subtype}${body}${suffix}`
+    }
+    case 'task-plan': {
+      const done = action.items.filter(i => i.status === 'completed').length
+      return `${t('session.tool.taskPlan')} (${done}/${action.items.length})`
+    }
+    case 'user-question': {
+      const first = action.questions[0]
+      const q = first?.question ?? t('session.tool.userQuestion')
+      const more = action.questions.length > 1 ? ` (+${action.questions.length - 1})` : ''
+      return `${t('session.tool.userQuestion')}: ${q}${more}`
+    }
+    case 'tool': {
+      switch (action.toolName) {
+        case 'ScheduleWakeup': {
+          const args = (action.arguments ?? {}) as Record<string, unknown>
+          const delay = typeof args.delaySeconds === 'number' ? args.delaySeconds : undefined
+          const reason = typeof args.reason === 'string' ? args.reason : undefined
+          if (typeof delay === 'number') {
+            return reason
+              ? `${t('session.tool.scheduleWakeup')}: ${delay}s — ${reason}`
+              : `${t('session.tool.scheduleWakeup')}: ${delay}s`
+          }
+          return reason ? `${t('session.tool.scheduleWakeup')}: ${reason}` : t('session.tool.scheduleWakeup')
+        }
+        case 'Monitor': {
+          const args = (action.arguments ?? {}) as Record<string, unknown>
+          const taskId = args.task_id ?? args.taskId ?? args.shell_id
+          const cmd = args.command ?? args.until
+          const target = taskId ?? cmd
+          return target ? `${t('session.tool.monitor')}: ${String(target)}` : t('session.tool.monitor')
+        }
+        case 'TaskOutput': {
+          const args = (action.arguments ?? {}) as Record<string, unknown>
+          const taskId = args.task_id ?? args.taskId
+          return taskId ? `${t('session.tool.taskOutput')}: ${String(taskId)}` : t('session.tool.taskOutput')
+        }
+        case 'TaskStop': {
+          const args = (action.arguments ?? {}) as Record<string, unknown>
+          const taskId = args.task_id ?? args.shell_id
+          return taskId ? `${t('session.tool.taskStop')}: ${String(taskId)}` : t('session.tool.taskStop')
+        }
+        case 'EnterWorktree': {
+          const args = (action.arguments ?? {}) as Record<string, unknown>
+          const target = args.path ?? args.name
+          return target
+            ? `${t('session.tool.enterWorktree')}: ${String(target)}`
+            : t('session.tool.enterWorktree')
+        }
+        case 'ExitWorktree': {
+          const args = (action.arguments ?? {}) as Record<string, unknown>
+          const act = typeof args.action === 'string' ? args.action : 'exit'
+          return `${t('session.tool.exitWorktree')}: ${act}`
+        }
+        default:
+          return action.toolName
+      }
+    }
     case 'other':
       return action.description
   }

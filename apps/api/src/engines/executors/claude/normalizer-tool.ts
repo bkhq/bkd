@@ -150,6 +150,12 @@ export function classifyToolKind(toolName: string): string {
       return 'search'
     case 'Task':
       return 'task'
+    case 'Agent':
+      return 'agent'
+    case 'TodoWrite':
+      return 'task-plan'
+    case 'AskUserQuestion':
+      return 'user-question'
     case 'code_execution':
     case 'bash_code_execution':
     case 'text_editor_code_execution':
@@ -205,6 +211,84 @@ export function classifyToolAction(toolName: string, input: Record<string, unkno
     case 'WebSearch':
     case 'web_search':
       return { kind: 'search', query: String(input.query ?? '') }
+    case 'Agent': {
+      const subagentType = typeof input.subagent_type === 'string' ? input.subagent_type : undefined
+      const description = typeof input.description === 'string' ? input.description : undefined
+      const prompt = typeof input.prompt === 'string' ? input.prompt : undefined
+      const model = typeof input.model === 'string' ? input.model : undefined
+      const runInBackground = input.run_in_background === true ? true : undefined
+      const isolation = typeof input.isolation === 'string' ? input.isolation : undefined
+      const name = typeof input.name === 'string' ? input.name : undefined
+      return {
+        kind: 'agent',
+        ...(subagentType !== undefined ? { subagentType } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(prompt !== undefined ? { prompt } : {}),
+        ...(model !== undefined ? { model } : {}),
+        ...(runInBackground !== undefined ? { runInBackground } : {}),
+        ...(isolation !== undefined ? { isolation } : {}),
+        ...(name !== undefined ? { name } : {}),
+      }
+    }
+    case 'TodoWrite': {
+      const rawTodos = Array.isArray(input.todos) ? input.todos : []
+      const items = rawTodos
+        .map((raw) => {
+          if (typeof raw !== 'object' || raw === null) return null
+          const obj = raw as Record<string, unknown>
+          const content = typeof obj.content === 'string' ? obj.content : null
+          if (!content) return null
+          const status = typeof obj.status === 'string' ? obj.status : 'pending'
+          const activeForm = typeof obj.activeForm === 'string' ? obj.activeForm : undefined
+          return activeForm !== undefined
+            ? { content, status, activeForm }
+            : { content, status }
+        })
+        .filter((item): item is { content: string, status: string, activeForm?: string } => item !== null)
+      return { kind: 'task-plan', items }
+    }
+    case 'AskUserQuestion': {
+      const rawQuestions = Array.isArray(input.questions) ? input.questions : []
+      let recommendedIndex: number | undefined
+      const questions = rawQuestions
+        .map((raw, qIdx) => {
+          if (typeof raw !== 'object' || raw === null) return null
+          const obj = raw as Record<string, unknown>
+          const question = typeof obj.question === 'string' ? obj.question : null
+          if (!question) return null
+          const multiSelect = obj.multiSelect === true || obj.multi_select === true ? true : undefined
+          const rawOptions = Array.isArray(obj.options) ? obj.options : null
+          const options = rawOptions
+            ?.map((opt, oIdx) => {
+              if (typeof opt !== 'object' || opt === null) return null
+              const o = opt as Record<string, unknown>
+              const label = typeof o.label === 'string' ? o.label : null
+              if (!label) return null
+              const description = typeof o.description === 'string' ? o.description : undefined
+              const recommended = label.toLowerCase().includes('(recommended)') || o.recommended === true
+              if (recommended && qIdx === 0 && recommendedIndex === undefined) {
+                recommendedIndex = oIdx
+              }
+              return {
+                label,
+                ...(description !== undefined ? { description } : {}),
+                ...(recommended ? { recommended: true } : {}),
+              }
+            })
+            .filter((o): o is { label: string, description?: string, recommended?: boolean } => o !== null)
+          return {
+            question,
+            ...(options && options.length > 0 ? { options } : {}),
+            ...(multiSelect !== undefined ? { multiSelect } : {}),
+          }
+        })
+        .filter((q): q is { question: string, options?: Array<{ label: string, description?: string, recommended?: boolean }>, multiSelect?: boolean } => q !== null)
+      return {
+        kind: 'user-question',
+        questions,
+        ...(recommendedIndex !== undefined ? { recommendedIndex } : {}),
+      }
+    }
     default:
       return { kind: 'tool', toolName, arguments: input }
   }
