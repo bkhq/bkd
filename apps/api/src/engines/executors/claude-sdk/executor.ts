@@ -98,15 +98,60 @@ function makeUserMessage(content: string): SDKUserMessage {
 }
 
 /**
+ * Create a push-only stderr `ReadableStream`. Constructed before `query()`
+ * so the stderr callback we pass into the SDK can safely capture `push`
+ * even if the SDK emits stderr synchronously during startup (binary
+ * missing, config error, etc.) — no temporal-dead-zone on `bridge`.
+ */
+function createStderrStream(): {
+  stream: ReadableStream<Uint8Array>
+  push: (chunk: string) => void
+  close: () => void
+} {
+  const encoder = new TextEncoder()
+  const ref: { ctrl: ReadableStreamDefaultController<Uint8Array> | null } = { ctrl: null }
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      ref.ctrl = controller
+    },
+    cancel() {
+      /* nothing to cancel — stderr is push-only */
+    },
+  })
+  return {
+    stream,
+    push: (chunk: string) => {
+      const ctrl = ref.ctrl
+      if (!ctrl) return
+      try {
+        ctrl.enqueue(encoder.encode(chunk))
+      } catch {
+        /* stream closed */
+      }
+    },
+    close: () => {
+      try {
+        ref.ctrl?.close()
+      } catch {
+        /* already closed */
+      }
+    },
+  }
+}
+
+/**
  * Bridge the SDK `Query` async generator to the `(stdout, stderr)` stream pair
  * that `SpawnedProcess` + `consumeStream` expect. Keeps the legacy consumer
  * path unchanged during the migration.
  */
-function startBridge(q: Query, label: string, issueId: string | undefined): {
+function startBridge(
+  q: Query,
+  label: string,
+  issueId: string | undefined,
+  stderr: { push: (chunk: string) => void, close: () => void },
+): {
   handle: SdkProcessHandle
   stdout: ReadableStream<Uint8Array>
-  stderr: ReadableStream<Uint8Array>
-  stderrPush: (chunk: string) => void
 } {
   const handle = new SdkProcessHandle(q)
 
@@ -120,26 +165,7 @@ function startBridge(q: Query, label: string, issueId: string | undefined): {
     },
   })
 
-  const stderrRef: { ctrl: ReadableStreamDefaultController<Uint8Array> | null } = { ctrl: null }
-  const stderr = new ReadableStream<Uint8Array>({
-    start(controller) {
-      stderrRef.ctrl = controller
-    },
-    cancel() {
-      /* nothing to cancel — stderr is push-only */
-    },
-  })
-
   const encoder = new TextEncoder()
-  const stderrPush = (chunk: string): void => {
-    const ctrl = stderrRef.ctrl
-    if (!ctrl) return
-    try {
-      ctrl.enqueue(encoder.encode(chunk))
-    } catch {
-      /* stream closed */
-    }
-  }
 
   void (async () => {
     let exitCode = 0
@@ -157,18 +183,14 @@ function startBridge(q: Query, label: string, issueId: string | undefined): {
       exitCode = 1
       logger.warn({ issueId, label, err }, 'claude_sdk_query_error')
       const message = err instanceof Error ? err.message : String(err)
-      stderrPush(`${message}\n`)
+      stderr.push(`${message}\n`)
     } finally {
       try {
         stdoutRef.ctrl?.close()
       } catch {
         /* already closed */
       }
-      try {
-        stderrRef.ctrl?.close()
-      } catch {
-        /* already closed */
-      }
+      stderr.close()
       // If the handle was force-closed (SIGKILL equivalent) but the generator
       // still unwound without throwing, report a non-zero exit so
       // `monitorCompletion` treats the run as terminated rather than
@@ -180,7 +202,7 @@ function startBridge(q: Query, label: string, issueId: string | undefined): {
     }
   })()
 
-  return { handle, stdout, stderr, stderrPush }
+  return { handle, stdout }
 }
 
 export class ClaudeCodeSdkExecutor implements EngineExecutor {
@@ -415,17 +437,23 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
     const pushable = new PushableStream<SDKUserMessage>()
     pushable.push(makeUserMessage(options.prompt))
 
+    // Create the stderr stream BEFORE `query()` so the stderr callback we pass
+    // into the SDK can safely reference `stderr.push` even if the SDK emits
+    // stderr synchronously during startup (e.g. immediate binary/config
+    // errors). Referencing the bridge here would hit the temporal dead zone.
+    const stderr = createStderrStream()
+
     const q = query({
       prompt: pushable,
       options: {
         ...sdkOptions,
         stderr: (data) => {
-          bridge.stderrPush(data.endsWith('\n') ? data : `${data}\n`)
+          stderr.push(data.endsWith('\n') ? data : `${data}\n`)
         },
       },
     })
 
-    const bridge = startBridge(q, label, env.issueId)
+    const bridge = startBridge(q, label, env.issueId, stderr)
 
     logger.debug(
       {
@@ -443,7 +471,7 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
     return {
       subprocess: bridge.handle as unknown as SpawnedProcess['subprocess'],
       stdout: bridge.stdout,
-      stderr: bridge.stderr,
+      stderr: stderr.stream,
       cancel: () => {
         // Soft cancel: interrupt the current turn but keep the prompt stream
         // open so follow-up turns via `protocolHandler.sendUserMessage` remain
