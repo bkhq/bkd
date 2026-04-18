@@ -137,6 +137,16 @@ describe('SdkProcessHandle', () => {
     const handle = new SdkProcessHandle(q)
     expect(handle.pid).toBeUndefined()
   })
+
+  test('wasHardClosed starts false and flips after kill(9)', () => {
+    const q = makeMockQuery()
+    const handle = new SdkProcessHandle(q)
+    expect(handle.wasHardClosed).toBe(false)
+    handle.kill()
+    expect(handle.wasHardClosed).toBe(false)
+    handle.kill(9)
+    expect(handle.wasHardClosed).toBe(true)
+  })
 })
 
 // ---------- ClaudeSdkNormalizer ----------

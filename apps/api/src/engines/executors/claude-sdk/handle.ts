@@ -74,4 +74,14 @@ export class SdkProcessHandle implements ProcessHandle {
   get isSettled(): boolean {
     return this.settled
   }
+
+  /**
+   * `true` if a hard close (signal 9) has been requested. The bridge uses this
+   * to surface a non-zero exit code even when the generator finishes cleanly
+   * after the close, so `monitorCompletion` treats the run as forced-terminated
+   * rather than successfully completed.
+   */
+  get wasHardClosed(): boolean {
+    return this.hardClosed
+  }
 }

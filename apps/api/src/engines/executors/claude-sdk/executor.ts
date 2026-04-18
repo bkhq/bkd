@@ -169,6 +169,13 @@ function startBridge(q: Query, label: string, issueId: string | undefined): {
       } catch {
         /* already closed */
       }
+      // If the handle was force-closed (SIGKILL equivalent) but the generator
+      // still unwound without throwing, report a non-zero exit so
+      // `monitorCompletion` treats the run as terminated rather than
+      // successfully completed.
+      if (exitCode === 0 && handle.wasHardClosed) {
+        exitCode = 137
+      }
       handle.settle(exitCode)
     }
   })()
@@ -350,14 +357,17 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
       extraArgs.agent = options.agent
     }
 
+    // Merge user/project env vars and run them through safeEnv so protected
+    // keys (PATH, HOME, ANTHROPIC_API_KEY, IS_SANDBOX, …) cannot be overridden.
+    // `env.vars` wins over `options.env` to match the precedence used by the
+    // legacy executor (per-execution env > project env).
+    const userExtra: Record<string, string> = { ...(options.env ?? {}), ...(env.vars ?? {}) }
     const sdkOptions: Options = {
       cwd: options.workingDir,
       pathToClaudeCodeExecutable: binaryPath,
       executable: 'bun',
       env: {
-        ...safeEnv(undefined, 'claude-code-sdk'),
-        ...(options.env ?? {}),
-        ...(env.vars ?? {}),
+        ...safeEnv(userExtra, 'claude-code-sdk'),
         NPM_CONFIG_LOGLEVEL: 'error',
         IS_SANDBOX: '1',
       },
