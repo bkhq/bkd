@@ -307,16 +307,22 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
         },
       })
 
-      const [commands, agents] = await Promise.all([
-        withTimeout(q.supportedCommands(), 15_000, [] as SlashCommand[]),
-        withTimeout(q.supportedAgents(), 15_000, [] as Array<{ name: string }>),
+      const [commandsResult, agentsResult] = await Promise.all([
+        withTimeout(q.supportedCommands(), 15_000, null as SlashCommand[] | null),
+        withTimeout(q.supportedAgents(), 15_000, null as Array<{ name: string }> | null),
       ])
 
+      // At least one SDK call must have completed (not timed out) for us to
+      // treat discovery as successful. Empty-but-completed lists are valid
+      // (e.g. a workspace with no custom agents) and should still clear
+      // previously cached data via `initReceived: true`.
+      const initReceived = commandsResult !== null || agentsResult !== null
+
       return {
-        slashCommands: commands.map(c => c.name),
-        agents: agents.map(a => a.name),
+        slashCommands: (commandsResult ?? []).map(c => c.name),
+        agents: (agentsResult ?? []).map(a => a.name),
         plugins: [],
-        initReceived: commands.length > 0 || agents.length > 0,
+        initReceived,
       }
     } catch (error) {
       logger.warn({ error, workingDir }, 'claude_sdk_discover_failed')
