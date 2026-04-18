@@ -23,6 +23,33 @@ export function resolveClaudeBinary(): string | null {
 }
 
 /**
+ * Detect the host C library on Linux so we can prefer the matching SDK
+ * binary package (`*-musl` vs plain) during fallback resolution. When both
+ * optional packages happen to be installed side-by-side (e.g. a shared
+ * node_modules served to heterogeneous hosts) resolving the wrong one would
+ * make `--version` fail and cause availability to report `installed: false`
+ * on a perfectly runnable system.
+ */
+function detectLinuxLibc(): 'musl' | 'glibc' {
+  try {
+    const report = (process as { report?: { getReport?: () => { header?: { glibcVersionRuntime?: string } } } }).report
+    const glibcVersion = report?.getReport?.().header?.glibcVersionRuntime
+    if (typeof glibcVersion === 'string' && glibcVersion.length > 0) return 'glibc'
+  } catch {
+    /* fall through to filesystem probes */
+  }
+  if (
+    existsSync('/etc/alpine-release')
+    || existsSync('/lib/ld-musl-x86_64.so.1')
+    || existsSync('/lib/ld-musl-aarch64.so.1')
+    || existsSync('/lib/ld-musl-armhf.so.1')
+  ) {
+    return 'musl'
+  }
+  return 'glibc'
+}
+
+/**
  * Replicates the Agent SDK's internal fallback resolution for its bundled
  * `claude` binary: first the platform-specific optional packages
  * (`@anthropic-ai/claude-agent-sdk-<platform>-<arch>[-musl]/claude`), then a
@@ -39,12 +66,14 @@ export function resolveSdkBundledClaudeBinary(): string | null {
   const platform = process.platform
   const arch = process.arch
   const exe = platform === 'win32' ? '.exe' : ''
-  const candidates = platform === 'linux'
-    ? [
-        `@anthropic-ai/claude-agent-sdk-linux-${arch}-musl/claude${exe}`,
-        `@anthropic-ai/claude-agent-sdk-linux-${arch}/claude${exe}`,
-      ]
-    : [`@anthropic-ai/claude-agent-sdk-${platform}-${arch}/claude${exe}`]
+  let candidates: string[]
+  if (platform === 'linux') {
+    const glibc = `@anthropic-ai/claude-agent-sdk-linux-${arch}/claude${exe}`
+    const musl = `@anthropic-ai/claude-agent-sdk-linux-${arch}-musl/claude${exe}`
+    candidates = detectLinuxLibc() === 'musl' ? [musl, glibc] : [glibc, musl]
+  } else {
+    candidates = [`@anthropic-ai/claude-agent-sdk-${platform}-${arch}/claude${exe}`]
+  }
 
   const req = createRequire(import.meta.url)
   for (const spec of candidates) {
