@@ -660,6 +660,8 @@ export function UserQuestionToolItem({ item }: { item: ToolGroupItem }) {
   const first = questions[0]
   const summaryText = first?.question ?? t('session.tool.userQuestion')
   const moreCount = questions.length > 1 ? questions.length - 1 : 0
+  const answerContent = item.result?.content?.trim()
+  const hasError = isItemError(item)
 
   return (
     <ToolPanel
@@ -707,6 +709,22 @@ export function UserQuestionToolItem({ item }: { item: ToolGroupItem }) {
               : null}
           </div>
         ))}
+        {answerContent
+          ? (
+              <div className="pt-1 border-t border-border/30">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground/60 mb-1">
+                  {t('session.tool.userQuestionAnswer')}
+                </div>
+                <pre
+                  className={`text-[12px] font-mono whitespace-pre-wrap break-words ${
+                    hasError ? 'text-red-600 dark:text-red-400' : 'text-foreground/90'
+                  }`}
+                >
+                  {answerContent}
+                </pre>
+              </div>
+            )
+          : null}
       </div>
     </ToolPanel>
   )

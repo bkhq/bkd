@@ -245,6 +245,7 @@
       "taskPlan": "任务计划",
       "agent": "子代理",
       "userQuestion": "询问",
+      "userQuestionAnswer": "回答",
       "scheduleWakeup": "计划唤醒",
       "monitor": "监听",
       "taskOutput": "任务输出",

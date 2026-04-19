@@ -246,6 +246,7 @@
       "taskPlan": "Task Plan",
       "agent": "Agent",
       "userQuestion": "Question",
+      "userQuestionAnswer": "Answer",
       "scheduleWakeup": "Schedule wake-up",
       "monitor": "Monitor",
       "taskOutput": "Task output",
