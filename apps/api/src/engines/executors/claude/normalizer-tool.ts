@@ -249,9 +249,8 @@ export function classifyToolAction(toolName: string, input: Record<string, unkno
     }
     case 'AskUserQuestion': {
       const rawQuestions = Array.isArray(input.questions) ? input.questions : []
-      let recommendedIndex: number | undefined
       const questions = rawQuestions
-        .map((raw, qIdx) => {
+        .map((raw) => {
           if (typeof raw !== 'object' || raw === null) return null
           const obj = raw as Record<string, unknown>
           const question = typeof obj.question === 'string' ? obj.question : null
@@ -259,16 +258,13 @@ export function classifyToolAction(toolName: string, input: Record<string, unkno
           const multiSelect = obj.multiSelect === true || obj.multi_select === true ? true : undefined
           const rawOptions = Array.isArray(obj.options) ? obj.options : null
           const options = rawOptions
-            ?.map((opt, oIdx) => {
+            ?.map((opt) => {
               if (typeof opt !== 'object' || opt === null) return null
               const o = opt as Record<string, unknown>
               const label = typeof o.label === 'string' ? o.label : null
               if (!label) return null
               const description = typeof o.description === 'string' ? o.description : undefined
               const recommended = label.toLowerCase().includes('(recommended)') || o.recommended === true
-              if (recommended && qIdx === 0 && recommendedIndex === undefined) {
-                recommendedIndex = oIdx
-              }
               return {
                 label,
                 ...(description !== undefined ? { description } : {}),
@@ -283,10 +279,16 @@ export function classifyToolAction(toolName: string, input: Record<string, unkno
           }
         })
         .filter((q): q is { question: string, options?: Array<{ label: string, description?: string, recommended?: boolean }>, multiSelect?: boolean } => q !== null)
+      // Compute recommendedIndex from the filtered first question's options so
+      // the index points at a valid slot after all invalid options are dropped.
+      const firstOptions = questions[0]?.options
+      const recommendedIndex = firstOptions?.findIndex(o => o.recommended === true)
+      const resolvedRecommendedIndex =
+        typeof recommendedIndex === 'number' && recommendedIndex >= 0 ? recommendedIndex : undefined
       return {
         kind: 'user-question',
         questions,
-        ...(recommendedIndex !== undefined ? { recommendedIndex } : {}),
+        ...(resolvedRecommendedIndex !== undefined ? { recommendedIndex: resolvedRecommendedIndex } : {}),
       }
     }
     default:
