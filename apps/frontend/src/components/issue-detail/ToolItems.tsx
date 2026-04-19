@@ -1,12 +1,22 @@
 import type { ToolGroupChatMessage, ToolGroupItem } from '@bkd/shared'
 import {
   Check,
+  CheckCircle2,
   ChevronRight,
+  Circle,
   Copy,
+  Eye,
   FileEdit,
   FileText,
+  FolderGit2,
+  HelpCircle,
+  ListTodo,
+  Loader2,
+  Monitor as MonitorIcon,
+  Octagon,
   Search,
   Terminal,
+  Timer,
   Users,
   Wrench,
 } from 'lucide-react'
@@ -484,6 +494,242 @@ export function GenericToolItem({ item }: { item: ToolGroupItem }) {
   )
 }
 
+/** Read arguments from the persisted ToolAction first, then fall back to live metadata.input. */
+function getToolArguments(item: ToolGroupItem): Record<string, unknown> {
+  const action = item.action.toolAction
+  if (action?.kind === 'tool' && action.arguments && typeof action.arguments === 'object') {
+    return action.arguments as Record<string, unknown>
+  }
+  const input = item.action.metadata?.input
+  if (input && typeof input === 'object' && !Array.isArray(input)) {
+    return input as Record<string, unknown>
+  }
+  return {}
+}
+
+interface ToolLabelSpec {
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  detail?: string
+}
+
+function buildToolWithArgsLabel(
+  toolName: string,
+  args: Record<string, unknown>,
+  t: (key: string) => string,
+): ToolLabelSpec | null {
+  switch (toolName) {
+    case 'ScheduleWakeup': {
+      const delay = typeof args.delaySeconds === 'number' ? args.delaySeconds : undefined
+      const reason = typeof args.reason === 'string' ? args.reason : undefined
+      const detail =
+        typeof delay === 'number' ?
+            (reason ? `${delay}s — ${reason}` : `${delay}s`) :
+          reason
+      return { icon: Timer, label: t('session.tool.scheduleWakeup'), detail }
+    }
+    case 'Monitor': {
+      const taskId = args.task_id ?? args.taskId ?? args.shell_id
+      const cmd = args.command ?? args.until
+      const target = taskId ?? cmd
+      return {
+        icon: MonitorIcon,
+        label: t('session.tool.monitor'),
+        detail: target ? String(target) : undefined,
+      }
+    }
+    case 'TaskOutput': {
+      const taskId = args.task_id ?? args.taskId
+      return {
+        icon: Eye,
+        label: t('session.tool.taskOutput'),
+        detail: taskId ? String(taskId) : undefined,
+      }
+    }
+    case 'TaskStop': {
+      const taskId = args.task_id ?? args.shell_id
+      return {
+        icon: Octagon,
+        label: t('session.tool.taskStop'),
+        detail: taskId ? String(taskId) : undefined,
+      }
+    }
+    case 'EnterWorktree': {
+      const target = args.path ?? args.name
+      return {
+        icon: FolderGit2,
+        label: t('session.tool.enterWorktree'),
+        detail: target ? String(target) : undefined,
+      }
+    }
+    case 'ExitWorktree': {
+      const act = typeof args.action === 'string' ? args.action : 'exit'
+      return { icon: FolderGit2, label: t('session.tool.exitWorktree'), detail: act }
+    }
+    default:
+      return null
+  }
+}
+
+export function ToolWithArgsItem({ item, spec }: { item: ToolGroupItem, spec: ToolLabelSpec }) {
+  const hasError = isItemError(item)
+  const resultContent = item.result?.content || item.action.content || ''
+  const Icon = spec.icon
+  return (
+    <ToolPanel
+      collapsible
+      summary={(
+        <div className="flex items-center gap-2 min-w-0">
+          <ToolLabel label={spec.label} icon={Icon} />
+          {spec.detail
+            ? (
+                <code className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono truncate">
+                  {spec.detail}
+                </code>
+              )
+            : null}
+        </div>
+      )}
+    >
+      {resultContent
+        ? (
+            <CodeBlock
+              content={resultContent}
+              collapsible={false}
+              language={hasError ? 'text' : undefined}
+            />
+          )
+        : null}
+    </ToolPanel>
+  )
+}
+
+export function TaskPlanToolItem({ item }: { item: ToolGroupItem }) {
+  const { t } = useTranslation()
+  const action = item.action.toolAction
+  const items = action?.kind === 'task-plan' ? action.items : []
+  const completed = items.filter(i => i.status === 'completed').length
+
+  return (
+    <ToolPanel
+      collapsible
+      summary={(
+        <div className="flex items-center gap-2 min-w-0">
+          <ToolLabel label={t('session.tool.taskPlan')} icon={ListTodo} />
+          <span className="text-[11px] text-muted-foreground/60 shrink-0">
+            (
+            {completed}
+            /
+            {items.length}
+            )
+          </span>
+        </div>
+      )}
+    >
+      <div className="space-y-0.5">
+        {items.map((i, idx) => (
+          <div key={`${i.content}-${idx}`} className="flex items-start gap-1.5 text-xs">
+            {i.status === 'completed'
+              ? <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500 mt-0.5" />
+              : i.status === 'in_progress'
+                ? <Loader2 className="h-3 w-3 shrink-0 text-blue-500 animate-spin mt-0.5" />
+                : <Circle className="h-3 w-3 shrink-0 text-muted-foreground/40 mt-0.5" />}
+            <span
+              className={
+                i.status === 'completed'
+                  ? 'text-muted-foreground/60 line-through'
+                  : i.status === 'in_progress'
+                    ? 'text-blue-600 dark:text-blue-400'
+                    : ''
+              }
+            >
+              {i.status === 'in_progress' ? i.activeForm || i.content : i.content}
+            </span>
+          </div>
+        ))}
+      </div>
+    </ToolPanel>
+  )
+}
+
+export function UserQuestionToolItem({ item }: { item: ToolGroupItem }) {
+  const { t } = useTranslation()
+  const action = item.action.toolAction
+  const questions = action?.kind === 'user-question' ? action.questions : []
+  const recommendedIndex = action?.kind === 'user-question' ? action.recommendedIndex : undefined
+  const first = questions[0]
+  const summaryText = first?.question ?? t('session.tool.userQuestion')
+  const moreCount = questions.length > 1 ? questions.length - 1 : 0
+  const answerContent = item.result?.content?.trim()
+  const hasError = isItemError(item)
+
+  return (
+    <ToolPanel
+      collapsible
+      summary={(
+        <div className="flex items-center gap-2 min-w-0">
+          <ToolLabel label={t('session.tool.userQuestion')} icon={HelpCircle} />
+          <span className="text-[11px] text-muted-foreground/80 truncate">
+            {summaryText}
+            {moreCount > 0 ? ` (+${moreCount})` : ''}
+          </span>
+        </div>
+      )}
+    >
+      <div className="space-y-3">
+        {questions.map((q, qIdx) => (
+          <div key={`${q.question}-${qIdx}`} className="space-y-1">
+            <div className="text-[12px] font-medium text-foreground/90">{q.question}</div>
+            {q.options && q.options.length > 0
+              ? (
+                  <ul className="ml-3 space-y-0.5">
+                    {q.options.map((opt, oIdx) => {
+                      const isRecommended =
+                        opt.recommended === true || (qIdx === 0 && oIdx === recommendedIndex)
+                      return (
+                        <li key={`${opt.label}-${oIdx}`} className="flex items-start gap-1.5 text-[11px]">
+                          <span className={isRecommended ? 'text-emerald-500 shrink-0' : 'text-muted-foreground/60 shrink-0'}>
+                            {isRecommended ? '★' : '•'}
+                          </span>
+                          <span className={isRecommended ? 'text-foreground' : 'text-muted-foreground'}>
+                            {opt.label}
+                            {opt.description ? (
+                              <span className="text-muted-foreground/60">
+                                {' '}
+                                —
+                                {opt.description}
+                              </span>
+                            ) : null}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )
+              : null}
+          </div>
+        ))}
+        {answerContent
+          ? (
+              <div className="pt-1 border-t border-border/30">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground/60 mb-1">
+                  {t('session.tool.userQuestionAnswer')}
+                </div>
+                <pre
+                  className={`text-[12px] font-mono whitespace-pre-wrap break-words ${
+                    hasError ? 'text-red-600 dark:text-red-400' : 'text-foreground/90'
+                  }`}
+                >
+                  {answerContent}
+                </pre>
+              </div>
+            )
+          : null}
+      </div>
+    </ToolPanel>
+  )
+}
+
 // ── ToolGroupMessage — collapsible group of tool calls ───
 
 function getGroupSummaryLabel(
@@ -503,12 +749,19 @@ function getGroupSummaryLabel(
 }
 
 function ToolItemRenderer({ item }: { item: ToolGroupItem }) {
+  const { t } = useTranslation()
   const kind = item.action.toolAction?.kind
   const toolName = getItemToolName(item)
-  if (toolName === 'Agent') return <AgentToolItem item={item} />
+  if (toolName === 'Agent' || kind === 'agent') return <AgentToolItem item={item} />
   if (kind === 'file-edit' || kind === 'file-read') return <FileToolItem item={item} />
   if (kind === 'command-run') return <CommandToolItem item={item} />
   if (kind === 'search') return <SearchToolItem item={item} />
+  if (kind === 'task-plan') return <TaskPlanToolItem item={item} />
+  if (kind === 'user-question') return <UserQuestionToolItem item={item} />
+  if (kind === 'tool' && toolName) {
+    const spec = buildToolWithArgsLabel(toolName, getToolArguments(item), t)
+    if (spec) return <ToolWithArgsItem item={item} spec={spec} />
+  }
   return <GenericToolItem item={item} />
 }
 

@@ -1,7 +1,13 @@
 import { ulid } from 'ulid'
 import { db } from '@/db'
 import { issuesLogsToolsCall as toolsTable } from '@/db/schema'
-import type { NormalizedLogEntry, ToolAction, ToolDetail } from '@/engines/types'
+import type {
+  NormalizedLogEntry,
+  TaskPlanItem,
+  ToolAction,
+  ToolDetail,
+  UserQuestionItem,
+} from '@/engines/types'
 import { logger } from '@/logger'
 
 /** Persist tool detail row linked to a log entry. */
@@ -91,11 +97,99 @@ export function rawToToolAction(kind: string, rawData: Record<string, unknown>):
       return { kind: 'search', query: (action?.query as string) ?? '' }
     case 'web-fetch':
       return { kind: 'web-fetch', url: (action?.url as string) ?? '' }
-    case 'tool':
+    case 'agent': {
+      const pickString = (key: string): string | undefined => {
+        const value = action?.[key]
+        return typeof value === 'string' ? value : undefined
+      }
+      const subagentType = pickString('subagentType')
+      const description = pickString('description')
+      const prompt = pickString('prompt')
+      const model = pickString('model')
+      const runInBackground = action?.runInBackground === true ? true : undefined
+      const isolation = pickString('isolation')
+      const name = pickString('name')
+      return {
+        kind: 'agent',
+        ...(subagentType !== undefined ? { subagentType } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(prompt !== undefined ? { prompt } : {}),
+        ...(model !== undefined ? { model } : {}),
+        ...(runInBackground !== undefined ? { runInBackground } : {}),
+        ...(isolation !== undefined ? { isolation } : {}),
+        ...(name !== undefined ? { name } : {}),
+      }
+    }
+    case 'task-plan': {
+      const rawItems = Array.isArray(action?.items) ? (action.items as unknown[]) : []
+      const items: TaskPlanItem[] = rawItems
+        .map((raw) => {
+          if (typeof raw !== 'object' || raw === null) return null
+          const obj = raw as Record<string, unknown>
+          const content = typeof obj.content === 'string' ? obj.content : null
+          if (!content) return null
+          const status = typeof obj.status === 'string' ? obj.status : 'pending'
+          const activeForm = typeof obj.activeForm === 'string' ? obj.activeForm : undefined
+          return activeForm !== undefined
+            ? { content, status, activeForm }
+            : { content, status }
+        })
+        .filter((i): i is TaskPlanItem => i !== null)
+      return { kind: 'task-plan', items }
+    }
+    case 'user-question': {
+      const rawQuestions = Array.isArray(action?.questions) ? (action.questions as unknown[]) : []
+      const questions: UserQuestionItem[] = rawQuestions
+        .map((raw) => {
+          if (typeof raw !== 'object' || raw === null) return null
+          const obj = raw as Record<string, unknown>
+          const question = typeof obj.question === 'string' ? obj.question : null
+          if (!question) return null
+          const rawOptions = Array.isArray(obj.options) ? obj.options : null
+          const options = rawOptions
+            ?.map((opt) => {
+              if (typeof opt !== 'object' || opt === null) return null
+              const o = opt as Record<string, unknown>
+              const label = typeof o.label === 'string' ? o.label : null
+              if (!label) return null
+              const description = typeof o.description === 'string' ? o.description : undefined
+              const recommended = o.recommended === true ? true : undefined
+              return {
+                label,
+                ...(description !== undefined ? { description } : {}),
+                ...(recommended !== undefined ? { recommended } : {}),
+              }
+            })
+            .filter(
+              (o): o is { label: string, description?: string, recommended?: boolean } => o !== null,
+            )
+          const multiSelect = obj.multiSelect === true ? true : undefined
+          return {
+            question,
+            ...(options && options.length > 0 ? { options } : {}),
+            ...(multiSelect !== undefined ? { multiSelect } : {}),
+          }
+        })
+        .filter((q): q is UserQuestionItem => q !== null)
+      const recommendedIndex =
+        typeof action?.recommendedIndex === 'number' ? action.recommendedIndex : undefined
+      return {
+        kind: 'user-question',
+        questions,
+        ...(recommendedIndex !== undefined ? { recommendedIndex } : {}),
+      }
+    }
+    case 'tool': {
+      const toolName = (action?.toolName as string) ?? (rawData.toolName as string) ?? ''
+      const args = action?.arguments
+      const result = action?.result
       return {
         kind: 'tool',
-        toolName: (action?.toolName as string) ?? (rawData.toolName as string) ?? '',
+        toolName,
+        ...(args !== undefined ? { arguments: args } : {}),
+        ...(result !== undefined ? { result } : {}),
       }
+    }
     default:
       return {
         kind: 'other',
