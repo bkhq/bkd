@@ -179,11 +179,17 @@ export function rawToToolAction(kind: string, rawData: Record<string, unknown>):
         ...(recommendedIndex !== undefined ? { recommendedIndex } : {}),
       }
     }
-    case 'tool':
+    case 'tool': {
+      const toolName = (action?.toolName as string) ?? (rawData.toolName as string) ?? ''
+      const args = action?.arguments
+      const result = action?.result
       return {
         kind: 'tool',
-        toolName: (action?.toolName as string) ?? (rawData.toolName as string) ?? '',
+        toolName,
+        ...(args !== undefined ? { arguments: args } : {}),
+        ...(result !== undefined ? { result } : {}),
       }
+    }
     default:
       return {
         kind: 'other',
