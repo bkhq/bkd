@@ -5,7 +5,7 @@ import { db } from '@/db'
 import { cronJobLogs, cronJobs } from '@/db/schema'
 import { getAction, getActionsHelp, validateActionConfig } from '@/cron/actions'
 import { executeTask } from '@/cron/executor'
-import { getBaker, syncJob } from '@/cron/index'
+import { getBaker, isValidCron, normalizeCron, syncJob } from '@/cron/index'
 import { serializeJob } from '@/cron/serialize'
 import { logger } from '@/logger'
 import type { TaskConfig } from '@/cron/executor'
@@ -101,15 +101,11 @@ cronRoute.openapi(R.createCronJob, async (c) => {
     return c.json({ success: false, error: `Job with name "${name}" already exists` }, 409 as const)
   }
 
-  // Validate cron expression
-  try {
-    const { Cron } = await import('cronbake')
-    if (!Cron.isValid(cron as any)) {
-      return c.json({ success: false, error: `Invalid cron expression: ${cron}` }, 400 as const)
-    }
-  } catch {
+  // Validate cron expression (5 or 6 fields)
+  if (!isValidCron(cron)) {
     return c.json({ success: false, error: `Invalid cron expression: ${cron}` }, 400 as const)
   }
+  const normalizedCron = normalizeCron(cron)
 
   // Build and validate task config
   const taskConfig: TaskConfig = { ...(rawConfig ?? {}), action }
@@ -123,7 +119,7 @@ cronRoute.openapi(R.createCronJob, async (c) => {
   try {
     ;[row] = db.insert(cronJobs).values({
       name,
-      cron,
+      cron: normalizedCron,
       taskType: actionDef?.category ?? 'custom',
       taskConfig: JSON.stringify(taskConfig),
       enabled: true,

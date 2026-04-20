@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm'
-import Baker from 'cronbake'
+import Baker, { Cron } from 'cronbake'
 import { db } from '@/db'
 import { cronJobs } from '@/db/schema'
 import { logger } from '@/logger'
@@ -9,6 +9,24 @@ import type { TaskConfig } from './executor'
 import { executeTask } from './executor'
 
 let baker: Baker | null = null
+
+/**
+ * Normalize a cron expression to 6-field format (seconds included).
+ * Accepts both 5-field (standard) and 6-field (with seconds) expressions.
+ * 5-field input gets `0` prepended as the seconds field.
+ */
+export function normalizeCron(expr: string): string {
+  const parts = expr.trim().split(/\s+/)
+  if (parts.length === 5) return `0 ${parts.join(' ')}`
+  return expr.trim()
+}
+
+/**
+ * Validate a cron expression (accepts both 5 and 6 field formats).
+ */
+export function isValidCron(expr: string): boolean {
+  return Cron.isValid(normalizeCron(expr) as any)
+}
 
 export function getBaker(): Baker {
   if (!baker) throw new Error('Cron scheduler not initialized')
@@ -46,7 +64,7 @@ function registerJob(
 
   b.add({
     name: row.name,
-    cron: row.cron as any,
+    cron: normalizeCron(row.cron) as any,
     overrunProtection: true,
     callback: async () => {
       await executeTask(row.id, row.name, config)

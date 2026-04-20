@@ -28,6 +28,8 @@ export const queryKeys = {
   projectWorktrees: (projectId: string) => ['projects', projectId, 'worktrees'] as const,
   logPageSize: () => ['settings', 'logPageSize'] as const,
   worktreeAutoCleanup: () => ['settings', 'worktreeAutoCleanup'] as const,
+  disableAskUser: () => ['settings', 'disableAskUser'] as const,
+  skipPermissions: () => ['settings', 'skipPermissions'] as const,
   maxConcurrentExecutions: () => ['settings', 'maxConcurrentExecutions'] as const,
   upgradeVersion: () => ['upgrade', 'version'] as const,
   upgradeEnabled: () => ['upgrade', 'enabled'] as const,
@@ -570,6 +572,52 @@ export function useSetWorktreeAutoCleanup() {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.worktreeAutoCleanup(),
+      })
+    },
+  })
+}
+
+// --- Skip Permissions hooks ---
+
+export function useSkipPermissions(enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.skipPermissions(),
+    queryFn: () => kanbanApi.getSkipPermissions(),
+    enabled,
+    staleTime: STALE_TIME.CONFIG,
+  })
+}
+
+export function useSetSkipPermissions() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (enabled: boolean) => kanbanApi.setSkipPermissions(enabled),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.skipPermissions(),
+      })
+    },
+  })
+}
+
+// --- Disable AskUserQuestion hooks ---
+
+export function useDisableAskUser(enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.disableAskUser(),
+    queryFn: () => kanbanApi.getDisableAskUser(),
+    enabled,
+    staleTime: STALE_TIME.CONFIG,
+  })
+}
+
+export function useSetDisableAskUser() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (enabled: boolean) => kanbanApi.setDisableAskUser(enabled),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.disableAskUser(),
       })
     },
   })
