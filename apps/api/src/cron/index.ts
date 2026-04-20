@@ -10,22 +10,54 @@ import { executeTask } from './executor'
 
 let baker: Baker | null = null
 
-/**
- * Normalize a cron expression to 6-field format (seconds included).
- * Accepts both 5-field (standard) and 6-field (with seconds) expressions.
- * 5-field input gets `0` prepended as the seconds field.
- */
-export function normalizeCron(expr: string): string {
-  const parts = expr.trim().split(/\s+/)
-  if (parts.length === 5) return `0 ${parts.join(' ')}`
-  return expr.trim()
+const EVERY_UNITS = new Set(['seconds', 'minutes', 'hours', 'dayOfMonth', 'months', 'dayOfWeek'])
+const SHORT_UNIT_MAP: Record<string, string> = { s: 'seconds', m: 'minutes', h: 'hours', d: 'dayOfMonth' }
+const NAMED_ALIASES = new Set(['@every_second', '@every_minute', '@hourly', '@daily', '@weekly', '@monthly', '@yearly', '@annually'])
+const EVERY_SHORTHAND_RE = /^@every_(\d+)(s|m|h|d)$/
+
+export const SUPPORTED_CRON_FORMATS = [
+  '5-field standard: "* * * * *" (min hour dom month dow)',
+  '6-field with seconds: "* * * * * *" (sec min hour dom month dow)',
+  '@every_<N><unit>: unit = s(seconds) | m(minutes) | h(hours) | d(days)',
+  '@every_<N>_<unit>: unit = seconds | minutes | hours | dayOfMonth | months | dayOfWeek',
+  'Aliases: @every_second, @every_minute, @hourly, @daily, @weekly, @monthly, @yearly, @annually',
+]
+
+function normalizeEveryExpr(expr: string): string | null {
+  if (NAMED_ALIASES.has(expr)) return expr
+
+  const shortMatch = expr.match(EVERY_SHORTHAND_RE)
+  if (shortMatch) return `@every_${shortMatch[1]}_${SHORT_UNIT_MAP[shortMatch[2]]}`
+
+  const segments = expr.split('_')
+  if (segments.length === 3 && /^\d+$/.test(segments[1]) && EVERY_UNITS.has(segments[2])) return expr
+
+  return null
 }
 
-/**
- * Validate a cron expression (accepts both 5 and 6 field formats).
- */
+export function normalizeCron(expr: string): string {
+  const trimmed = expr.trim()
+  if (trimmed.startsWith('@')) {
+    if (!trimmed.startsWith('@every_')) return trimmed
+    return normalizeEveryExpr(trimmed) ?? trimmed
+  }
+  const parts = trimmed.split(/\s+/)
+  if (parts.length === 5) return `0 ${parts.join(' ')}`
+  return trimmed
+}
+
 export function isValidCron(expr: string): boolean {
-  return Cron.isValid(normalizeCron(expr) as any)
+  const trimmed = expr.trim()
+
+  if (trimmed.startsWith('@')) {
+    if (NAMED_ALIASES.has(trimmed)) return true
+    if (trimmed.startsWith('@every_')) return normalizeEveryExpr(trimmed) !== null
+    return false
+  }
+
+  const parts = trimmed.split(/\s+/)
+  if (parts.length !== 5 && parts.length !== 6) return false
+  return Cron.isValid(normalizeCron(trimmed) as any)
 }
 
 export function getBaker(): Baker {

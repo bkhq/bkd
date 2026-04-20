@@ -5,7 +5,7 @@ import { db } from '@/db'
 import { cronJobLogs, cronJobs } from '@/db/schema'
 import { getAction, getActionsHelp, validateActionConfig } from '@/cron/actions'
 import { executeTask } from '@/cron/executor'
-import { getBaker, isValidCron, normalizeCron, syncJob } from '@/cron/index'
+import { SUPPORTED_CRON_FORMATS, getBaker, isValidCron, normalizeCron, syncJob } from '@/cron/index'
 import { serializeJob } from '@/cron/serialize'
 import { logger } from '@/logger'
 import type { TaskConfig } from '@/cron/executor'
@@ -103,7 +103,7 @@ cronRoute.openapi(R.createCronJob, async (c) => {
 
   // Validate cron expression (5 or 6 fields)
   if (!isValidCron(cron)) {
-    return c.json({ success: false, error: `Invalid cron expression: ${cron}` }, 400 as const)
+    return c.json({ success: false, error: `Invalid cron expression: "${cron}". Supported formats: ${SUPPORTED_CRON_FORMATS.join('; ')}` }, 400 as const)
   }
   const normalizedCron = normalizeCron(cron)
 
