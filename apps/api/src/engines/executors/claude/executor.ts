@@ -451,8 +451,10 @@ export class ClaudeCodeExecutor implements EngineExecutor {
 
     // SDK init handshake: initialize → set_permission_mode → user message
     const permissionMode = options.permissionMode ?? 'auto'
-    handler.initialize(buildHooks(permissionMode))
-    handler.setPermissionMode(permissionMode)
+    const skipPerm = (await getAppSetting(SKIP_PERMISSIONS_KEY)) === 'true'
+    const effectiveMode: PermissionPolicy = skipPerm ? 'auto' : permissionMode
+    handler.initialize(buildHooks(effectiveMode))
+    handler.setPermissionMode(effectiveMode)
     handler.sendUserMessage(options.prompt)
 
     logger.debug(
