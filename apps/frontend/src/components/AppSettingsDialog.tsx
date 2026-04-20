@@ -45,6 +45,7 @@ import {
   useCleanupStats,
   useClearSystemLogs,
   useDeletedIssues,
+  useDisableAskUser,
   useDownloadStatus,
   useDownloadUpdate,
   useEngineAvailability,
@@ -58,11 +59,14 @@ import {
   useRestoreDeletedIssue,
   useRunCleanup,
   useServerInfo,
+  useSetDisableAskUser,
   useSetGlobalEnvVars,
   useSetLogPageSize,
   useSetMaxConcurrentExecutions,
+  useSetSkipPermissions,
   useSetUpgradeEnabled,
   useSetWorktreeAutoCleanup,
+  useSkipPermissions,
   useSystemInfo,
   useSystemLogs,
   useUpdateDefaultEngine,
@@ -150,6 +154,10 @@ function GeneralSection({ open }: { open: boolean }) {
   const [serverName, setServerName] = useState('')
   const [serverUrl, setServerUrl] = useState('')
   const [serverInfoLoaded, setServerInfoLoaded] = useState(false)
+  const { data: skipPermData } = useSkipPermissions(open)
+  const setSkipPerm = useSetSkipPermissions()
+  const { data: disableAskUserData } = useDisableAskUser(open)
+  const setDisableAskUser = useSetDisableAskUser()
   const { data: maxConcurrentData } = useMaxConcurrentExecutions(open)
   const setMaxConcurrent = useSetMaxConcurrentExecutions()
   const [maxConcurrentInput, setMaxConcurrentInput] = useState('')
@@ -345,6 +353,34 @@ function GeneralSection({ open }: { open: boolean }) {
           {t('settings.maxConcurrentExecutionsHint')}
         </p>
       </Field>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-sm font-medium">{t('settings.skipPermissions')}</span>
+          <p className="text-[11px] text-muted-foreground">
+            {t('settings.skipPermissionsHint')}
+          </p>
+        </div>
+        <Switch
+          size="sm"
+          checked={skipPermData?.enabled ?? false}
+          onCheckedChange={checked => setSkipPerm.mutate(checked)}
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-sm font-medium">{t('settings.disableAskUser')}</span>
+          <p className="text-[11px] text-muted-foreground">
+            {t('settings.disableAskUserHint')}
+          </p>
+        </div>
+        <Switch
+          size="sm"
+          checked={disableAskUserData?.enabled ?? true}
+          onCheckedChange={checked => setDisableAskUser.mutate(checked)}
+        />
+      </div>
 
       <GlobalEnvVarsSection open={open} />
     </div>

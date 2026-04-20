@@ -16,6 +16,7 @@ import type {
   SpawnOptions,
 } from '@/engines/types'
 
+import { getAppSetting } from '@/db/helpers'
 import { logger } from '@/logger'
 import { ROOT_DIR } from '@/root'
 import { ClaudeLogNormalizer } from './normalizer'
@@ -111,7 +112,7 @@ export class ClaudeCodeExecutor implements EngineExecutor {
   readonly capabilities: EngineCapability[] = ['session-fork', 'context-usage', 'plan-mode']
 
   async spawn(options: SpawnOptions, env: ExecutionEnv): Promise<SpawnedProcess> {
-    const builder = this.createBaseBuilder(options, env)
+    const builder = await this.createBaseBuilder(options, env)
 
     if (options.externalSessionId) {
       builder.param('--session-id', options.externalSessionId)
@@ -124,7 +125,7 @@ export class ClaudeCodeExecutor implements EngineExecutor {
   }
 
   async spawnFollowUp(options: FollowUpOptions, env: ExecutionEnv): Promise<SpawnedProcess> {
-    const builder = this.createBaseBuilder(options, env).param('--resume', options.sessionId)
+    const builder = (await this.createBaseBuilder(options, env)).param('--resume', options.sessionId)
 
     // Truncate conversation history to a specific message and continue from there
     if (options.resetToMessageId) {
@@ -351,19 +352,22 @@ export class ClaudeCodeExecutor implements EngineExecutor {
    * Adds all standard flags, model, env vars, and permission-prompt-tool=stdio
    * (permission mode is set via SDK control protocol, not CLI flags).
    */
-  private createBaseBuilder(options: SpawnOptions, env: ExecutionEnv): CommandBuilder {
+  private async createBaseBuilder(options: SpawnOptions, env: ExecutionEnv): Promise<CommandBuilder> {
     const permissionMode = options.permissionMode ?? 'auto'
     const isPlanMode = permissionMode === 'plan'
+    const skipPermissions = (await getAppSetting(SKIP_PERMISSIONS_KEY)) === 'true'
 
     const builder = CommandBuilder.create(resolveBaseCmd())
       .params(['-p', '--output-format=stream-json', '--verbose', '--no-chrome'])
       .param('--input-format', 'stream-json')
-      // Enable SDK-based permission handling via stdin/stdout control protocol
-      // instead of CLI-level flags like --dangerously-skip-permissions.
       .param('--permission-prompt-tool', 'stdio')
       .env('NPM_CONFIG_LOGLEVEL', 'error')
       .env('IS_SANDBOX', '1')
       .cwd(options.workingDir)
+
+    if (skipPermissions) {
+      builder.param('--dangerously-skip-permissions')
+    }
 
     // When LOG_LEVEL=debug|trace, enable Claude Code's built-in debug logging
     // to a per-issue file. The CLI writes detailed internal logs (API calls,
@@ -393,11 +397,10 @@ export class ClaudeCodeExecutor implements EngineExecutor {
       builder.param('--model', options.model)
     }
 
-    // Disable AskUserQuestion in all modes — the web UI cannot respond
-    // to interactive questions. In plan mode, hooks route it to can_use_tool
-    // but the auto-allow would leave Claude waiting for an answer that never
-    // comes, causing the turn to hang.
-    builder.param('--disallowedTools', 'AskUserQuestion')
+    const disableAskUser = (await getAppSetting(DISABLE_ASK_USER_KEY)) !== 'false'
+    if (disableAskUser) {
+      builder.param('--disallowedTools', 'AskUserQuestion')
+    }
 
     if (options.env) {
       builder.envs(options.env)
@@ -492,6 +495,8 @@ export interface DiscoveryResult {
 
 // ---------- Constants ----------
 
+export const SKIP_PERMISSIONS_KEY = 'engine:claude:dangerouslySkipPermissions'
+export const DISABLE_ASK_USER_KEY = 'engine:claude:disableAskUserQuestion'
 const DISCOVERY_TIMEOUT_MS = 120_000
 
 // ---------- Helpers ----------

@@ -429,6 +429,12 @@ export const kanbanApi = {
     patch<{ enabled: boolean }>('/api/settings/worktree-auto-cleanup', {
       enabled,
     }),
+  getSkipPermissions: () => get<{ enabled: boolean }>('/api/settings/skip-permissions'),
+  setSkipPermissions: (enabled: boolean) =>
+    patch<{ enabled: boolean }>('/api/settings/skip-permissions', { enabled }),
+  getDisableAskUser: () => get<{ enabled: boolean }>('/api/settings/disable-ask-user'),
+  setDisableAskUser: (enabled: boolean) =>
+    patch<{ enabled: boolean }>('/api/settings/disable-ask-user', { enabled }),
   getMaxConcurrentExecutions: () =>
     get<{ value: number }>('/api/settings/max-concurrent-executions'),
   setMaxConcurrentExecutions: (value: number) =>

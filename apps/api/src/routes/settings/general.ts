@@ -12,6 +12,7 @@ import {
   setServerName,
   setServerUrl,
 } from '@/db/helpers'
+import { DISABLE_ASK_USER_KEY, SKIP_PERMISSIONS_KEY } from '@/engines/executors/claude/executor'
 import { DEFAULT_LOG_PAGE_SIZE, LOG_PAGE_SIZE_KEY } from '@/engines/issue/constants'
 import { refreshGlobalEnvCache } from '@/engines/safe-env'
 import { getCachedCategorizedCommands } from '@/engines/issue/queries'
@@ -252,6 +253,64 @@ general.openapi(R.getGlobalSlashCommands, async (c) => {
   }
   return c.json({ success: true, data: categorized }, 200 as const)
 })
+
+// --- Dangerously Skip Permissions ---
+
+// GET /api/settings/skip-permissions
+general.get('/skip-permissions', async (c) => {
+  const value = await getAppSetting(SKIP_PERMISSIONS_KEY)
+  return c.json({ success: true, data: { enabled: value === 'true' } })
+})
+
+// PATCH /api/settings/skip-permissions
+general.patch(
+  '/skip-permissions',
+  zValidator('json', z.object({ enabled: z.boolean() }), (result, c) => {
+    if (!result.success) {
+      return c.json(
+        {
+          success: false,
+          error: result.error.issues.map(i => i.message).join(', '),
+        },
+        400,
+      )
+    }
+  }),
+  async (c) => {
+    const { enabled } = c.req.valid('json')
+    await setAppSetting(SKIP_PERMISSIONS_KEY, String(enabled))
+    return c.json({ success: true, data: { enabled } })
+  },
+)
+
+// --- Disable AskUserQuestion ---
+
+// GET /api/settings/disable-ask-user
+general.get('/disable-ask-user', async (c) => {
+  const value = await getAppSetting(DISABLE_ASK_USER_KEY)
+  return c.json({ success: true, data: { enabled: value !== 'false' } })
+})
+
+// PATCH /api/settings/disable-ask-user
+general.patch(
+  '/disable-ask-user',
+  zValidator('json', z.object({ enabled: z.boolean() }), (result, c) => {
+    if (!result.success) {
+      return c.json(
+        {
+          success: false,
+          error: result.error.issues.map(i => i.message).join(', '),
+        },
+        400,
+      )
+    }
+  }),
+  async (c) => {
+    const { enabled } = c.req.valid('json')
+    await setAppSetting(DISABLE_ASK_USER_KEY, String(enabled))
+    return c.json({ success: true, data: { enabled } })
+  },
+)
 
 // --- Global Engine Environment Variables ---
 
