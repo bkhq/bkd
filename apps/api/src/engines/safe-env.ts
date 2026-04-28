@@ -44,8 +44,6 @@ const PROTECTED_KEYS = new Set([
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'CODEX_API_KEY',
-  'GOOGLE_API_KEY',
-  'GEMINI_API_KEY',
 ])
 
 /**
@@ -56,15 +54,12 @@ const ENGINE_API_KEYS: Record<string, string[]> = {
   'claude-code': ['ANTHROPIC_API_KEY'],
   'claude-code-sdk': ['ANTHROPIC_API_KEY'],
   'codex': ['OPENAI_API_KEY', 'CODEX_API_KEY'],
-  'acp': ['GOOGLE_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'CODEX_API_KEY', 'ANTHROPIC_API_KEY'],
 }
 
 const ALL_API_KEYS = new Set([
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'CODEX_API_KEY',
-  'GOOGLE_API_KEY',
-  'GEMINI_API_KEY',
 ])
 
 /**
@@ -83,8 +78,6 @@ const SAFE_ENV_KEYS = [
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'CODEX_API_KEY',
-  'GOOGLE_API_KEY',
-  'GEMINI_API_KEY',
   // Sandbox flag (allows --dangerously-skip-permissions as root)
   'IS_SANDBOX',
   // Commonly needed

@@ -18,7 +18,6 @@ import {
 } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { createWorktree } from '@/engines/issue/utils/worktree'
-import { parseAcpEngineType } from '@/engines/startup-probe'
 import type { SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
 
@@ -74,9 +73,6 @@ export async function restartIssue(
     const rawModel = issue.sessionFields.model ?? undefined
     const effectiveModel = rawModel === 'auto' ? undefined : rawModel
 
-    // For virtual ACP engine types (e.g. "acp:claude"), pass the agent ID
-    const acpAgent = parseAcpEngineType(engineType) ?? undefined
-
     const spawnOpts = {
       workingDir,
       prompt: effectivePrompt,
@@ -84,7 +80,6 @@ export async function restartIssue(
       permissionMode: permOptions.permissionMode,
       projectId: issue.projectId,
       envVars: projCtx.envVars,
-      agent: acpAgent,
     }
     let spawned: SpawnedProcess
     try {
@@ -96,7 +91,6 @@ export async function restartIssue(
               sessionId: issue.sessionFields.externalSessionId,
               model: spawnOpts.model,
               permissionMode: spawnOpts.permissionMode,
-              agent: acpAgent,
             },
             {
               vars: projCtx.envVars ?? {},

@@ -38,3 +38,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**WB-004 Whiteboard manual editing UX fixes**](WB-004.md) `P1`
 - [-] [**ENG-001 Migrate claude executor to @anthropic-ai/claude-agent-sdk**](ENG-001.md) `P2`
 - [ ] [**ENG-002 Enable AskUserQuestion in claude-code-sdk executor**](ENG-002.md) `P2`
+- [x] [**ENG-003 Remove ACP engine**](ENG-003.md) `P2`

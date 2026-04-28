@@ -17,7 +17,7 @@ export interface Project {
   updatedAt: string
 }
 
-export type EngineType = 'claude-code' | 'claude-code-sdk' | 'codex' | 'acp' | `acp:${string}`
+export type EngineType = 'claude-code' | 'claude-code-sdk' | 'codex'
 
 export interface PluginInfo { name: string, path: string }
 

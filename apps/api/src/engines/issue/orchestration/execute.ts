@@ -13,7 +13,6 @@ import { getPermissionOptions } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
 import { createWorktree } from '@/engines/issue/utils/worktree'
-import { parseAcpEngineType } from '@/engines/startup-probe'
 import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
 import { ROOT_DIR } from '@/root'
@@ -83,10 +82,6 @@ export async function executeIssue(
     const externalSessionId = crypto.randomUUID()
     const executionId = crypto.randomUUID()
 
-    // For virtual ACP engine types (e.g. "acp:claude"), pass the agent ID
-    // so the executor knows which agent binary to spawn even when model is empty.
-    const acpAgent = parseAcpEngineType(opts.engineType) ?? undefined
-
     let spawned: SpawnedProcess
     try {
       spawned = await executor.spawn(
@@ -96,7 +91,6 @@ export async function executeIssue(
           model,
           permissionMode: permOptions.permissionMode,
           externalSessionId,
-          agent: acpAgent,
         },
         {
           vars: opts.envVars ?? {},

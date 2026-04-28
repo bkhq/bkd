@@ -66,42 +66,10 @@ export function CodexIcon(props: IconProps) {
   )
 }
 
-/** Google / Gemini */
-export function GeminiIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
-      <path
-        d="M12 24C12 18.84 10.16 14.56 6.88 11.44C3.76 8.48 0 7.12 0 7.12C0 7.12 0 12 0 12C0 18.64 5.36 24 12 24Z"
-        fill="currentColor"
-        opacity="0.7"
-      />
-      <path
-        d="M12 24C12 18.84 13.84 14.56 17.12 11.44C20.24 8.48 24 7.12 24 7.12C24 7.12 24 12 24 12C24 18.64 18.64 24 12 24Z"
-        fill="currentColor"
-        opacity="0.5"
-      />
-      <path
-        d="M12 0C12 5.16 10.16 9.44 6.88 12.56C3.76 15.52 0 16.88 0 16.88C0 16.88 0 12 0 12C0 5.36 5.36 0 12 0Z"
-        fill="currentColor"
-        opacity="0.5"
-      />
-      <path
-        d="M12 0C12 5.16 13.84 9.44 17.12 12.56C20.24 15.52 24 16.88 24 16.88C24 16.88 24 12 24 12C24 5.36 18.64 0 12 0Z"
-        fill="currentColor"
-        opacity="0.7"
-      />
-    </svg>
-  )
-}
-
 const ENGINE_ICONS: Partial<Record<string, React.FC<IconProps>>> = {
   'claude-code': ClaudeIcon,
   'claude-code-sdk': ClaudeSdkIcon,
   'codex': CodexIcon,
-  'acp': GeminiIcon,
-  'acp:gemini': GeminiIcon,
-  'acp:codex': CodexIcon,
-  'acp:claude': ClaudeIcon,
 }
 
 export function EngineIcon({ engineType, ...props }: IconProps & { engineType: string }) {

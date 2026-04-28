@@ -10,7 +10,7 @@ Start execution with a new prompt. Validates working directory against workspace
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `engineType` | `string` | Yes | Engine type (e.g. `claude-code`, `codex`, `acp`, `acp:gemini`) |
+| `engineType` | `string` | Yes | Engine type (e.g. `claude-code`, `claude-code-sdk`, `codex`) |
 | `prompt` | `string` (1-32768) | Yes | Task prompt |
 | `model` | `string` (regex: `/^[\w./:\-[\]]{1,160}$/`) | No | Model identifier |
 | `permissionMode` | `"auto" \| "supervised" \| "plan"` | No | Permission mode |

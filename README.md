@@ -2,14 +2,14 @@
 
 AI-powered project management board. Create issues, assign them to AI coding agents, and watch them work in real time.
 
-BKD is a unified frontend for CLI-based coding agents — [Claude Code](https://github.com/anthropics/claude-code), [Codex](https://github.com/openai/codex), and [Gemini CLI](https://github.com/google-gemini/gemini-cli). You manage a Kanban board; the agents write the code.
+BKD is a unified frontend for CLI-based coding agents — [Claude Code](https://github.com/anthropics/claude-code) and [Codex](https://github.com/openai/codex). You manage a Kanban board; the agents write the code.
 
 [中文说明](README.zh-CN.md)
 
 ## Features
 
 - **Kanban Board** — Drag-and-drop issues across Todo / Working / Review / Done columns
-- **Multi-Agent** — Supports Claude Code, OpenAI Codex, and Gemini CLI as execution engines
+- **Multi-Agent** — Supports Claude Code and OpenAI Codex as execution engines
 - **Real-time Chat** — Stream agent output as it runs; send follow-up messages mid-session
 - **Diff Viewer** — See file changes made by the agent in a GitHub-style diff panel
 - **File Browser** — Browse, view, and navigate project files with syntax highlighting
@@ -82,14 +82,6 @@ npm install -g @openai/codex
 
 Requires `OPENAI_API_KEY` or `CODEX_API_KEY`, or authenticate via `codex` CLI.
 
-### Gemini CLI
-
-```bash
-npm install -g @google/gemini-cli
-```
-
-Requires `GOOGLE_API_KEY` or `GEMINI_API_KEY`, or authenticate via `gemini` CLI.
-
 > BKD auto-detects which agents are installed at startup. You can use any combination.
 
 ## BKD Skill
@@ -142,8 +134,6 @@ All configuration is done via environment variables. Create a `.env` file in the
 | `ANTHROPIC_API_KEY`         | Claude API key                                            | —                |
 | `OPENAI_API_KEY`            | OpenAI / Codex API key                                    | —                |
 | `CODEX_API_KEY`             | Codex-specific API key (fallback)                         | —                |
-| `GOOGLE_API_KEY`            | Google Gemini API key                                     | —                |
-| `GEMINI_API_KEY`            | Gemini-specific API key (fallback)                        | —                |
 | `ENABLE_RUNTIME_ENDPOINT`   | Enable `/api/runtime` debug endpoint                      | disabled         |
 
 Server name, server URL, webhooks, max concurrency, and other runtime settings are managed in the Settings UI and persisted in the database. Environment variables `SERVER_NAME` and `SERVER_URL` are used as initial seed values only — once set in the UI, database values take precedence.

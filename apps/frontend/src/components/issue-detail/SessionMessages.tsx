@@ -5,7 +5,6 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useChatMessages } from '@/hooks/use-chat-messages'
 import { useViewModeStore } from '@/stores/view-mode-store'
-import { AcpTimeline } from './AcpTimeline'
 import { LogEntry } from './LogEntry'
 import { ToolGroupMessage } from './ToolItems'
 
@@ -137,7 +136,6 @@ function TaskPlanMessage({ message }: { message: TaskPlanChatMessage }) {
 export function SessionMessages(props: {
   logs: NormalizedLogEntry[]
   scrollRef?: React.RefObject<HTMLDivElement | null>
-  engineType?: string
   isRunning?: boolean
   workingStep?: string | null
   onCancel?: () => void
@@ -146,13 +144,7 @@ export function SessionMessages(props: {
   isLoadingOlder?: boolean
   onLoadOlder?: () => void
 }) {
-  const { engineType, ...rest } = props
-
-  if (engineType === 'acp') {
-    return <AcpTimeline {...rest} />
-  }
-
-  return <LegacySessionMessages {...rest} />
+  return <LegacySessionMessages {...props} />
 }
 
 /** Threshold: below this count, render without virtualization for simpler layout. */

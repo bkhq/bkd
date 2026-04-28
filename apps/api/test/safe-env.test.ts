@@ -14,8 +14,6 @@ function requireProcessEnv(key: 'PATH' | 'HOME'): string {
 beforeAll(() => {
   process.env.ANTHROPIC_API_KEY = 'test-anthropic-key'
   process.env.OPENAI_API_KEY = 'test-openai-key'
-  process.env.GOOGLE_API_KEY = 'test-google-key'
-  process.env.GEMINI_API_KEY = 'test-gemini-key'
   process.env.CODEX_API_KEY = 'test-codex-key'
 })
 
@@ -78,8 +76,6 @@ describe('safeEnv', () => {
       const env = safeEnv(undefined, 'claude-code')
       expect(env.ANTHROPIC_API_KEY).toBe('test-anthropic-key')
       expect(env.OPENAI_API_KEY).toBeUndefined()
-      expect(env.GOOGLE_API_KEY).toBeUndefined()
-      expect(env.GEMINI_API_KEY).toBeUndefined()
       expect(env.CODEX_API_KEY).toBeUndefined()
     })
 
@@ -88,25 +84,12 @@ describe('safeEnv', () => {
       expect(env.OPENAI_API_KEY).toBe('test-openai-key')
       expect(env.CODEX_API_KEY).toBe('test-codex-key')
       expect(env.ANTHROPIC_API_KEY).toBeUndefined()
-      expect(env.GOOGLE_API_KEY).toBeUndefined()
-      expect(env.GEMINI_API_KEY).toBeUndefined()
-    })
-
-    test('acp gets all API keys', () => {
-      const env = safeEnv(undefined, 'acp')
-      expect(env.ANTHROPIC_API_KEY).toBe('test-anthropic-key')
-      expect(env.OPENAI_API_KEY).toBe('test-openai-key')
-      expect(env.GOOGLE_API_KEY).toBe('test-google-key')
-      expect(env.GEMINI_API_KEY).toBe('test-gemini-key')
-      expect(env.CODEX_API_KEY).toBe('test-codex-key')
     })
 
     test('no engineType passes all API keys (backward compat)', () => {
       const env = safeEnv()
       expect(env.ANTHROPIC_API_KEY).toBe('test-anthropic-key')
       expect(env.OPENAI_API_KEY).toBe('test-openai-key')
-      expect(env.GOOGLE_API_KEY).toBe('test-google-key')
-      expect(env.GEMINI_API_KEY).toBe('test-gemini-key')
       expect(env.CODEX_API_KEY).toBe('test-codex-key')
     })
   })

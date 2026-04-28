@@ -8,20 +8,14 @@ import {
   setEngineHiddenModels,
 } from '@/db/helpers'
 import { engineRegistry } from '@/engines/executors'
-import { getAcpAgents } from '@/engines/executors/acp/agents'
-import { forceProbeEngines, getEngineDiscovery, getEngineModels, isValidAcpEngineType, toAcpEngineType } from '@/engines/startup-probe'
-import type { EngineProfile } from '@/engines/types'
+import { forceProbeEngines, getEngineDiscovery, getEngineModels } from '@/engines/startup-probe'
 import { BUILT_IN_PROFILES } from '@/engines/types'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 
-const ENGINE_TYPES = ['claude-code', 'claude-code-sdk', 'codex', 'acp'] as const
+const ENGINE_TYPES = ['claude-code', 'claude-code-sdk', 'codex'] as const
 
-/** Accept both base engine types and known virtual ACP types (e.g. "acp:codex") */
-const engineTypeOrAcpEnum = z.string().refine(
-  val => ENGINE_TYPES.includes(val as typeof ENGINE_TYPES[number]) || isValidAcpEngineType(val),
-  { message: 'Invalid engine type' },
-)
+const engineTypeEnum = z.enum(ENGINE_TYPES)
 
 const engines = createOpenAPIRouter()
 
@@ -31,22 +25,9 @@ engines.openapi(R.getAvailableEngines, async (c) => {
   return c.json({ success: true, data: { engines, models } })
 })
 
-// GET /api/engines/profiles — List engine profiles (ACP expanded into per-agent profiles)
+// GET /api/engines/profiles — List engine profiles
 engines.openapi(R.getEngineProfiles, (c) => {
-  const baseProfiles = Object.values(BUILT_IN_PROFILES).filter((p): p is EngineProfile => p !== undefined)
-  const acpProfile = BUILT_IN_PROFILES.acp
-  const agents = getAcpAgents()
-
-  // Replace the single ACP profile with per-agent profiles
-  const profiles: EngineProfile[] = [
-    ...baseProfiles.filter(p => p.engineType !== 'acp'),
-    ...agents.map(agent => ({
-      ...acpProfile,
-      engineType: toAcpEngineType(agent.id) as EngineProfile['engineType'],
-      name: `ACP: ${agent.label}`,
-    })),
-  ]
-
+  const profiles = Object.values(BUILT_IN_PROFILES)
   return c.json({ success: true, data: profiles })
 })
 
@@ -70,7 +51,7 @@ engines.openapi(R.getEngineSettings, async (c) => {
 // PATCH /api/engines/default-engine — Update global default engine
 engines.openapi(R.setDefaultEngine, async (c) => {
   const { defaultEngine } = c.req.valid('json')
-  const parsed = engineTypeOrAcpEnum.safeParse(defaultEngine)
+  const parsed = engineTypeEnum.safeParse(defaultEngine)
   if (!parsed.success) {
     return c.json({ success: false, error: 'Invalid engine type' }, 400 as const)
   }
@@ -81,7 +62,7 @@ engines.openapi(R.setDefaultEngine, async (c) => {
 // PATCH /api/engines/:engineType/settings — Upsert default model for an engine type
 engines.openapi(R.setEngineModel, async (c) => {
   const rawType = c.req.param('engineType')
-  const parsed = engineTypeOrAcpEnum.safeParse(rawType)
+  const parsed = engineTypeEnum.safeParse(rawType)
   if (!parsed.success) {
     return c.json({ success: false, error: `Unknown engine type: ${rawType}` }, 400 as const)
   }
@@ -94,7 +75,7 @@ engines.openapi(R.setEngineModel, async (c) => {
 // PATCH /api/engines/:engineType/hidden-models — Update hidden models for an engine type
 engines.openapi(R.setHiddenModels, async (c) => {
   const rawType = c.req.param('engineType')
-  const parsed = engineTypeOrAcpEnum.safeParse(rawType)
+  const parsed = engineTypeEnum.safeParse(rawType)
   if (!parsed.success) {
     return c.json({ success: false, error: `Unknown engine type: ${rawType}` }, 400 as const)
   }
@@ -107,23 +88,17 @@ engines.openapi(R.setHiddenModels, async (c) => {
 // GET /api/engines/:engineType/models — List available models for an engine
 engines.openapi(R.getEngineModels, async (c) => {
   const rawType = c.req.param('engineType')
-  const parsed = engineTypeOrAcpEnum.safeParse(rawType)
+  const parsed = engineTypeEnum.safeParse(rawType)
   if (!parsed.success) {
     return c.json({ success: false, error: `Unknown engine type: ${rawType}` }, 400 as const)
   }
   const engineType = parsed.data
-  // For virtual ACP types, resolve to base 'acp' executor
-  const lookupType = engineType.startsWith('acp:') ? 'acp' : engineType
-  const executor = engineRegistry.get(lookupType as typeof ENGINE_TYPES[number])
+  const executor = engineRegistry.get(engineType)
   if (!executor) {
     return c.json({ success: false, error: `Unknown engine type: ${engineType}` }, 404 as const)
   }
 
-  const allModels = await getEngineModels(lookupType as typeof ENGINE_TYPES[number])
-  // For virtual ACP types, filter to only models matching the agent prefix
-  const models = engineType.startsWith('acp:')
-    ? allModels.filter(m => m.id.startsWith(`${engineType}:`))
-    : allModels
+  const models = await getEngineModels(engineType)
   const defaultModel = models.find(m => m.isDefault)?.id
 
   return c.json({

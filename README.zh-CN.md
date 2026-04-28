@@ -2,14 +2,14 @@
 
 AI 驱动的项目管理看板。创建 Issue，分配给 AI 编程代理，实时观看它们工作。
 
-BKD 是 CLI 编程代理的统一前端 —— 支持 [Claude Code](https://github.com/anthropics/claude-code)、[Codex](https://github.com/openai/codex) 和 [Gemini CLI](https://github.com/google-gemini/gemini-cli)。你管理看板，代理写代码。
+BKD 是 CLI 编程代理的统一前端 —— 支持 [Claude Code](https://github.com/anthropics/claude-code) 和 [Codex](https://github.com/openai/codex)。你管理看板，代理写代码。
 
 [English](README.md)
 
 ## 功能
 
 - **看板** — 拖拽 Issue 在 待办 / 进行中 / 审查 / 完成 列之间移动
-- **多代理** — 支持 Claude Code、OpenAI Codex、Gemini CLI 作为执行引擎
+- **多代理** — 支持 Claude Code、OpenAI Codex 作为执行引擎
 - **实时对话** — 流式输出代理运行结果；运行中可发送追加消息
 - **Diff 查看器** — GitHub 风格的差异面板，查看代理所做的文件改动
 - **文件浏览器** — 浏览、查看项目文件，支持语法高亮
@@ -82,14 +82,6 @@ npm install -g @openai/codex
 
 需要 `OPENAI_API_KEY` 或 `CODEX_API_KEY`，或通过 `codex` CLI 完成认证。
 
-### Gemini CLI
-
-```bash
-npm install -g @google/gemini-cli
-```
-
-需要 `GOOGLE_API_KEY` 或 `GEMINI_API_KEY`，或通过 `gemini` CLI 完成认证。
-
 > BKD 启动时会自动检测已安装的代理，可以任意组合使用。
 
 ## BKD Skill
@@ -142,8 +134,6 @@ npx skills add bkhq/bkd --skill bkd
 | `ANTHROPIC_API_KEY`         | Claude API 密钥                                           | —                |
 | `OPENAI_API_KEY`            | OpenAI / Codex API 密钥                                   | —                |
 | `CODEX_API_KEY`             | Codex 专用 API 密钥（备选）                               | —                |
-| `GOOGLE_API_KEY`            | Google Gemini API 密钥                                    | —                |
-| `GEMINI_API_KEY`            | Gemini 专用 API 密钥（备选）                              | —                |
 | `ENABLE_RUNTIME_ENDPOINT`   | 启用 `/api/runtime` 调试端点                              | 禁用             |
 
 服务器名称、服务器 URL、Webhooks、最大并发数等运行时设置在设置界面中管理，持久化存储在数据库中。环境变量 `SERVER_NAME` 和 `SERVER_URL` 仅作为初始种子值 —— 一旦在界面中设置，数据库中的值优先。

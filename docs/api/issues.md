@@ -27,7 +27,7 @@ Create an issue. Auto-executes if `statusId` is `working` or `review` (review is
 | `statusId` | `"todo" \| "working" \| "review" \| "done"` | Yes | Initial status |
 | `useWorktree` | `boolean` | No | Run in git worktree |
 | `keepAlive` | `boolean` | No | Prevent idle timeout |
-| `engineType` | `string` | No | Engine type (e.g. `claude-code`, `codex`, `acp`, `acp:gemini`). Defaults to server setting. |
+| `engineType` | `string` | No | Engine type (e.g. `claude-code`, `claude-code-sdk`, `codex`). Defaults to server setting. |
 | `model` | `string` (regex: `/^[\w./:\-[\]]{1,160}$/`) | No | Model identifier |
 | `permissionMode` | `"auto" \| "supervised" \| "plan"` | No | Permission mode |
 

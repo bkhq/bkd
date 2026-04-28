@@ -6,12 +6,6 @@ export function formatFileSize(bytes: number): string {
 
 /** Turn a raw model ID like "claude-opus-4-6" into a shorter display name */
 export function formatModelName(id: string): string {
-  // Strip ACP agent prefix for display (e.g. "acp:gemini:model" → format "model")
-  const acpMatch = id.match(/^acp:[\w-]+:(.+)$/i)
-  if (acpMatch) {
-    return formatModelName(acpMatch[1])
-  }
-
   const m = id.match(/^claude-(opus|sonnet|haiku)-(\d+)-(\d+)(\[.*\])?$/)
   if (m) {
     const suffix = m[4] || ''

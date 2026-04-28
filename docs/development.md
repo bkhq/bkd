@@ -178,11 +178,11 @@ GET/POST/DEL   /api/worktrees/*         ← Git worktree management
 
 The engine layer is the most complex part of the backend:
 
-- **`types.ts`** — Central types: `EngineType` (`claude-code` | `codex` | `acp`), `EngineExecutor` interface
-- **`executors/`** — One per engine (`claude/`, `codex/`, `acp/`), each implementing `EngineExecutor`
+- **`types.ts`** — Central types: `EngineType` (`claude-code` | `claude-code-sdk` | `codex`), `EngineExecutor` interface
+- **`executors/`** — One per engine (`claude/`, `claude-sdk/`, `codex/`), each implementing `EngineExecutor`
   - Claude Code: `stream-json` protocol (process exits after each turn)
+  - Claude Code SDK: `stream-json` via `@anthropic-ai/claude-agent-sdk` (in-process)
   - Codex: `json-rpc` protocol (subprocess stays alive between turns)
-  - ACP: `acp` protocol (routes to Gemini/Codex by `acp:<agent>:<model>`)
 - **`process-manager.ts`** — Process lifecycle, concurrency limits, auto-cleanup
 - **`issue/`** — Issue-scoped orchestration (bridge between routes and executors)
 - **`reconciler.ts`** — Startup + periodic reconciliation (marks stale sessions as failed)
@@ -269,8 +269,6 @@ Server (IssueEngine) → SSE /api/events → EventBus singleton (lib/event-bus.t
 | `ANTHROPIC_API_KEY`         | Claude API key                          | —                               |
 | `OPENAI_API_KEY`            | OpenAI / Codex API key                  | —                               |
 | `CODEX_API_KEY`             | Codex-specific API key (fallback)       | —                               |
-| `GOOGLE_API_KEY`            | Google Gemini API key                   | —                               |
-| `GEMINI_API_KEY`            | Gemini-specific API key (fallback)      | —                               |
 | `ENABLE_RUNTIME_ENDPOINT`   | Enable `/api/runtime` debug endpoint    | disabled                        |
 
 Server name, server URL, webhooks, max concurrent sessions, and other runtime settings are managed in the Settings UI and persisted in the `appSettings` database table. Environment variables `SERVER_NAME` and `SERVER_URL` are used as initial seed values only.

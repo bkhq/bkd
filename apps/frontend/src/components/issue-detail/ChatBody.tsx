@@ -294,7 +294,6 @@ export function ChatBody({
               <LazySessionMessages
                 logs={logs}
                 scrollRef={scrollRef}
-                engineType={issue.engineType ?? undefined}
                 isRunning={isThinking}
                 workingStep={workingStep}
                 onCancel={() => {

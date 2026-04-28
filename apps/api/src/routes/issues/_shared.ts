@@ -12,7 +12,6 @@ import {
 } from '@/db/pending-messages'
 import { issues as issuesTable } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
-import { isValidAcpEngineType } from '@/engines/startup-probe'
 import type { EngineType } from '@/engines/types'
 import { emitIssueLogRemoved, emitIssueUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
@@ -26,10 +25,7 @@ export const createIssueSchema = z.object({
   statusId: z.enum(STATUS_IDS),
   useWorktree: z.boolean().optional(),
   keepAlive: z.boolean().optional(),
-  engineType: z.string().refine(
-    val => ['claude-code', 'claude-code-sdk', 'codex', 'acp'].includes(val) || isValidAcpEngineType(val),
-    { message: 'Invalid engine type' },
-  ).optional(),
+  engineType: z.enum(['claude-code', 'claude-code-sdk', 'codex']).optional(),
   model: z
     .string()
     .regex(/^[\w./:\-[\]]{1,160}$/)
@@ -73,10 +69,7 @@ export const updateIssueSchema = z.object({
 })
 
 export const executeIssueSchema = z.object({
-  engineType: z.string().refine(
-    val => ['claude-code', 'claude-code-sdk', 'codex', 'acp'].includes(val) || isValidAcpEngineType(val),
-    { message: 'Invalid engine type' },
-  ),
+  engineType: z.enum(['claude-code', 'claude-code-sdk', 'codex']),
   prompt: z.string().min(1).max(32768),
   model: z
     .string()

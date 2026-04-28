@@ -6,13 +6,11 @@ import type {
   EngineType,
 } from '@/engines/types'
 import { logger } from '@/logger'
-import { AcpExecutor } from './acp'
 import { ClaudeCodeExecutor } from './claude'
 import { ClaudeCodeSdkExecutor } from './claude-sdk'
 import { CodexExecutor } from './codex'
 
 // Re-export executor classes
-export { AcpExecutor } from './acp'
 export { ClaudeCodeExecutor } from './claude'
 export { ClaudeCodeSdkExecutor } from './claude-sdk'
 export { CodexExecutor } from './codex'
@@ -45,16 +43,7 @@ class DefaultEngineRegistry implements EngineRegistry {
   }
 
   get(engineType: EngineType): EngineExecutor | undefined {
-    // Direct match first
-    const direct = this.executors.get(engineType)
-    if (direct) return direct
-
-    // Virtual ACP engine types (e.g. "acp:codex") resolve to the ACP executor
-    if (engineType.startsWith('acp:')) {
-      return this.executors.get('acp' as EngineType)
-    }
-
-    return undefined
+    return this.executors.get(engineType)
   }
 
   getAll(): EngineExecutor[] {
@@ -67,9 +56,7 @@ class DefaultEngineRegistry implements EngineRegistry {
   }
 
   async getModels(engineType: EngineType): Promise<EngineModel[]> {
-    // Resolve virtual ACP types to base 'acp' executor
-    const lookupType = engineType.startsWith('acp:') ? ('acp' as EngineType) : engineType
-    const executor = this.executors.get(lookupType)
+    const executor = this.executors.get(engineType)
     if (!executor) return []
     return executor.getModels()
   }
@@ -93,7 +80,6 @@ function createRegistry(): EngineRegistry {
   registry.register(new ClaudeCodeExecutor())
   registry.register(new ClaudeCodeSdkExecutor())
   registry.register(new CodexExecutor())
-  registry.register(new AcpExecutor())
 
   return registry
 }

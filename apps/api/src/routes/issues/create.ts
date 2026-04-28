@@ -34,8 +34,7 @@ create.openapi(R.createIssue, async (c) => {
 
   if (!resolvedEngine) {
     const defaultEng = (await getDefaultEngine()) || 'claude-code'
-    // Legacy bare 'acp' maps to 'acp:gemini' (the default ACP agent)
-    resolvedEngine = (defaultEng === 'acp' ? 'acp:gemini' : defaultEng) as EngineType
+    resolvedEngine = defaultEng as EngineType
   }
   if (!resolvedModel) {
     // Leave model unset — let the engine CLI use its own default.

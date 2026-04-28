@@ -8,7 +8,7 @@ export function isTurnCompletionEntry(entry: NormalizedLogEntry): boolean {
   //  - Claude `type: 'result'` → turnCompleted + resultSubtype
   //  - Claude `type: 'system', subtype: 'session_state_changed', state: 'idle'`
   //    → turnCompleted (the SDK's "authoritative turn-over signal")
-  //  - Codex / ACP normalizers setting turnCompleted on their own completions.
+  //  - Codex normalizer setting turnCompleted on its own completions.
   // A looser fallback keyed on `metadata.duration` was removed: it duplicated
   // the result path and risked false positives on background task
   // notifications whose usage blocks also carry a duration_ms field.

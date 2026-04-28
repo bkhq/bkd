@@ -3,10 +3,10 @@ import type { Subprocess } from '@/engines/spawn'
 // ---------- Enums / Literal Unions ----------
 
 // Supported AI engine types
-export type EngineType = 'claude-code' | 'claude-code-sdk' | 'codex' | 'acp' | `acp:${string}`
+export type EngineType = 'claude-code' | 'claude-code-sdk' | 'codex'
 
 // Communication protocols
-export type EngineProtocol = 'stream-json' | 'json-rpc' | 'acp'
+export type EngineProtocol = 'stream-json' | 'json-rpc'
 
 // Engine capabilities
 export type EngineCapability =
@@ -249,7 +249,7 @@ export interface EngineRegistry {
 // ---------- Constants ----------
 
 // Default built-in engine profiles
-export const BUILT_IN_PROFILES: Partial<Record<EngineType, EngineProfile>> & Record<'claude-code' | 'claude-code-sdk' | 'codex' | 'acp', EngineProfile> = {
+export const BUILT_IN_PROFILES: Record<EngineType, EngineProfile> = {
   'claude-code': {
     engineType: 'claude-code',
     name: 'Claude Code',
@@ -272,14 +272,6 @@ export const BUILT_IN_PROFILES: Partial<Record<EngineType, EngineProfile>> & Rec
     baseCommand: 'npx -y @openai/codex@latest app-server',
     protocol: 'json-rpc',
     capabilities: ['session-fork', 'setup-helper', 'context-usage', 'sandbox', 'reasoning'],
-    permissionPolicy: 'auto',
-  },
-  'acp': {
-    engineType: 'acp',
-    name: 'ACP Agents',
-    baseCommand: 'dynamic (selected by model prefix)',
-    protocol: 'acp',
-    capabilities: ['session-fork'],
     permissionPolicy: 'auto',
   },
 }

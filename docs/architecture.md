@@ -2,7 +2,7 @@
 
 ## Overview
 
-BKD is a Kanban application for managing autonomous AI coding agents. Issues on the board are assigned to CLI-based AI engines (Claude Code, Codex, Gemini CLI) that execute in the user's workspace. The system handles process orchestration, streaming log aggregation, real-time SSE updates, cron scheduling, and self-upgrades.
+BKD is a Kanban application for managing autonomous AI coding agents. Issues on the board are assigned to CLI-based AI engines (Claude Code, Codex) that execute in the user's workspace. The system handles process orchestration, streaming log aggregation, real-time SSE updates, cron scheduling, and self-upgrades.
 
 **Deployment assumption:** BKD is currently designed as a single-user application. The backend, frontend, SSE event model, workspace access model, and settings surface assume one trusted operator per deployment. It is not currently designed as a multi-tenant or per-project-isolated system for mutually untrusted users. This assumption is especially important for features such as the global SSE stream, shared process visibility, workspace browsing, and settings management. If BKD is extended to support multi-user deployments in the future, server-side authorization boundaries will need to be added explicitly.
 
@@ -124,8 +124,8 @@ The most complex subsystem — bridges API routes and CLI-based AI agents.
 | Engine | Protocol | CLI | Behavior |
 |--------|----------|-----|----------|
 | `claude-code` | `stream-json` | `claude` binary | Streaming JSON over stdout; process exits after each turn |
+| `claude-code-sdk` | `stream-json` | `@anthropic-ai/claude-agent-sdk` | In-process via SDK |
 | `codex` | `json-rpc` | `codex app-server` | JSONL JSON-RPC over stdio; process **stays alive** between turns |
-| `acp` | `acp` | Selected by `model` prefix | ACP protocol; routes to Gemini/Codex/Claude by `acp:<agent>:<model>` |
 
 Each executor implements `EngineExecutor`: `spawn`, `spawnFollowUp`, `cancel`, `getAvailability`, `getModels`, `normalizeLog`.
 
@@ -150,13 +150,6 @@ engines/
 │   │   ├── executor.ts         — Codex executor (long-lived process)
 │   │   ├── protocol.ts         — JSON-RPC protocol handler
 │   │   └── normalizer.ts       — Log normalization (most complex)
-│   ├── acp/
-│   │   ├── executor.ts         — ACP executor
-│   │   ├── protocol-handler.ts — ACP protocol logic
-│   │   ├── normalizer.ts       — Log normalization
-│   │   ├── transport.ts        — Subprocess/event bridge
-│   │   ├── acp-client.ts       — ACP client facade
-│   │   └── agents/             — Per-agent configs (gemini, codex, claude)
 └── issue/
     ├── engine.ts               — IssueEngine singleton facade
     ├── orchestration/          — execute, follow-up, restart, cancel
@@ -437,5 +430,5 @@ Platforms: `linux-x64`, `linux-arm64`, `darwin-arm64`.
 | Cron | cronbake |
 | i18n | i18next |
 | Linting | @antfu/eslint-config |
-| AI Engines | Claude Code, OpenAI Codex, ACP (Gemini/Codex/Claude) |
+| AI Engines | Claude Code, OpenAI Codex |
 | MCP | @modelcontextprotocol/sdk |

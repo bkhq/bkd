@@ -19,7 +19,7 @@ const EMPTY_CATEGORIZED: CategorizedCommands = {
 }
 
 /** All known engine types for cache loading. */
-const ALL_ENGINE_TYPES: EngineType[] = ['claude-code', 'claude-code-sdk', 'codex', 'acp']
+const ALL_ENGINE_TYPES: EngineType[] = ['claude-code', 'claude-code-sdk', 'codex']
 
 /** Per-engine in-memory cache for categorized commands from DB. */
 const cachedCommands = new Map<EngineType, CategorizedCommands>()

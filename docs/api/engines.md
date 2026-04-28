@@ -37,7 +37,7 @@ List detected engines and their models. Uses 3-tier cache (memory -> DB -> live 
 
 ## GET /api/engines/profiles
 
-List engine profiles. ACP engines are expanded into per-agent profiles (e.g. `acp:gemini`, `acp:codex`).
+List engine profiles.
 
 **Response:** `EngineProfile[]`
 
@@ -62,13 +62,13 @@ Get all engine settings: default engine, per-engine default models, and hidden m
 
 ## PATCH /api/engines/default-engine
 
-Set the global default engine. Accepts base types (`claude-code`, `codex`, `acp`) and virtual ACP types (`acp:gemini`).
+Set the global default engine. Accepts base types (`claude-code`, `claude-code-sdk`, `codex`).
 
 **Request Body:** `{ defaultEngine: string }`
 
 ## GET /api/engines/:engineType/models
 
-List models for a specific engine. For virtual ACP types (e.g. `acp:codex`), filters to only models matching the agent prefix.
+List models for a specific engine.
 
 **Response:** `{ engineType, defaultModel, models }`
 

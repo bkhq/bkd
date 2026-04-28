@@ -47,18 +47,6 @@ describe('formatModelName', () => {
   it('handles model with suffix', () => {
     expect(formatModelName('claude-opus-4-5[thinking]')).toBe('Claude Opus 4.5[thinking]')
   })
-
-  it('strips acp agent prefix for display', () => {
-    expect(formatModelName('acp:gemini:gemini-2.5-pro')).toBe('gemini-2.5-pro')
-  })
-
-  it('strips acp codex prefix for display', () => {
-    expect(formatModelName('acp:codex:gpt-5.4')).toBe('gpt-5.4')
-  })
-
-  it('formats acp claude model with claude pattern', () => {
-    expect(formatModelName('acp:claude:claude-sonnet-4-5')).toBe('Claude Sonnet 4.5')
-  })
 })
 
 describe('getProjectInitials', () => {

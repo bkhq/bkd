@@ -261,19 +261,6 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
 
     // system-message: display inline, never breaks tool groups
     if (entry.entryType === 'system-message') {
-      if (entry.metadata?.subtype === 'plan') {
-        const todos = extractTodos(entry)
-        if (todos) {
-          messages.push({
-            type: 'task-plan',
-            id: entryId(entry, nextId('tp')),
-            entry,
-            todos,
-            completedCount: todos.filter(t => t.status === 'completed').length,
-          } satisfies TaskPlanChatMessage)
-          continue
-        }
-      }
       if (consumedOutputIdx.has(i)) continue
       flushPendingThinking()
       messages.push({

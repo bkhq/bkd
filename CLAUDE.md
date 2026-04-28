@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Kanban app for managing AI coding agents. Issues on the board are assigned to CLI-based AI engines (Claude Code, Codex, Gemini CLI) that execute autonomously in the user's workspace.
+Kanban app for managing AI coding agents. Issues on the board are assigned to CLI-based AI engines (Claude Code, Codex) that execute autonomously in the user's workspace.
 
 Structured as a **Bun Workspaces monorepo**:
 
@@ -126,8 +126,8 @@ The most complex subsystem — bridges API routes and CLI-based AI agents.
 **Engine types and protocols:**
 
 - `claude-code` — `stream-json` protocol (streaming JSON over stdout, process exits after each turn)
+- `claude-code-sdk` — `stream-json` protocol via `@anthropic-ai/claude-agent-sdk` (in-process)
 - `codex` — `json-rpc` protocol (JSONL JSON-RPC over stdio, process **stays alive** between turns)
-- `acp` — `acp` protocol (`acp:<agent>:<model>`, currently Gemini + Codex)
 
 Each engine has an executor in `executors/<name>/executor.ts` implementing `EngineExecutor` interface: `spawn`, `spawnFollowUp`, `cancel`, `getAvailability`, `getModels`, `normalizeLog`.
 
