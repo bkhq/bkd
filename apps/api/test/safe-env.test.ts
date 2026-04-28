@@ -43,10 +43,14 @@ describe('safeEnv', () => {
     })
 
     test('blocks user-supplied IS_SANDBOX override', () => {
-      process.env.IS_SANDBOX = '1'
       const env = safeEnv({ IS_SANDBOX: '0' })
       expect(env.IS_SANDBOX).toBe('1')
+    })
+
+    test('always sets IS_SANDBOX=1 even without process.env', () => {
       delete process.env.IS_SANDBOX
+      const env = safeEnv()
+      expect(env.IS_SANDBOX).toBe('1')
     })
 
     test('allows non-protected user env vars', () => {

@@ -116,7 +116,9 @@ export function safeEnv(
     ? new Set(ENGINE_API_KEYS[engineType] ?? [])
     : ALL_API_KEYS // no engine specified → include all (backward compat for probes etc.)
 
-  const env: Record<string, string> = {}
+  const env: Record<string, string> = {
+    IS_SANDBOX: '1',
+  }
   for (const key of SAFE_ENV_KEYS) {
     // Skip API keys not relevant to this engine
     if (ALL_API_KEYS.has(key) && !allowedApiKeys.has(key)) {

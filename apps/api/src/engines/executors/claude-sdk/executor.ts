@@ -411,7 +411,6 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
       env: {
         ...safeEnv(userExtra, 'claude-code-sdk'),
         NPM_CONFIG_LOGLEVEL: 'error',
-        IS_SANDBOX: '1',
       },
       permissionMode: sdkPermissionMode,
       canUseTool: buildCanUseTool(permissionMode),

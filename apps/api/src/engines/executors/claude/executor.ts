@@ -362,7 +362,6 @@ export class ClaudeCodeExecutor implements EngineExecutor {
       .param('--input-format', 'stream-json')
       .param('--permission-prompt-tool', 'stdio')
       .env('NPM_CONFIG_LOGLEVEL', 'error')
-      .env('IS_SANDBOX', '1')
       .cwd(options.workingDir)
 
     if (skipPermissions) {
