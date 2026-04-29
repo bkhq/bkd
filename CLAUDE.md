@@ -163,10 +163,6 @@ Global SSE endpoint (`GET /api/events`) via Hono `streamSSE`:
 - Subscribes to `IssueEngine` callbacks + `onIssueUpdated` + `onChangesSummary`
 - `changes-summary.ts`: runs `git status/diff` after each issue settles, pushes stats via SSE
 
-#### Auth (`auth/`)
-
-Optional OIDC + PKCE authentication. When enabled via `AUTH_ISSUER_URL` env var, all `/api/*` routes require a valid JWT Bearer token. Components: `config.ts` (env-based config), `jwt.ts` (sign/verify), `oidc.ts` (OpenID Connect discovery with cache), `middleware.ts` (Hono middleware), `routes.ts` (login callback + token endpoints).
-
 #### Cron System (`cron/`)
 
 Scheduled task execution with cron expressions (powered by `baker` scheduler). DB tables: `cronJobs`, `cronJobLogs`. Supports pluggable actions (`actions/` directory) — each action type (e.g., execute issue, HTTP request) implements a standard interface. Features: auto-pause after 3 consecutive failures, execution logs with pagination, soft-delete.

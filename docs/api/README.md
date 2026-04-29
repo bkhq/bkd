@@ -19,7 +19,6 @@ Most JSON CRUD responses use a standard envelope. Exceptions include binary/file
 | `201` | Created |
 | `202` | Accepted (async operation started) |
 | `400` | Bad Request (validation error) |
-| `401` | Unauthorized |
 | `403` | Forbidden |
 | `404` | Not Found |
 | `409` | Conflict |
@@ -52,10 +51,6 @@ Database-backed DELETE operations (projects, issues, notes, webhooks, etc.) use 
 - SSRF protection on webhook URLs (private/internal network blocking)
 - MCP API key uses timing-safe comparison
 
-### Authentication
-
-When `AUTH_ENABLED=true`, all `/api/*` routes (except `/api/auth/*`) require a valid Bearer JWT token. See [system.md](./system.md) for auth endpoints.
-
 ### Compression
 
 gzip/deflate compression on all routes except SSE (`/api/events`), streaming (`*/stream`), and MCP (`/api/mcp*`).
@@ -64,7 +59,7 @@ gzip/deflate compression on all routes except SSE (`/api/events`), streaming (`*
 
 | Document | Description |
 |---|---|
-| [system.md](./system.md) | Health check, status, runtime, auth |
+| [system.md](./system.md) | Health check, status, runtime |
 | [projects.md](./projects.md) | Project CRUD, archive, sort |
 | [issues.md](./issues.md) | Issue CRUD, bulk update, duplicate, export, review |
 | [execution.md](./execution.md) | Execute, follow-up, restart, cancel, slash commands |

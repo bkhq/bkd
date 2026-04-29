@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { serveStatic, websocket } from 'hono/bun'
 import app from './app'
-import { authConfig, discoverOIDC } from './auth'
 import { embeddedStatic } from './embedded-static'
 import { issueEngine } from './engines/issue'
 import { migrateSlashCommandsKey, refreshSlashCommandsCache } from './engines/issue/queries'
@@ -50,13 +49,6 @@ acquirePidLock()
 process.on('exit', () => {
   releasePidLock()
 })
-
-// Warm up OIDC discovery cache when auth is enabled
-if (authConfig.enabled) {
-  void discoverOIDC().catch((err) => {
-    logger.error({ err }, 'oidc_discovery_warmup_failed')
-  })
-}
 
 // Migrate legacy global slash commands key to per-engine format, then load cache
 void migrateSlashCommandsKey()

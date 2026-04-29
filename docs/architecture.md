@@ -34,9 +34,8 @@ BKD is a Kanban application for managing autonomous AI coding agents. Issues on 
 1. `secureHeaders()` — security response headers
 2. `compress()` — gzip/deflate (skipped for SSE routes)
 3. `httpLogger()` — pino-based request logging
-4. `authMiddleware()` — protects `/api/*` when `AUTH_ENABLED` (OIDC/token)
-5. Global error handler — returns `{ success: false, error }` envelope
-6. `@hono/zod-validator` — Zod schema validation on all POST/PATCH routes
+4. Global error handler — returns `{ success: false, error }` envelope
+5. `@hono/zod-validator` — Zod schema validation on all POST/PATCH routes
 
 ### Database (`db/`)
 
@@ -279,7 +278,6 @@ Model Context Protocol server exposing BKD operations as tools:
 | `/review[/:projectAlias/:issueId]` | `ReviewPage` | Review queue |
 | `/terminal` | `TerminalPage` | Full-page terminal |
 | `/cron` | `CronPage` | Cron job management |
-| `/login[/callback]` | `LoginPage` | OAuth/token login |
 
 Four global drawers (lazy-mounted): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`.
 
@@ -336,7 +334,7 @@ EventBus singleton (lib/event-bus.ts)
 
 ### API Client (`lib/kanban-api.ts`)
 
-Typed async functions wrapping all backend endpoints. Internal helpers (`get`, `post`, `patch`, `del`, `postFormData`) parse `{ success, data, error }` envelope. Auth token included when present; 401 triggers redirect.
+Typed async functions wrapping all backend endpoints. Internal helpers (`get`, `post`, `patch`, `del`, `postFormData`) parse `{ success, data, error }` envelope.
 
 ---
 

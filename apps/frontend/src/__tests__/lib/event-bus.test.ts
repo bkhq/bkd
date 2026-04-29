@@ -1,13 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getTokenMock } = vi.hoisted(() => ({
-  getTokenMock: vi.fn<() => string | null>(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  getToken: getTokenMock,
-}))
-
 // Minimal EventSource stub
 class MockEventSource {
   static instances: MockEventSource[] = []
@@ -56,8 +48,6 @@ describe('eventBus', () => {
 
   beforeEach(async () => {
     vi.useFakeTimers()
-    getTokenMock.mockReset()
-    getTokenMock.mockReturnValue(null)
     MockEventSource.reset()
 
     // Stub global EventSource
@@ -73,19 +63,11 @@ describe('eventBus', () => {
     vi.unstubAllGlobals()
   })
 
-  describe('connect without token', () => {
-    it('opens EventSource to /api/events without token param', () => {
+  describe('connect', () => {
+    it('opens EventSource to /api/events', () => {
       EventBusModule.eventBus.connect()
       expect(MockEventSource.instances).toHaveLength(1)
       expect(MockEventSource.instances[0].url).toBe('/api/events')
-    })
-  })
-
-  describe('connect with token', () => {
-    it('opens EventSource with token query param', () => {
-      getTokenMock.mockReturnValue('my-jwt')
-      EventBusModule.eventBus.connect()
-      expect(MockEventSource.instances[0].url).toBe('/api/events?token=my-jwt')
     })
   })
 

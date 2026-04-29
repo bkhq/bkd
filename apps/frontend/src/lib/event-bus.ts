@@ -1,6 +1,5 @@
 import type { ChangesSummary } from '@bkd/shared'
 import type { NormalizedLogEntry, SessionStatus } from '@/types/kanban'
-import { getToken } from './auth'
 
 export interface IssueEventHandler {
   onLog: (entry: NormalizedLogEntry) => void
@@ -43,9 +42,7 @@ class EventBus {
   connect(): void {
     if (this.es) return
 
-    const token = getToken()
-    const sseUrl = token ? `/api/events?token=${encodeURIComponent(token)}` : '/api/events'
-    const es = new EventSource(sseUrl)
+    const es = new EventSource('/api/events')
     this.es = es
 
     es.onopen = () => {
@@ -177,7 +174,7 @@ class EventBus {
       this.consecutiveFailures++
 
       // Before first successful connection: stop after repeated failures
-      // (likely auth rejection — caller must re-invoke connect() when auth state changes)
+      // (the server is likely down — caller must re-invoke connect() to retry)
       if (!this.hasConnectedOnce && this.consecutiveFailures >= MAX_INITIAL_FAILURES) {
         return
       }

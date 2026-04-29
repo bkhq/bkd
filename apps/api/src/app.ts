@@ -3,7 +3,6 @@ import { swaggerUI } from '@hono/swagger-ui'
 import { compress } from 'hono/compress'
 import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
-import { authMiddleware, authRoutes } from './auth'
 import { getEngineDiscovery } from './engines/startup-probe'
 import { httpLogger, logger } from './logger'
 import { apiRoutes, engineRoutes, eventRoutes, settingsRoutes } from './routes'
@@ -38,7 +37,7 @@ app.use('/api/*', cors({
     ? '*'
     : allowedOrigin.split(',').map(o => o.trim()),
   allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
+  allowHeaders: ['Content-Type'],
   exposeHeaders: ['Content-Length'],
   maxAge: 600,
   credentials: allowedOrigin !== '*',
@@ -55,16 +54,13 @@ app.use('*', async (c, next) => {
 // --- HTTP request logging ---
 app.use(httpLogger())
 
-// --- Auth routes (public, must be before auth middleware) ---
-app.route('/api/auth', authRoutes)
-
-// --- API docs (public, before auth middleware) ---
+// --- API docs ---
 app.get('/api/docs', swaggerUI({ url: '/api/docs/openapi.json' }))
 app.doc31('/api/docs/openapi.json', {
   openapi: '3.1.0',
   info: {
     title: 'BKD API',
-    description: 'Kanban board for managing AI coding agents. Issues are assigned to CLI-based AI engines (Claude Code, Codex, Gemini CLI) that execute autonomously.',
+    description: 'Kanban board for managing AI coding agents. Issues are assigned to CLI-based AI engines (Claude Code, Codex) that execute autonomously.',
     version: VERSION,
     license: { name: 'MIT' },
   },
@@ -87,9 +83,6 @@ app.doc31('/api/docs/openapi.json', {
   ],
 })
 app.get('/api/openapi.json', c => c.redirect('/api/docs/openapi.json'))
-
-// --- Auth middleware (protects all routes below when AUTH_ENABLED=true) ---
-app.use('/api/*', authMiddleware())
 
 // --- Routes ---
 app.route('/api', apiRoutes)

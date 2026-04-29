@@ -22,7 +22,6 @@ import type {
   WebhookEventType,
   WhiteboardNode,
 } from '@/types/kanban'
-import { clearToken, getToken } from './auth'
 
 /** Encode a filesystem path as base58 for use in URL path segments. */
 function encodeRootPath(path: string): string {
@@ -95,15 +94,6 @@ export interface CronJobLogsResponse {
   nextCursor: string | null
 }
 
-function authHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  const token = getToken()
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
-  return headers
-}
-
 const DEFAULT_TIMEOUT_MS = 30_000 // 30 seconds
 
 async function request<T>(url: string, options?: RequestInit & { timeoutMs?: number }): Promise<T> {
@@ -120,7 +110,7 @@ async function request<T>(url: string, options?: RequestInit & { timeoutMs?: num
   let res: Response
   try {
     res = await fetch(url, {
-      headers: authHeaders(),
+      headers: { 'Content-Type': 'application/json' },
       ...fetchOptions,
       signal: controller.signal,
     })
@@ -132,12 +122,6 @@ async function request<T>(url: string, options?: RequestInit & { timeoutMs?: num
     throw err
   }
   clearTimeout(timer)
-
-  if (res.status === 401) {
-    clearToken()
-    window.location.href = '/login'
-    throw new ApiError('Unauthorized', 401)
-  }
 
   const json = (await res.json()) as ApiResponse<T>
   if (!json.success) {
@@ -167,17 +151,12 @@ function del<T>(url: string) {
 }
 
 async function postFormData<T>(url: string, formData: FormData, timeoutMs = 60_000): Promise<T> {
-  const token = getToken()
-  const headers: Record<string, string> = {}
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
   let res: Response
   try {
-    res = await fetch(url, { method: 'POST', body: formData, headers, signal: controller.signal })
+    res = await fetch(url, { method: 'POST', body: formData, signal: controller.signal })
   } catch (err) {
     clearTimeout(timer)
     if (err instanceof DOMException && err.name === 'AbortError') {
@@ -186,12 +165,6 @@ async function postFormData<T>(url: string, formData: FormData, timeoutMs = 60_0
     throw err
   }
   clearTimeout(timer)
-
-  if (res.status === 401) {
-    clearToken()
-    window.location.href = '/login'
-    throw new ApiError('Unauthorized', 401)
-  }
 
   const json = (await res.json()) as ApiResponse<T>
   if (!json.success) {

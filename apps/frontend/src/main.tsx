@@ -5,7 +5,6 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Toaster } from './components/ui/sonner'
-import { useAuth } from './hooks/use-auth'
 import { useSystemInfo } from './hooks/use-kanban'
 import { eventBus } from './lib/event-bus'
 import { useFileBrowserStore } from './stores/file-browser-store'
@@ -56,8 +55,6 @@ const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const TerminalPage = lazy(() => import('./pages/TerminalPage'))
 const CronPage = lazy(() => import('./pages/CronPage'))
 const WhiteboardPage = lazy(() => import('./pages/WhiteboardPage'))
-const LoginPage = lazy(() => import('./pages/LoginPage'))
-const LoginCallbackPage = lazy(() => import('./pages/LoginCallbackPage'))
 const LazyTerminalDrawer = lazy(() =>
   import('./components/terminal/TerminalDrawer').then(m => ({
     default: m.TerminalDrawer,
@@ -135,29 +132,13 @@ function NotesDrawerMount() {
   )
 }
 
-/**
- * EventBusManager: Gates SSE connection on auth state.
- * - Auth disabled → connect immediately.
- * - Auth enabled + authenticated → connect.
- * - Auth enabled + unauthenticated → disconnect (no reconnect loop).
- */
 function EventBusManager() {
-  const { authEnabled, isAuthenticated, isLoading } = useAuth()
-
   useEffect(() => {
-    if (isLoading) return
-
-    const shouldConnect = !authEnabled || isAuthenticated
-    if (shouldConnect) {
-      eventBus.connect()
-    } else {
-      eventBus.disconnect()
-    }
-
+    eventBus.connect()
     return () => {
       eventBus.disconnect()
     }
-  }, [authEnabled, isAuthenticated, isLoading])
+  }, [])
 
   return null
 }
@@ -178,46 +159,6 @@ function ServerConfigLoader() {
   return null
 }
 
-/**
- * AuthGate: When auth is enabled and user has no token, redirect to /login.
- * When auth is disabled, render children directly.
- */
-function AuthGate({ children }: { children: React.ReactNode }) {
-  const { authEnabled, isAuthenticated, isLoading, isError } = useAuth()
-
-  if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    )
-  }
-
-  // Config fetch failed → block rendering (fail closed, never fail open)
-  if (isError) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-        <p className="text-sm">Unable to verify authentication configuration.</p>
-        <button
-          type="button"
-          className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
-          onClick={() => window.location.reload()}
-        >
-          Retry
-        </button>
-      </div>
-    )
-  }
-
-  // Auth not enabled → render app directly
-  if (!authEnabled) return <>{children}</>
-
-  // Auth enabled but no token → redirect to login
-  if (!isAuthenticated) return <Navigate to="/login" replace />
-
-  return <>{children}</>
-}
-
 const rootElement = document.getElementById('app')!
 
 if (!rootElement.innerHTML) {
@@ -235,99 +176,76 @@ if (!rootElement.innerHTML) {
               )}
             >
               <Routes>
-                {/* Auth routes — always accessible */}
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/login/callback" element={<LoginCallbackPage />} />
-
-                {/* Protected routes — wrapped in AuthGate */}
                 <Route
                   path="/"
                   element={(
-                    <AuthGate>
-                      <ErrorBoundary>
-                        <HomePage />
-                      </ErrorBoundary>
-                    </AuthGate>
+                    <ErrorBoundary>
+                      <HomePage />
+                    </ErrorBoundary>
                   )}
                 />
                 <Route
                   path="/projects/:projectId"
                   element={(
-                    <AuthGate>
-                      <ErrorBoundary>
-                        <KanbanPage />
-                      </ErrorBoundary>
-                    </AuthGate>
+                    <ErrorBoundary>
+                      <KanbanPage />
+                    </ErrorBoundary>
                   )}
                 />
                 <Route
                   path="/projects/:projectId/issues"
                   element={(
-                    <AuthGate>
-                      <ErrorBoundary>
-                        <IssueDetailPage />
-                      </ErrorBoundary>
-                    </AuthGate>
+                    <ErrorBoundary>
+                      <IssueDetailPage />
+                    </ErrorBoundary>
                   )}
                 />
                 <Route
                   path="/projects/:projectId/issues/:issueId"
                   element={(
-                    <AuthGate>
-                      <ErrorBoundary>
-                        <IssueDetailPage />
-                      </ErrorBoundary>
-                    </AuthGate>
+                    <ErrorBoundary>
+                      <IssueDetailPage />
+                    </ErrorBoundary>
                   )}
                 />
                 <Route
                   path="/review"
                   element={(
-                    <AuthGate>
-                      <ErrorBoundary>
-                        <ReviewPage />
-                      </ErrorBoundary>
-                    </AuthGate>
+                    <ErrorBoundary>
+                      <ReviewPage />
+                    </ErrorBoundary>
                   )}
                 />
                 <Route
                   path="/review/:projectAlias/:issueId"
                   element={(
-                    <AuthGate>
-                      <ErrorBoundary>
-                        <ReviewPage />
-                      </ErrorBoundary>
-                    </AuthGate>
+                    <ErrorBoundary>
+                      <ReviewPage />
+                    </ErrorBoundary>
                   )}
                 />
                 <Route
                   path="/terminal"
                   element={(
-                    <AuthGate>
-                      <ErrorBoundary>
-                        <TerminalPage />
-                      </ErrorBoundary>
-                    </AuthGate>
+                    <ErrorBoundary>
+                      <TerminalPage />
+                    </ErrorBoundary>
                   )}
                 />
                 <Route
                   path="/cron"
                   element={(
-                    <AuthGate>
-                      <ErrorBoundary>
-                        <CronPage />
-                      </ErrorBoundary>
-                    </AuthGate>
+                    <ErrorBoundary>
+                      <CronPage />
+                    </ErrorBoundary>
                   )}
                 />
                 <Route
                   path="/projects/:projectId/whiteboard"
                   element={(
-                    <AuthGate>
-                      <ErrorBoundary>
-                        <WhiteboardPage />
-                      </ErrorBoundary>
-                    </AuthGate>
+                    <ErrorBoundary>
+                      <WhiteboardPage />
+                    </ErrorBoundary>
                   )}
                 />
                 <Route path="*" element={<Navigate to="/" replace />} />

@@ -112,7 +112,7 @@ Get system information including app version, runtime details, server config, an
 
 ## MCP Settings
 
-Authentication reuses the system auth: localhost is always allowed (for engine auto-injection), remote access requires system JWT when `AUTH_ENABLED=true`. When MCP is enabled, AI engines automatically connect to the MCP endpoint during task execution.
+When MCP is enabled, AI engines automatically connect to the MCP endpoint during task execution.
 
 ### GET /api/settings/mcp
 

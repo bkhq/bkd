@@ -605,17 +605,6 @@
     "questionExpandContext": "Can you expand on {{label}} within the context of {{parent}}?",
     "questionExpand": "Can you expand on {{label}}?"
   },
-  "auth": {
-    "login": "Login",
-    "loginDescription": "Sign in to access the dashboard",
-    "loginWithOAuth": "Sign in with SSO",
-    "authenticating": "Authenticating...",
-    "loginFailed": "Login failed",
-    "noCodeReceived": "No authorization code received",
-    "invalidState": "Invalid state parameter — please try logging in again",
-    "backToLogin": "Back to login",
-    "logout": "Logout"
-  },
   "cron": {
     "title": "Cron Jobs",
     "schedule": "Schedule",
