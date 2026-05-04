@@ -16,6 +16,7 @@ type IssueUpdatedListener = (data: { issueId: string, changes: Record<string, un
 type ChangesSummaryListener = (data: ChangesSummaryData) => void
 type IssueActivityListener = (issueId: string) => void
 type ConnectionListener = (connected: boolean) => void
+type ResumeListener = () => void
 
 const MAX_RECONNECT_DELAY = 30_000
 const BASE_RECONNECT_DELAY = 1_000
@@ -23,6 +24,9 @@ const BASE_RECONNECT_DELAY = 1_000
 const INITIAL_RETRY_DELAY = 1_500
 // Watchdog fires if no heartbeat received within 2x server interval + buffer
 const HEARTBEAT_WATCHDOG_MS = 35_000
+// On wake-up, treat the connection as stale if last heartbeat was > this long ago
+// (mobile browsers freeze SSE while backgrounded — we can't trust the existing socket)
+const STALE_AFTER_MS = 20_000
 // Stop reconnecting after this many consecutive failures without a successful connection
 const MAX_INITIAL_FAILURES = 5
 
@@ -33,15 +37,25 @@ class EventBus {
   private changesSummaryListeners = new Set<ChangesSummaryListener>()
   private issueActivityListeners = new Set<IssueActivityListener>()
   private connectionListeners = new Set<ConnectionListener>()
+  private resumeListeners = new Set<ResumeListener>()
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private heartbeatWatchdog: ReturnType<typeof setTimeout> | null = null
   private reconnectDelay = BASE_RECONNECT_DELAY
   private connected = false
   private hasConnectedOnce = false
   private consecutiveFailures = 0
+  private lastHeartbeatAt = 0
+  private visibilityHandler: (() => void) | null = null
 
   connect(): void {
     if (this.es) return
+
+    // Install visibility listener once — handles mobile browser freezing the
+    // SSE socket while backgrounded. setTimeout-based watchdogs are throttled
+    // or paused while hidden, so we can't rely on them to detect a dead socket
+    // after wake-up. On visibility resume, treat the connection as suspect
+    // and force-reconnect if we haven't seen a heartbeat recently.
+    this.installVisibilityListener()
 
     const token = getToken()
     const sseUrl = token ? `/api/events?token=${encodeURIComponent(token)}` : '/api/events'
@@ -53,6 +67,7 @@ class EventBus {
       this.hasConnectedOnce = true
       this.consecutiveFailures = 0
       this.reconnectDelay = BASE_RECONNECT_DELAY
+      this.lastHeartbeatAt = Date.now()
       this.notifyConnectionChange(true)
       this.resetHeartbeatWatchdog(es)
     }
@@ -164,6 +179,7 @@ class EventBus {
 
     // Reset watchdog on heartbeat — server sends every 15s
     es.addEventListener('heartbeat', () => {
+      this.lastHeartbeatAt = Date.now()
       this.resetHeartbeatWatchdog(es)
     })
 
@@ -210,6 +226,34 @@ class EventBus {
     this.consecutiveFailures = 0
     this.reconnectDelay = BASE_RECONNECT_DELAY
     this.notifyConnectionChange(false)
+    this.removeVisibilityListener()
+  }
+
+  /**
+   * Tear down the current SSE socket (if any) and reconnect immediately.
+   * Used by the visibility-change handler when waking from background, where
+   * the existing EventSource may be silently dead because mobile browsers
+   * froze the network stack.
+   */
+  forceReconnect(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    this.clearHeartbeatWatchdog()
+    if (this.es) {
+      try {
+        this.es.close()
+      } catch {
+        /* ignore */
+      }
+      this.es = null
+    }
+    this.connected = false
+    this.notifyConnectionChange(false)
+    this.reconnectDelay = BASE_RECONNECT_DELAY
+    this.connect()
+    this.notifyResumed()
   }
 
   subscribe(issueId: string, handler: IssueEventHandler): () => void {
@@ -255,6 +299,18 @@ class EventBus {
     listener(this.connected)
     return () => {
       this.connectionListeners.delete(listener)
+    }
+  }
+
+  /**
+   * Subscribe to "the page just woke up from background" events.
+   * Listeners can use this to refetch state that may have drifted while the
+   * SSE connection was frozen — e.g. historical log pages that missed events.
+   */
+  onResume(listener: ResumeListener): () => void {
+    this.resumeListeners.add(listener)
+    return () => {
+      this.resumeListeners.delete(listener)
     }
   }
 
@@ -313,6 +369,41 @@ class EventBus {
         /* ignore */
       }
     }
+  }
+
+  private notifyResumed(): void {
+    for (const listener of this.resumeListeners) {
+      try {
+        listener()
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  private installVisibilityListener(): void {
+    if (this.visibilityHandler || typeof document === 'undefined') return
+    this.visibilityHandler = () => {
+      if (document.visibilityState !== 'visible') return
+      // The page is visible again. The SSE socket may be silently dead from
+      // having been frozen while backgrounded. If we lost the connection, OR
+      // the last heartbeat was too long ago, force a fresh reconnect and tell
+      // subscribers to refetch any state that may have drifted.
+      const stale =
+        !this.es ||
+        !this.connected ||
+        Date.now() - this.lastHeartbeatAt > STALE_AFTER_MS
+      if (stale) {
+        this.forceReconnect()
+      }
+    }
+    document.addEventListener('visibilitychange', this.visibilityHandler)
+  }
+
+  private removeVisibilityListener(): void {
+    if (!this.visibilityHandler || typeof document === 'undefined') return
+    document.removeEventListener('visibilitychange', this.visibilityHandler)
+    this.visibilityHandler = null
   }
 }
 

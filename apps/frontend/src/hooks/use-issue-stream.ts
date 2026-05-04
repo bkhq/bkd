@@ -493,6 +493,17 @@ export function useIssueStream({
     }
   }, [projectId, issueId, enabled, queryClient, appendEntry, upsertEntry, removeEntries])
 
+  // When the page wakes from background (mobile browsers freeze SSE while
+  // hidden), the live socket may have missed events between the freeze and
+  // EventBus.forceReconnect. Refetch the historical log window so the user
+  // doesn't have to tap the refresh button manually.
+  useEffect(() => {
+    if (!issueId || !enabled) return
+    return eventBus.onResume(() => {
+      refreshLogs()
+    })
+  }, [issueId, enabled, refreshLogs])
+
   return {
     logs,
     sessionStatus,
