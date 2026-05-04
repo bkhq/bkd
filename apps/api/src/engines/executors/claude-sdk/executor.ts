@@ -27,7 +27,7 @@ import type {
   SpawnOptions,
 } from '@/engines/types'
 import { getAppSetting } from '@/db/helpers'
-import { DISABLE_ASK_USER_KEY, SKIP_PERMISSIONS_KEY } from '@/engines/executors/claude/executor'
+import { DISABLE_ASK_USER_KEY, OMIT_MODEL_FLAG_KEY, SKIP_PERMISSIONS_KEY } from '@/engines/executors/claude/executor'
 import { logger } from '@/logger'
 import { ROOT_DIR } from '@/root'
 import { CLAUDE_MODELS, getClaudeAuthStatus, resolveAnyClaudeBinary, resolveClaudeBinary } from '../claude-shared/binary'
@@ -430,7 +430,8 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
       sdkOptions.allowDangerouslySkipPermissions = true
     }
 
-    if (options.model && options.model !== 'auto') {
+    const omitModelFlag = (await getAppSetting(OMIT_MODEL_FLAG_KEY)) === 'true'
+    if (options.model && options.model !== 'auto' && !omitModelFlag) {
       sdkOptions.model = options.model
     }
 

@@ -32,14 +32,14 @@ describe('safeEnv', () => {
       expect(env.HOME).toBe(requireProcessEnv('HOME'))
     })
 
-    test('blocks user-supplied ANTHROPIC_API_KEY override', () => {
-      const env = safeEnv({ ANTHROPIC_API_KEY: 'stolen-key' })
-      expect(env.ANTHROPIC_API_KEY).toBe('test-anthropic-key')
+    test('allows user-supplied ANTHROPIC_API_KEY override (third-party gateway)', () => {
+      const env = safeEnv({ ANTHROPIC_API_KEY: 'gateway-key' }, 'claude-code')
+      expect(env.ANTHROPIC_API_KEY).toBe('gateway-key')
     })
 
-    test('blocks user-supplied OPENAI_API_KEY override', () => {
-      const env = safeEnv({ OPENAI_API_KEY: 'stolen-key' })
-      expect(env.OPENAI_API_KEY).toBe('test-openai-key')
+    test('allows user-supplied OPENAI_API_KEY override (third-party gateway)', () => {
+      const env = safeEnv({ OPENAI_API_KEY: 'gateway-key' }, 'codex')
+      expect(env.OPENAI_API_KEY).toBe('gateway-key')
     })
 
     test('blocks user-supplied IS_SANDBOX override', () => {
@@ -55,16 +55,16 @@ describe('safeEnv', () => {
       expect(env.ANOTHER_VAR).toBe('world')
     })
 
-    test('blocks multiple protected keys at once', () => {
+    test('blocks PATH/HOME but lets API keys through', () => {
       const env = safeEnv({
         PATH: '/evil',
         HOME: '/evil',
-        ANTHROPIC_API_KEY: 'evil',
+        ANTHROPIC_API_KEY: 'gateway-key',
         SAFE_VAR: 'allowed',
-      })
+      }, 'claude-code')
       expect(env.PATH).toBe(requireProcessEnv('PATH'))
       expect(env.HOME).toBe(requireProcessEnv('HOME'))
-      expect(env.ANTHROPIC_API_KEY).toBe('test-anthropic-key')
+      expect(env.ANTHROPIC_API_KEY).toBe('gateway-key')
       expect(env.SAFE_VAR).toBe('allowed')
     })
   })

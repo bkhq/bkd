@@ -40,7 +40,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
-import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue } from '@/hooks/use-kanban'
+import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue, useOmitModel } from '@/hooks/use-kanban'
 import { formatFileSize, formatModelName } from '@/lib/format'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { BusyAction, EngineModel, SessionStatus } from '@/types/kanban'
@@ -192,6 +192,11 @@ export function ChatInput({
   useEffect(() => {
     setSelectedModel(model || '')
   }, [model])
+
+  // Lock model picker when omit-model flag is on for Claude engines
+  const { data: omitModelData } = useOmitModel(true)
+  const isClaudeEngine = engineType === 'claude-code' || engineType === 'claude-code-sdk'
+  const modelLocked = isClaudeEngine && (omitModelData?.enabled ?? false)
   const [mode, setMode] = useState<ModeOption>('auto')
   const [busyAction, setBusyAction] = useState<BusyAction>('queue')
   const activeModel = selectedModel || model || ''
@@ -597,7 +602,8 @@ export function ChatInput({
                     models={models}
                     value={activeModel}
                     onChange={setSelectedModel}
-                    disabled={isSessionActive}
+                    disabled={isSessionActive || modelLocked}
+                    locked={modelLocked}
                   />
                 ) :
               null}
@@ -930,14 +936,21 @@ function ModelSelect({
   value,
   onChange,
   disabled = false,
+  locked = false,
 }: {
   models: EngineModel[]
   value: string
   onChange: (v: string) => void
   disabled?: boolean
+  locked?: boolean
 }) {
+  const { t } = useTranslation()
   const current = models.find(m => m.id === value)
-  const displayName = current ? formatModelName(current.name || current.id) : formatModelName(value)
+  const displayName = locked
+    ? t('settings.modelGatewayDefault')
+    : current
+      ? formatModelName(current.name || current.id)
+      : formatModelName(value)
 
   return (
     <DropdownMenu>

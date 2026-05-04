@@ -393,7 +393,8 @@ export class ClaudeCodeExecutor implements EngineExecutor {
       builder.param('--permission-mode', 'bypassPermissions')
     }
 
-    if (options.model && options.model !== 'auto') {
+    const omitModelFlag = (await getAppSetting(OMIT_MODEL_FLAG_KEY)) === 'true'
+    if (options.model && options.model !== 'auto' && !omitModelFlag) {
       builder.param('--model', options.model)
     }
 
@@ -499,6 +500,7 @@ export interface DiscoveryResult {
 
 export const SKIP_PERMISSIONS_KEY = 'engine:claude:dangerouslySkipPermissions'
 export const DISABLE_ASK_USER_KEY = 'engine:claude:disableAskUserQuestion'
+export const OMIT_MODEL_FLAG_KEY = 'engine:claude:omitModelFlag'
 const DISCOVERY_TIMEOUT_MS = 120_000
 
 // ---------- Helpers ----------

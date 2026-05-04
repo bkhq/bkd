@@ -435,6 +435,9 @@ export const kanbanApi = {
   getDisableAskUser: () => get<{ enabled: boolean }>('/api/settings/disable-ask-user'),
   setDisableAskUser: (enabled: boolean) =>
     patch<{ enabled: boolean }>('/api/settings/disable-ask-user', { enabled }),
+  getOmitModel: () => get<{ enabled: boolean }>('/api/settings/omit-model'),
+  setOmitModel: (enabled: boolean) =>
+    patch<{ enabled: boolean }>('/api/settings/omit-model', { enabled }),
   getMaxConcurrentExecutions: () =>
     get<{ value: number }>('/api/settings/max-concurrent-executions'),
   setMaxConcurrentExecutions: (value: number) =>

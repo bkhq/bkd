@@ -18,6 +18,7 @@ import {
   useEngineAvailability,
   useEngineProfiles,
   useEngineSettings,
+  useOmitModel,
   useProject,
 } from '@/hooks/use-kanban'
 import { formatModelName } from '@/lib/format'
@@ -97,6 +98,11 @@ export function CreateIssueForm({
     const hidden = new Set(engineSettings?.engines[resolvedEngineType]?.hiddenModels ?? [])
     return hidden.size > 0 ? all.filter(m => !hidden.has(m.id)) : all
   }, [resolvedEngineType, discovery?.models, engineSettings])
+
+  // Disable model selection when omit-model flag is on (gateway picks the model)
+  const { data: omitModelData } = useOmitModel(true)
+  const isClaudeEngine = resolvedEngineType === 'claude-code' || resolvedEngineType === 'claude-code-sdk'
+  const modelLocked = isClaudeEngine && (omitModelData?.enabled ?? false)
 
   // When engine changes, reset model to "default" (system auto)
   const handleEngineChange = useCallback((newEngine: string) => {
@@ -226,7 +232,12 @@ export function CreateIssueForm({
             />
           </PropertyRow>
           <PropertyRow label={t('createIssue.model')}>
-            <ModelSelect models={currentModels} value={modelId} onChange={setModelId} />
+            <ModelSelect
+              models={currentModels}
+              value={modelId}
+              onChange={setModelId}
+              locked={modelLocked}
+            />
           </PropertyRow>
           <PropertyRow label={t('createIssue.mode')}>
             <PermissionSelect value={permission} onChange={setPermission} />
@@ -426,14 +437,27 @@ function ModelSelect({
   models,
   value,
   onChange,
+  locked = false,
 }: {
   models: EngineModel[]
   value: string
   onChange: (v: string) => void
+  locked?: boolean
 }) {
   const { t } = useTranslation()
   const current = value ? models.find(m => m.id === value) : null
   const isDefault = !value
+
+  if (locked) {
+    return (
+      <div
+        className="flex items-center gap-1.5 text-sm text-muted-foreground w-full cursor-not-allowed"
+        title={t('settings.omitModelHint')}
+      >
+        <span className="truncate italic">{t('settings.modelGatewayDefault')}</span>
+      </div>
+    )
+  }
 
   return (
     <DropdownMenu>

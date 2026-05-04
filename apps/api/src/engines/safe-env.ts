@@ -30,8 +30,12 @@ export function getCachedGlobalEnvVars(): Record<string, string> {
 }
 
 /**
- * Keys that user-provided envVars (from project settings) must never override.
- * These control security-critical paths and authentication credentials.
+ * Keys that user-provided envVars (from project / global settings) must never override.
+ * These control security-critical paths and the sandbox flag.
+ *
+ * Note: API-key envs (ANTHROPIC_API_KEY etc.) are intentionally NOT protected so
+ * that users can point engines at third-party gateways via the global env vars
+ * UI (e.g. ANTHROPIC_API_KEY + ANTHROPIC_BASE_URL → custom Claude proxy).
  */
 const PROTECTED_KEYS = new Set([
   'PATH',
@@ -41,11 +45,6 @@ const PROTECTED_KEYS = new Set([
   'IS_SANDBOX',
   'NODE_ENV',
   'BUN_ENV',
-  'ANTHROPIC_API_KEY',
-  'OPENAI_API_KEY',
-  'CODEX_API_KEY',
-  'GOOGLE_API_KEY',
-  'GEMINI_API_KEY',
 ])
 
 /**

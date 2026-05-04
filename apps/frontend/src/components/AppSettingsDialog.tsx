@@ -54,6 +54,7 @@ import {
   useGlobalEnvVars,
   useLogPageSize,
   useMaxConcurrentExecutions,
+  useOmitModel,
   useProbeEngines,
   useRestartWithUpgrade,
   useRestoreDeletedIssue,
@@ -63,6 +64,7 @@ import {
   useSetGlobalEnvVars,
   useSetLogPageSize,
   useSetMaxConcurrentExecutions,
+  useSetOmitModel,
   useSetSkipPermissions,
   useSetUpgradeEnabled,
   useSetWorktreeAutoCleanup,
@@ -158,6 +160,8 @@ function GeneralSection({ open }: { open: boolean }) {
   const setSkipPerm = useSetSkipPermissions()
   const { data: disableAskUserData } = useDisableAskUser(open)
   const setDisableAskUser = useSetDisableAskUser()
+  const { data: omitModelData } = useOmitModel(open)
+  const setOmitModel = useSetOmitModel()
   const { data: maxConcurrentData } = useMaxConcurrentExecutions(open)
   const setMaxConcurrent = useSetMaxConcurrentExecutions()
   const [maxConcurrentInput, setMaxConcurrentInput] = useState('')
@@ -379,6 +383,20 @@ function GeneralSection({ open }: { open: boolean }) {
           size="sm"
           checked={disableAskUserData?.enabled ?? true}
           onCheckedChange={checked => setDisableAskUser.mutate(checked)}
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-sm font-medium">{t('settings.omitModel')}</span>
+          <p className="text-[11px] text-muted-foreground">
+            {t('settings.omitModelHint')}
+          </p>
+        </div>
+        <Switch
+          size="sm"
+          checked={omitModelData?.enabled ?? false}
+          onCheckedChange={checked => setOmitModel.mutate(checked)}
         />
       </div>
 

@@ -12,7 +12,7 @@ import {
   setServerName,
   setServerUrl,
 } from '@/db/helpers'
-import { DISABLE_ASK_USER_KEY, SKIP_PERMISSIONS_KEY } from '@/engines/executors/claude/executor'
+import { DISABLE_ASK_USER_KEY, OMIT_MODEL_FLAG_KEY, SKIP_PERMISSIONS_KEY } from '@/engines/executors/claude/executor'
 import { DEFAULT_LOG_PAGE_SIZE, LOG_PAGE_SIZE_KEY } from '@/engines/issue/constants'
 import { refreshGlobalEnvCache } from '@/engines/safe-env'
 import { getCachedCategorizedCommands } from '@/engines/issue/queries'
@@ -308,6 +308,35 @@ general.patch(
   async (c) => {
     const { enabled } = c.req.valid('json')
     await setAppSetting(DISABLE_ASK_USER_KEY, String(enabled))
+    return c.json({ success: true, data: { enabled } })
+  },
+)
+
+// --- Omit --model flag ---
+
+// GET /api/settings/omit-model
+general.get('/omit-model', async (c) => {
+  const value = await getAppSetting(OMIT_MODEL_FLAG_KEY)
+  return c.json({ success: true, data: { enabled: value === 'true' } })
+})
+
+// PATCH /api/settings/omit-model
+general.patch(
+  '/omit-model',
+  zValidator('json', z.object({ enabled: z.boolean() }), (result, c) => {
+    if (!result.success) {
+      return c.json(
+        {
+          success: false,
+          error: result.error.issues.map(i => i.message).join(', '),
+        },
+        400,
+      )
+    }
+  }),
+  async (c) => {
+    const { enabled } = c.req.valid('json')
+    await setAppSetting(OMIT_MODEL_FLAG_KEY, String(enabled))
     return c.json({ success: true, data: { enabled } })
   },
 )

@@ -30,6 +30,7 @@ export const queryKeys = {
   worktreeAutoCleanup: () => ['settings', 'worktreeAutoCleanup'] as const,
   disableAskUser: () => ['settings', 'disableAskUser'] as const,
   skipPermissions: () => ['settings', 'skipPermissions'] as const,
+  omitModel: () => ['settings', 'omitModel'] as const,
   maxConcurrentExecutions: () => ['settings', 'maxConcurrentExecutions'] as const,
   upgradeVersion: () => ['upgrade', 'version'] as const,
   upgradeEnabled: () => ['upgrade', 'enabled'] as const,
@@ -618,6 +619,29 @@ export function useSetDisableAskUser() {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.disableAskUser(),
+      })
+    },
+  })
+}
+
+// --- Omit --model flag hooks ---
+
+export function useOmitModel(enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.omitModel(),
+    queryFn: () => kanbanApi.getOmitModel(),
+    enabled,
+    staleTime: STALE_TIME.CONFIG,
+  })
+}
+
+export function useSetOmitModel() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (enabled: boolean) => kanbanApi.setOmitModel(enabled),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.omitModel(),
       })
     },
   })
