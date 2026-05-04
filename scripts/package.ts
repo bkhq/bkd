@@ -66,8 +66,12 @@ function step(msg: string): void {
 // --- 1. Parse version ---
 
 const version = args.version ?? 'dev'
-if (version !== 'dev' && !/^\d+\.\d+\.\d+$/.test(version)) {
-  fatal(`Invalid version: ${version}. Expected semver (e.g. 0.0.6)`)
+// Accept SemVer 2.0.0 with optional pre-release / build-metadata suffix so
+// downstream forks can tag distribution channels (e.g. "0.0.6-lc",
+// "0.0.6+nightly").  Only digits-and-dots and the canonical [0-9A-Za-z.-]
+// alphabet are allowed to keep the resulting filenames safe.
+if (version !== 'dev' && !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version)) {
+  fatal(`Invalid version: ${version}. Expected semver (e.g. 0.0.6 or 0.0.6-lc)`)
 }
 const gitCommit = Bun.spawnSync(['git', 'rev-parse', '--short', 'HEAD'], {
   cwd: ROOT,

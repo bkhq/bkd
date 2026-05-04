@@ -77,6 +77,13 @@ describe('parseVersionFromFileName', () => {
     expect(parseVersionFromFileName('bkd-app-v1.2.tar.gz')).toBeNull()
     expect(parseVersionFromFileName('bkd-app-vabc.tar.gz')).toBeNull()
   })
+
+  it('extracts versions with pre-release / build-metadata suffixes', () => {
+    expect(parseVersionFromFileName('bkd-app-v0.0.6-lc.tar.gz')).toBe('0.0.6-lc')
+    expect(parseVersionFromFileName('bkd-app-v1.2.3-rc.1.tar.gz')).toBe('1.2.3-rc.1')
+    expect(parseVersionFromFileName('bkd-app-v1.2.3+nightly.tar.gz')).toBe('1.2.3+nightly')
+    expect(parseVersionFromFileName('bkd-app-v1.2.3-lc+build.5.tar.gz')).toBe('1.2.3-lc+build.5')
+  })
 })
 
 describe('VALID_FILE_NAME_RE', () => {
