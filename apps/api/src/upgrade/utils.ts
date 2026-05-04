@@ -6,7 +6,7 @@
 // Matches: bkd-linux-x64-v0.0.5, bkd-darwin-arm64-v0.0.5, bkd-app-v0.0.5.tar.gz
 // Also accepts SemVer 2.0.0 pre-release / build-metadata suffixes so downstream
 // distributions can mark their channel (e.g. bkd-app-v0.0.6-lc.tar.gz).
-const SEMVER_PART = '\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?'
+const SEMVER_PART = '\\d+\\.\\d+\\.\\d+(?:-[\\w.-]+)?(?:\\+[\\w.-]+)?'
 export const VALID_FILE_NAME_RE = new RegExp(`^bkd-[\\w-]+-v${SEMVER_PART}(?:\\.tar\\.gz)?$`)
 
 /** Extract semver from package archive filename (e.g. "bkd-app-v0.0.6.tar.gz" → "0.0.6") */
