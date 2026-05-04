@@ -1,6 +1,44 @@
 import DOMPurify from 'dompurify'
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { codeToHtml } from '@/lib/shiki'
+
+const MermaidDiagram = lazy(() =>
+  import('@/components/MermaidDiagram').then(m => ({ default: m.MermaidDiagram })),
+)
+
+interface MermaidSegment { type: 'mermaid', code: string }
+interface TextSegment { type: 'text', content: string }
+type ContentSegment = TextSegment | MermaidSegment
+
+/**
+ * Split a markdown blob into alternating text / mermaid segments so the
+ * mermaid blocks can be rendered as actual diagrams while the rest still
+ * goes through the existing Shiki-highlighting fast path. Returns one text
+ * segment with the entire input when no mermaid blocks are present.
+ */
+function splitMermaidBlocks(input: string): ContentSegment[] {
+  // [ \t]* (not \s*) before the newline avoids polynomial backtracking against
+  // the [\s\S]*? body — important because LLM output can be long.
+  const re = /```mermaid[ \t]*\n([\s\S]*?)```/g
+  const segments: ContentSegment[] = []
+  let lastIdx = 0
+  let m = re.exec(input)
+  while (m !== null) {
+    if (m.index > lastIdx) {
+      segments.push({ type: 'text', content: input.slice(lastIdx, m.index) })
+    }
+    segments.push({ type: 'mermaid', code: m[1].replace(/\n+$/, '') })
+    lastIdx = m.index + m[0].length
+    m = re.exec(input)
+  }
+  if (segments.length === 0) {
+    return [{ type: 'text', content: input }]
+  }
+  if (lastIdx < input.length) {
+    segments.push({ type: 'text', content: input.slice(lastIdx) })
+  }
+  return segments
+}
 
 /** Calculate display width accounting for CJK characters (width 2). */
 function displayWidth(str: string): number {
@@ -108,6 +146,63 @@ export function MarkdownContent({
   content: string
   className?: string
 }) {
+  const segments = useMemo(() => splitMermaidBlocks(content), [content])
+
+  // Fast path: no mermaid blocks → behave exactly like before. Avoids the
+  // wrapper div / extra component renders for the (vast majority) case.
+  if (segments.length === 1 && segments[0].type === 'text') {
+    return (
+      <ShikiTextSegment
+        content={segments[0].content}
+        containerClassName={containerClassName}
+      />
+    )
+  }
+
+  return (
+    <div className={`markdown-shiki ${containerClassName}`}>
+      {segments.map((seg, i) =>
+        seg.type === 'text' ?
+            (
+              <ShikiTextSegment
+                key={i}
+                content={seg.content}
+                containerClassName=""
+                inline
+              />
+            ) :
+            (
+              <Suspense
+                key={i}
+                fallback={(
+                  <div className="my-3 rounded-md border border-border/40 bg-muted/20 px-3 py-4 text-center text-[11px] text-muted-foreground/60">
+                    Loading diagram…
+                  </div>
+                )}
+              >
+                <MermaidDiagram code={seg.code} />
+              </Suspense>
+            ),
+      )}
+    </div>
+  )
+}
+
+/**
+ * Inner Shiki-rendered text segment. When `inline=true` the wrapper div /
+ * className is dropped because the parent MarkdownContent already provides
+ * the `markdown-shiki` container — we don't want nested ones, which would
+ * double up the styling.
+ */
+function ShikiTextSegment({
+  content,
+  containerClassName,
+  inline = false,
+}: {
+  content: string
+  containerClassName: string
+  inline?: boolean
+}) {
   const formatted = useMemo(() => preprocessContent(content), [content])
   const [html, setHtml] = useState('')
 
@@ -123,11 +218,18 @@ export function MarkdownContent({
   }, [formatted])
 
   if (!html) {
+    if (inline) {
+      return <pre className="whitespace-pre-wrap break-words">{formatted}</pre>
+    }
     return (
       <div className={`markdown-shiki ${containerClassName}`}>
         <pre className="whitespace-pre-wrap break-words">{formatted}</pre>
       </div>
     )
+  }
+
+  if (inline) {
+    return <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
   }
 
   return (

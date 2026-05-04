@@ -1,9 +1,13 @@
-import { useCallback } from 'react'
+import { lazy, Suspense, useCallback } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import 'github-markdown-css/github-markdown.css'
 import { useTheme } from '@/hooks/use-theme'
 import { ShikiCodeBlock } from './ShikiCodeBlock'
+
+const MermaidDiagram = lazy(() =>
+  import('@/components/MermaidDiagram').then(m => ({ default: m.MermaidDiagram })),
+)
 
 interface MarkdownRendererProps {
   content: string
@@ -29,6 +33,13 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
       if (isBlock) {
         const code = text.replace(/\n$/, '')
         const lang = className?.replace('language-', '') ?? 'text'
+        if (lang === 'mermaid') {
+          return (
+            <Suspense fallback={<pre className="text-xs text-muted-foreground p-3">Loading diagram…</pre>}>
+              <MermaidDiagram code={code} />
+            </Suspense>
+          )
+        }
         return <ShikiCodeBlock code={code} lang={lang} />
       }
 
