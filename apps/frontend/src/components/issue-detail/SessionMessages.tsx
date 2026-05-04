@@ -249,7 +249,7 @@ function LegacySessionMessages({
   if (messages.length === 0 && pendingMessages.length === 0 && !isRunning) return null
 
   return (
-    <div className={`flex flex-col py-2 px-5${fullWidthChat ? '' : ' max-w-4xl'}`}>
+    <div className={`flex flex-col py-3 px-4 max-md:gap-3 md:py-2 md:px-5${fullWidthChat ? '' : ' max-w-4xl'}`}>
       {hasOlderLogs && onLoadOlder ?
           (
             <div className="flex justify-center py-2">

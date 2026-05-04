@@ -50,13 +50,13 @@ export function IssueDetail({
   const worktreeBranch = worktreeEntry?.branch ?? (issue.id ? `bkd/${issue.id}` : '')
 
   return (
-    <div className="shrink-0 relative z-20 flex items-center gap-1.5 px-4 py-1.5 border-t border-border/40 bg-muted/20">
+    <div className="shrink-0 relative z-20 flex flex-wrap items-center gap-1.5 px-4 py-1.5 border-t border-border/40 bg-muted/20">
       {/* Status — editable */}
       <StatusSelect status={status} onChange={id => onUpdate?.({ statusId: id })} />
 
-      {/* Keep Alive */}
+      {/* Keep Alive — power-user toggle, hidden on phones to keep header tidy */}
       <label
-        className={`${badgeBase} cursor-pointer transition-colors ${
+        className={`${badgeBase} cursor-pointer transition-colors max-md:hidden ${
           issue.keepAlive
             ? 'border-amber-400/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
             : 'border-border/50 bg-muted/20 text-muted-foreground/40'
@@ -89,13 +89,15 @@ export function IssueDetail({
           ) :
         null}
 
-      {/* Dev mode toggle — reveals tool calls and system messages */}
+      {/* Dev mode toggle — reveals tool calls and system messages.
+          Hidden on phones: mobile users want a clean reading view by default,
+          and dev-mode debugging is desktop-side workflow. */}
       <Button
         type="button"
         onClick={toggleDevMode}
         size="sm"
         variant="outline"
-        className={`${badgeButtonBase} cursor-pointer transition-colors ${
+        className={`${badgeButtonBase} cursor-pointer transition-colors max-md:hidden ${
           devMode
             ? 'border-primary/40 bg-primary/10 text-primary hover:opacity-80'
             : 'border-border/50 bg-muted/20 text-muted-foreground/60 hover:text-foreground hover:border-border'
@@ -156,8 +158,9 @@ export function IssueDetail({
             </button>
           )}
 
-      {/* Worktree (right side) */}
-      <div className="ml-auto flex items-center gap-1.5">
+      {/* Worktree (right side) — hidden on phones; the path/branch info is
+          rarely needed mid-thread and bloats the header on small screens. */}
+      <div className="ml-auto flex items-center gap-1.5 max-md:hidden">
         {issue.useWorktree ?
             (
               <div ref={worktreeRef} className="relative flex">

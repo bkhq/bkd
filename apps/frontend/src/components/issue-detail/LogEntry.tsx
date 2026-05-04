@@ -554,12 +554,25 @@ function AssistantMessage({
                 )}
           </button>
         </div>
-        <MarkdownContent content={content} className="text-[14px] leading-[1.75]" />
+        <MarkdownContent
+          content={content}
+          className="text-[16px] leading-[1.85] md:text-[14px] md:leading-[1.75]"
+        />
       </div>
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="w-[90vw] max-w-[90vw] sm:max-w-[90vw] max-h-[90vh] flex flex-col">
+        <DialogContent
+          className="
+            max-md:!top-0 max-md:!left-0
+            max-md:!translate-x-0 max-md:!translate-y-0
+            max-md:!w-screen max-md:!h-screen
+            max-md:!max-w-none max-md:!max-h-none
+            max-md:!rounded-none max-md:!p-0
+            w-[90vw] max-w-[90vw] sm:max-w-[90vw] max-h-[90vh]
+            flex flex-col
+          "
+        >
           <DialogTitle className="sr-only">{t('session.viewMessage')}</DialogTitle>
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex-1 overflow-y-auto min-h-0 max-md:px-4 max-md:py-12">
             <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading...</div>}>
               <MarkdownRenderer content={content} />
             </Suspense>

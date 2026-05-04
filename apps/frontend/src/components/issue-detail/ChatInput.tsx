@@ -4,6 +4,7 @@ import {
   FolderOpen,
   Image as ImageIcon,
   Loader2,
+  MoreHorizontal,
   Paperclip,
   RefreshCw,
   SlashSquare,
@@ -590,23 +591,64 @@ export function ChatInput({
             </span>
           </button>
           <div className="ml-auto flex items-center gap-1">
-            {isSessionActive && !isThinking ?
-                (
-                  <BusyActionSelect value={busyAction} onChange={setBusyAction} />
-                ) :
-              null}
-            <ModeSelect value={mode} onChange={setMode} />
-            {models.length > 0 ?
-                (
-                  <ModelSelect
-                    models={models}
-                    value={activeModel}
-                    onChange={setSelectedModel}
-                    disabled={isSessionActive || modelLocked}
-                    locked={modelLocked}
-                  />
-                ) :
-              null}
+            {/* Desktop: inline toolbar */}
+            <div className="hidden md:flex items-center gap-1">
+              {isSessionActive && !isThinking ?
+                  (
+                    <BusyActionSelect value={busyAction} onChange={setBusyAction} />
+                  ) :
+                null}
+              <ModeSelect value={mode} onChange={setMode} />
+              {models.length > 0 ?
+                  (
+                    <ModelSelect
+                      models={models}
+                      value={activeModel}
+                      onChange={setSelectedModel}
+                      disabled={isSessionActive || modelLocked}
+                      locked={modelLocked}
+                    />
+                  ) :
+                null}
+            </div>
+            {/* Mobile: collapse all selectors behind a single ⋯ trigger so the
+                input toolbar stays one-line and doesn't fight the soft keyboard. */}
+            <div className="md:hidden">
+              <Popover>
+                <PopoverTrigger
+                  render={(
+                    <button
+                      type="button"
+                      className="flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                      aria-label="More options"
+                    />
+                  )}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </PopoverTrigger>
+                <PopoverContent align="end" side="top" className="w-auto p-2">
+                  <div className="flex flex-col items-stretch gap-2 min-w-[180px]">
+                    {isSessionActive && !isThinking ?
+                        (
+                          <BusyActionSelect value={busyAction} onChange={setBusyAction} />
+                        ) :
+                      null}
+                    <ModeSelect value={mode} onChange={setMode} />
+                    {models.length > 0 ?
+                        (
+                          <ModelSelect
+                            models={models}
+                            value={activeModel}
+                            onChange={setSelectedModel}
+                            disabled={isSessionActive || modelLocked}
+                            locked={modelLocked}
+                          />
+                        ) :
+                      null}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
         </div>
 

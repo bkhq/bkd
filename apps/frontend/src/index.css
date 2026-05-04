@@ -186,6 +186,18 @@
     touch-action: manipulation;
   }
 
+  /* iOS Safari auto-zooms any focused form control whose font-size is below
+     16px. We use 11/12/13px utility classes liberally for desktop density,
+     so on phones force a 16px floor on inputs/textareas/selects to suppress
+     the involuntary zoom-on-focus that breaks layout and steals scroll. */
+  @media (max-width: 767px) {
+    input,
+    textarea,
+    select {
+      font-size: max(16px, 1em);
+    }
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
