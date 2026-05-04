@@ -5,7 +5,7 @@ import { resolveCommand, runCommand } from '@/engines/spawn'
 import type { EngineAvailability, EngineModel } from '@/engines/types'
 import { queryAcpModels } from '../acp-client'
 
-export type AcpAgentId = 'gemini' | 'codex' | 'claude'
+export type AcpAgentId = 'gemini' | 'codex' | 'claude' | 'opencode'
 
 export interface AcpAgentDefinition {
   id: AcpAgentId

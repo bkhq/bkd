@@ -94,6 +94,27 @@ export function GeminiIcon(props: IconProps) {
   )
 }
 
+/** OpenCode — concentric arcs forming an open square bracket */
+export function OpencodeIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path
+        d="M9 4 H5 a1 1 0 0 0 -1 1 v14 a1 1 0 0 0 1 1 h4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M15 4 h4 a1 1 0 0 1 1 1 v14 a1 1 0 0 1 -1 1 h-4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="12" r="2.2" fill="currentColor" />
+    </svg>
+  )
+}
+
 const ENGINE_ICONS: Partial<Record<string, React.FC<IconProps>>> = {
   'claude-code': ClaudeIcon,
   'claude-code-sdk': ClaudeSdkIcon,
@@ -102,6 +123,7 @@ const ENGINE_ICONS: Partial<Record<string, React.FC<IconProps>>> = {
   'acp:gemini': GeminiIcon,
   'acp:codex': CodexIcon,
   'acp:claude': ClaudeIcon,
+  'acp:opencode': OpencodeIcon,
 }
 
 export function EngineIcon({ engineType, ...props }: IconProps & { engineType: string }) {

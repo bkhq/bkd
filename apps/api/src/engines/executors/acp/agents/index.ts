@@ -9,11 +9,13 @@ import type { AcpAgentDefinition, AcpAgentId, ParsedAcpModel } from './base'
 import { claudeAgent } from './claude'
 import { codexAgent } from './codex'
 import { geminiAgent } from './gemini'
+import { opencodeAgent } from './opencode'
 
 const ACP_AGENTS: Record<AcpAgentId, AcpAgentDefinition> = {
   gemini: geminiAgent,
   codex: codexAgent,
   claude: claudeAgent,
+  opencode: opencodeAgent,
 }
 
 export type { AcpAgentDefinition, AcpAgentId, ParsedAcpModel } from './base'
