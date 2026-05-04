@@ -1,5 +1,7 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { lazy, Suspense, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
@@ -21,8 +23,23 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 30,
       retry: 1,
+      // Required for query persistence: persist-client only persists queries
+      // whose `gcTime` is longer than the persistence write interval, otherwise
+      // they get garbage-collected before the dehydrate snapshot is taken.
+      gcTime: 1000 * 60 * 60 * 24, // 24h
     },
   },
+})
+
+// localStorage-backed persister: dehydrates the query cache so that on next
+// page load the previously-fetched data is rendered immediately while the
+// network refetch happens in the background. Critical for mobile UX where
+// every tab close + reopen previously meant a cold-load wait.
+const persister = createSyncStoragePersister({
+  storage: typeof window === 'undefined' ? undefined : window.localStorage,
+  key: 'bkd:react-query-cache',
+  // Throttle writes to 1s — protects against thrashing during rapid SSE updates.
+  throttleTime: 1000,
 })
 
 // Invalidate all queries on SSE reconnect so stale statuses get refreshed
@@ -223,7 +240,28 @@ const rootElement = document.getElementById('app')!
 if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement)
   root.render(
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister,
+        // 24h cap: anything older than this is dropped during rehydrate.
+        maxAge: 1000 * 60 * 60 * 24,
+        // Bump on schema-incompatible changes to flush stale shapes.
+        buster: 'v1',
+        dehydrateOptions: {
+          // Skip queries that are explicitly meant to be live (FREQUENT tier
+          // staleTime ≤ 5s). Persisting them just causes a stale flash before
+          // the immediate refetch lands.
+          shouldDehydrateQuery: (q) => {
+            if (q.state.status !== 'success') return false
+            // Live process / download status / SSE-driven views — don't persist.
+            const k = q.queryKey
+            if (k.includes('processes') || k.includes('downloadStatus')) return false
+            return true
+          },
+        },
+      }}
+    >
       <BrowserRouter>
         <ErrorBoundary>
           <AppShell>
@@ -344,6 +382,6 @@ if (!rootElement.innerHTML) {
         </ErrorBoundary>
       </BrowserRouter>
       {import.meta.env.DEV ? <ReactQueryDevtools initialIsOpen={false} /> : null}
-    </QueryClientProvider>,
+    </PersistQueryClientProvider>,
   )
 }

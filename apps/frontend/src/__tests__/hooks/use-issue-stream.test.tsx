@@ -12,6 +12,7 @@ const getIssueLogsMock = vi.fn()
 vi.mock('@/lib/event-bus', () => ({
   eventBus: {
     subscribe: (...args: unknown[]) => subscribeMock(...args),
+    onResume: () => () => {},
   },
 }))
 
