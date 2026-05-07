@@ -542,10 +542,10 @@ export function ChatInput({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {/* Resize handle */}
+        {/* Resize handle — hidden on mobile (touch can't drag a 2px target) */}
         <div
           onMouseDown={handleResizeStart}
-          className="flex items-center justify-center h-2 cursor-ns-resize group/resize"
+          className="flex items-center justify-center h-2 cursor-ns-resize group/resize max-md:hidden"
         >
           <div className="w-8 h-0.5 rounded-full bg-border/30 group-hover/resize:bg-border/60 transition-colors" />
         </div>
@@ -559,8 +559,9 @@ export function ChatInput({
             ) :
           null}
 
-        {/* Status bar */}
-        <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border/30">
+        {/* Status bar — desktop only. Mobile collapses files-changed badge,
+            Mode/Model selectors, etc. behind the ⋯ button in the bottom toolbar. */}
+        <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border/30 max-md:hidden">
           <button
             type="button"
             onClick={() => projectId && issueId && openFileBrowser(projectId, issueId, changesRoot)}
@@ -783,6 +784,71 @@ export function ChatInput({
             >
               <RefreshCw className="size-4" />
             </Button>
+            {/* Mobile-only ⋯ — surfaces the contents of the (hidden) status bar:
+                files-changed badge, Mode / Model / BusyAction selectors. Keeps
+                the input chrome to a single visible row on phones. */}
+            <div className="md:hidden">
+              <Popover>
+                <PopoverTrigger
+                  render={(
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title={t('chat.moreOptions', 'More')}
+                      aria-label="More options"
+                    />
+                  )}
+                >
+                  <MoreHorizontal className="size-4" />
+                </PopoverTrigger>
+                <PopoverContent align="start" side="top" className="w-auto p-2">
+                  <div className="flex flex-col items-stretch gap-2 min-w-[200px]">
+                    {changedCount > 0 ?
+                        (
+                          <button
+                            type="button"
+                            onClick={onToggleDiff}
+                            className={`inline-flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs transition-all ${
+                              diffOpen ?
+                                'bg-primary/10 ring-1 ring-primary/20 text-foreground' :
+                                'bg-muted/40 hover:bg-muted/60 text-muted-foreground'
+                            }`}
+                          >
+                            <span>{t('chat.filesChanged', { count: changedCount })}</span>
+                            <span className="font-mono tabular-nums">
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                +
+                                {additions}
+                              </span>
+                              <span className="ml-1 text-red-600 dark:text-red-400 font-medium">
+                                -
+                                {deletions}
+                              </span>
+                            </span>
+                          </button>
+                        ) :
+                      null}
+                    {isSessionActive && !isThinking ?
+                        (
+                          <BusyActionSelect value={busyAction} onChange={setBusyAction} />
+                        ) :
+                      null}
+                    <ModeSelect value={mode} onChange={setMode} />
+                    {models.length > 0 ?
+                        (
+                          <ModelSelect
+                            models={models}
+                            value={activeModel}
+                            onChange={setSelectedModel}
+                            disabled={isSessionActive || modelLocked}
+                            locked={modelLocked}
+                          />
+                        ) :
+                      null}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
 
           <div className="flex items-center gap-1.5">
