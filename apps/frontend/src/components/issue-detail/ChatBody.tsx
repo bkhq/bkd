@@ -144,6 +144,7 @@ export function ChatBody({
   onToggleDiff,
   scrollRef: externalScrollRef,
   onAfterDelete,
+  chromeVisible = true,
 }: {
   projectId: string
   issueId: string
@@ -152,6 +153,9 @@ export function ChatBody({
   onToggleDiff: () => void
   scrollRef?: React.RefObject<HTMLDivElement | null>
   onAfterDelete?: () => void
+  /** When false, the IssueDetail status bar + ChatInput collapse off-screen
+   *  on mobile (controlled by parent ChatArea's scroll-direction tracker). */
+  chromeVisible?: boolean
 }) {
   const { t } = useTranslation()
   const internalScrollRef = useRef<HTMLDivElement>(null)
@@ -414,6 +418,14 @@ export function ChatBody({
         </div>
       )}
 
+      {/* Bottom chrome (status bar + input) — collapses to zero height on
+          mobile when scrolling down so the chat content has full screen.
+          Restored on scroll up or when at top/bottom of the message list. */}
+      <div
+        className={`flex flex-col transition-all duration-200 max-md:overflow-hidden ${
+          chromeVisible ? '' : 'max-md:max-h-0 max-md:opacity-0'
+        }`}
+      >
       {/* Issue metadata bar — fixed above input */}
       <IssueDetail
         issue={issue}
@@ -445,6 +457,7 @@ export function ChatBody({
         pendingEditContent={pendingEditContent}
         onPendingEditConsumed={() => setPendingEditContent(null)}
       />
+      </div>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

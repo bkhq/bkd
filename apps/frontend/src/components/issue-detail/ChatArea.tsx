@@ -1,5 +1,5 @@
 import { ArrowLeft, Check, Link } from 'lucide-react'
-import { lazy, Suspense, useCallback, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -47,6 +47,40 @@ export function ChatArea({
   const isMobile = useIsMobile()
   const showFileBrowser = useFileBrowserStore(s => s.isOpen && !s.isDrawer && s.issueId === issueId)
   const closeFileBrowser = useFileBrowserStore(s => s.close)
+
+  // Auto-hide chrome (top title bar + bottom status/input) when reading:
+  // scrolling down past a small threshold slides them off-screen, scrolling
+  // back up brings them back. Mobile only — desktop has plenty of vertical
+  // space and the always-visible chrome is useful as orientation.
+  // Listening on the chat scroll container (not the window) because that's
+  // where the actual chat scrolling happens.
+  const [chromeVisible, setChromeVisible] = useState(true)
+  useEffect(() => {
+    if (!isMobile) {
+      setChromeVisible(true)
+      return
+    }
+    const el = scrollRef.current
+    if (!el) return
+    let lastTop = el.scrollTop
+    const onScroll = () => {
+      const top = el.scrollTop
+      const delta = top - lastTop
+      // Always reveal at the very top / very bottom so the user has anchors.
+      const atTop = top < 8
+      const atBottom = el.scrollHeight - top - el.clientHeight < 8
+      if (atTop || atBottom) {
+        setChromeVisible(true)
+      } else if (delta > 6) {
+        setChromeVisible(false)
+      } else if (delta < -6) {
+        setChromeVisible(true)
+      }
+      lastTop = top
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [isMobile])
 
   const updateIssue = useUpdateIssue(projectId)
 
@@ -103,8 +137,14 @@ export function ChatArea({
     <div className="flex flex-1 min-w-0 bg-background overflow-hidden">
       {/* Chat column */}
       <div className="flex flex-1 min-w-0 flex-col">
-        {/* Title bar */}
-        <div className="flex items-center gap-2 px-2.5 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] md:gap-2.5 md:px-3 bg-background/80 backdrop-blur-sm">
+        {/* Title bar — auto-collapses to zero height on scroll-down on mobile
+            to give the chat stream more breathing room. Always visible on
+            desktop. */}
+        <div
+          className={`flex items-center gap-2 px-2.5 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] md:gap-2.5 md:px-3 bg-background/80 backdrop-blur-sm transition-all duration-200 max-md:overflow-hidden ${
+            chromeVisible ? '' : 'max-md:max-h-0 max-md:min-h-0 max-md:py-0 max-md:border-b-0 max-md:opacity-0'
+          }`}
+        >
           <Button
             variant="ghost"
             size="icon"
@@ -183,6 +223,7 @@ export function ChatArea({
           onToggleDiff={onToggleDiff}
           scrollRef={scrollRef}
           onAfterDelete={handleAfterDelete}
+          chromeVisible={chromeVisible}
         />
       </div>
 
