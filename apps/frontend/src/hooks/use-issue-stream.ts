@@ -127,6 +127,38 @@ export function useIssueStream({
   // Fallback dedup for entries without messageId (streaming deltas)
   const seenContentKeysRef = useRef(new Set<string>())
 
+  // Synchronous reset on scope change.
+  //
+  // Without this, switching issueId would leave stale state visible for ONE
+  // render: the useEffect-based reset further down only fires after render,
+  // so the parent's first re-render with the new issueId still receives the
+  // previous issue's `logs` array. Combined with `<LazySessionMessages
+  // key={issueId}>` in ChatBody, that meant the freshly-mounted child snapped
+  // its scroll to the bottom of the *previous* issue's content, then locked
+  // `initialScrollDone` — and when the real new logs arrived they rendered
+  // at the top with no further snap.
+  //
+  // Calling setState during render aborts this render and re-runs with the
+  // cleared values, so consumers never observe the stale window.
+  const currentScope = `${projectId}:${issueId}:${typesKey}`
+  const prevScopeRef = useRef(currentScope)
+  if (prevScopeRef.current !== currentScope) {
+    prevScopeRef.current = currentScope
+    setLiveLogs([])
+    setOlderLogs([])
+    setSessionStatus(externalStatus ?? null)
+    setHasOlderLogs(false)
+    setIsLoadingOlder(false)
+    liveLogsRef.current = []
+    olderLogsRef.current = []
+    olderCursorRef.current = null
+    doneReceivedRef.current = false
+    activeExecutionRef.current = null
+    seenIdsRef.current.clear()
+    seenContentKeysRef.current.clear()
+    trimCursorSetRef.current = false
+  }
+
   // Combined logs for rendering: olderLogs (history) + liveLogs (current window).
   // Always sort by ULID and dedup by messageId — this is the final safety net
   // that guarantees correct chronological order and no duplicates regardless

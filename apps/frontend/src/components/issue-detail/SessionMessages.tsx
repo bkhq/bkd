@@ -1,7 +1,7 @@
 import type { ChatMessage, NormalizedLogEntry, TaskPlanChatMessage } from '@bkd/shared'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { CheckCircle2, ChevronDown, Circle, ListTodo, Loader2 } from 'lucide-react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useChatMessages } from '@/hooks/use-chat-messages'
 import { useViewModeStore } from '@/stores/view-mode-store'
@@ -200,19 +200,21 @@ function LegacySessionMessages({
   }, [scrollRef])
 
   const initialScrollDone = useRef(false)
-  useEffect(() => {
+  // useLayoutEffect: runs synchronously after DOM mutations but before browser
+  // paint, so the user never sees a "scroll-from-top-to-bottom" flash on issue
+  // switch (we ride on `key={issueId}` in ChatBody to remount this subtree;
+  // remount resets initialScrollDone, then this effect snaps to bottom before
+  // the new content is painted).
+  //
+  // Falls back to a layout pass triggered by messages.length changing, so that
+  // even if logs arrive after the first paint (cache miss), we still snap to
+  // bottom on the very next render rather than animating.
+  useLayoutEffect(() => {
     if (initialScrollDone.current || (messages.length === 0 && pendingMessages.length === 0)) return
     const el = scrollRef?.current
     if (!el) return
-    // Double-rAF ensures the lazy-loaded content has been painted before
-    // we measure scrollHeight.  A single rAF fires before the browser
-    // composites the first meaningful paint of the Suspense child.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        el.scrollTo({ top: el.scrollHeight })
-        initialScrollDone.current = true
-      })
-    })
+    el.scrollTop = el.scrollHeight
+    initialScrollDone.current = true
   }, [messages.length, pendingMessages.length, scrollRef])
 
   const prevLenRef = useRef(messages.length)
