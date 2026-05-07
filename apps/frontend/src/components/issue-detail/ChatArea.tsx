@@ -48,18 +48,21 @@ export function ChatArea({
   const showFileBrowser = useFileBrowserStore(s => s.isOpen && !s.isDrawer && s.issueId === issueId)
   const closeFileBrowser = useFileBrowserStore(s => s.close)
 
-  // Auto-hide title bar (top only) when reading: scrolling down past a small
-  // threshold slides it off-screen, scrolling back up brings it back. Mobile
-  // only — desktop has plenty of vertical space and the always-visible
-  // header is useful as orientation.
+  // Auto-hide title bar (top only) when reading. Mobile only — desktop has
+  // plenty of vertical space and the always-visible header is useful as
+  // orientation.
+  //
+  // Hysteresis design: a single-direction-delta trigger (e.g. >6px) makes
+  // the bar flicker the moment the user's finger drifts the wrong way. We
+  // accumulate scroll distance per direction and only flip visibility once
+  // a minimum continuous scroll is reached, resetting the opposite
+  // accumulator on every direction change. Result: a hesitant nudge up
+  // does nothing, but a deliberate 80px upward scroll brings the bar back.
   //
   // The bottom chrome (status bar + chat input) intentionally stays visible
   // at all times. Auto-hiding it created an oscillation feedback loop near
-  // the bottom of the message list (chrome appears → flex container shrinks
-  // → user is no longer "at bottom" → next scroll event hides chrome → flex
-  // container grows → back at bottom → chrome reappears → ...). It also
-  // mirrors how every modern phone chat app (Telegram / WhatsApp / iMessage)
-  // behaves: input pinned, header collapses.
+  // the bottom of the message list, and modern phone chat apps (Telegram /
+  // WhatsApp / iMessage) all keep the input permanently pinned.
   const [titleVisible, setTitleVisible] = useState(true)
   useEffect(() => {
     if (!isMobile) {
@@ -68,20 +71,42 @@ export function ChatArea({
     }
     const el = scrollRef.current
     if (!el) return
+
+    const HIDE_THRESHOLD = 40 // px of continuous down-scroll before hiding
+    const SHOW_THRESHOLD = 90 // px of continuous up-scroll before re-showing
+
     let lastTop = el.scrollTop
+    let upAccum = 0
+    let downAccum = 0
+
     const onScroll = () => {
       const top = el.scrollTop
       const delta = top - lastTop
+      lastTop = top
+
       // Always reveal at the very top so the user has a "home" anchor.
       if (top < 8) {
+        upAccum = 0
+        downAccum = 0
         setTitleVisible(true)
-      } else if (delta > 6) {
-        setTitleVisible(false)
-      } else if (delta < -6) {
-        setTitleVisible(true)
+        return
       }
-      lastTop = top
+
+      if (delta > 0) {
+        downAccum += delta
+        upAccum = 0
+        if (downAccum > HIDE_THRESHOLD) {
+          setTitleVisible(false)
+        }
+      } else if (delta < 0) {
+        upAccum += -delta
+        downAccum = 0
+        if (upAccum > SHOW_THRESHOLD) {
+          setTitleVisible(true)
+        }
+      }
     }
+
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
   }, [isMobile])
