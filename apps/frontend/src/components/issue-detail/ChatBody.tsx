@@ -28,6 +28,7 @@ import { useChatFilterStore } from '@/stores/chat-filter-store'
 import type { Issue, NormalizedLogEntry } from '@/types/kanban'
 import { ChatInput } from './ChatInput'
 import { IssueDetail } from './IssueDetail'
+import { ThinkingHover } from './ThinkingHover'
 
 const LazySessionMessages = lazy(() =>
   import('./SessionMessages').then(m => ({ default: m.SessionMessages })),
@@ -285,13 +286,24 @@ export function ChatBody({
       {/* Messages */}
       <div className="relative flex-1 overflow-hidden">
         <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden">
+          {/* ChatGPT-style "thinking" indicator. Sticky inside the scroll
+              container so it floats above messages while the issue is
+              actively running, and unmounts on settle (historical thinking
+              entries remain inline as collapsed details). */}
+          <ThinkingHover logs={logs} isActive={isThinking} />
           <div className="flex flex-col min-h-full justify-end py-2">
             <Suspense
               fallback={
                 <div className="px-5 py-2 text-xs text-muted-foreground">{t('common.loading')}</div>
               }
             >
+              {/* key={issueId}: force-remount on issue switch so the internal
+                  scroll refs in SessionMessages (initialScrollDone, nearBottomRef,
+                  prevLenRef, prevFirstIdRef) reset cleanly. Otherwise stale state
+                  from the previous issue caused a visible scroll jump / smooth
+                  animation on every switch. */}
               <LazySessionMessages
+                key={issueId}
                 logs={logs}
                 scrollRef={scrollRef}
                 engineType={issue.engineType ?? undefined}

@@ -301,6 +301,16 @@
   .thinking-dots span:nth-child(3) {
     animation-delay: 0.4s;
   }
+
+  /* ChatGPT-style "AI is thinking" brain pulse for ThinkingHover */
+  .thinking-pulse {
+    animation: thinking-pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes thinking-pulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.08); }
+  }
 }
 
 /* ─── Shiki line numbers (CSS counter, no data-line needed) ─── */
