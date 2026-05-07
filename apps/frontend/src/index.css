@@ -386,23 +386,75 @@
 .markdown-chat em { font-style: italic; }
 
 /* GFM tables — react-markdown produces real <table> markup, no monospace
-   alignment needed (that's why we removed the CJK padding preprocessing) */
+   alignment needed (that's why we removed the CJK padding preprocessing).
+   On mobile we add a horizontal-scroll container with a sticky first column
+   and edge fade so wide tables stay readable on a 400px screen. */
 .markdown-chat table {
-  border-collapse: collapse;
+  border-collapse: separate; /* required for sticky first column to render its border correctly */
+  border-spacing: 0;
   margin: 0.6em 0;
   font-size: 0.95em;
   display: block;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Right-edge fade — only paints when there's content scrolled off to the
+     right. Uses background-attachment: local for the base white layer and
+     scroll for the gradient masks so the shadow disappears at the table's
+     ends. */
+  background:
+    linear-gradient(to right, var(--background) 30%, color-mix(in oklab, var(--background) 0%, transparent)) left center / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--background) 30%, color-mix(in oklab, var(--background) 0%, transparent)) right center / 24px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 0.12), transparent) left center / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.12), transparent) right center / 12px 100% no-repeat scroll;
 }
 .markdown-chat th,
 .markdown-chat td {
-  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-right: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
   padding: 0.4em 0.7em;
   text-align: left;
+  vertical-align: top;
+}
+.markdown-chat tr > :first-child {
+  border-left: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+}
+.markdown-chat tr:first-child > * {
+  border-top: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
 }
 .markdown-chat th {
   background: color-mix(in oklab, var(--muted) 60%, transparent);
   font-weight: 600;
+}
+
+/* Mobile: tighter typography + sticky first column so the row label stays
+   visible while horizontally scrolling through the rest of the columns. */
+@media (max-width: 767px) {
+  .markdown-chat table {
+    font-size: 0.85em;
+  }
+  .markdown-chat th,
+  .markdown-chat td {
+    padding: 0.35em 0.55em;
+    word-break: break-word;
+    min-width: 5em;
+    max-width: 14em;
+  }
+  /* Pin the first column on horizontal scroll. The table itself is the
+     scroll container (display: block + overflow-x: auto), so sticky is
+     resolved against that container. */
+  .markdown-chat tr > :first-child {
+    position: sticky;
+    left: 0;
+    background: var(--background);
+    z-index: 1;
+    /* Subtle right shadow so the pinned column visually separates from the
+       scrolled-out cells. */
+    box-shadow: 1px 0 0 0 color-mix(in oklab, var(--border) 80%, transparent);
+  }
+  .markdown-chat th:first-child {
+    background: color-mix(in oklab, var(--muted) 60%, var(--background));
+    z-index: 2;
+  }
 }
 
 /* GFM task list checkboxes */
