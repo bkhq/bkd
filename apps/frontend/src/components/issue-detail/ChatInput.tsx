@@ -501,14 +501,14 @@ export function ChatInput({
     [addFiles],
   )
 
-  // Auto-grow textarea: shrink to content, expand up to ~10 lines, then scroll.
+  // Auto-grow textarea: shrink to content, expand up to ~8 lines, then scroll.
   // useLayoutEffect runs before paint so the resize never flashes a stale height.
   useLayoutEffect(() => {
     const ta = textareaRef.current
     if (!ta) return
     ta.style.height = '0px'
-    const next = Math.min(ta.scrollHeight, 240)
-    ta.style.height = `${Math.max(next, 40)}px`
+    const next = Math.min(ta.scrollHeight, 200)
+    ta.style.height = `${Math.max(next, 32)}px`
   }, [input])
 
   const hasChanges = changedCount > 0
@@ -677,24 +677,7 @@ export function ChatInput({
             ) :
           null}
 
-        {/* Textarea — auto-grows up to ~240px via the useLayoutEffect above.
-            We explicitly override shadcn's `field-sizing-content` so the JS
-            height management is the single source of truth (otherwise the
-            browser's own auto-sizing fights every render). */}
-        <div className="px-1">
-          <Textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleInput}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={statusId === 'todo' ? t('chat.placeholderTodo') : t('chat.placeholder')}
-            rows={1}
-            className="w-full bg-transparent text-base md:text-sm resize-none outline-none border-none shadow-none placeholder:text-muted-foreground/40 leading-relaxed focus-visible:ring-0 overflow-y-auto min-h-[40px] [field-sizing:fixed]"
-          />
-        </div>
-
-        {/* File preview bar — below textarea */}
+        {/* File preview bar — above the textarea row when files are attached */}
         {attachedFiles.length > 0 ?
             (
               <div className="flex flex-wrap gap-1.5 px-2 pb-1.5">
@@ -739,11 +722,17 @@ export function ChatInput({
           onChange={handleFileSelect}
         />
 
-        {/* Toolbar */}
-        <div className="flex items-center justify-between px-2 pb-2 pt-0.5">
-          <div className="flex items-center gap-0.5">
+        {/* Combined input row: textarea grows in the middle, action icons sit
+            on either side and stay aligned to the bottom of the textarea
+            even when it auto-grows (`items-end`). When the textarea is a
+            single line the whole input is ~44px tall — same row as the
+            buttons — saving the ~50px the previous two-row toolbar wasted
+            in idle state. ChatGPT / Claude.app pattern. */}
+        <div className="flex items-end gap-0.5 px-1.5 py-1.5">
+          {/* Left actions */}
+          <div className="flex items-center gap-0.5 shrink-0">
             {/* EngineInfo / Refresh — desktop only. On mobile both go into the
-                ⋯ popover so the bottom row stays at 📎 / ⋯ │ 发送 (4 elements). */}
+                ⋯ popover so the bottom row stays at 📎 / ⋯  ↑ (4 elements). */}
             <div className="hidden md:flex items-center gap-0.5">
               {engineType ? <EngineInfo engineType={engineType} /> : null}
             </div>
@@ -873,7 +862,23 @@ export function ChatInput({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Textarea — flex-1 between the action groups. Auto-grows up to
+              ~200px via the useLayoutEffect above, then internally scrolls.
+              `field-sizing:fixed` overrides shadcn's auto-sizing so the JS
+              path is the single source of truth. */}
+          <Textarea
+            ref={textareaRef}
+            value={input}
+            onChange={handleInput}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            placeholder={statusId === 'todo' ? t('chat.placeholderTodo') : t('chat.placeholder')}
+            rows={1}
+            className="flex-1 self-stretch bg-transparent text-base md:text-sm resize-none outline-none border-none shadow-none placeholder:text-muted-foreground/40 leading-relaxed focus-visible:ring-0 overflow-y-auto min-h-[32px] py-1.5 px-1.5 [field-sizing:fixed]"
+          />
+
+          {/* Right actions */}
+          <div className="flex items-center gap-1 shrink-0">
             <Button
               variant="ghost"
               size="icon"
