@@ -43,10 +43,13 @@ function getVersionString(): string {
   return `${app} (launcher:v1 ${LAUNCHER_COMMIT})`
 }
 
-const SEMVER_RE = /^\d+\.\d+\.\d+$/
+// Accept SemVer 2.0.0 with optional pre-release / build-metadata suffix so
+// downstream forks can ship distribution channels (e.g. "0.0.66-lc",
+// "0.0.66+nightly"). Mirrors the regex used by package.ts and upgrade utils.
+const SEMVER_RE = /^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/
 const SHA256_RE = /^[a-f0-9]{64}$/
 const GITHUB_REPO = 'bkhq/bkd'
-const APP_PKG_RE = /^bkd-app-v(\d+\.\d+\.\d+)\.tar\.gz$/
+const APP_PKG_RE = /^bkd-app-v(\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?)\.tar\.gz$/
 const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024 // 50 MB
 const ALLOWED_HOSTS = new Set(['github.com', 'objects.githubusercontent.com'])
 const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'] as const
@@ -69,8 +72,11 @@ interface AppPackageInfo {
 // --- Utility functions ---
 
 function compareSemver(a: string, b: string): number {
-  const pa = a.split('.').map(Number)
-  const pb = b.split('.').map(Number)
+  // Strip pre-release / build-metadata suffix before numeric compare so a
+  // value like "0.0.66-lc" doesn't produce NaN and a non-deterministic sort.
+  const stripSuffix = (s: string) => s.replace(/[-+].*$/, '')
+  const pa = stripSuffix(a).split('.').map(Number)
+  const pb = stripSuffix(b).split('.').map(Number)
   for (let i = 0; i < 3; i++) {
     const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
     if (diff !== 0) return diff
@@ -580,7 +586,7 @@ async function main() {
     if (existsSync(appBase)) {
       try {
         const versions = readdirSync(appBase, { withFileTypes: true })
-          .filter(d => d.isDirectory() && /^v\d+\.\d+\.\d+$/.test(d.name))
+          .filter(d => d.isDirectory() && /^v\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/.test(d.name))
           .map(d => d.name.slice(1))
           .sort(compareSemver)
         version = versions.length > 0 ? versions.at(-1) ?? null : null
