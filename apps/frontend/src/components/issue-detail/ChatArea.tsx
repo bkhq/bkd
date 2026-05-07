@@ -48,16 +48,22 @@ export function ChatArea({
   const showFileBrowser = useFileBrowserStore(s => s.isOpen && !s.isDrawer && s.issueId === issueId)
   const closeFileBrowser = useFileBrowserStore(s => s.close)
 
-  // Auto-hide chrome (top title bar + bottom status/input) when reading:
-  // scrolling down past a small threshold slides them off-screen, scrolling
-  // back up brings them back. Mobile only — desktop has plenty of vertical
-  // space and the always-visible chrome is useful as orientation.
-  // Listening on the chat scroll container (not the window) because that's
-  // where the actual chat scrolling happens.
-  const [chromeVisible, setChromeVisible] = useState(true)
+  // Auto-hide title bar (top only) when reading: scrolling down past a small
+  // threshold slides it off-screen, scrolling back up brings it back. Mobile
+  // only — desktop has plenty of vertical space and the always-visible
+  // header is useful as orientation.
+  //
+  // The bottom chrome (status bar + chat input) intentionally stays visible
+  // at all times. Auto-hiding it created an oscillation feedback loop near
+  // the bottom of the message list (chrome appears → flex container shrinks
+  // → user is no longer "at bottom" → next scroll event hides chrome → flex
+  // container grows → back at bottom → chrome reappears → ...). It also
+  // mirrors how every modern phone chat app (Telegram / WhatsApp / iMessage)
+  // behaves: input pinned, header collapses.
+  const [titleVisible, setTitleVisible] = useState(true)
   useEffect(() => {
     if (!isMobile) {
-      setChromeVisible(true)
+      setTitleVisible(true)
       return
     }
     const el = scrollRef.current
@@ -66,15 +72,13 @@ export function ChatArea({
     const onScroll = () => {
       const top = el.scrollTop
       const delta = top - lastTop
-      // Always reveal at the very top / very bottom so the user has anchors.
-      const atTop = top < 8
-      const atBottom = el.scrollHeight - top - el.clientHeight < 8
-      if (atTop || atBottom) {
-        setChromeVisible(true)
+      // Always reveal at the very top so the user has a "home" anchor.
+      if (top < 8) {
+        setTitleVisible(true)
       } else if (delta > 6) {
-        setChromeVisible(false)
+        setTitleVisible(false)
       } else if (delta < -6) {
-        setChromeVisible(true)
+        setTitleVisible(true)
       }
       lastTop = top
     }
@@ -142,7 +146,7 @@ export function ChatArea({
             desktop. */}
         <div
           className={`flex items-center gap-2 px-2.5 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] md:gap-2.5 md:px-3 bg-background/80 backdrop-blur-sm transition-all duration-200 max-md:overflow-hidden ${
-            chromeVisible ? '' : 'max-md:max-h-0 max-md:min-h-0 max-md:py-0 max-md:border-b-0 max-md:opacity-0'
+            titleVisible ? '' : 'max-md:max-h-0 max-md:min-h-0 max-md:py-0 max-md:border-b-0 max-md:opacity-0'
           }`}
         >
           <Button
@@ -223,7 +227,6 @@ export function ChatArea({
           onToggleDiff={onToggleDiff}
           scrollRef={scrollRef}
           onAfterDelete={handleAfterDelete}
-          chromeVisible={chromeVisible}
         />
       </div>
 
