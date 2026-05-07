@@ -165,14 +165,24 @@ export function ChatArea({
   return (
     <div className="flex flex-1 min-w-0 bg-background overflow-hidden">
       {/* Chat column */}
-      <div className="flex flex-1 min-w-0 flex-col">
-        {/* Title bar — auto-collapses to zero height on scroll-down on mobile
-            to give the chat stream more breathing room. Always visible on
-            desktop. */}
+      <div className="relative flex flex-1 min-w-0 flex-col">
+        {/* Title bar — on desktop sits in-flow as before. On mobile we
+            promote it to an absolute-positioned translucent overlay (iOS
+            Safari / Mail / Messages pattern):
+            – chat content fills the full viewport height; the top ~45px is
+              visible THROUGH the blurred title bar instead of being pushed
+              down by it, so there's no layout reflow when toggling.
+            – auto-hide is now a smooth `transform: translateY` slide rather
+              than a max-height collapse, eliminating the jank when content
+              behind it suddenly grows or shrinks.
+            – pointer-events stay enabled so the back button / title /
+              copy-link buttons remain tappable while chat scrolls behind. */}
         <div
-          className={`flex items-center gap-2 px-2.5 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] md:gap-2.5 md:px-3 bg-background/80 backdrop-blur-sm transition-all duration-200 max-md:overflow-hidden ${
-            titleVisible ? '' : 'max-md:max-h-0 max-md:min-h-0 max-md:py-0 max-md:border-b-0 max-md:opacity-0'
-          }`}
+          className={`flex items-center gap-2 px-2.5 py-2.5 border-b border-border/60 min-h-[45px] md:gap-2.5 md:px-3 bg-background/80 backdrop-blur-sm transition-transform duration-200 ease-out
+            md:shrink-0
+            max-md:absolute max-md:top-0 max-md:left-0 max-md:right-0 max-md:z-20 ${
+              titleVisible ? '' : 'max-md:-translate-y-full'
+            }`}
         >
           <Button
             variant="ghost"

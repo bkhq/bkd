@@ -759,7 +759,11 @@ export function ChatInput({
         {/* Toolbar */}
         <div className="flex items-center justify-between px-2 pb-2 pt-0.5">
           <div className="flex items-center gap-0.5">
-            {engineType ? <EngineInfo engineType={engineType} /> : null}
+            {/* EngineInfo / Refresh — desktop only. On mobile both go into the
+                ⋯ popover so the bottom row stays at 📎 / ⋯ │ 发送 (4 elements). */}
+            <div className="hidden md:flex items-center gap-0.5">
+              {engineType ? <EngineInfo engineType={engineType} /> : null}
+            </div>
             <Button
               variant="ghost"
               size="icon"
@@ -781,6 +785,7 @@ export function ChatInput({
               size="icon"
               title={t('chat.refreshLogs')}
               onClick={onRefreshLogs}
+              className="max-md:hidden"
             >
               <RefreshCw className="size-4" />
             </Button>
@@ -803,6 +808,40 @@ export function ChatInput({
                 </PopoverTrigger>
                 <PopoverContent align="start" side="top" className="w-auto p-2">
                   <div className="flex flex-col items-stretch gap-2 min-w-[200px]">
+                    {/* Engine info (was top-left toolbar icon on desktop). */}
+                    {engineType ?
+                        (
+                          <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">
+                            <EngineIcon engineType={engineType} className="size-4 shrink-0" />
+                            <span className="font-medium">
+                              {t(`createIssue.engineLabel.${engineType}`, engineType)}
+                            </span>
+                          </div>
+                        ) :
+                      null}
+                    {/* Refresh / Clear session buttons — collapsed from
+                        toolbar to keep the visible row clean on phones. */}
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-8 text-xs"
+                        onClick={onRefreshLogs}
+                      >
+                        <RefreshCw className="size-3.5" />
+                        {t('chat.refreshLogs')}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-8 text-xs"
+                        disabled={!issueId || isSessionActive || clearSession.isPending}
+                        onClick={() => setClearSessionOpen(true)}
+                      >
+                        <Eraser className="size-3.5" />
+                        {t('chat.clearSession')}
+                      </Button>
+                    </div>
                     {changedCount > 0 ?
                         (
                           <button
@@ -858,6 +897,7 @@ export function ChatInput({
               title={t('chat.clearSession')}
               disabled={!issueId || isSessionActive || clearSession.isPending}
               onClick={() => setClearSessionOpen(true)}
+              className="max-md:hidden"
             >
               <Eraser className="size-4" />
             </Button>
