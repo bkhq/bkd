@@ -1,4 +1,5 @@
 import {
+  ArrowUp,
   Eraser,
   FileText,
   FolderOpen,
@@ -10,7 +11,7 @@ import {
   SlashSquare,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EngineIcon } from '@/components/EngineIcons'
 import {
@@ -165,9 +166,6 @@ export function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isSendingRef = useRef(false)
-  const [textareaH, setTextareaH] = useState(36)
-  const dragRef = useRef({ active: false, startY: 0, startH: 0 })
-  const dragCleanupRef = useRef<(() => void) | null>(null)
 
   const followUp = useFollowUpIssue(projectId ?? '')
   const clearSession = useClearIssueSession(projectId ?? '')
@@ -438,7 +436,14 @@ export function ChatInput({
         return
       }
     }
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    // Enter sends, Shift+Enter inserts newline. Cmd/Ctrl+Enter kept for muscle
+    // memory. Skip while IME is composing so Chinese/Japanese input commits
+    // its candidate first.
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey &&
+      !e.nativeEvent.isComposing
+    ) {
       e.preventDefault()
       void handleSend()
     }
@@ -496,60 +501,30 @@ export function ChatInput({
     [addFiles],
   )
 
-  const handleResizeStart = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault()
-      // Clean up any previous drag listeners (shouldn't happen, but be safe)
-      dragCleanupRef.current?.()
-      dragRef.current = {
-        active: true,
-        startY: e.clientY,
-        startH: textareaH,
-      }
-      const onMove = (ev: MouseEvent) => {
-        if (!dragRef.current.active) return
-        const delta = dragRef.current.startY - ev.clientY
-        setTextareaH(Math.max(36, Math.min(480, dragRef.current.startH + delta)))
-      }
-      const cleanup = () => {
-        dragRef.current.active = false
-        document.removeEventListener('mousemove', onMove)
-        document.removeEventListener('mouseup', cleanup)
-        dragCleanupRef.current = null
-      }
-      dragCleanupRef.current = cleanup
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', cleanup)
-    },
-    [textareaH],
-  )
-  // Clean up drag listeners on unmount
-  useEffect(() => {
-    return () => {
-      dragCleanupRef.current?.()
-    }
-  }, [])
+  // Auto-grow textarea: shrink to content, expand up to ~10 lines, then scroll.
+  // useLayoutEffect runs before paint so the resize never flashes a stale height.
+  useLayoutEffect(() => {
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.style.height = '0px'
+    const next = Math.min(ta.scrollHeight, 240)
+    ta.style.height = `${Math.max(next, 40)}px`
+  }, [input])
+
+  const hasChanges = changedCount > 0
 
   return (
     <div className="shrink-0 w-full min-w-0 px-2 pb-2 relative z-30">
       <div
-        className={`rounded-xl border bg-card/80 backdrop-blur-sm shadow-sm transition-all duration-200 focus-within:border-border focus-within:shadow-md ${
+        className={`rounded-2xl border bg-card/80 backdrop-blur-sm shadow-sm transition-all duration-200 focus-within:border-border/80 focus-within:shadow-md ${
           isDragOver ?
             'border-primary/50 bg-primary/[0.03] ring-2 ring-primary/20' :
-            'border-border/60'
+            'border-border/50'
         }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {/* Resize handle — hidden on mobile (touch can't drag a 2px target) */}
-        <div
-          onMouseDown={handleResizeStart}
-          className="flex items-center justify-center h-2 cursor-ns-resize group/resize max-md:hidden"
-        >
-          <div className="w-8 h-0.5 rounded-full bg-border/30 group-hover/resize:bg-border/60 transition-colors" />
-        </div>
-
         {/* Drag overlay hint */}
         {isDragOver ?
             (
@@ -560,37 +535,42 @@ export function ChatInput({
           null}
 
         {/* Status bar — desktop only. Mobile collapses files-changed badge,
-            Mode/Model selectors, etc. behind the ⋯ button in the bottom toolbar. */}
-        <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border/30 max-md:hidden">
+            Mode/Model selectors, etc. behind the ⋯ button in the bottom toolbar.
+            Rendered without an internal divider so the whole input feels like
+            one card; selectors live here on the right while file changes (when
+            present) appear on the left as subtle chips. */}
+        <div className="flex items-center gap-1.5 px-2 pt-2 max-md:hidden">
           <button
             type="button"
             onClick={() => projectId && issueId && openFileBrowser(projectId, issueId, changesRoot)}
-            className="inline-flex items-center justify-center rounded-lg px-1.5 py-1 text-muted-foreground bg-muted/40 hover:bg-muted/60 transition-all duration-200"
+            className="inline-flex items-center justify-center rounded-md h-6 w-6 text-muted-foreground/70 hover:text-foreground hover:bg-muted/60 transition-colors"
             title={t('diff.openFiles')}
           >
             <FolderOpen className="h-3.5 w-3.5" />
           </button>
-          <button
-            type="button"
-            onClick={onToggleDiff}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition-all duration-200 ${
-              diffOpen ?
-                'bg-primary/[0.08] ring-1 ring-primary/20 text-foreground' :
-                'bg-muted/40 hover:bg-muted/60 text-muted-foreground'
-            }`}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <span>{t('chat.filesChanged', { count: changedCount })}</span>
-              <span className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-medium">
-                +
-                {additions}
-              </span>
-              <span className="font-mono tabular-nums text-red-600 dark:text-red-400 font-medium">
-                -
-                {deletions}
-              </span>
-            </span>
-          </button>
+          {hasChanges ?
+              (
+                <button
+                  type="button"
+                  onClick={onToggleDiff}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-2 h-6 text-[11px] transition-colors ${
+                    diffOpen ?
+                      'bg-primary/10 ring-1 ring-primary/20 text-foreground' :
+                      'text-muted-foreground hover:bg-muted/60'
+                  }`}
+                >
+                  <span>{t('chat.filesChanged', { count: changedCount })}</span>
+                  <span className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
+                    +
+                    {additions}
+                  </span>
+                  <span className="font-mono tabular-nums text-red-600 dark:text-red-400">
+                    -
+                    {deletions}
+                  </span>
+                </button>
+              ) :
+            null}
           <div className="ml-auto flex items-center gap-1">
             {/* Desktop: inline toolbar */}
             <div className="hidden md:flex items-center gap-1">
@@ -697,8 +677,11 @@ export function ChatInput({
             ) :
           null}
 
-        {/* Textarea — shadcn Textarea, style overrides to match original */}
-        <div className="px-2 py-2">
+        {/* Textarea — auto-grows up to ~240px via the useLayoutEffect above.
+            We explicitly override shadcn's `field-sizing-content` so the JS
+            height management is the single source of truth (otherwise the
+            browser's own auto-sizing fights every render). */}
+        <div className="px-1">
           <Textarea
             ref={textareaRef}
             value={input}
@@ -706,8 +689,8 @@ export function ChatInput({
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={statusId === 'todo' ? t('chat.placeholderTodo') : t('chat.placeholder')}
-            style={{ height: `${textareaH}px` }}
-            className="w-full bg-transparent text-base md:text-sm resize-none outline-none border-none shadow-none placeholder:text-muted-foreground/40 leading-relaxed focus-visible:ring-0 overflow-y-auto"
+            rows={1}
+            className="w-full bg-transparent text-base md:text-sm resize-none outline-none border-none shadow-none placeholder:text-muted-foreground/40 leading-relaxed focus-visible:ring-0 overflow-y-auto min-h-[40px] [field-sizing:fixed]"
           />
         </div>
 
@@ -890,28 +873,28 @@ export function ChatInput({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
               title={t('chat.clearSession')}
               disabled={!issueId || isSessionActive || clearSession.isPending}
               onClick={() => setClearSessionOpen(true)}
-              className="max-md:hidden"
+              className="max-md:hidden text-muted-foreground/60 hover:text-destructive"
             >
               <Eraser className="size-4" />
             </Button>
-            <Button type="button" disabled={!canSend || followUp.isPending} onClick={handleSend}>
+            <Button
+              type="button"
+              size="icon"
+              disabled={!canSend || followUp.isPending}
+              onClick={handleSend}
+              title={t('chat.send')}
+              className="rounded-full size-8 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"
+            >
               {followUp.isPending ?
-                  (
-                    <span className="flex items-center gap-1.5">
-                      <Loader2 className="size-3.5 animate-spin" />
-                      {t('session.sending')}
-                    </span>
-                  ) :
-                  (
-                    t('chat.send')
-                  )}
+                  <Loader2 className="size-4 animate-spin" /> :
+                  <ArrowUp className="size-4" strokeWidth={2.5} />}
             </Button>
           </div>
         </div>
