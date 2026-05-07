@@ -262,6 +262,7 @@ export function ChatArea({
           onToggleDiff={onToggleDiff}
           scrollRef={scrollRef}
           onAfterDelete={handleAfterDelete}
+          titleVisible={titleVisible}
         />
       </div>
 

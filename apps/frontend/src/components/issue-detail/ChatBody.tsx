@@ -145,6 +145,7 @@ export function ChatBody({
   onToggleDiff,
   scrollRef: externalScrollRef,
   onAfterDelete,
+  titleVisible = true,
 }: {
   projectId: string
   issueId: string
@@ -153,6 +154,9 @@ export function ChatBody({
   onToggleDiff: () => void
   scrollRef?: React.RefObject<HTMLDivElement | null>
   onAfterDelete?: () => void
+  /** Whether the parent ChatArea's title bar is visible — when false on
+   *  mobile the ThinkingHover slides up to take the title's place. */
+  titleVisible?: boolean
 }) {
   const { t } = useTranslation()
   const internalScrollRef = useRef<HTMLDivElement>(null)
@@ -285,12 +289,23 @@ export function ChatBody({
     <>
       {/* Messages */}
       <div className="relative flex-1 overflow-hidden">
+        {/* ChatGPT-style "thinking" indicator — absolute-positioned overlay
+            so it doesn't compete with the title bar for the same sticky
+            slot. On mobile the title bar lives at viewport y=0..45 as a
+            translucent overlay; ThinkingHover sits BELOW it (top: 50px)
+            when the title is visible, and slides up to take the title's
+            place when the title hides on scroll-down. On desktop the title
+            is in flow, so top: 8px already places ThinkingHover below it. */}
+        <div
+          className={`pointer-events-none absolute left-2 right-2 z-10 transition-[top] duration-200 ease-out ${
+            titleVisible ? 'top-2 max-md:top-[52px]' : 'top-2'
+          }`}
+        >
+          <div className="pointer-events-auto">
+            <ThinkingHover logs={logs} isActive={isThinking} />
+          </div>
+        </div>
         <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden">
-          {/* ChatGPT-style "thinking" indicator. Sticky inside the scroll
-              container so it floats above messages while the issue is
-              actively running, and unmounts on settle (historical thinking
-              entries remain inline as collapsed details). */}
-          <ThinkingHover logs={logs} isActive={isThinking} />
           <div className="flex flex-col min-h-full justify-end py-2">
             <Suspense
               fallback={

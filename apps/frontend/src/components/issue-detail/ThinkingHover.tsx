@@ -72,7 +72,7 @@ export function ThinkingHover({
 
   return (
     <div
-      className="sticky top-0 z-20 mx-2 mt-2 rounded-lg border border-violet-300/30 dark:border-violet-500/20 bg-violet-500/[0.06] backdrop-blur-md shadow-sm"
+      className="rounded-lg border border-violet-300/30 dark:border-violet-500/20 bg-background/85 backdrop-blur-md shadow-sm"
       data-state={expanded ? 'expanded' : 'collapsed'}
     >
       <button
