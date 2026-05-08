@@ -289,33 +289,39 @@ export function ChatBody({
     <>
       {/* Messages */}
       <div className="relative flex-1 overflow-hidden">
-        {/* ChatGPT-style "thinking" indicator — absolute-positioned overlay
-            so it doesn't compete with the title bar for the same sticky
-            slot. On mobile the title bar lives at viewport y=0..45 as a
-            translucent overlay; ThinkingHover sits BELOW it (top: 50px)
-            when the title is visible, and slides up to take the title's
-            place when the title hides on scroll-down. On desktop the title
-            is in flow, so top: 8px already places ThinkingHover below it. */}
-        <div
-          className={`pointer-events-none absolute left-2 right-2 z-10 transition-[top] duration-200 ease-out ${
-            titleVisible ? 'top-2 max-md:top-[52px]' : 'top-2'
-          }`}
-        >
-          <div className="pointer-events-auto">
-            <ThinkingHover
-              logs={logs}
-              isActive={isThinking}
-              workingStep={workingStep}
-              isCancelling={isCancelling}
-              onCancel={() => {
-                setIsCancelling(true)
-                cancelIssue.mutate(issueId, {
-                  onError: () => setIsCancelling(false),
-                })
-              }}
-            />
-          </div>
-        </div>
+        {/* Floating ThinkingHover at the top of chat — ONLY visible when
+            the user has scrolled up past ~200px (showScrollBottom). The
+            user is reading history; the inline ticker at the bottom of
+            the message list is off-screen, so this overlay surfaces the
+            running state without forcing them to scroll back.
+            When the user is near the bottom watching for the next reply,
+            this is hidden — the inline variant inside the message flow
+            takes over. */}
+        {showScrollBottom ?
+            (
+              <div
+                className={`pointer-events-none absolute left-2 right-2 z-10 transition-[top,opacity] duration-200 ease-out ${
+                  titleVisible ? 'top-2 max-md:top-[52px]' : 'top-2'
+                }`}
+              >
+                <div className="pointer-events-auto">
+                  <ThinkingHover
+                    logs={logs}
+                    isActive={isThinking}
+                    workingStep={workingStep}
+                    isCancelling={isCancelling}
+                    onCancel={() => {
+                      setIsCancelling(true)
+                      cancelIssue.mutate(issueId, {
+                        onError: () => setIsCancelling(false),
+                      })
+                    }}
+                    variant="floating"
+                  />
+                </div>
+              </div>
+            ) :
+          null}
         <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden">
           <div className="flex flex-col min-h-full justify-end py-2">
             <Suspense
@@ -347,6 +353,24 @@ export function ChatBody({
                 onLoadOlder={loadOlderLogs}
               />
             </Suspense>
+            {/* Inline thinking ticker — anchored to the bottom of the
+                message list so the user sees status right next to the
+                latest message while waiting for a reply. The floating
+                variant in the overlay above replaces this when the user
+                scrolls up to read history. */}
+            <ThinkingHover
+              logs={logs}
+              isActive={isThinking}
+              workingStep={workingStep}
+              isCancelling={isCancelling}
+              onCancel={() => {
+                setIsCancelling(true)
+                cancelIssue.mutate(issueId, {
+                  onError: () => setIsCancelling(false),
+                })
+              }}
+              variant="inline"
+            />
           </div>
         </div>
 

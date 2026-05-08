@@ -4,19 +4,24 @@ import { useTranslation } from 'react-i18next'
 import type { NormalizedLogEntry } from '@/types/kanban'
 
 /**
- * Sticky "AI is thinking…" bar that mimics ChatGPT's reasoning indicator.
+ * "AI is thinking…" indicator with two render modes that the parent
+ * (ChatBody) swaps between based on the user's scroll position:
  *
- * Renders ONLY while the issue is actively running. The collapsed state
- * shows a pulsing brain icon, the elapsed time, and the most recent ~3
- * lines of streaming reasoning so the user can glance at the gist
- * without expanding. Tapping the bar expands the full thinking content
- * (capped to 40vh, scrollable inside).
+ *   variant='inline'    Pulsing-dots ticker rendered at the bottom of the
+ *                       message list (the original location). Used while
+ *                       the user is at the bottom watching for the next
+ *                       reply, where their visual focus already is.
  *
- * Mounted as `position: sticky; top: 0` inside the chat scroll container
- * so it floats above message content without pushing the conversation
- * layout. When the task settles (`isActive` becomes false) the component
- * unmounts — the historical thinking entries remain inline in the chat
- * stream as collapsed `<details>` blocks (LogEntry handles those).
+ *   variant='floating'  Compact pill floating at the top of the chat,
+ *                       with a "tap to scroll back" affordance. Used when
+ *                       the user has scrolled UP to read history — the
+ *                       inline indicator is off-screen, so this surfaces
+ *                       the running state without forcing them to scroll.
+ *
+ * Both modes share the elapsed-time and thinking-preview logic, so the
+ * data is identical; only the layout differs. ChatBody is responsible
+ * for ensuring at most one variant is mounted at any time so the user
+ * never sees two indicators at once.
  */
 export function ThinkingHover({
   logs,
@@ -24,6 +29,7 @@ export function ThinkingHover({
   workingStep,
   isCancelling = false,
   onCancel,
+  variant = 'floating',
 }: {
   logs: NormalizedLogEntry[]
   /** True while the session is `running` or `pending`. */
@@ -32,6 +38,8 @@ export function ThinkingHover({
   workingStep?: string | null
   isCancelling?: boolean
   onCancel?: () => void
+  /** 'inline' = bottom-of-list ticker; 'floating' = top overlay pill. */
+  variant?: 'inline' | 'floating'
 }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
@@ -76,6 +84,47 @@ export function ThinkingHover({
     .split(/\r?\n/)
     .filter(l => l.trim().length > 0)
     .slice(-3)
+
+  // Inline mode: simpler ticker matching the original "thinking dots"
+  // layout, anchored at the bottom of the message list. No expansion,
+  // no preview — used when the user is at the bottom and already sees
+  // the latest message + indicator together.
+  if (variant === 'inline') {
+    return (
+      <div className="flex items-center gap-2.5 my-2 px-3 py-2 text-xs text-muted-foreground animate-message-enter">
+        <span className="thinking-dots flex items-center gap-[3px] text-violet-500/70 dark:text-violet-400/70">
+          <span />
+          <span />
+          <span />
+        </span>
+        <span className="font-medium text-violet-500/80 dark:text-violet-400/80">
+          {isCancelling ? t('session.cancelling') : t('session.thinking')}
+        </span>
+        <span className="font-mono tabular-nums text-[11px] text-violet-500/60 dark:text-violet-300/50">
+          {elapsedText}
+        </span>
+        {!isCancelling && workingStep ?
+            (
+              <span className="truncate text-[11px] text-muted-foreground/60 italic">
+                {workingStep}
+              </span>
+            ) :
+          null}
+        {onCancel ?
+            (
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={isCancelling}
+                className="ml-auto shrink-0 rounded-md border border-border/40 bg-background/80 px-2 py-0.5 text-[11px] text-foreground/70 transition-colors hover:bg-accent hover:border-border disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
+              </button>
+            ) :
+          null}
+      </div>
+    )
+  }
 
   return (
     <div
