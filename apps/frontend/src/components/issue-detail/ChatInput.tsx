@@ -323,6 +323,10 @@ export function ChatInput({
     const prompt = normalizedPrompt
     const filesToSend = [...attachedFiles]
     setInput('')
+    // Reset manual drag-resize so the next message starts auto-growing
+    // from the empty state instead of inheriting the previous turn's
+    // pinned height.
+    setManualHeight(null)
     // Clear persisted draft
     if (draftKey) {
       try {
@@ -501,15 +505,56 @@ export function ChatInput({
     [addFiles],
   )
 
+  // Manual height override (desktop drag-resize). When set, takes priority
+  // over the auto-grow effect. Cleared on send so the next message starts
+  // with auto-grow again.
+  const [manualHeight, setManualHeight] = useState<number | null>(null)
+  const dragRef = useRef({ active: false, startY: 0, startH: 0 })
+
   // Auto-grow textarea: shrink to content, expand up to ~8 lines, then scroll.
-  // useLayoutEffect runs before paint so the resize never flashes a stale height.
+  // useLayoutEffect runs before paint so the resize never flashes a stale
+  // height. Skipped while a manual override is active.
   useLayoutEffect(() => {
+    if (manualHeight !== null) return
     const ta = textareaRef.current
     if (!ta) return
     ta.style.height = '0px'
     const next = Math.min(ta.scrollHeight, 200)
     ta.style.height = `${Math.max(next, 32)}px`
-  }, [input])
+  }, [input, manualHeight])
+
+  // Apply manual height when user drags the resize handle.
+  useLayoutEffect(() => {
+    if (manualHeight === null) return
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.style.height = `${manualHeight}px`
+  }, [manualHeight])
+
+  // Drag-to-resize handler (desktop only — the handle is `max-md:hidden`).
+  // Sets manualHeight so the auto-grow effect bows out for this turn.
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      const ta = textareaRef.current
+      const startH = ta?.offsetHeight ?? 32
+      dragRef.current = { active: true, startY: e.clientY, startH }
+      const onMove = (ev: MouseEvent) => {
+        if (!dragRef.current.active) return
+        const delta = dragRef.current.startY - ev.clientY
+        const next = Math.max(32, Math.min(640, dragRef.current.startH + delta))
+        setManualHeight(next)
+      }
+      const cleanup = () => {
+        dragRef.current.active = false
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', cleanup)
+      }
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', cleanup)
+    },
+    [],
+  )
 
   const hasChanges = changedCount > 0
 
@@ -525,6 +570,18 @@ export function ChatInput({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        {/* Drag-to-resize handle — desktop only. Lets power users pin a
+            larger textarea height for long compositions; auto-grow takes
+            over again after send (manualHeight resets in handleSend).
+            Hidden on mobile because the 2px target is unreachable on
+            touch and auto-grow is the better default there. */}
+        <div
+          onMouseDown={handleResizeStart}
+          className="hidden md:flex items-center justify-center h-2 cursor-ns-resize group/resize"
+        >
+          <div className="w-8 h-0.5 rounded-full bg-border/30 group-hover/resize:bg-border/60 transition-colors" />
+        </div>
+
         {/* Drag overlay hint */}
         {isDragOver ?
             (
