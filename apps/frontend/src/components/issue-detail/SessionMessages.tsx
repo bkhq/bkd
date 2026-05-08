@@ -148,7 +148,7 @@ export function SessionMessages(props: {
 }) {
   const { engineType, ...rest } = props
 
-  if (engineType === 'acp') {
+  if (engineType?.startsWith('acp')) {
     return <AcpTimeline {...rest} />
   }
 
@@ -233,10 +233,7 @@ function LegacySessionMessages({
       (messages.length !== prevLenRef.current || isRunning)
     ) {
       const el = scrollRef?.current
-      el?.scrollTo({
-        top: el.scrollHeight,
-        behavior: 'smooth',
-      })
+      el?.scrollTo({ top: el.scrollHeight })
     }
     prevLenRef.current = messages.length
     prevFirstIdRef.current = firstMessageId

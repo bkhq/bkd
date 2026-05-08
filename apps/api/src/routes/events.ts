@@ -47,7 +47,7 @@ events.get('/', async (c) => {
           // for ACP engines like opencode that stream thought/message chunks).
           // Other streaming entries (tool-use updates) are skipped — they'll be
           // sent when the non-streaming result arrives.
-          if (data.streaming) return
+          if (data.streaming && data.entry.entryType !== 'assistant-message' && data.entry.entryType !== 'thinking') return
           if (!isVisible(data.entry)) return
           writeEvent('log', { issueId: data.issueId, entry: data.entry })
         },

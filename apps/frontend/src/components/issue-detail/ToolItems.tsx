@@ -474,15 +474,59 @@ export function SearchToolItem({ item }: { item: ToolGroupItem }) {
 
 export function GenericToolItem({ item }: { item: ToolGroupItem }) {
   const toolName = getItemToolName(item)
+  const hasError = isItemError(item)
+
+  // Extract a short summary from the result for the collapsed header
+  const resultSummary = (() => {
+    const raw = item.result?.content || ''
+    if (!raw) return null
+    // For JSON results (common with MCP tools), extract key fields
+    try {
+      const parsed = JSON.parse(raw)
+      if (typeof parsed === 'object' && parsed !== null) {
+        // aissh-tao style: exit_code, duration_ms, output
+        if ('exit_code' in parsed) {
+          const exitCode = parsed.exit_code
+          const output = typeof parsed.output === 'string' ? parsed.output : ''
+          const firstLine = output.split('\n').find((l: string) => l.trim()) ?? ''
+          const preview = firstLine.length > 80 ? `${firstLine.slice(0, 80)}…` : firstLine
+          return exitCode !== 0
+            ? `[exit ${exitCode}] ${preview}`
+            : preview || `exit 0, ${parsed.duration_ms ?? '?'}ms`
+        }
+        // Generic: show first non-empty string value
+        for (const val of Object.values(parsed)) {
+          if (typeof val === 'string' && val.trim()) {
+            const preview = val.length > 80 ? `${val.slice(0, 80)}…` : val
+            return preview
+          }
+        }
+      }
+    } catch {
+      // Not JSON — use raw first line
+      const firstLine = raw.split('\n').find((l: string) => l.trim()) ?? ''
+      if (firstLine) return firstLine.length > 80 ? `${firstLine.slice(0, 80)}…` : firstLine
+    }
+    return null
+  })()
+
   return (
     <ToolPanel
       collapsible
       summary={(
         <div className="flex items-center gap-2 min-w-0">
           <ToolLabel label={toolName || 'Tool'} icon={Wrench} />
-          <span className="text-[11px] text-muted-foreground/60 truncate">
-            {item.action.content}
-          </span>
+          {resultSummary
+            ? (
+                <span className={`text-[11px] truncate ${hasError ? 'text-red-500/70' : 'text-muted-foreground/60'}`}>
+                  {resultSummary}
+                </span>
+              )
+            : (
+                <span className="text-[11px] text-muted-foreground/60 truncate">
+                  {item.action.content}
+                </span>
+              )}
         </div>
       )}
     >

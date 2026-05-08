@@ -104,6 +104,9 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
   }
 
   let pendingStreamingAssistant: NormalizedLogEntry | null = null
+  /** Tracks which turnIndex had its streaming assistant already flushed,
+   *  so the non-streaming duplicate from acp-prompt-result is skipped. */
+  let flushedStreamingTurnIndex: number | undefined
   let toolBuffer: ToolGroupItem[] = []
 
   function buildToolGroup(items: ToolGroupItem[]): ToolGroupChatMessage {
@@ -143,6 +146,7 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
       id: entryId(pendingStreamingAssistant, nextId('acp-entry')),
       entry: pendingStreamingAssistant,
     })
+    flushedStreamingTurnIndex = pendingStreamingAssistant.turnIndex
     pendingStreamingAssistant = null
   }
 
@@ -194,6 +198,18 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
     ) {
       pendingStreamingAssistant = null
       pushEntry(entry)
+      continue
+    }
+
+    // Non-streaming assistant for a turn whose streaming version was already
+    // flushed (e.g. streaming chunks → tool calls → acp-prompt-result).
+    // The streaming version is already displayed; skip the duplicate.
+    if (
+      entry.entryType === 'assistant-message' &&
+      !pendingStreamingAssistant &&
+      flushedStreamingTurnIndex !== undefined &&
+      flushedStreamingTurnIndex === entry.turnIndex
+    ) {
       continue
     }
 

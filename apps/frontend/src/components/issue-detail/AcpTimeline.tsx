@@ -71,10 +71,7 @@ export function AcpTimeline({
   logs,
   scrollRef,
   isRunning = false,
-  workingStep,
-  onCancel,
   onEditPending,
-  isCancelling = false,
   hasOlderLogs = false,
   isLoadingOlder = false,
   onLoadOlder,
@@ -82,10 +79,7 @@ export function AcpTimeline({
   logs: NormalizedLogEntry[]
   scrollRef?: React.RefObject<HTMLDivElement | null>
   isRunning?: boolean
-  workingStep?: string | null
-  onCancel?: () => void
   onEditPending?: (messageId: string) => void
-  isCancelling?: boolean
   hasOlderLogs?: boolean
   isLoadingOlder?: boolean
   onLoadOlder?: () => void
@@ -131,10 +125,7 @@ export function AcpTimeline({
 
     if (!wasOlderPrepend && nearBottomRef.current && (items.length !== prevLenRef.current || isRunning)) {
       const el = scrollRef?.current
-      el?.scrollTo({
-        top: el.scrollHeight,
-        behavior: 'smooth',
-      })
+      el?.scrollTo({ top: el.scrollHeight })
     }
     prevLenRef.current = items.length
     prevFirstIdRef.current = firstId
@@ -179,39 +170,9 @@ export function AcpTimeline({
         }
       })}
 
-      {isRunning ?
-          (
-            <div className="my-2 flex items-center gap-2.5 px-3 py-2 text-xs text-muted-foreground animate-message-enter">
-              <span className="thinking-dots flex items-center gap-[3px] text-violet-500/70 dark:text-violet-400/70">
-                <span />
-                <span />
-                <span />
-              </span>
-              <span className="font-medium text-violet-500/70 dark:text-violet-400/70">
-                {isCancelling ? t('session.cancelling') : t('session.thinking')}
-              </span>
-              {!isCancelling && workingStep ?
-                  (
-                    <span className="truncate text-[11px] italic text-muted-foreground/60">
-                      {workingStep}
-                    </span>
-                  ) :
-                null}
-              {onCancel ?
-                  (
-                    <button
-                      type="button"
-                      onClick={onCancel}
-                      disabled={isCancelling}
-                      className="ml-auto rounded-md border border-border/40 bg-background/80 px-2 py-0.5 text-[11px] text-foreground/70 transition-colors hover:bg-accent hover:border-border disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
-                    </button>
-                  ) :
-                null}
-            </div>
-          ) :
-        null}
+      {/* Thinking indicator is owned by ThinkingHover in ChatBody — do not
+          duplicate here. ThinkingHover shows elapsed time, thinking preview,
+          and cancel button. */}
 
       {pendingMessages.length > 0 ?
           (
