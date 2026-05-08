@@ -141,6 +141,10 @@ export function ThinkingHover({
           <span className="font-medium text-violet-700/90 dark:text-violet-200/90 shrink-0">
             {isCancelling ? t('session.cancelling') : t('session.thinking')}
           </span>
+          {/* Removed: previously showed t('common.loading') ("加载中...") when
+              latestThinking was null. That text was wrong — the AI is
+              thinking even when no thinking blocks are emitted (Claude
+              default). Always show "AI 思考中" while active. */}
           <span className="font-mono tabular-nums text-[11px] text-violet-500/60 dark:text-violet-300/50 shrink-0">
             {elapsedText}
           </span>

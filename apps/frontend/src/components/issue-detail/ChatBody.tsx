@@ -357,20 +357,25 @@ export function ChatBody({
                 message list so the user sees status right next to the
                 latest message while waiting for a reply. The floating
                 variant in the overlay above replaces this when the user
-                scrolls up to read history. */}
-            <ThinkingHover
-              logs={logs}
-              isActive={isThinking}
-              workingStep={workingStep}
-              isCancelling={isCancelling}
-              onCancel={() => {
-                setIsCancelling(true)
-                cancelIssue.mutate(issueId, {
-                  onError: () => setIsCancelling(false),
-                })
-              }}
-              variant="inline"
-            />
+                scrolls up to read history. Only one of the two is in the
+                DOM at any moment (showScrollBottom gates them). */}
+            {!showScrollBottom ?
+                (
+                  <ThinkingHover
+                    logs={logs}
+                    isActive={isThinking}
+                    workingStep={workingStep}
+                    isCancelling={isCancelling}
+                    onCancel={() => {
+                      setIsCancelling(true)
+                      cancelIssue.mutate(issueId, {
+                        onError: () => setIsCancelling(false),
+                      })
+                    }}
+                    variant="inline"
+                  />
+                ) :
+              null}
           </div>
         </div>
 
