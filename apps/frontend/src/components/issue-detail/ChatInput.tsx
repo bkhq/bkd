@@ -706,10 +706,12 @@ export function ChatInput({
           </Button>
           {normalizedSlashCommands.length > 0 ?
               (
-                <CommandPicker
-                  commands={normalizedSlashCommands}
-                  onSelect={cmd => selectSlashCommand(cmd)}
-                />
+                <div className="max-md:hidden">
+                  <CommandPicker
+                    commands={normalizedSlashCommands}
+                    onSelect={cmd => selectSlashCommand(cmd)}
+                  />
+                </div>
               ) :
             null}
           <Button
@@ -731,42 +733,69 @@ export function ChatInput({
             <FolderOpen className="size-3.5" />
           </Button>
 
-          {/* Divider */}
-          <div className="w-px h-3.5 bg-border/30 mx-0.5" />
+          {/* Divider — desktop only */}
+          <div className="w-px h-3.5 bg-border/30 mx-0.5 max-md:hidden" />
 
-          {/* Group 2: Chips */}
+          {/* Group 2: Chips — desktop only */}
           {engineType ?
               (
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-medium border border-border/30 bg-muted/40 text-muted-foreground hover:bg-muted/60 transition-colors"
+                  className="max-md:hidden inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-medium border border-border/30 bg-muted/40 text-muted-foreground hover:bg-muted/60 transition-colors"
                 >
                   <EngineIcon engineType={engineType} className="size-3 shrink-0" />
                   <span className="max-w-[80px] truncate">{t(`createIssue.engineLabel.${engineType}`, engineType)}</span>
                 </button>
               ) :
             null}
-          <ModeSelect value={mode} onChange={setMode} />
+          <div className="max-md:hidden"><ModeSelect value={mode} onChange={setMode} /></div>
           {models.length > 0 ?
               (
-                <ModelSelect
-                  models={models}
-                  value={activeModel}
-                  onChange={setSelectedModel}
-                  disabled={isSessionActive || modelLocked}
-                  locked={modelLocked}
-                />
+                <div className="max-md:hidden">
+                  <ModelSelect
+                    models={models}
+                    value={activeModel}
+                    onChange={setSelectedModel}
+                    disabled={isSessionActive || modelLocked}
+                    locked={modelLocked}
+                  />
+                </div>
               ) :
             null}
           {isSessionActive && !isThinking ?
               (
-                <BusyActionSelect value={busyAction} onChange={setBusyAction} />
+                <div className="max-md:hidden">
+                  <BusyActionSelect value={busyAction} onChange={setBusyAction} />
+                </div>
               ) :
             null}
 
+          {/* Mobile "..." menu — groups settings + actions */}
+          <div className="md:hidden">
+            <MobileMoreMenu
+              engineType={engineType}
+              mode={mode}
+              onModeChange={setMode}
+              models={models}
+              activeModel={activeModel}
+              onModelChange={setSelectedModel}
+              modelLocked={modelLocked}
+              busyAction={busyAction}
+              onBusyActionChange={setBusyAction}
+              showBusyAction={isSessionActive && !isThinking}
+              isSessionActive={isSessionActive}
+              onRefreshLogs={onRefreshLogs}
+              onOpenFileBrowser={() => projectId && issueId && openFileBrowser(projectId, issueId, changesRoot)}
+              onClearSession={() => setClearSessionOpen(true)}
+              clearSessionDisabled={!issueId || isSessionActive || clearSession.isPending}
+              slashCommands={normalizedSlashCommands.length > 0 ? normalizedSlashCommands : undefined}
+              onSlashCommand={selectSlashCommand}
+            />
+          </div>
+
           {/* Divider */}
           {hasChanges ?
-              <div className="w-px h-3.5 bg-border/30 mx-0.5" /> :
+              <div className="w-px h-3.5 bg-border/30 mx-0.5 max-md:hidden" /> :
             null}
 
           {/* Files changed badge */}
@@ -775,13 +804,14 @@ export function ChatInput({
                 <button
                   type="button"
                   onClick={onToggleDiff}
-                  className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-medium border transition-colors ${
+                  className={`inline-flex items-center gap-1 h-7 px-2 rounded-full text-[11px] font-medium border transition-colors ${
                     diffOpen ?
                       'border-primary/30 bg-primary/10 text-foreground' :
                       'border-border/30 bg-muted/40 text-muted-foreground hover:bg-muted/60'
                   }`}
                 >
-                  <span>{t('chat.filesChanged', { count: changedCount })}</span>
+                  <FileText className="size-3 shrink-0" />
+                  <span className="font-mono tabular-nums">{changedCount}</span>
                   <span className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
                     +
                     {additions}
@@ -820,84 +850,6 @@ export function ChatInput({
                 <Loader2 className="size-3.5 animate-spin" /> :
                 <ArrowUp className="size-3.5" strokeWidth={2.5} />}
           </Button>
-
-          {/* Mobile overflow menu */}
-          <div className="md:hidden">
-            <Popover>
-              <PopoverTrigger
-                render={(
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title={t('chat.moreOptions', 'More')}
-                    aria-label="More options"
-                    className="size-7"
-                  />
-                )}
-              >
-                <MoreHorizontal className="size-3.5" />
-              </PopoverTrigger>
-              <PopoverContent align="end" side="top" className="w-auto p-2">
-                <div className="flex flex-col items-stretch gap-2 min-w-[200px]">
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 h-8 text-xs"
-                      onClick={onRefreshLogs}
-                    >
-                      <RefreshCw className="size-3.5" />
-                      {t('chat.refreshLogs')}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 h-8 text-xs"
-                      onClick={() => projectId && issueId && openFileBrowser(projectId, issueId, changesRoot)}
-                    >
-                      <FolderOpen className="size-3.5" />
-                      {t('diff.openFiles')}
-                    </Button>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs"
-                    disabled={!issueId || isSessionActive || clearSession.isPending}
-                    onClick={() => setClearSessionOpen(true)}
-                  >
-                    <Eraser className="size-3.5" />
-                    {t('chat.clearSession')}
-                  </Button>
-                  {hasChanges ?
-                      (
-                        <button
-                          type="button"
-                          onClick={onToggleDiff}
-                          className={`inline-flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs transition-all ${
-                            diffOpen ?
-                              'bg-primary/10 ring-1 ring-primary/20 text-foreground' :
-                              'bg-muted/40 hover:bg-muted/60 text-muted-foreground'
-                          }`}
-                        >
-                          <span>{t('chat.filesChanged', { count: changedCount })}</span>
-                          <span className="font-mono tabular-nums">
-                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                              +
-                              {additions}
-                            </span>
-                            <span className="ml-1 text-red-600 dark:text-red-400 font-medium">
-                              -
-                              {deletions}
-                            </span>
-                          </span>
-                        </button>
-                      ) :
-                    null}
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
         </div>
       </div>
 
@@ -1194,5 +1146,192 @@ function ModeSelect({ value, onChange }: { value: ModeOption, onChange: (v: Mode
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+// ─── MobileMoreMenu ──────────────────────────────────────────────────────────
+// Avoids nested DropdownMenu inside Popover by using simple button lists.
+
+function MobileMoreMenu({
+  engineType,
+  mode,
+  onModeChange,
+  models,
+  activeModel,
+  onModelChange,
+  modelLocked,
+  busyAction,
+  onBusyActionChange,
+  showBusyAction,
+  isSessionActive,
+  onRefreshLogs,
+  onOpenFileBrowser,
+  onClearSession,
+  clearSessionDisabled,
+  slashCommands,
+  onSlashCommand,
+}: {
+  engineType?: string
+  mode: ModeOption
+  onModeChange: (v: ModeOption) => void
+  models: EngineModel[]
+  activeModel: string
+  onModelChange: (v: string) => void
+  modelLocked: boolean
+  busyAction: BusyAction
+  onBusyActionChange: (v: BusyAction) => void
+  showBusyAction: boolean
+  isSessionActive: boolean
+  onRefreshLogs?: () => void
+  onOpenFileBrowser: () => void
+  onClearSession: () => void
+  clearSessionDisabled: boolean
+  slashCommands?: string[]
+  onSlashCommand?: (cmd: string) => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={(
+          <button
+            type="button"
+            className="inline-flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+          />
+        )}
+      >
+        <MoreHorizontal className="size-3.5" />
+      </PopoverTrigger>
+      <PopoverContent align="start" side="top" className="w-56 p-2 space-y-1">
+        {/* Engine info */}
+        {engineType ? (
+          <div className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-muted-foreground">
+            <EngineIcon engineType={engineType} className="size-3.5 shrink-0" />
+            <span>{t(`createIssue.engineLabel.${engineType}`, engineType)}</span>
+          </div>
+        ) : null}
+
+        {/* Slash commands */}
+        {slashCommands && slashCommands.length > 0 && onSlashCommand ? (
+          <>
+            <div className="px-2">
+              <div className="text-[10px] text-muted-foreground/60 mb-1">{t('chat.commands')}</div>
+              <div className="flex flex-wrap gap-1">
+                {slashCommands.map(cmd => (
+                  <button
+                    key={cmd}
+                    type="button"
+                    onClick={() => onSlashCommand(cmd)}
+                    className="px-2 py-1 rounded text-[11px] font-mono bg-muted/40 text-muted-foreground hover:bg-muted/60 transition-colors"
+                  >
+                    {cmd}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="h-px bg-border/30 my-1" />
+          </>
+        ) : null}
+
+        {/* Mode selector */}
+        <div className="px-2">
+          <div className="text-[10px] text-muted-foreground/60 mb-1">{t('createIssue.mode')}</div>
+          <div className="flex gap-1">
+            {MODE_OPTIONS.map(option => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => onModeChange(option)}
+                className={`flex-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                  option === mode
+                    ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
+                    : 'bg-muted/40 text-muted-foreground hover:bg-muted/60'
+                }`}
+              >
+                {t(`createIssue.perm.${option}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Model selector */}
+        {models.length > 0 ? (
+          <div className="px-2">
+            <div className="text-[10px] text-muted-foreground/60 mb-1">{t('createIssue.model')}</div>
+            <select
+              value={activeModel}
+              onChange={e => onModelChange(e.target.value)}
+              disabled={isSessionActive || modelLocked}
+              className="w-full h-7 px-2 rounded text-[11px] bg-muted/40 text-muted-foreground border border-border/30 disabled:opacity-50"
+            >
+              <option value="">{t('createIssue.modelDefault')}</option>
+              {models.map(m => (
+                <option key={m.id} value={m.id}>
+                  {formatModelName(m.name || m.id)}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+
+        {/* Busy action */}
+        {showBusyAction ? (
+          <div className="px-2">
+            <div className="text-[10px] text-muted-foreground/60 mb-1">{t('chat.busyAction.label')}</div>
+            <div className="flex gap-1">
+              {(['queue', 'cancel'] as const).map(option => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => onBusyActionChange(option)}
+                  className={`flex-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                    option === busyAction
+                      ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
+                      : 'bg-muted/40 text-muted-foreground hover:bg-muted/60'
+                  }`}
+                >
+                  {t(`chat.busyAction.${option}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Divider */}
+        <div className="h-px bg-border/30 my-1" />
+
+        {/* Refresh */}
+        <button
+          type="button"
+          onClick={onRefreshLogs}
+          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+        >
+          <RefreshCw className="size-3.5" />
+          <span>{t('chat.refreshLogs')}</span>
+        </button>
+
+        {/* Files */}
+        <button
+          type="button"
+          onClick={onOpenFileBrowser}
+          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+        >
+          <FolderOpen className="size-3.5" />
+          <span>{t('diff.openFiles')}</span>
+        </button>
+
+        {/* Clear session */}
+        <button
+          type="button"
+          disabled={clearSessionDisabled}
+          onClick={onClearSession}
+          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-40"
+        >
+          <Eraser className="size-3.5" />
+          <span>{t('chat.clearSession')}</span>
+        </button>
+      </PopoverContent>
+    </Popover>
   )
 }

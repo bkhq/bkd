@@ -155,8 +155,10 @@ export function ChatBody({
   onToggleDiff: () => void
   scrollRef?: React.RefObject<HTMLDivElement | null>
   onAfterDelete?: () => void
-  /** Whether the parent ChatArea's title bar is visible — when false on
-   *  mobile the ThinkingHover slides up to take the title's place. */
+  /**
+   * Whether the parent ChatArea's title bar is visible — when false on
+   *  mobile the ThinkingHover slides up to take the title's place.
+   */
   titleVisible?: boolean
 }) {
   const { t } = useTranslation()

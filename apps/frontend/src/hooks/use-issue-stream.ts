@@ -82,6 +82,29 @@ function mergeLogsPreferLive(
   return [...mergedSnapshot, ...liveOnly].sort(compareByMessageId)
 }
 
+// ---- LRU cache for issue logs (avoids re-fetch on issue switch) ----
+const LOGS_CACHE_MAX = 20
+const logsCache = new Map<string, NormalizedLogEntry[]>()
+
+function getCachedLogs(scope: string): NormalizedLogEntry[] | undefined {
+  const cached = logsCache.get(scope)
+  if (cached !== undefined) {
+    // Move to end (most recently used)
+    logsCache.delete(scope)
+    logsCache.set(scope, cached)
+  }
+  return cached
+}
+
+function setCachedLogs(scope: string, entries: NormalizedLogEntry[]): void {
+  if (logsCache.size >= LOGS_CACHE_MAX && !logsCache.has(scope)) {
+    const firstKey = logsCache.keys().next().value
+    if (firstKey !== undefined) logsCache.delete(firstKey)
+  }
+  logsCache.delete(scope)
+  logsCache.set(scope, entries)
+}
+
 export function useIssueStream({
   projectId,
   issueId,
@@ -143,20 +166,38 @@ export function useIssueStream({
   const currentScope = `${projectId}:${issueId}:${typesKey}`
   const prevScopeRef = useRef(currentScope)
   if (prevScopeRef.current !== currentScope) {
+    // Save current logs to cache before switching
+    if (liveLogsRef.current.length > 0) {
+      setCachedLogs(prevScopeRef.current, liveLogsRef.current)
+    }
     prevScopeRef.current = currentScope
-    setLiveLogs([])
     setOlderLogs([])
     setSessionStatus(externalStatus ?? null)
     setHasOlderLogs(false)
     setIsLoadingOlder(false)
-    liveLogsRef.current = []
     olderLogsRef.current = []
     olderCursorRef.current = null
     doneReceivedRef.current = false
     activeExecutionRef.current = null
-    seenIdsRef.current.clear()
-    seenContentKeysRef.current.clear()
     trimCursorSetRef.current = false
+
+    // Restore from cache for instant display on switch-back
+    const cached = getCachedLogs(currentScope)
+    if (cached && cached.length > 0) {
+      setLiveLogs(cached)
+      liveLogsRef.current = cached
+      seenIdsRef.current.clear()
+      seenContentKeysRef.current.clear()
+      for (const entry of cached) {
+        if (entry.messageId) seenIdsRef.current.add(entry.messageId)
+        else seenContentKeysRef.current.add(contentKey(entry))
+      }
+    } else {
+      setLiveLogs([])
+      liveLogsRef.current = []
+      seenIdsRef.current.clear()
+      seenContentKeysRef.current.clear()
+    }
   }
 
   // Combined logs for rendering: olderLogs (history) + liveLogs (current window).
@@ -432,6 +473,7 @@ export function useIssueStream({
 
         olderLogsRef.current = []
         setOlderLogs([])
+        setCachedLogs(scope, data.logs)
         setHasOlderLogs(data.hasMore || trimCursorSetRef.current)
         // Only use the server-provided cursor if a live-log trim hasn't
         // already established a more accurate cursor from the SSE stream.

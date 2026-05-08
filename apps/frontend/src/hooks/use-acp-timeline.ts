@@ -104,8 +104,10 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
   }
 
   let pendingStreamingAssistant: NormalizedLogEntry | null = null
-  /** Tracks which turnIndex had its streaming assistant already flushed,
-   *  so the non-streaming duplicate from acp-prompt-result is skipped. */
+  /**
+   * Tracks which turnIndex had its streaming assistant already flushed,
+   *  so the non-streaming duplicate from acp-prompt-result is skipped.
+   */
   let flushedStreamingTurnIndex: number | undefined
   let toolBuffer: ToolGroupItem[] = []
 

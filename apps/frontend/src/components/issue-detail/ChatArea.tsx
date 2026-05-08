@@ -69,17 +69,18 @@ export function ChatArea({
       setTitleVisible(true)
       return
     }
-    const el = scrollRef.current
-    if (!el) return
 
     const HIDE_THRESHOLD = 40 // px of continuous down-scroll before hiding
     const SHOW_THRESHOLD = 90 // px of continuous up-scroll before re-showing
 
-    let lastTop = el.scrollTop
+    let el = scrollRef.current
+    let lastTop = el?.scrollTop ?? 0
     let upAccum = 0
     let downAccum = 0
+    let cleanup: (() => void) | undefined
 
     const onScroll = () => {
+      if (!el) return
       const top = el.scrollTop
       const delta = top - lastTop
       lastTop = top
@@ -107,8 +108,31 @@ export function ChatArea({
       }
     }
 
-    el.addEventListener('scroll', onScroll, { passive: true })
-    return () => el.removeEventListener('scroll', onScroll)
+    const attach = () => {
+      el = scrollRef.current
+      if (!el) return false
+      lastTop = el.scrollTop
+      el.addEventListener('scroll', onScroll, { passive: true })
+      cleanup = () => el?.removeEventListener('scroll', onScroll)
+      return true
+    }
+
+    if (!attach()) {
+      // scrollRef not ready yet — retry on next frame
+      const rafId = requestAnimationFrame(() => {
+        if (!attach()) {
+          // still not ready, try once more after a short delay
+          const timeoutId = setTimeout(attach, 100)
+          cleanup = () => clearTimeout(timeoutId)
+        }
+      })
+      return () => {
+        cancelAnimationFrame(rafId)
+        cleanup?.()
+      }
+    }
+
+    return () => cleanup?.()
   }, [isMobile])
 
   const updateIssue = useUpdateIssue(projectId)
@@ -180,9 +204,8 @@ export function ChatArea({
         <div
           className={`flex items-center gap-2 px-2.5 py-2.5 border-b border-border/60 min-h-[45px] md:gap-2.5 md:px-3 bg-background/80 backdrop-blur-sm transition-transform duration-200 ease-out
             md:shrink-0
-            max-md:absolute max-md:top-0 max-md:left-0 max-md:right-0 max-md:z-20 ${
-              titleVisible ? '' : 'max-md:-translate-y-full'
-            }`}
+            max-md:absolute max-md:top-0 max-md:left-0 max-md:right-0 max-md:z-20
+            ${titleVisible ? '' : 'max-md:-translate-y-full'}`}
         >
           <Button
             variant="ghost"

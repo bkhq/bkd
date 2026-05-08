@@ -213,8 +213,10 @@ async function discoverSlashCommands(installed: EngineAvailability[]): Promise<v
 /** ACP agent prefix for virtual engine types (e.g. "acp:gemini") */
 export const ACP_ENGINE_PREFIX = 'acp:'
 
-/** Known ACP agent IDs — used for input validation. Must stay in sync with
- *  the AcpAgentId union in executors/acp/agents/base.ts. */
+/**
+ * Known ACP agent IDs — used for input validation. Must stay in sync with
+ *  the AcpAgentId union in executors/acp/agents/base.ts.
+ */
 export const KNOWN_ACP_AGENT_IDS: readonly string[] = ['gemini', 'codex', 'claude', 'opencode']
 
 /** Check if a string is a valid ACP virtual engine type with a known agent ID */
