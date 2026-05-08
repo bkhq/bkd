@@ -198,6 +198,15 @@
     }
   }
 
+  html,
+  body {
+    /* Block scroll-chaining → no accidental pull-to-refresh on mobile
+       browsers when the user reaches the top of the chat or kanban scroll
+       and keeps dragging. BKD has no "refresh by pulling" semantics so
+       there's no UX loss; just kills a class of annoying page reloads. */
+    overscroll-behavior: none;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
