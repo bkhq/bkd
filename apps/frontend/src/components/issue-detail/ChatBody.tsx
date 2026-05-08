@@ -1,5 +1,5 @@
 import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronRight, Clock, FileText, Image } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -25,6 +25,7 @@ import { formatFileSize } from '@/lib/format'
 import { kanbanApi } from '@/lib/kanban-api'
 import { STATUS_MAP } from '@/lib/statuses'
 import { useChatFilterStore } from '@/stores/chat-filter-store'
+import { useScrollPositionStore } from '@/stores/scroll-position-store'
 import type { Issue, NormalizedLogEntry } from '@/types/kanban'
 import { ChatInput } from './ChatInput'
 import { IssueDetail } from './IssueDetail'
@@ -253,6 +254,12 @@ export function ChatBody({
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [showScrollBottom, setShowScrollBottom] = useState(false)
 
+  // Persist scroll position per issue so revisiting picks up where the
+  // user left off (Slack / Discord / mail-client style). Saved on scroll,
+  // restored once after logs first arrive — see useLayoutEffect below.
+  const setSavedScroll = useScrollPositionStore(s => s.setPosition)
+  const savedScroll = useScrollPositionStore(s => s.positions[issueId])
+
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -265,6 +272,8 @@ export function ChatBody({
         const { scrollTop, scrollHeight, clientHeight } = el
         setShowScrollTop(scrollTop > 200)
         setShowScrollBottom(scrollHeight - scrollTop - clientHeight > 200)
+        // Save scroll position (throttled inside the store).
+        setSavedScroll(issueId, scrollTop)
       })
     }
 
@@ -274,7 +283,28 @@ export function ChatBody({
       el.removeEventListener('scroll', handleScroll)
       if (rafId) cancelAnimationFrame(rafId)
     }
-  }, [scrollRef, logs.length])
+  }, [scrollRef, logs.length, issueId, setSavedScroll])
+
+  // Restore the saved scroll position once per issue, after logs first
+  // arrive. Runs synchronously before paint (useLayoutEffect) so the user
+  // never sees the auto-bottom flash from SessionMessages's own scroll
+  // effect — that one fires earlier in the commit phase (child first), so
+  // we just override its scrollTop here. If there's no saved position
+  // (first-ever visit to this issue), we leave SessionMessages's
+  // bottom-scroll in place so the user lands on the latest message.
+  const restoredForIssueRef = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    if (logs.length === 0) return
+    if (restoredForIssueRef.current === issueId) return
+    if (savedScroll === undefined) {
+      restoredForIssueRef.current = issueId
+      return
+    }
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTop = savedScroll
+    restoredForIssueRef.current = issueId
+  }, [issueId, logs.length, savedScroll, scrollRef])
 
   const scrollToTop = useCallback(() => {
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
