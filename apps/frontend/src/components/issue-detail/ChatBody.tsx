@@ -302,7 +302,18 @@ export function ChatBody({
           }`}
         >
           <div className="pointer-events-auto">
-            <ThinkingHover logs={logs} isActive={isThinking} />
+            <ThinkingHover
+              logs={logs}
+              isActive={isThinking}
+              workingStep={workingStep}
+              isCancelling={isCancelling}
+              onCancel={() => {
+                setIsCancelling(true)
+                cancelIssue.mutate(issueId, {
+                  onError: () => setIsCancelling(false),
+                })
+              }}
+            />
           </div>
         </div>
         <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden">

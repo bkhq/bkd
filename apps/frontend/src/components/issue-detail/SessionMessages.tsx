@@ -162,9 +162,6 @@ function LegacySessionMessages({
   logs,
   scrollRef,
   isRunning = false,
-  workingStep,
-  onCancel,
-  isCancelling = false,
   hasOlderLogs = false,
   isLoadingOlder = false,
   onLoadOlder,
@@ -172,9 +169,6 @@ function LegacySessionMessages({
   logs: NormalizedLogEntry[]
   scrollRef?: React.RefObject<HTMLDivElement | null>
   isRunning?: boolean
-  workingStep?: string | null
-  onCancel?: () => void
-  isCancelling?: boolean
   hasOlderLogs?: boolean
   isLoadingOlder?: boolean
   onLoadOlder?: () => void
@@ -276,12 +270,12 @@ function LegacySessionMessages({
           messages.map(msg => (
             <ChatMessageRow key={msg.id} message={msg} />
           ))}
-      <ThinkingIndicator
-        isRunning={isRunning}
-        isCancelling={isCancelling}
-        workingStep={workingStep}
-        onCancel={onCancel}
-      />
+      {/* Thinking indicator was here. The ChatGPT-style ThinkingHover in
+          ChatArea now owns this UI — pulse + elapsed timer + workingStep
+          + Cancel button — so it's visible at the top of the chat instead
+          of buried at the bottom of the message list. Props are still
+          piped through (isCancelling/workingStep/onCancel) so reverting
+          is just bringing the component back. */}
     </div>
   )
 }
@@ -332,53 +326,8 @@ function VirtualMessageList({
   )
 }
 
-// ── Thinking indicator ───────────────────────────────────
-
-function ThinkingIndicator({
-  isRunning,
-  isCancelling,
-  workingStep,
-  onCancel,
-}: {
-  isRunning: boolean
-  isCancelling: boolean
-  workingStep?: string | null
-  onCancel?: () => void
-}) {
-  const { t } = useTranslation()
-  if (!isRunning) return null
-
-  return (
-    <div className="flex items-center gap-2.5 my-2 px-3 py-2 text-xs text-muted-foreground animate-message-enter">
-      <span className="thinking-dots flex items-center gap-[3px] text-violet-500/70 dark:text-violet-400/70">
-        <span />
-        <span />
-        <span />
-      </span>
-      <span className="font-medium text-violet-500/70 dark:text-violet-400/70">
-        {isCancelling ? t('session.cancelling') : t('session.thinking')}
-      </span>
-      {!isCancelling && workingStep ?
-          (
-            <span className="truncate text-[11px] text-muted-foreground/60 italic">
-              {workingStep}
-            </span>
-          ) :
-        null}
-      {onCancel ?
-          (
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={isCancelling}
-              className="ml-auto rounded-md border border-border/40 bg-background/80 px-2 py-0.5 text-[11px] text-foreground/70 transition-colors hover:bg-accent hover:border-border disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
-            </button>
-          ) :
-        null}
-    </div>
-  )
-}
+// ── Thinking indicator was here ─────────────────────────
+// Moved to ThinkingHover in ChatArea — see git history for the original
+// implementation if reverting is ever needed.
 
 // ── Pending messages ─────────────────────────────────────
