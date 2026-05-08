@@ -13,12 +13,14 @@ import type {
 function createNormalizeState(): AcpNormalizeState {
   return {
     assistantTextParts: [],
+    thinkingTextParts: [],
     toolCalls: new Map(),
   }
 }
 
 function resetNormalizeState(state: AcpNormalizeState): void {
   state.assistantTextParts = []
+  state.thinkingTextParts = []
   state.toolCalls.clear()
 }
 
@@ -27,10 +29,24 @@ function flushAssistantMessage(
   timestamp: string,
 ): NormalizedLogEntry | null {
   const content = state.assistantTextParts.join('').trim()
-  resetNormalizeState(state)
+  state.assistantTextParts = []
   if (!content) return null
   return {
     entryType: 'assistant-message',
+    content,
+    timestamp,
+  }
+}
+
+function flushThinkingMessage(
+  state: AcpNormalizeState,
+  timestamp: string,
+): NormalizedLogEntry | null {
+  const content = state.thinkingTextParts.join('').trim()
+  state.thinkingTextParts = []
+  if (!content) return null
+  return {
+    entryType: 'thinking',
     content,
     timestamp,
   }
@@ -538,13 +554,17 @@ function normalizeAcpEventWithState(
         if (toolUpdate) return toolUpdate
 
         if (update.sessionUpdate === 'agent_thought_chunk') {
-          return {
-            entryType: 'thinking',
-            content:
-              typeof update.content === 'string' ? update.content : JSON.stringify(update.content),
-            timestamp: event.timestamp,
-            metadata: { streaming: true },
+          const thoughtContent = update.content
+          let thoughtText: string
+          if (typeof thoughtContent === 'string') {
+            thoughtText = thoughtContent
+          } else if (thoughtContent && typeof thoughtContent === 'object' && 'text' in thoughtContent) {
+            thoughtText = String((thoughtContent as { text: unknown }).text)
+          } else {
+            thoughtText = JSON.stringify(thoughtContent)
           }
+          state.thinkingTextParts.push(thoughtText)
+          return null
         }
 
         if (update.sessionUpdate === 'plan') {
@@ -587,6 +607,7 @@ function normalizeAcpEventWithState(
       case 'acp-prompt-result':
         return [
           ...flushOutstandingToolResults(state, event.timestamp),
+          flushThinkingMessage(state, event.timestamp),
           flushAssistantMessage(state, event.timestamp),
           {
             entryType: 'system-message',

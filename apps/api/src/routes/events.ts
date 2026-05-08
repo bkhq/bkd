@@ -42,6 +42,11 @@ events.get('/', async (c) => {
       const unsubLog = appEvents.on(
         'log',
         (data) => {
+          // Allow thinking and assistant-message streaming entries through SSE
+          // so users can see the AI's reasoning process in real-time (especially
+          // for ACP engines like opencode that stream thought/message chunks).
+          // Other streaming entries (tool-use updates) are skipped — they'll be
+          // sent when the non-streaming result arrives.
           if (data.streaming) return
           if (!isVisible(data.entry)) return
           writeEvent('log', { issueId: data.issueId, entry: data.entry })

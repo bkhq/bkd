@@ -591,105 +591,6 @@ export function ChatInput({
             ) :
           null}
 
-        {/* Status bar — desktop only. Mobile collapses files-changed badge,
-            Mode/Model selectors, etc. behind the ⋯ button in the bottom toolbar.
-            Rendered without an internal divider so the whole input feels like
-            one card; selectors live here on the right while file changes (when
-            present) appear on the left as subtle chips. */}
-        <div className="flex items-center gap-1.5 px-2 pt-2 max-md:hidden">
-          <button
-            type="button"
-            onClick={() => projectId && issueId && openFileBrowser(projectId, issueId, changesRoot)}
-            className="inline-flex items-center justify-center rounded-md h-6 w-6 text-muted-foreground/70 hover:text-foreground hover:bg-muted/60 transition-colors"
-            title={t('diff.openFiles')}
-          >
-            <FolderOpen className="h-3.5 w-3.5" />
-          </button>
-          {hasChanges ?
-              (
-                <button
-                  type="button"
-                  onClick={onToggleDiff}
-                  className={`inline-flex items-center gap-1.5 rounded-md px-2 h-6 text-[11px] transition-colors ${
-                    diffOpen ?
-                      'bg-primary/10 ring-1 ring-primary/20 text-foreground' :
-                      'text-muted-foreground hover:bg-muted/60'
-                  }`}
-                >
-                  <span>{t('chat.filesChanged', { count: changedCount })}</span>
-                  <span className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
-                    +
-                    {additions}
-                  </span>
-                  <span className="font-mono tabular-nums text-red-600 dark:text-red-400">
-                    -
-                    {deletions}
-                  </span>
-                </button>
-              ) :
-            null}
-          <div className="ml-auto flex items-center gap-1">
-            {/* Desktop: inline toolbar */}
-            <div className="hidden md:flex items-center gap-1">
-              {isSessionActive && !isThinking ?
-                  (
-                    <BusyActionSelect value={busyAction} onChange={setBusyAction} />
-                  ) :
-                null}
-              <ModeSelect value={mode} onChange={setMode} />
-              {models.length > 0 ?
-                  (
-                    <ModelSelect
-                      models={models}
-                      value={activeModel}
-                      onChange={setSelectedModel}
-                      disabled={isSessionActive || modelLocked}
-                      locked={modelLocked}
-                    />
-                  ) :
-                null}
-            </div>
-            {/* Mobile: collapse all selectors behind a single ⋯ trigger so the
-                input toolbar stays one-line and doesn't fight the soft keyboard. */}
-            <div className="md:hidden">
-              <Popover>
-                <PopoverTrigger
-                  render={(
-                    <button
-                      type="button"
-                      className="flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                      aria-label="More options"
-                    />
-                  )}
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </PopoverTrigger>
-                <PopoverContent align="end" side="top" className="w-auto p-2">
-                  <div className="flex flex-col items-stretch gap-2 min-w-[180px]">
-                    {isSessionActive && !isThinking ?
-                        (
-                          <BusyActionSelect value={busyAction} onChange={setBusyAction} />
-                        ) :
-                      null}
-                    <ModeSelect value={mode} onChange={setMode} />
-                    {models.length > 0 ?
-                        (
-                          <ModelSelect
-                            models={models}
-                            value={activeModel}
-                            onChange={setSelectedModel}
-                            disabled={isSessionActive || modelLocked}
-                            locked={modelLocked}
-                          />
-                        ) :
-                      null}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-        </div>
-
         {/* Error banner */}
         {sendError ?
             (
@@ -779,185 +680,223 @@ export function ChatInput({
           onChange={handleFileSelect}
         />
 
-        {/* Combined input row: textarea grows in the middle, action icons sit
-            on either side and stay aligned to the bottom of the textarea
-            even when it auto-grows (`items-end`). When the textarea is a
-            single line the whole input is ~44px tall — same row as the
-            buttons — saving the ~50px the previous two-row toolbar wasted
-            in idle state. ChatGPT / Claude.app pattern. */}
-        <div className="flex items-end gap-0.5 px-1.5 py-1.5">
-          {/* Left actions */}
-          <div className="flex items-center gap-0.5 shrink-0">
-            {/* EngineInfo / Refresh — desktop only. On mobile both go into the
-                ⋯ popover so the bottom row stays at 📎 / ⋯  ↑ (4 elements). */}
-            <div className="hidden md:flex items-center gap-0.5">
-              {engineType ? <EngineInfo engineType={engineType} /> : null}
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              title={t('chat.attach')}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Paperclip className="size-4" />
-            </Button>
-            {normalizedSlashCommands.length > 0 ?
-                (
-                  <CommandPicker
-                    commands={normalizedSlashCommands}
-                    onSelect={cmd => selectSlashCommand(cmd)}
-                  />
-                ) :
-              null}
-            <Button
-              variant="ghost"
-              size="icon"
-              title={t('chat.refreshLogs')}
-              onClick={onRefreshLogs}
-              className="max-md:hidden"
-            >
-              <RefreshCw className="size-4" />
-            </Button>
-            {/* Mobile-only ⋯ — surfaces the contents of the (hidden) status bar:
-                files-changed badge, Mode / Model / BusyAction selectors. Keeps
-                the input chrome to a single visible row on phones. */}
-            <div className="md:hidden">
-              <Popover>
-                <PopoverTrigger
-                  render={(
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title={t('chat.moreOptions', 'More')}
-                      aria-label="More options"
-                    />
-                  )}
+        {/* Row 1: Full-width textarea */}
+        <Textarea
+          ref={textareaRef}
+          value={input}
+          onChange={handleInput}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          placeholder={statusId === 'todo' ? t('chat.placeholderTodo') : t('chat.placeholder')}
+          rows={1}
+          className="w-full bg-transparent text-base md:text-sm resize-none outline-none border-none shadow-none placeholder:text-muted-foreground/40 leading-relaxed focus-visible:ring-0 overflow-y-auto min-h-[36px] px-3 pt-2.5 pb-1 [field-sizing:fixed]"
+        />
+
+        {/* Row 2: Toolbar — 3 groups with dividers */}
+        <div className="flex items-center gap-1 px-2 pb-2 pt-0.5">
+          {/* Group 1: Actions */}
+          <Button
+            variant="ghost"
+            size="icon"
+            title={t('chat.attach')}
+            onClick={() => fileInputRef.current?.click()}
+            className="size-7"
+          >
+            <Paperclip className="size-3.5" />
+          </Button>
+          {normalizedSlashCommands.length > 0 ?
+              (
+                <CommandPicker
+                  commands={normalizedSlashCommands}
+                  onSelect={cmd => selectSlashCommand(cmd)}
+                />
+              ) :
+            null}
+          <Button
+            variant="ghost"
+            size="icon"
+            title={t('chat.refreshLogs')}
+            onClick={onRefreshLogs}
+            className="size-7 max-md:hidden"
+          >
+            <RefreshCw className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            title={t('diff.openFiles')}
+            onClick={() => projectId && issueId && openFileBrowser(projectId, issueId, changesRoot)}
+            className="size-7 max-md:hidden"
+          >
+            <FolderOpen className="size-3.5" />
+          </Button>
+
+          {/* Divider */}
+          <div className="w-px h-3.5 bg-border/30 mx-0.5" />
+
+          {/* Group 2: Chips */}
+          {engineType ?
+              (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-medium border border-border/30 bg-muted/40 text-muted-foreground hover:bg-muted/60 transition-colors"
                 >
-                  <MoreHorizontal className="size-4" />
-                </PopoverTrigger>
-                <PopoverContent align="start" side="top" className="w-auto p-2">
-                  <div className="flex flex-col items-stretch gap-2 min-w-[200px]">
-                    {/* Engine info (was top-left toolbar icon on desktop). */}
-                    {engineType ?
-                        (
-                          <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">
-                            <EngineIcon engineType={engineType} className="size-4 shrink-0" />
-                            <span className="font-medium">
-                              {t(`createIssue.engineLabel.${engineType}`, engineType)}
-                            </span>
-                          </div>
-                        ) :
-                      null}
-                    {/* Refresh / Clear session buttons — collapsed from
-                        toolbar to keep the visible row clean on phones. */}
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 h-8 text-xs"
-                        onClick={onRefreshLogs}
-                      >
-                        <RefreshCw className="size-3.5" />
-                        {t('chat.refreshLogs')}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 h-8 text-xs"
-                        disabled={!issueId || isSessionActive || clearSession.isPending}
-                        onClick={() => setClearSessionOpen(true)}
-                      >
-                        <Eraser className="size-3.5" />
-                        {t('chat.clearSession')}
-                      </Button>
-                    </div>
-                    {changedCount > 0 ?
-                        (
-                          <button
-                            type="button"
-                            onClick={onToggleDiff}
-                            className={`inline-flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs transition-all ${
-                              diffOpen ?
-                                'bg-primary/10 ring-1 ring-primary/20 text-foreground' :
-                                'bg-muted/40 hover:bg-muted/60 text-muted-foreground'
-                            }`}
-                          >
-                            <span>{t('chat.filesChanged', { count: changedCount })}</span>
-                            <span className="font-mono tabular-nums">
-                              <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                                +
-                                {additions}
-                              </span>
-                              <span className="ml-1 text-red-600 dark:text-red-400 font-medium">
-                                -
-                                {deletions}
-                              </span>
-                            </span>
-                          </button>
-                        ) :
-                      null}
-                    {isSessionActive && !isThinking ?
-                        (
-                          <BusyActionSelect value={busyAction} onChange={setBusyAction} />
-                        ) :
-                      null}
-                    <ModeSelect value={mode} onChange={setMode} />
-                    {models.length > 0 ?
-                        (
-                          <ModelSelect
-                            models={models}
-                            value={activeModel}
-                            onChange={setSelectedModel}
-                            disabled={isSessionActive || modelLocked}
-                            locked={modelLocked}
-                          />
-                        ) :
-                      null}
+                  <EngineIcon engineType={engineType} className="size-3 shrink-0" />
+                  <span className="max-w-[80px] truncate">{t(`createIssue.engineLabel.${engineType}`, engineType)}</span>
+                </button>
+              ) :
+            null}
+          <ModeSelect value={mode} onChange={setMode} />
+          {models.length > 0 ?
+              (
+                <ModelSelect
+                  models={models}
+                  value={activeModel}
+                  onChange={setSelectedModel}
+                  disabled={isSessionActive || modelLocked}
+                  locked={modelLocked}
+                />
+              ) :
+            null}
+          {isSessionActive && !isThinking ?
+              (
+                <BusyActionSelect value={busyAction} onChange={setBusyAction} />
+              ) :
+            null}
+
+          {/* Divider */}
+          {hasChanges ?
+              <div className="w-px h-3.5 bg-border/30 mx-0.5" /> :
+            null}
+
+          {/* Files changed badge */}
+          {hasChanges ?
+              (
+                <button
+                  type="button"
+                  onClick={onToggleDiff}
+                  className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-medium border transition-colors ${
+                    diffOpen ?
+                      'border-primary/30 bg-primary/10 text-foreground' :
+                      'border-border/30 bg-muted/40 text-muted-foreground hover:bg-muted/60'
+                  }`}
+                >
+                  <span>{t('chat.filesChanged', { count: changedCount })}</span>
+                  <span className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
+                    +
+                    {additions}
+                  </span>
+                  <span className="font-mono tabular-nums text-red-600 dark:text-red-400">
+                    -
+                    {deletions}
+                  </span>
+                </button>
+              ) :
+            null}
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Group 3: Send */}
+          <Button
+            variant="ghost"
+            size="icon"
+            title={t('chat.clearSession')}
+            disabled={!issueId || isSessionActive || clearSession.isPending}
+            onClick={() => setClearSessionOpen(true)}
+            className="size-7 max-md:hidden text-muted-foreground/60 hover:text-destructive"
+          >
+            <Eraser className="size-3.5" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            disabled={!canSend || followUp.isPending}
+            onClick={handleSend}
+            title={t('chat.send')}
+            className="rounded-full size-7 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"
+          >
+            {followUp.isPending ?
+                <Loader2 className="size-3.5 animate-spin" /> :
+                <ArrowUp className="size-3.5" strokeWidth={2.5} />}
+          </Button>
+
+          {/* Mobile overflow menu */}
+          <div className="md:hidden">
+            <Popover>
+              <PopoverTrigger
+                render={(
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title={t('chat.moreOptions', 'More')}
+                    aria-label="More options"
+                    className="size-7"
+                  />
+                )}
+              >
+                <MoreHorizontal className="size-3.5" />
+              </PopoverTrigger>
+              <PopoverContent align="end" side="top" className="w-auto p-2">
+                <div className="flex flex-col items-stretch gap-2 min-w-[200px]">
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-8 text-xs"
+                      onClick={onRefreshLogs}
+                    >
+                      <RefreshCw className="size-3.5" />
+                      {t('chat.refreshLogs')}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-8 text-xs"
+                      onClick={() => projectId && issueId && openFileBrowser(projectId, issueId, changesRoot)}
+                    >
+                      <FolderOpen className="size-3.5" />
+                      {t('diff.openFiles')}
+                    </Button>
                   </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-
-          {/* Textarea — flex-1 between the action groups. Auto-grows up to
-              ~200px via the useLayoutEffect above, then internally scrolls.
-              `field-sizing:fixed` overrides shadcn's auto-sizing so the JS
-              path is the single source of truth. */}
-          <Textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleInput}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={statusId === 'todo' ? t('chat.placeholderTodo') : t('chat.placeholder')}
-            rows={1}
-            className="flex-1 self-stretch bg-transparent text-base md:text-sm resize-none outline-none border-none shadow-none placeholder:text-muted-foreground/40 leading-relaxed focus-visible:ring-0 overflow-y-auto min-h-[32px] py-1.5 px-1.5 [field-sizing:fixed]"
-          />
-
-          {/* Right actions */}
-          <div className="flex items-center gap-1 shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              title={t('chat.clearSession')}
-              disabled={!issueId || isSessionActive || clearSession.isPending}
-              onClick={() => setClearSessionOpen(true)}
-              className="max-md:hidden text-muted-foreground/60 hover:text-destructive"
-            >
-              <Eraser className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              disabled={!canSend || followUp.isPending}
-              onClick={handleSend}
-              title={t('chat.send')}
-              className="rounded-full size-8 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"
-            >
-              {followUp.isPending ?
-                  <Loader2 className="size-4 animate-spin" /> :
-                  <ArrowUp className="size-4" strokeWidth={2.5} />}
-            </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    disabled={!issueId || isSessionActive || clearSession.isPending}
+                    onClick={() => setClearSessionOpen(true)}
+                  >
+                    <Eraser className="size-3.5" />
+                    {t('chat.clearSession')}
+                  </Button>
+                  {hasChanges ?
+                      (
+                        <button
+                          type="button"
+                          onClick={onToggleDiff}
+                          className={`inline-flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs transition-all ${
+                            diffOpen ?
+                              'bg-primary/10 ring-1 ring-primary/20 text-foreground' :
+                              'bg-muted/40 hover:bg-muted/60 text-muted-foreground'
+                          }`}
+                        >
+                          <span>{t('chat.filesChanged', { count: changedCount })}</span>
+                          <span className="font-mono tabular-nums">
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                              +
+                              {additions}
+                            </span>
+                            <span className="ml-1 text-red-600 dark:text-red-400 font-medium">
+                              -
+                              {deletions}
+                            </span>
+                          </span>
+                        </button>
+                      ) :
+                    null}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       </div>
@@ -1073,10 +1012,9 @@ function BusyActionSelect({
     <DropdownMenu>
       <DropdownMenuTrigger
         render={(
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs text-muted-foreground gap-1"
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-medium border border-border/30 bg-muted/40 text-muted-foreground hover:bg-muted/60 transition-colors"
             title={t('chat.busyAction.label')}
           />
         )}
@@ -1098,29 +1036,6 @@ function BusyActionSelect({
   )
 }
 
-// ─── EngineInfo ──────────────────────────────────────────────────────────────
-// Replaced custom popover with shadcn Popover
-
-function EngineInfo({ engineType }: { engineType: string }) {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  const engineName = t(`createIssue.engineLabel.${engineType}`, engineType)
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant="ghost" size="icon" title={engineName} />}>
-        <EngineIcon engineType={engineType} className="size-4" />
-      </PopoverTrigger>
-      <PopoverContent side="top" align="start" className="w-auto px-3 py-2 text-xs">
-        <div className="flex items-center gap-1.5">
-          <EngineIcon engineType={engineType} className="h-3 w-3 shrink-0" />
-          <span className="font-medium">{engineName}</span>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 // ─── ModelSelect ─────────────────────────────────────────────────────────────
 // Replaced custom dropdown with shadcn DropdownMenu
 
@@ -1139,34 +1054,63 @@ function ModelSelect({
 }) {
   const { t } = useTranslation()
   const current = models.find(m => m.id === value)
+  const isDefault = !value
   const displayName = locked
     ? t('settings.modelGatewayDefault')
-    : current
-      ? formatModelName(current.name || current.id)
-      : formatModelName(value)
+    : isDefault
+      ? t('createIssue.modelDefault')
+      : current
+        ? formatModelName(current.name || current.id)
+        : formatModelName(value)
+
+  if (locked) {
+    return (
+      <div
+        className="inline-flex items-center h-7 px-2.5 rounded-full text-[11px] font-medium border border-border/30 bg-muted/40 text-muted-foreground cursor-not-allowed"
+        title={t('settings.omitModelHint')}
+      >
+        <span className="truncate italic">{t('settings.modelGatewayDefault')}</span>
+      </div>
+    )
+  }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={(
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             disabled={disabled}
-            className="h-6 px-2 text-xs text-muted-foreground gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-medium border border-border/30 bg-muted/40 text-muted-foreground hover:bg-muted/60 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           />
         )}
       >
         <span className="truncate max-w-[140px]">{displayName}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="top" className="min-w-[180px] max-h-[320px] overflow-y-auto text-xs">
+        <DropdownMenuItem onSelect={() => onChange('')} className={isDefault ? 'bg-primary/10 text-primary font-medium' : ''}>
+          <span className="font-medium">{t('createIssue.modelDefault')}</span>
+          <span className="text-[10px] text-muted-foreground ml-1">
+            (
+            {t('createIssue.modelDefaultHint')}
+            )
+          </span>
+        </DropdownMenuItem>
         {models.map(m => (
           <DropdownMenuItem
             key={m.id}
             onSelect={() => onChange(m.id)}
             className={m.id === value ? 'bg-primary/10 text-primary font-medium' : ''}
           >
-            {formatModelName(m.name || m.id)}
+            <span className="font-medium">{formatModelName(m.name || m.id)}</span>
+            {m.isDefault ? (
+              <span className="text-[10px] text-muted-foreground ml-1">
+                (
+                {t('createIssue.engineLabel.default')}
+                )
+              </span>
+            ) :
+              null}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -1189,8 +1133,8 @@ function CommandPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant="ghost" size="icon" title={t('chat.commands')} />}>
-        <SlashSquare className="size-4" />
+      <PopoverTrigger render={<Button variant="ghost" size="icon" title={t('chat.commands')} className="size-7" />}>
+        <SlashSquare className="size-3.5" />
       </PopoverTrigger>
       <PopoverContent side="top" align="start" className="w-[260px] p-0">
         <Command>
@@ -1229,10 +1173,9 @@ function ModeSelect({ value, onChange }: { value: ModeOption, onChange: (v: Mode
     <DropdownMenu>
       <DropdownMenuTrigger
         render={(
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs text-muted-foreground gap-1"
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-medium border border-border/30 bg-muted/40 text-muted-foreground hover:bg-muted/60 transition-colors"
             title={t('createIssue.mode')}
           />
         )}

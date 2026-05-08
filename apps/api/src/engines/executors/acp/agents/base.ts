@@ -61,7 +61,7 @@ export async function verifyAcpCommand(
       {
         env: safeEnv({ NPM_CONFIG_LOGLEVEL: 'error' }, 'acp'),
         stderr: 'pipe',
-        timeout: 15000,
+        timeout: 30000,
       },
     )
 

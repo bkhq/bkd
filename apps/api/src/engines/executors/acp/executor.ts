@@ -22,6 +22,7 @@ import {
   parseAcpModel,
   queryScopedAcpModels,
 } from './agents'
+import { resolveBinaryOnly } from './agents/base'
 
 export class AcpExecutor implements EngineExecutor {
   readonly engineType = 'acp' as const
@@ -129,14 +130,26 @@ export class AcpExecutor implements EngineExecutor {
   }
 
   async getModels(): Promise<EngineModel[]> {
-    const allModels = await Promise.allSettled(
-      getAcpAgents().map(agent => queryScopedAcpModels(agent.id, process.cwd())),
-    )
+    // Only query models for agents that have their binary installed.
+    // Use fast filesystem check (resolveBinaryOnly) instead of slow
+    // verify --version (which falls back to npx for missing agents and
+    // can take 30s+ each). Query models sequentially to avoid spawning
+    // multiple child processes simultaneously.
+    const agents = getAcpAgents()
+    const allModels: EngineModel[] = []
 
-    return allModels.flatMap((result) => {
-      if (result.status !== 'fulfilled') return []
-      return result.value
-    })
+    for (const agent of agents) {
+      const binary = resolveBinaryOnly(agent.commandName)
+      if (!binary) continue
+      try {
+        const models = await queryScopedAcpModels(agent.id, process.cwd())
+        allModels.push(...models)
+      } catch {
+        // Skip agents that fail model query
+      }
+    }
+
+    return allModels
   }
 
   normalizeLog(rawLine: string): NormalizedLogEntry | null {

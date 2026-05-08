@@ -56,7 +56,8 @@ async function readFromCache(): Promise<EngineDiscovery | null> {
 }
 
 // Per-engine probe timeout (prevents a single engine from blocking the entire probe)
-const PER_ENGINE_TIMEOUT_MS = 15_000
+// ACP agents spawn child processes for model discovery, which can be slow.
+const PER_ENGINE_TIMEOUT_MS = 30_000
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([

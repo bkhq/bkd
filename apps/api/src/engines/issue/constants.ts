@@ -1,4 +1,4 @@
-export const DEFAULT_LOG_PAGE_SIZE = 10
+export const DEFAULT_LOG_PAGE_SIZE = 100
 export const LOG_PAGE_SIZE_KEY = 'log:pageSize'
 export const MAX_LOG_ENTRIES = 10000
 export const AUTO_CLEANUP_DELAY_MS = 5 * 60 * 1000 // 5 minutes

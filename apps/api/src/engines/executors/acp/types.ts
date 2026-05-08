@@ -40,6 +40,7 @@ export interface EventSink {
 
 export interface AcpNormalizeState {
   assistantTextParts: string[]
+  thinkingTextParts: string[]
   toolCalls: Map<string, AcpToolState>
 }
 
