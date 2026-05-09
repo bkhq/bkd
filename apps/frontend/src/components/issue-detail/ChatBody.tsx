@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronRight, Clock, FileText, Image } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronRight, Clock, FileText } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -338,7 +338,6 @@ export function ChatBody({
               >
                 <div className="pointer-events-auto">
                   <ThinkingHover
-                    logs={logs}
                     isActive={isThinking}
                     workingStep={workingStep}
                     isCancelling={isCancelling}
@@ -394,7 +393,6 @@ export function ChatBody({
             {!showScrollBottom ?
                 (
                   <ThinkingHover
-                    logs={logs}
                     isActive={isThinking}
                     workingStep={workingStep}
                     isCancelling={isCancelling}
@@ -478,18 +476,40 @@ export function ChatBody({
                   {attachments.length > 0
                     ? (
                         <div className={`flex flex-wrap gap-1.5${displayContent ? ' mt-2' : ''}`}>
-                          {attachments.map(att => (
-                            <span
-                              key={att.id}
-                              className="inline-flex items-center gap-1 rounded bg-muted/60 border border-border/40 px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                            >
-                              {att.mimeType.startsWith('image/')
-                                ? <Image className="h-3 w-3 shrink-0 text-blue-500" />
-                                : <FileText className="h-3 w-3 shrink-0" />}
-                              <span className="truncate max-w-[120px]">{att.name}</span>
-                              <span className="text-muted-foreground/50">{formatFileSize(att.size)}</span>
-                            </span>
-                          ))}
+                          {attachments.map((att) => {
+                            const isImage = att.mimeType.startsWith('image/')
+                            const baseUrl = `/api/projects/${projectId}/issues/${issueId}/attachments/${att.id}`
+                            return isImage
+                              ? (
+                                  <a
+                                    key={att.id}
+                                    href={`${baseUrl}?preview`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block rounded border border-border/40 overflow-hidden max-w-[200px] max-h-[150px] group/img"
+                                    title={`${att.name} (${formatFileSize(att.size)})`}
+                                  >
+                                    <img
+                                      src={`${baseUrl}?preview`}
+                                      alt={att.name}
+                                      className="object-cover w-full h-full transition-transform group-hover/img:scale-105"
+                                      loading="lazy"
+                                    />
+                                  </a>
+                                )
+                              : (
+                                  <a
+                                    key={att.id}
+                                    href={baseUrl}
+                                    download={att.name}
+                                    className="inline-flex items-center gap-1 rounded bg-muted/60 border border-border/40 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted transition-colors"
+                                  >
+                                    <FileText className="h-3 w-3 shrink-0" />
+                                    <span className="truncate max-w-[120px]">{att.name}</span>
+                                    <span className="text-muted-foreground/50">{formatFileSize(att.size)}</span>
+                                  </a>
+                                )
+                          })}
                         </div>
                       )
                     : null}

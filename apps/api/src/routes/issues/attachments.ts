@@ -10,6 +10,7 @@ import { getProjectOwnedIssue } from './_shared'
 const attachmentsRouter = createOpenAPIRouter()
 
 // GET /api/projects/:projectId/issues/:id/attachments/:attachmentId — Serve attachment file
+// Add ?preview to serve inline (for images), otherwise forces download
 attachmentsRouter.get('/:id/attachments/:attachmentId', async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)
@@ -45,11 +46,15 @@ attachmentsRouter.get('/:id/attachments/:attachmentId', async (c) => {
     return c.json({ success: false, error: 'Attachment file missing' }, 404)
   }
 
+  const isPreview = c.req.query('preview') !== undefined
+  const disposition = isPreview
+    ? `inline; filename="${encodeURIComponent(attachment.originalName)}"`
+    : `attachment; filename="${encodeURIComponent(attachment.originalName)}"`
+
   return new Response(file.stream(), {
     headers: {
       'Content-Type': attachment.mimeType,
-      // SEC-024: Force download to prevent content-sniffing and XSS via served files
-      'Content-Disposition': `attachment; filename="${encodeURIComponent(attachment.originalName)}"`,
+      'Content-Disposition': disposition,
       'X-Content-Type-Options': 'nosniff',
       'Cache-Control': 'private, max-age=86400',
     },
