@@ -475,10 +475,7 @@ export const WEBHOOK_EVENT_GROUPS: { category: string, events: WebhookEventType[
   },
 ]
 
-export const WEBHOOK_EVENT_TYPES: WebhookEventType[] = [
-  ...WEBHOOK_EVENT_GROUPS.flatMap(g => g.events),
-  'issue.status_changed', // legacy compat
-]
+export const WEBHOOK_EVENT_TYPES: WebhookEventType[] = WEBHOOK_EVENT_GROUPS.flatMap(g => g.events)
 
 export type NotificationChannel = 'webhook' | 'telegram'
 

@@ -140,6 +140,7 @@ function WebhookForm({ webhook, onClose }: { webhook?: Webhook, onClose: () => v
     webhook?.events ?? [...WEBHOOK_EVENT_TYPES],
   )
   const [isActive, setIsActive] = useState(webhook?.isActive ?? true)
+  const [error, setError] = useState<string | null>(null)
 
   const isEditing = !!webhook
   const isPending = createWebhook.isPending || updateWebhook.isPending
@@ -151,6 +152,7 @@ function WebhookForm({ webhook, onClose }: { webhook?: Webhook, onClose: () => v
 
   const handleSubmit = () => {
     if (!url || (!secret && isTelegram) || events.length === 0) return
+    setError(null)
 
     if (isEditing) {
       updateWebhook.mutate(
@@ -161,12 +163,18 @@ function WebhookForm({ webhook, onClose }: { webhook?: Webhook, onClose: () => v
           events,
           isActive,
         },
-        { onSuccess: onClose },
+        {
+          onSuccess: onClose,
+          onError: err => setError(err.message),
+        },
       )
     } else {
       createWebhook.mutate(
         { channel, url, secret: secret || undefined, events, isActive },
-        { onSuccess: onClose },
+        {
+          onSuccess: onClose,
+          onError: err => setError(err.message),
+        },
       )
     }
   }
@@ -301,6 +309,12 @@ function WebhookForm({ webhook, onClose }: { webhook?: Webhook, onClose: () => v
           ))}
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {error}
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
