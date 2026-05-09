@@ -110,6 +110,8 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
    */
   let flushedStreamingTurnIndex: number | undefined
   let toolBuffer: ToolGroupItem[] = []
+  /** Caches the latest thinking entry for potential merging with assistant-message. */
+  let pendingThinking: NormalizedLogEntry | null = null
 
   function buildToolGroup(items: ToolGroupItem[]): ToolGroupChatMessage {
     const stats: Record<string, number> = {}
@@ -141,6 +143,15 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
   }
 
   function flushStreamingAssistant(): void {
+    if (pendingThinking) {
+      flushToolBuffer()
+      items.push({
+        type: 'entry',
+        id: entryId(pendingThinking, nextId('acp-entry')),
+        entry: pendingThinking,
+      })
+      pendingThinking = null
+    }
     if (!pendingStreamingAssistant) return
     flushToolBuffer()
     items.push({
@@ -172,10 +183,38 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
   for (const entry of entries) {
     if (shouldHideAcpEntry(entry)) continue
 
+    // thinking: cache for potential merging with the following assistant-message.
+    // When the engine streams thinking and message as identical text, we skip
+    // the standalone thinking display to avoid duplication.
+    if (entry.entryType === 'thinking' && entry.metadata?.streaming === true) {
+      if (pendingThinking && pendingThinking.turnIndex === entry.turnIndex) {
+        const current = pendingThinking as NormalizedLogEntry
+        const prevText = current.content
+        const nextText = entry.content
+        const isFullContent = nextText.startsWith(prevText)
+        pendingThinking = {
+          ...current,
+          content: isFullContent ? nextText : `${prevText}${nextText}`,
+          timestamp: entry.timestamp ?? current.timestamp,
+        }
+      } else {
+        pendingThinking = { ...entry }
+      }
+      continue
+    }
+
     if (
       entry.entryType === 'assistant-message' &&
       entry.metadata?.streaming === true
     ) {
+      // If assistant contains the thinking content, discard the thinking
+      if (
+        pendingThinking &&
+        pendingThinking.turnIndex === entry.turnIndex &&
+        entry.content.startsWith(pendingThinking.content)
+      ) {
+        pendingThinking = null
+      }
       if (
         pendingStreamingAssistant &&
         pendingStreamingAssistant.turnIndex === entry.turnIndex

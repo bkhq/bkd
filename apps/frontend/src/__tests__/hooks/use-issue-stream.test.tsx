@@ -581,7 +581,8 @@ describe('useIssueStream', () => {
     await waitFor(() => {
       expect(chatResult.current.messages).toHaveLength(1)
       expect(chatResult.current.messages[0]?.type).toBe('assistant')
-      expect(chatResult.current.messages[0]?.entry.content).toBe('Hello world')
+      const assistantMsg = chatResult.current.messages[0] as { entry: { content: string } }
+      expect(assistantMsg.entry.content).toBe('Hello world')
     })
   })
 })
