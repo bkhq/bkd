@@ -4,6 +4,7 @@ import { findProject } from '@/db/helpers'
 import { getPendingMessages, upsertPendingMessage } from '@/db/pending-messages'
 import { attachments } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
+import type { EngineAttachment } from '@/engines/types'
 import { emitIssueLogRemoved } from '@/events/issue-events'
 import { logger } from '@/logger'
 import type { SavedFile } from '@/uploads'
@@ -112,6 +113,16 @@ async function parseFollowUpBody(c: {
 
 function savedFileToMeta(f: SavedFile) {
   return { id: f.id, name: f.originalName, mimeType: f.mimeType, size: f.size }
+}
+
+function savedFileToAttachment(f: SavedFile): EngineAttachment {
+  return {
+    id: f.id,
+    originalName: f.originalName,
+    absolutePath: f.absolutePath,
+    mimeType: f.mimeType,
+    size: f.size,
+  }
 }
 
 async function insertAttachmentRecords(
@@ -271,6 +282,7 @@ message.post('/:id/follow-up', async (c) => {
       ...(isCommand ? { type: 'command' } : {}),
     }
     const hasFollowUpMeta = Object.keys(followUpMeta).length > 0
+    const engineAttachments = savedFiles.length > 0 ? savedFiles.map(savedFileToAttachment) : undefined
     const result = await issueEngine.followUpIssue(
       issueId,
       fullPrompt,
@@ -279,6 +291,8 @@ message.post('/:id/follow-up', async (c) => {
       parsed.busyAction as 'queue' | 'cancel' | undefined,
       parsed.displayPrompt ?? (savedFiles.length > 0 ? prompt || undefined : undefined),
       hasFollowUpMeta ? followUpMeta : undefined,
+      undefined,
+      engineAttachments,
     )
     // Link attachments to the server-assigned message log
     if (savedFiles.length > 0 && result.messageId) {

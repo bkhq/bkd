@@ -4,15 +4,29 @@ import {
   PROTOCOL_VERSION,
 } from '@agentclientprotocol/sdk'
 import type {
+  ContentBlock,
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
 } from '@agentclientprotocol/sdk'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+import { extname } from 'node:path'
 import { Readable, Writable } from 'node:stream'
-import type { EngineModel, PermissionPolicy } from '@/engines/types'
+import type { EngineAttachment, EngineModel, PermissionPolicy } from '@/engines/types'
+import { logger } from '@/logger'
 import { createEventSink } from './transport'
 import type { AcpEvent, SessionBootstrap } from './types'
+
+const IMAGE_MIME_EXTENSIONS: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.bmp': 'image/bmp',
+}
 
 function mapSessionMode(policy: PermissionPolicy): string {
   switch (policy) {
@@ -194,10 +208,10 @@ export class AcpProtocolHandler {
     return response
   }
 
-  async sendUserMessage(prompt: string): Promise<void> {
+  async sendUserMessage(prompt: string, attachments?: EngineAttachment[]): Promise<void> {
     this.currentPrompt = this.currentPrompt
       .catch(() => {})
-      .then(() => this.runPrompt(prompt))
+      .then(() => this.runPrompt(prompt, attachments))
 
     return this.currentPrompt
   }
@@ -232,7 +246,7 @@ export class AcpProtocolHandler {
     }).catch(() => {})
   }
 
-  private async runPrompt(prompt: string): Promise<void> {
+  private async runPrompt(prompt: string, attachments?: EngineAttachment[]): Promise<void> {
     if (!this.sessionId) {
       throw new Error('ACP session is not initialized')
     }
@@ -240,10 +254,21 @@ export class AcpProtocolHandler {
     const startedAt = Date.now()
     this.onActivity?.()
 
+    const contentBlocks: ContentBlock[] = [{ type: 'text', text: prompt }]
+
+    if (attachments?.length) {
+      for (const attachment of attachments) {
+        const imageBlock = await this.buildImageBlock(attachment)
+        if (imageBlock) {
+          contentBlocks.push(imageBlock)
+        }
+      }
+    }
+
     try {
       const result = await this.connection.prompt({
         sessionId: this.sessionId,
-        prompt: [{ type: 'text', text: prompt }],
+        prompt: contentBlocks,
       })
 
       this.sink.emit({
@@ -269,6 +294,31 @@ export class AcpProtocolHandler {
         durationMs: Date.now() - startedAt,
         error: message,
       })
+    }
+  }
+
+  private async buildImageBlock(attachment: EngineAttachment): Promise<ContentBlock | null> {
+    const ext = extname(attachment.originalName).toLowerCase()
+    const mimeType = IMAGE_MIME_EXTENSIONS[ext] ?? attachment.mimeType
+
+    if (!mimeType?.startsWith('image/')) {
+      return null
+    }
+
+    try {
+      const buffer = await readFile(attachment.absolutePath)
+      const base64 = buffer.toString('base64')
+      return {
+        type: 'image',
+        data: base64,
+        mimeType,
+      }
+    } catch (error) {
+      logger.warn(
+        { attachmentId: attachment.id, path: attachment.absolutePath, error },
+        'acp_read_image_failed',
+      )
+      return null
     }
   }
 }

@@ -1,5 +1,5 @@
 import { ProcessManager } from '@/engines/process-manager'
-import type { EngineType, PermissionPolicy } from '@/engines/types'
+import type { EngineAttachment, EngineType, PermissionPolicy } from '@/engines/types'
 import { logger } from '@/logger'
 import { AUTO_CLEANUP_DELAY_MS, GC_INTERVAL_MS, MAX_CONCURRENT_EXECUTIONS } from './constants'
 import type { EngineContext } from './context'
@@ -68,6 +68,7 @@ export class IssueEngine {
       displayPrompt?: string,
       metadata?: Record<string, unknown>,
       opts?: { skipPersistMessage?: boolean },
+      attachments?: EngineAttachment[],
     ) =>
       followUpIssue(
         this.ctx,
@@ -79,6 +80,7 @@ export class IssueEngine {
         displayPrompt,
         metadata,
         opts,
+        attachments,
       )
 
     this.gcTimer = setInterval(() => {
@@ -123,6 +125,7 @@ export class IssueEngine {
     displayPrompt?: string,
     metadata?: Record<string, unknown>,
     opts?: { skipPersistMessage?: boolean },
+    attachments?: EngineAttachment[],
   ): Promise<{ executionId: string, messageId?: string | null }> {
     return followUpIssue(
       this.ctx,
@@ -134,6 +137,7 @@ export class IssueEngine {
       displayPrompt,
       metadata,
       opts,
+      attachments,
     )
   }
 

@@ -8,7 +8,7 @@ import { getActiveProcessForIssue } from '@/engines/issue/process/state'
 import { dispatch } from '@/engines/issue/state'
 import { sendInputToRunningProcess } from '@/engines/issue/user-message'
 import { getPidFromManaged } from '@/engines/issue/utils/pid'
-import type { PermissionPolicy } from '@/engines/types'
+import type { EngineAttachment, PermissionPolicy } from '@/engines/types'
 import { logger } from '@/logger'
 
 export async function followUpIssue(
@@ -21,6 +21,7 @@ export async function followUpIssue(
   displayPrompt?: string,
   metadata?: Record<string, unknown>,
   opts?: { skipPersistMessage?: boolean },
+  attachments?: EngineAttachment[],
 ): Promise<{ executionId: string, messageId?: string | null }> {
   return withIssueLock(ctx, issueId, async () => {
     logger.debug(
@@ -132,6 +133,7 @@ export async function followUpIssue(
           displayPrompt,
           metadata,
           opts,
+          attachments,
         )
         return { executionId: active.executionId, messageId: msgId }
       } catch (error) {
@@ -153,6 +155,7 @@ export async function followUpIssue(
           displayPrompt,
           metadata,
           opts,
+          attachments,
         )
       }
     }
@@ -167,6 +170,7 @@ export async function followUpIssue(
       displayPrompt,
       metadata,
       opts,
+      attachments,
     )
   })
 }

@@ -49,6 +49,7 @@ export class AcpExecutor implements EngineExecutor {
         ...env.vars,
         ...(options.env ?? {}),
       },
+      attachments: options.attachments,
     })
   }
 
@@ -66,6 +67,7 @@ export class AcpExecutor implements EngineExecutor {
         ...env.vars,
         ...(options.env ?? {}),
       },
+      attachments: options.attachments,
     })
   }
 

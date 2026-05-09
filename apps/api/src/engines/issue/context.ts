@@ -1,5 +1,5 @@
 import type { ProcessManager } from '@/engines/process-manager'
-import type { PermissionPolicy } from '@/engines/types'
+import type { EngineAttachment, PermissionPolicy } from '@/engines/types'
 import type { ManagedProcess } from './types'
 
 // ---------- EngineContext ----------
@@ -24,6 +24,7 @@ export interface EngineContext {
       displayPrompt?: string,
       metadata?: Record<string, unknown>,
       opts?: { skipPersistMessage?: boolean },
+      attachments?: EngineAttachment[],
     ) => Promise<{ executionId: string, messageId?: string | null }>) |
     null
 }

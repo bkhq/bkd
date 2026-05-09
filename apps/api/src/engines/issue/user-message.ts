@@ -1,5 +1,5 @@
 import { updateIssueSession } from '@/engines/engine-store'
-import type { NormalizedLogEntry } from '@/engines/types'
+import type { EngineAttachment, NormalizedLogEntry } from '@/engines/types'
 import { appEvents } from '@/events'
 import { logger } from '@/logger'
 import type { EngineContext } from './context'
@@ -61,6 +61,7 @@ export function sendInputToRunningProcess(
   displayPrompt?: string,
   metadata?: Record<string, unknown>,
   opts?: { skipPersistMessage?: boolean },
+  attachments?: EngineAttachment[],
 ): string | null {
   if (managed.state !== 'running') {
     throw new Error('Cannot send input to a non-running process')
@@ -73,7 +74,7 @@ export function sendInputToRunningProcess(
   // IMPORTANT: send to engine first, then persist.
   // If send throws (e.g. stdin closed in a race), caller may fallback to spawn
   // a new process. Persisting before send would duplicate this message across turns.
-  handler.sendUserMessage(prompt)
+  handler.sendUserMessage(prompt, attachments)
 
   // Advance turnIndex for interactive follow-ups so logs are properly grouped.
   const nextTurn = getNextTurnIndex(issueId)

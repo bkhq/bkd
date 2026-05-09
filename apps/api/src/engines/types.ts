@@ -5,6 +5,15 @@ import type { Subprocess } from '@/engines/spawn'
 // Supported AI engine types
 export type EngineType = 'claude-code' | 'claude-code-sdk' | 'codex' | 'acp' | `acp:${string}`
 
+// File attachment for engine prompts
+export interface EngineAttachment {
+  id: string
+  originalName: string
+  absolutePath: string
+  mimeType: string
+  size: number
+}
+
 // Communication protocols
 export type EngineProtocol = 'stream-json' | 'json-rpc' | 'acp'
 
@@ -138,6 +147,7 @@ export interface SpawnOptions {
   env?: Record<string, string>
   agent?: string
   externalSessionId?: string
+  attachments?: EngineAttachment[]
 }
 
 // Follow-up options (extends spawn)
@@ -168,7 +178,7 @@ export interface SpawnedProcess {
   protocolHandler?: {
     interrupt: () => void | Promise<void>
     close: () => void
-    sendUserMessage?: (content: string) => void
+    sendUserMessage?: (content: string, attachments?: EngineAttachment[]) => void
     onActivity?: () => void
   }
   /** Override the caller-provided externalSessionId (used by engines that generate their own session IDs, e.g. Codex thread IDs). */

@@ -25,7 +25,7 @@ import {
   resolveWorktreePath,
 } from '@/engines/issue/utils/worktree'
 import { parseAcpEngineType } from '@/engines/startup-probe'
-import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
+import type { EngineAttachment, EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
 import { monitorCompletion } from './completion-monitor'
 import { handleTurnCompleted } from './turn-completion'
@@ -48,6 +48,7 @@ export async function spawnWithSessionFallback(
     envVars?: Record<string, string>
     systemPrompt?: string
     agent?: string
+    attachments?: EngineAttachment[]
   },
 ): Promise<SpawnedProcess> {
   const spawnCtx = {
@@ -65,6 +66,7 @@ export async function spawnWithSessionFallback(
         model: opts.model,
         permissionMode: opts.permissionMode,
         agent: opts.agent,
+        attachments: opts.attachments,
       },
       spawnCtx,
     )
@@ -95,6 +97,7 @@ export async function spawnWithSessionFallback(
         permissionMode: opts.permissionMode,
         externalSessionId,
         agent: opts.agent,
+        attachments: opts.attachments,
       },
       spawnCtx,
     )
@@ -121,6 +124,7 @@ export async function spawnFresh(
     projectId: string
     envVars?: Record<string, string>
     agent?: string
+    attachments?: EngineAttachment[]
   },
 ): Promise<SpawnedProcess> {
   const externalSessionId = crypto.randomUUID()
@@ -132,6 +136,7 @@ export async function spawnFresh(
       permissionMode: opts.permissionMode,
       externalSessionId,
       agent: opts.agent,
+      attachments: opts.attachments,
     },
     {
       vars: opts.envVars ?? {},
@@ -245,6 +250,7 @@ export async function spawnFollowUpProcess(
   displayPrompt?: string,
   metadata?: Record<string, unknown>,
   opts?: { skipPersistMessage?: boolean },
+  attachments?: EngineAttachment[],
 ): Promise<{ executionId: string, messageId?: string | null }> {
   logger.debug(
     { issueId, model, permissionMode, promptChars: prompt.length },
@@ -333,6 +339,7 @@ export async function spawnFollowUpProcess(
       envVars: projCtx.envVars,
       systemPrompt: projCtx.systemPrompt,
       agent: acpAgent,
+      attachments,
     }
     spawned = issue.sessionFields.externalSessionId
       ? await spawnWithSessionFallback(executor, issueId, {

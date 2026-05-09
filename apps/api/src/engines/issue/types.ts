@@ -1,4 +1,4 @@
-import type { EngineType, PermissionPolicy, ProcessStatus, SpawnedProcess } from '@/engines/types'
+import type { EngineAttachment, EngineType, PermissionPolicy, ProcessStatus, SpawnedProcess } from '@/engines/types'
 import type { IssueDebugLog } from './debug-log'
 import type { ExecutionStore } from './store/execution-store'
 
@@ -68,6 +68,7 @@ export interface ManagedProcess {
     busyAction: 'queue' | 'cancel'
     displayPrompt?: string
     metadata?: Record<string, unknown>
+    attachments?: EngineAttachment[]
   }>
   /** Per-issue debug file logger for raw I/O and lifecycle events */
   debugLog?: IssueDebugLog

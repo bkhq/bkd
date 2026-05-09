@@ -1,4 +1,4 @@
-import type { EngineModel, PermissionPolicy, SpawnedProcess } from '@/engines/types'
+import type { EngineAttachment, EngineModel, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { AcpLogNormalizer, normalizeAcpEvent } from './normalizer'
 import { AcpProtocolHandler, toEngineModels } from './protocol-handler'
 import { createSubprocessFromChild, spawnAcpChild } from './transport'
@@ -15,6 +15,7 @@ export async function spawnAcpProcess(options: {
   model?: string
   env?: Record<string, string>
   sessionId?: string
+  attachments?: EngineAttachment[]
 }): Promise<SpawnedProcess> {
   const child = spawnAcpChild(
     options.cmd,
@@ -30,7 +31,7 @@ export async function spawnAcpProcess(options: {
     options.model,
     options.sessionId,
   )
-  handler.sendUserMessage(options.prompt).catch(() => {
+  handler.sendUserMessage(options.prompt, options.attachments).catch(() => {
     // Errors are already emitted to the event sink by runPrompt().
   })
 
@@ -44,8 +45,8 @@ export async function spawnAcpProcess(options: {
     protocolHandler: {
       interrupt: () => handler.interrupt(),
       close: () => handler.close(),
-      sendUserMessage: (content: string) => {
-        void handler.sendUserMessage(content)
+      sendUserMessage: (content: string, attachments?: EngineAttachment[]) => {
+        void handler.sendUserMessage(content, attachments)
       },
       onActivity: undefined,
     },
