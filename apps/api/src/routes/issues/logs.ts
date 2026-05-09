@@ -3,6 +3,7 @@ import { findProject, getAppSetting } from '@/db/helpers'
 import { issueEngine } from '@/engines/issue'
 import { DEFAULT_LOG_PAGE_SIZE, LOG_PAGE_SIZE_KEY } from '@/engines/issue/constants'
 import type { LogQueryOpts } from '@/engines/issue/persistence/queries'
+import { toTimeline } from '@/engines/timeline-converter'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 import { getProjectOwnedIssue, serializeIssue } from './_shared'
@@ -148,7 +149,7 @@ function queryAndRespond(c: Context, issue: Awaited<ReturnType<typeof getProject
     success: true,
     data: {
       issue: serializeIssue(issue!),
-      logs: result.entries,
+      logs: toTimeline(result.entries),
       nextCursor,
       hasMore: result.hasMore,
     },
@@ -193,7 +194,7 @@ logs.openapi(R.getIssueLogs, async (c) => {
     success: true,
     data: {
       issue: serializeIssue(issue),
-      logs: result.entries,
+      logs: toTimeline(result.entries),
       nextCursor,
       hasMore: result.hasMore,
     },

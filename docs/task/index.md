@@ -39,3 +39,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [-] [**ENG-001 Migrate claude executor to @anthropic-ai/claude-agent-sdk**](ENG-001.md) `P2`
 - [ ] [**ENG-002 Enable AskUserQuestion in claude-code-sdk executor**](ENG-002.md) `P2`
 - [x] [**BUG-001 Fix OpenCode hanging without error on quota exhaustion**](BUG-001.md) `P1`
+- [-] [**CHAT-001 Backend normalization & frontend simplification**](CHAT-001.md) `P0`

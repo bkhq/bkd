@@ -1,6 +1,7 @@
 import { streamSSE } from 'hono/streaming'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import { isVisible } from '@/engines/issue/utils/visibility'
+import { toTimelineEntry } from '@/engines/timeline-converter'
 import { appEvents } from '@/events'
 import { logger } from '@/logger'
 
@@ -49,14 +50,14 @@ events.get('/', async (c) => {
           // sent when the non-streaming result arrives.
           if (data.streaming && data.entry.entryType !== 'assistant-message' && data.entry.entryType !== 'thinking') return
           if (!isVisible(data.entry)) return
-          writeEvent('log', { issueId: data.issueId, entry: data.entry })
+          writeEvent('log', { issueId: data.issueId, entry: toTimelineEntry(data.entry) })
         },
         { order: 100 },
       )
 
       const unsubLogUpdated = appEvents.on('log-updated', (data) => {
         if (!isVisible(data.entry)) return
-        writeEvent('log-updated', data)
+        writeEvent('log-updated', { ...data, entry: toTimelineEntry(data.entry) })
       })
 
       const unsubLogRemoved = appEvents.on('log-removed', (data) => {

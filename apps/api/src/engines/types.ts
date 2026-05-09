@@ -209,6 +209,33 @@ export interface NormalizedLogEntry {
   toolDetail?: ToolDetail
 }
 
+// Timeline entry — backend-normalized format for frontend rendering.
+// Guarantees:
+// 1. Stable id per turn+type (e.g. turn-0-thinking)
+// 2. Content is accumulated full text (not delta)
+// 3. One thinking + one assistant per turn (deduplicated)
+// 4. Ordered by entry_index, within turn: thinking -> tool -> assistant
+// 5. Noise filtered (< 10 char pure-word entries dropped)
+export interface TimelineEntry {
+  id: string
+  turnIndex: number
+  type: 'thinking' | 'assistant' | 'tool' | 'system' | 'error' | 'user'
+  content: string
+  timestamp: string
+  metadata?: {
+    streaming?: boolean
+    completed?: boolean
+    toolName?: string
+    toolCallId?: string
+    isResult?: boolean
+    exitCode?: number
+    duration?: number
+    input?: unknown
+    path?: string
+    [key: string]: unknown
+  }
+}
+
 // Executor config (for profile-based resolution)
 export interface ExecutorConfig {
   engineType: EngineType
