@@ -34,6 +34,7 @@ export type {
   Project,
   ProjectProcessesResponse,
   SessionStatus,
+  TimelineEntry,
   ToolAction,
   ToolDetail,
   Webhook,

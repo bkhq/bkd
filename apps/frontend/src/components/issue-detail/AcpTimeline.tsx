@@ -1,4 +1,4 @@
-import type { NormalizedLogEntry } from '@bkd/shared'
+import type { NormalizedLogEntry, TimelineEntry } from '@bkd/shared'
 import { CheckCircle2, Circle, Lightbulb, ListTodo, Loader2 } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -119,7 +119,7 @@ export function AcpTimeline({
   isLoadingOlder = false,
   onLoadOlder,
 }: {
-  logs: NormalizedLogEntry[]
+  logs: TimelineEntry[]
   scrollRef?: React.RefObject<HTMLDivElement | null>
   isRunning?: boolean
   onEditPending?: (messageId: string) => void

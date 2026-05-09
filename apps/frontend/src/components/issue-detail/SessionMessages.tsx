@@ -1,4 +1,4 @@
-import type { ChatMessage, NormalizedLogEntry, TaskPlanChatMessage } from '@bkd/shared'
+import type { ChatMessage, NormalizedLogEntry, TaskPlanChatMessage, TimelineEntry } from '@bkd/shared'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { CheckCircle2, ChevronDown, Circle, ListTodo, Loader2 } from 'lucide-react'
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -135,7 +135,7 @@ function TaskPlanMessage({ message }: { message: TaskPlanChatMessage }) {
 // ── SessionMessages (main export) ────────────────────────
 
 export function SessionMessages(props: {
-  logs: NormalizedLogEntry[]
+  logs: TimelineEntry[]
   scrollRef?: React.RefObject<HTMLDivElement | null>
   engineType?: string
   isRunning?: boolean

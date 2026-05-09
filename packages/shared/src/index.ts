@@ -143,6 +143,16 @@ export interface NormalizedLogEntry {
   toolDetail?: ToolDetail
 }
 
+// Timeline entry — backend-normalized format for frontend rendering.
+// Backend guarantees: stable id, accumulated content, deduplicated, ordered, noise-filtered.
+// Extends NormalizedLogEntry for backwards compatibility during migration.
+export interface TimelineEntry extends NormalizedLogEntry {
+  /** Stable id: turn-{n}-{type} */
+  id: string
+  /** Simplified type (mapped from entryType) */
+  type: 'thinking' | 'assistant' | 'tool' | 'system' | 'error' | 'user'
+}
+
 // ── ChatMessage (rebuilt from NormalizedLogEntry[]) ───────
 
 export interface AttachmentMeta {
@@ -269,7 +279,7 @@ export interface ExecuteIssueResponse {
 
 export interface IssueLogsResponse {
   issue: Issue
-  logs: NormalizedLogEntry[]
+  logs: TimelineEntry[]
   hasMore: boolean
   nextCursor: string | null
 }

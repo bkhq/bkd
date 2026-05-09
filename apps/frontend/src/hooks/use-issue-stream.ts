@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { eventBus } from '@/lib/event-bus'
 import { kanbanApi } from '@/lib/kanban-api'
-import type { NormalizedLogEntry, SessionStatus } from '@/types/kanban'
+import type { NormalizedLogEntry, SessionStatus, TimelineEntry } from '@/types/kanban'
 import { queryKeys } from './use-kanban'
 
 interface UseIssueStreamOptions {
@@ -10,23 +10,18 @@ interface UseIssueStreamOptions {
   issueId: string | null
   sessionStatus?: SessionStatus | null
   enabled?: boolean
-  /**
-   * Server-side entry-type filter. When set, the initial fetch and
-   * load-older pagination use /logs/filter/types/..., and incoming SSE
-   * events are filtered client-side to the same set.
-   */
   types?: readonly string[]
 }
 
 interface UseIssueStreamReturn {
-  logs: NormalizedLogEntry[]
+  logs: TimelineEntry[]
   sessionStatus: SessionStatus | null
   hasOlderLogs: boolean
   isLoadingOlder: boolean
   loadOlderLogs: () => void
   clearLogs: () => void
   refreshLogs: () => void
-  removeEntries: (messageIds: string[]) => void
+  removeEntries: (ids: string[]) => void
   appendServerMessage: (
     messageId: string,
     content: string,
@@ -35,68 +30,61 @@ interface UseIssueStreamReturn {
 }
 
 const TERMINAL: Set<string> = new Set(['completed', 'failed', 'cancelled'])
-
-/** Max entries in the live logs array. Older entries are trimmed when SSE pushes beyond this. */
 const MAX_LIVE_LOGS = 500
 
-function contentKey(entry: NormalizedLogEntry): string {
-  return `${entry.turnIndex ?? 0}:${entry.timestamp ?? ''}:${entry.entryType}:${entry.content}`
+const TYPE_ORDER: Record<string, number> = {
+  user: 0,
+  thinking: 1,
+  tool: 2,
+  assistant: 3,
+  system: 4,
+  error: 5,
 }
 
-/**
- * Sort comparator using ULID messageId for chronological order.
- * ULID is lexicographically sortable (first 10 chars encode ms timestamp).
- * Uses simple string comparison (not localeCompare) to guarantee correct
- * byte-level ordering of Crockford Base32 characters across all locales.
- * Entries without messageId (streaming deltas) sort after persisted entries.
- */
-function compareByMessageId(a: NormalizedLogEntry, b: NormalizedLogEntry): number {
-  if (a.messageId && b.messageId) {
-    return a.messageId < b.messageId ? -1 : a.messageId > b.messageId ? 1 : 0
+function compareTimeline(a: TimelineEntry, b: TimelineEntry): number {
+  const ta = a.turnIndex ?? 0
+  const tb = b.turnIndex ?? 0
+  if (ta !== tb) return ta - tb
+  return (TYPE_ORDER[a.type] ?? 99) - (TYPE_ORDER[b.type] ?? 99)
+}
+
+/** Convert backend NormalizedLogEntry to frontend TimelineEntry */
+function toTimelineEntry(entry: NormalizedLogEntry): TimelineEntry {
+  const typeMap: Record<string, TimelineEntry['type']> = {
+    thinking: 'thinking',
+    'assistant-message': 'assistant',
+    'tool-use': 'tool',
+    'system-message': 'system',
+    'error-message': 'error',
+    'user-message': 'user',
   }
-  // Streaming deltas (no messageId) stay after persisted entries
-  if (a.messageId && !b.messageId) return -1
-  if (!a.messageId && b.messageId) return 1
-  // Both lack messageId — preserve insertion order (stable sort)
-  return 0
+  const type = typeMap[entry.entryType] ?? 'system'
+  const turn = entry.turnIndex ?? 0
+  const id = (type === 'thinking' || type === 'assistant')
+    ? `turn-${turn}-${type}`
+    : `turn-${turn}-${type}-${entry.messageId ?? Date.now()}`
+
+  return {
+    ...entry,
+    id,
+    type,
+  }
 }
 
-function mergeLogsPreferLive(
-  snapshotLogs: NormalizedLogEntry[],
-  liveLogs: NormalizedLogEntry[],
-): NormalizedLogEntry[] {
-  if (liveLogs.length === 0) return snapshotLogs
-
-  const liveById = new Map(
-    liveLogs.filter(entry => entry.messageId).map(entry => [entry.messageId!, entry]),
-  )
-
-  const mergedSnapshot = snapshotLogs.map((entry) => {
-    if (!entry.messageId) return entry
-    return liveById.get(entry.messageId) ?? entry
-  })
-
-  const snapshotIds = new Set(snapshotLogs.map(entry => entry.messageId).filter(Boolean))
-  const liveOnly = liveLogs.filter(entry => entry.messageId && !snapshotIds.has(entry.messageId))
-
-  return [...mergedSnapshot, ...liveOnly].sort(compareByMessageId)
-}
-
-// ---- LRU cache for issue logs (avoids re-fetch on issue switch) ----
+// ---- LRU cache ----
 const LOGS_CACHE_MAX = 20
-const logsCache = new Map<string, NormalizedLogEntry[]>()
+const logsCache = new Map<string, TimelineEntry[]>()
 
-function getCachedLogs(scope: string): NormalizedLogEntry[] | undefined {
+function getCachedLogs(scope: string): TimelineEntry[] | undefined {
   const cached = logsCache.get(scope)
   if (cached !== undefined) {
-    // Move to end (most recently used)
     logsCache.delete(scope)
     logsCache.set(scope, cached)
   }
   return cached
 }
 
-function setCachedLogs(scope: string, entries: NormalizedLogEntry[]): void {
+function setCachedLogs(scope: string, entries: TimelineEntry[]): void {
   if (logsCache.size >= LOGS_CACHE_MAX && !logsCache.has(scope)) {
     const firstKey = logsCache.keys().next().value
     if (firstKey !== undefined) logsCache.delete(firstKey)
@@ -112,7 +100,6 @@ export function useIssueStream({
   enabled = true,
   types,
 }: UseIssueStreamOptions): UseIssueStreamReturn {
-  // Stable identity: re-memoizes only when the set of types actually changes.
   const typesKey = types && types.length > 0 ? types.toSorted().join(',') : ''
   const typesFilter = useMemo(
     () => (typesKey ? typesKey.split(',') : undefined),
@@ -120,53 +107,27 @@ export function useIssueStream({
   )
   const typesSetRef = useRef<Set<string> | null>(null)
   typesSetRef.current = typesFilter ? new Set(typesFilter) : null
-  // Live logs: initial load + SSE entries, capped at MAX_LIVE_LOGS
-  const [liveLogs, setLiveLogs] = useState<NormalizedLogEntry[]>([])
-  // Older logs: loaded via "Load More", no cap (user-initiated)
-  const [olderLogs, setOlderLogs] = useState<NormalizedLogEntry[]>([])
 
+  const [liveLogs, setLiveLogs] = useState<TimelineEntry[]>([])
+  const [olderLogs, setOlderLogs] = useState<TimelineEntry[]>([])
   const [sessionStatus, setSessionStatus] = useState<SessionStatus | null>(externalStatus ?? null)
   const [hasOlderLogs, setHasOlderLogs] = useState(false)
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
   const queryClient = useQueryClient()
-
   const [_refreshCounter, setRefreshCounter] = useState(0)
 
   const doneReceivedRef = useRef(false)
   const activeExecutionRef = useRef<string | null>(null)
   const streamScopeRef = useRef<string | null>(null)
   const olderCursorRef = useRef<string | null>(null)
-  const liveLogsRef = useRef<NormalizedLogEntry[]>([])
-  const olderLogsRef = useRef<NormalizedLogEntry[]>([])
-  /**
-   * True once a live-log trim has established a pagination cursor.
-   *  Prevents the initial HTTP fetch from overwriting it with a stale server cursor.
-   */
+  const liveLogsRef = useRef<TimelineEntry[]>([])
+  const olderLogsRef = useRef<TimelineEntry[]>([])
   const trimCursorSetRef = useRef(false)
 
-  // ---- MessageId-based dedup tracking ----
-  // O(1) lookup instead of scanning the entire array on every append.
-  const seenIdsRef = useRef(new Set<string>())
-  // Fallback dedup for entries without messageId (streaming deltas)
-  const seenContentKeysRef = useRef(new Set<string>())
-
-  // Synchronous reset on scope change.
-  //
-  // Without this, switching issueId would leave stale state visible for ONE
-  // render: the useEffect-based reset further down only fires after render,
-  // so the parent's first re-render with the new issueId still receives the
-  // previous issue's `logs` array. Combined with `<LazySessionMessages
-  // key={issueId}>` in ChatBody, that meant the freshly-mounted child snapped
-  // its scroll to the bottom of the *previous* issue's content, then locked
-  // `initialScrollDone` — and when the real new logs arrived they rendered
-  // at the top with no further snap.
-  //
-  // Calling setState during render aborts this render and re-runs with the
-  // cleared values, so consumers never observe the stale window.
+  // Scope change
   const currentScope = `${projectId}:${issueId}:${typesKey}`
   const prevScopeRef = useRef(currentScope)
   if (prevScopeRef.current !== currentScope) {
-    // Save current logs to cache before switching
     if (liveLogsRef.current.length > 0) {
       setCachedLogs(prevScopeRef.current, liveLogsRef.current)
     }
@@ -181,88 +142,22 @@ export function useIssueStream({
     activeExecutionRef.current = null
     trimCursorSetRef.current = false
 
-    // Restore from cache for instant display on switch-back
     const cached = getCachedLogs(currentScope)
     if (cached && cached.length > 0) {
       setLiveLogs(cached)
       liveLogsRef.current = cached
-      seenIdsRef.current.clear()
-      seenContentKeysRef.current.clear()
-      for (const entry of cached) {
-        if (entry.messageId) seenIdsRef.current.add(entry.messageId)
-        else seenContentKeysRef.current.add(contentKey(entry))
-      }
     } else {
       setLiveLogs([])
       liveLogsRef.current = []
-      seenIdsRef.current.clear()
-      seenContentKeysRef.current.clear()
     }
   }
 
-  // Combined logs for rendering: olderLogs (history) + liveLogs (current window).
-  // Always sort by ULID and dedup by messageId — this is the final safety net
-  // that guarantees correct chronological order and no duplicates regardless
-  // of how entries arrived (HTTP fetch, SSE, optimistic append, race conditions).
+  // ---- Core: merge older + live by stable id ----
   const logs = useMemo(() => {
-    const combined = olderLogs.length > 0 ? [...olderLogs, ...liveLogs] : liveLogs
-    if (combined.length === 0) return combined
-
-    const sorted = (olderLogs.length > 0 ? combined : [...combined]).sort(compareByMessageId)
-
-    // Dedup by messageId (keep first occurrence after sort)
-    const deduped = new Set<string>()
-    // Fallback: streaming entries (no messageId) may duplicate a persisted entry
-    // with the same content. This happens when an ACP streaming assistant-message
-    // chunk arrives after the HTTP snapshot already contains the flushed version.
-    const contentDeduped = new Set<string>()
-    const filtered = sorted.filter((entry) => {
-      if (entry.messageId) {
-        if (deduped.has(entry.messageId)) return false
-        deduped.add(entry.messageId)
-      }
-      const contentKey = `${entry.turnIndex ?? 0}:${entry.entryType}:${entry.content}`
-      if (contentDeduped.has(contentKey)) return false
-      contentDeduped.add(contentKey)
-      return true
-    })
-
-    // Merge adjacent streaming entries (thinking or assistant-message) from
-    // the same turn. ACP/Codex engines send full accumulated text on every
-    // chunk, producing cascading duplicates. Collapse them so only the latest
-    // full text remains.
-    const merged: NormalizedLogEntry[] = []
-    const isStreamingEntry = (e: NormalizedLogEntry) =>
-      e.metadata?.streaming === true
-      && (e.entryType === 'thinking' || e.entryType === 'assistant-message')
-    for (const entry of filtered) {
-      const last = merged.at(-1)
-      if (
-        last
-        && isStreamingEntry(entry)
-        && isStreamingEntry(last)
-        && entry.entryType === last.entryType
-        && (entry.turnIndex ?? 0) === (last.turnIndex ?? 0)
-      ) {
-        const newContent = entry.content
-        const oldContent = last.content
-        const isSuperset = newContent.length > oldContent.length
-          && newContent.startsWith(oldContent)
-        const isSubset = oldContent.length > newContent.length
-          && oldContent.startsWith(newContent)
-        if (isSuperset) {
-          // Replace last with longer entry
-          merged[merged.length - 1] = entry
-          continue
-        }
-        if (isSubset) {
-          // Skip shorter entry, keep last
-          continue
-        }
-      }
-      merged.push(entry)
-    }
-    return merged
+    const map = new Map<string, TimelineEntry>()
+    for (const entry of olderLogs) map.set(entry.id, entry)
+    for (const entry of liveLogs) map.set(entry.id, entry)
+    return Array.from(map.values()).sort(compareTimeline)
   }, [olderLogs, liveLogs])
 
   const clearLogs = useCallback(() => {
@@ -274,184 +169,90 @@ export function useIssueStream({
     olderCursorRef.current = null
     doneReceivedRef.current = false
     activeExecutionRef.current = null
-    seenIdsRef.current.clear()
-    seenContentKeysRef.current.clear()
     trimCursorSetRef.current = false
   }, [])
 
-  /** Clear logs and re-fetch from server. */
   const refreshLogs = useCallback(() => {
     clearLogs()
     setRefreshCounter(c => c + 1)
   }, [clearLogs])
 
-  /** Register an entry's identity into the seen sets. */
-  const markSeen = useCallback((entry: NormalizedLogEntry) => {
-    if (entry.messageId) {
-      seenIdsRef.current.add(entry.messageId)
-    } else {
-      seenContentKeysRef.current.add(contentKey(entry))
-    }
+  /** Append or replace by stable id */
+  const appendEntry = useCallback((entry: TimelineEntry) => {
+    setLiveLogs((prev) => {
+      const idx = prev.findIndex(e => e.id === entry.id)
+      let next: TimelineEntry[]
+      if (idx >= 0) {
+        next = [...prev]
+        next[idx] = entry
+      } else {
+        next = [...prev, entry]
+      }
+      if (next.length > MAX_LIVE_LOGS) {
+        next = next.slice(next.length - MAX_LIVE_LOGS)
+        setHasOlderLogs(true)
+        const oldest = next[0]
+        if (oldest?.id) olderCursorRef.current = oldest.id
+        trimCursorSetRef.current = true
+      }
+      liveLogsRef.current = next
+      return next
+    })
   }, [])
 
-  /** Check if an entry has already been seen. */
-  const isSeen = useCallback((entry: NormalizedLogEntry): boolean => {
-    if (entry.messageId) {
-      return seenIdsRef.current.has(entry.messageId)
-    }
-    return seenContentKeysRef.current.has(contentKey(entry))
-  }, [])
-
-  /** Append an entry to live logs, auto-trim oldest when exceeding MAX_LIVE_LOGS. */
-  const appendEntry = useCallback(
-    (incoming: NormalizedLogEntry) => {
-      setLiveLogs((prev) => {
-        if (isSeen(incoming)) return prev
-
-        // Merge adjacent streaming entries (thinking or assistant-message) from
-        // the same turn. ACP/Codex engines send full accumulated text on every
-        // chunk, causing cascading duplicates like "用户" → "用户问" → "用户问更新".
-        const last = prev.at(-1)
-        const isStreamingEntry = (e: NormalizedLogEntry) =>
-          e.metadata?.streaming === true
-          && (e.entryType === 'thinking' || e.entryType === 'assistant-message')
-        if (
-          last
-          && isStreamingEntry(incoming)
-          && isStreamingEntry(last)
-          && incoming.entryType === last.entryType
-          && (incoming.turnIndex ?? 0) === (last.turnIndex ?? 0)
-        ) {
-          const newContent = incoming.content
-          const oldContent = last.content
-          const isSuperset = newContent.length > oldContent.length
-            && newContent.startsWith(oldContent)
-          const isSubset = oldContent.length > newContent.length
-            && oldContent.startsWith(newContent)
-          if (isSuperset || isSubset) {
-            // Replace last entry with incoming; update seen tracking
-            const next = prev.slice(0, -1)
-            seenContentKeysRef.current.delete(contentKey(last))
-            markSeen(incoming)
-            const withIncoming = [...next, incoming]
-            liveLogsRef.current = withIncoming
-            return withIncoming
-          }
-        }
-
-        markSeen(incoming)
-        const next = [...prev, incoming]
-        if (next.length > MAX_LIVE_LOGS) {
-          const trimmed = next.slice(next.length - MAX_LIVE_LOGS)
-          // Remove evicted entries from seen sets so loadOlderLogs can
-          // restore them later via pagination instead of silently dropping them.
-          const evicted = next.slice(0, next.length - MAX_LIVE_LOGS)
-          for (const entry of evicted) {
-            if (entry.messageId) {
-              seenIdsRef.current.delete(entry.messageId)
-            } else {
-              seenContentKeysRef.current.delete(contentKey(entry))
-            }
-          }
-          liveLogsRef.current = trimmed
-          setHasOlderLogs(true)
-          // Always update the pagination cursor to the oldest remaining live entry
-          // so loadOlderLogs fetches entries before this point (including evicted ones).
-          // This must run on every trim, not just the first, to keep the cursor fresh.
-          const oldestRemaining = trimmed.find(e => e.messageId)
-          if (oldestRemaining?.messageId) {
-            olderCursorRef.current = oldestRemaining.messageId
-          }
-          // Mark that the trim has established a cursor so the initial HTTP fetch
-          // does not overwrite it with a stale server-provided cursor.
-          trimCursorSetRef.current = true
-          return trimmed
-        }
+  /** Replace by id if exists, else append */
+  const upsertEntry = useCallback((entry: TimelineEntry) => {
+    setLiveLogs((prev) => {
+      const idx = prev.findIndex(e => e.id === entry.id)
+      if (idx >= 0) {
+        const next = [...prev]
+        next[idx] = entry
         liveLogsRef.current = next
         return next
-      })
-    },
-    [isSeen, markSeen],
-  )
-
-  /** Replace an existing entry by messageId; append if the entry is not present yet. */
-  const upsertEntry = useCallback(
-    (incoming: NormalizedLogEntry) => {
-      if (!incoming.messageId) {
-        appendEntry(incoming)
-        return
       }
+      const next = [...prev, entry]
+      liveLogsRef.current = next
+      return next
+    })
+  }, [])
 
-      if (olderLogsRef.current.some(entry => entry.messageId === incoming.messageId)) {
-        setOlderLogs((prev) => {
-          const next = prev.map(entry =>
-            entry.messageId === incoming.messageId ? incoming : entry,
-          )
-          olderLogsRef.current = next
-          return next
-        })
-        return
-      }
-
-      if (liveLogsRef.current.some(entry => entry.messageId === incoming.messageId)) {
-        setLiveLogs((prev) => {
-          const next = prev.map(entry =>
-            entry.messageId === incoming.messageId ? incoming : entry,
-          )
-          liveLogsRef.current = next
-          return next
-        })
-        return
-      }
-
-      appendEntry(incoming)
-    },
-    [appendEntry],
-  )
-
-  /** Append a user message with a server-assigned messageId */
   const appendServerMessage = useCallback(
     (messageId: string, content: string, metadata?: Record<string, unknown>) => {
       const trimmed = content.trim()
       const hasAttachments =
         Array.isArray(metadata?.attachments) && (metadata.attachments as unknown[]).length > 0
-      // Allow messages with attachments even if text content is empty
       if (!trimmed && !hasAttachments) return
       if (metadata?.type !== 'pending') {
         doneReceivedRef.current = false
       }
       appendEntry({
-        messageId,
+        id: messageId,
+        turnIndex: 0,
+        type: 'user',
         entryType: 'user-message',
         content: trimmed,
         timestamp: new Date().toISOString(),
-        metadata,
+        metadata: metadata ?? {},
       })
     },
     [appendEntry],
   )
 
-  /** Remove entries by messageId (used when pending messages are consumed or recalled). */
-  const removeEntries = useCallback((messageIds: string[]) => {
-    if (messageIds.length === 0) return
-    const idSet = new Set(messageIds)
+  const removeEntries = useCallback((ids: string[]) => {
+    if (ids.length === 0) return
+    const idSet = new Set(ids)
     setLiveLogs((prev) => {
-      const next = prev.filter(e => !e.messageId || !idSet.has(e.messageId))
+      const next = prev.filter(e => !idSet.has(e.id))
       liveLogsRef.current = next
       return next
     })
     setOlderLogs((prev) => {
-      const next = prev.filter(e => !e.messageId || !idSet.has(e.messageId))
+      const next = prev.filter(e => !idSet.has(e.id))
       olderLogsRef.current = next
       return next
     })
-    // Also clear from seen sets so they can be re-added if needed
-    for (const id of messageIds) {
-      seenIdsRef.current.delete(id)
-    }
   }, [])
 
-  /** Load older logs into the separate olderLogs array (no cap) */
   const loadOlderLogs = useCallback(() => {
     if (!issueId || !olderCursorRef.current || isLoadingOlder) return
     setIsLoadingOlder(true)
@@ -467,12 +268,7 @@ export function useIssueStream({
         olderCursorRef.current = data.nextCursor
         setHasOlderLogs(data.hasMore)
         setOlderLogs((prev) => {
-          const newEntries = data.logs.filter((e) => {
-            if (e.messageId && seenIdsRef.current.has(e.messageId)) return false
-            if (e.messageId) seenIdsRef.current.add(e.messageId)
-            return true
-          })
-          const next = [...newEntries, ...prev].sort(compareByMessageId)
+          const next = [...data.logs, ...prev].sort(compareTimeline)
           olderLogsRef.current = next
           return next
         })
@@ -485,6 +281,7 @@ export function useIssueStream({
       })
   }, [projectId, issueId, isLoadingOlder, typesFilter])
 
+  // Scope / status effects
   useEffect(() => {
     if (!issueId || !enabled) {
       streamScopeRef.current = null
@@ -492,7 +289,6 @@ export function useIssueStream({
       clearLogs()
       return
     }
-
     const scope = `${projectId}:${issueId}:${typesKey}`
     if (streamScopeRef.current !== scope) {
       streamScopeRef.current = scope
@@ -503,7 +299,6 @@ export function useIssueStream({
 
   useEffect(() => {
     if (!issueId || !enabled) return
-
     const hasActiveExecution = activeExecutionRef.current !== null
     const next = externalStatus ?? null
     if (!hasActiveExecution || next === 'running' || next === 'pending') {
@@ -511,12 +306,9 @@ export function useIssueStream({
     }
   }, [issueId, enabled, externalStatus])
 
-  // Fetch latest historical logs from DB (reverse mode — newest first).
-  // Merges with any SSE entries that may have arrived before the HTTP response.
-
+  // Fetch historical logs
   useEffect(() => {
     if (!issueId || !enabled) return
-
     const scope = `${projectId}:${issueId}:${typesKey}`
     let cancelled = false
 
@@ -524,36 +316,21 @@ export function useIssueStream({
       .getIssueLogs(projectId, issueId, typesFilter ? { types: typesFilter } : undefined)
       .then((data) => {
         if (cancelled || streamScopeRef.current !== scope) return
-
-        // Merge instead of wholesale replacement: SSE entries that arrived
-        // before this HTTP response should be preserved, not overwritten.
-        // After merging, sort by messageId (ULID) to guarantee chronological order.
         setLiveLogs((prev) => {
-          // Register all DB entries in seenIds
-          for (const entry of data.logs) {
-            markSeen(entry)
-          }
-
           if (prev.length === 0) {
-            // Fast path: no SSE entries arrived yet, just use the DB snapshot
             liveLogsRef.current = data.logs
             return data.logs
           }
-
-          // Prefer any in-memory SSE-updated entry when the same messageId is
-          // also present in the DB snapshot. This prevents a stale initial
-          // fetch from overwriting a newer log-updated event that arrived first.
-          const next = mergeLogsPreferLive(data.logs, prev)
+          const map = new Map(data.logs.map(e => [e.id, e]))
+          for (const e of prev) map.set(e.id, e)
+          const next = Array.from(map.values()).sort(compareTimeline)
           liveLogsRef.current = next
           return next
         })
-
         olderLogsRef.current = []
         setOlderLogs([])
         setCachedLogs(scope, data.logs)
         setHasOlderLogs(data.hasMore || trimCursorSetRef.current)
-        // Only use the server-provided cursor if a live-log trim hasn't
-        // already established a more accurate cursor from the SSE stream.
         if (!trimCursorSetRef.current) {
           olderCursorRef.current = data.nextCursor
         }
@@ -565,89 +342,60 @@ export function useIssueStream({
     return () => {
       cancelled = true
     }
-    // NOTE: externalStatus is intentionally excluded. The SSE handler already
-    // merges new entries in real time via appendEntry. Re-fetching the entire
-    // log window on every status transition (running → completed) causes a
-    // race: the HTTP response can overwrite SSE entries that arrived between
-    // the request and response, making messages appear/disappear/reappear.
-    // refreshCounter is included so that refreshLogs() can trigger a re-fetch.
-    // typesKey / typesFilter are included so that toggling the server-side
-    // filter invalidates both scope and this effect.
-  }, [projectId, issueId, enabled, markSeen, _refreshCounter, typesKey, typesFilter])
+  }, [projectId, issueId, enabled, _refreshCounter, typesKey, typesFilter])
 
-  // Subscribe to live SSE events for this issue.
+  // Subscribe to SSE via EventBus
   useEffect(() => {
     if (!issueId || !enabled) return
-
     doneReceivedRef.current = false
 
     const cleanup = { unsub: (() => {}) as () => void }
 
     cleanup.unsub = eventBus.subscribe(issueId, {
       onLog: (entry) => {
-        // Always allow error messages through even after done (race: stderr
-        // entries may arrive after the terminal state event)
         if (doneReceivedRef.current && entry.entryType !== 'error-message') return
-        // Respect server-side types filter: drop SSE events whose type is not
-        // in the active filter set. Without this, live events would bypass the
-        // filter and contaminate the 500-entry live cap with hidden entries.
         const allowed = typesSetRef.current
         if (allowed && !allowed.has(entry.entryType)) return
-        appendEntry(entry)
+        appendEntry(toTimelineEntry(entry))
       },
       onLogUpdated: (entry) => {
         const allowed = typesSetRef.current
         if (allowed && !allowed.has(entry.entryType)) return
-        upsertEntry(entry)
+        upsertEntry(toTimelineEntry(entry))
       },
       onLogRemoved: (messageIds) => {
         removeEntries(messageIds)
       },
       onState: (data) => {
         if (data.state === 'running' || data.state === 'pending') {
-          // New execution started — track its ID and accept logs
           activeExecutionRef.current = data.executionId
           doneReceivedRef.current = false
           setSessionStatus(data.state)
         } else if (TERMINAL.has(data.state)) {
-          // Only mark done if this terminal event is from the current execution.
-          // Stale settled events from a previous turn (arriving after a new
-          // follow-up already emitted 'running') must be ignored to avoid
-          // blocking log events for the active execution.
           if (data.executionId === activeExecutionRef.current) {
             doneReceivedRef.current = true
             activeExecutionRef.current = null
             setSessionStatus(data.state)
           }
         }
-        // Invalidate React Query so server sessionStatus flows to components
         queryClient.invalidateQueries({
           queryKey: queryKeys.issue(projectId, issueId),
         })
       },
       onDone: () => {
-        // doneReceivedRef is already managed by onState (which has executionId
-        // to distinguish stale events). onDone only needs to refresh queries.
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.issue(projectId, issueId),
-        })
+        queryClient.invalidateQueries({ queryKey: queryKeys.issue(projectId, issueId) })
         queryClient.invalidateQueries({ queryKey: queryKeys.issues(projectId) })
       },
     })
 
-    queryClient.invalidateQueries({
-      queryKey: queryKeys.issue(projectId, issueId),
-    })
+    queryClient.invalidateQueries({ queryKey: queryKeys.issue(projectId, issueId) })
 
     return () => {
       cleanup.unsub()
     }
   }, [projectId, issueId, enabled, queryClient, appendEntry, upsertEntry, removeEntries])
 
-  // When the page wakes from background (mobile browsers freeze SSE while
-  // hidden), the live socket may have missed events between the freeze and
-  // EventBus.forceReconnect. Refetch the historical log window so the user
-  // doesn't have to tap the refresh button manually.
+  // Resume from background
   useEffect(() => {
     if (!issueId || !enabled) return
     return eventBus.onResume(() => {
