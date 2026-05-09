@@ -485,6 +485,11 @@ export function initWebhookDispatcher() {
   appEvents.on(
     'done',
     (data) => {
+      // Skip cancellations — user-initiated cancels are not failures and
+      // should not trigger session.failed notifications. Only completed/failed
+      // engine outcomes warrant a webhook.
+      if (data.finalStatus !== 'completed' && data.finalStatus !== 'failed') return
+
       void (async () => {
         try {
           const eventType: WebhookEventType =
