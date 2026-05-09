@@ -270,6 +270,39 @@ export function useIssueStream({
     (incoming: NormalizedLogEntry) => {
       setLiveLogs((prev) => {
         if (isSeen(incoming)) return prev
+
+        // Merge adjacent streaming thinking entries from the same turn.
+        // ACP/Codex engines send full accumulated text on every chunk,
+        // causing "用户" → "用户问" → "用户问更新" cascading duplicates.
+        // When the new thinking content contains (or is contained by) the
+        // previous one, replace instead of append so only the latest full
+        // text is kept.
+        const last = prev[prev.length - 1]
+        if (
+          last
+          && incoming.entryType === 'thinking'
+          && incoming.metadata?.streaming === true
+          && last.entryType === 'thinking'
+          && last.metadata?.streaming === true
+          && (incoming.turnIndex ?? 0) === (last.turnIndex ?? 0)
+        ) {
+          const newContent = incoming.content
+          const oldContent = last.content
+          const isSuperset = newContent.length > oldContent.length
+            && newContent.startsWith(oldContent)
+          const isSubset = oldContent.length > newContent.length
+            && oldContent.startsWith(newContent)
+          if (isSuperset || isSubset) {
+            // Replace last entry with incoming; update seen tracking
+            const next = prev.slice(0, -1)
+            seenContentKeysRef.current.delete(contentKey(last))
+            markSeen(incoming)
+            const withIncoming = [...next, incoming]
+            liveLogsRef.current = withIncoming
+            return withIncoming
+          }
+        }
+
         markSeen(incoming)
         const next = [...prev, incoming]
         if (next.length > MAX_LIVE_LOGS) {
