@@ -181,9 +181,14 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
         pendingStreamingAssistant.turnIndex === entry.turnIndex
       ) {
         const current: NormalizedLogEntry = pendingStreamingAssistant
+        // Detect full-content vs incremental streaming.
+        // Some ACP agents send the entire accumulated text in every chunk.
+        const prev = current.content
+        const next = entry.content
+        const isFullContent = next.startsWith(prev)
         pendingStreamingAssistant = {
           ...current,
-          content: `${current.content}${entry.content}`,
+          content: isFullContent ? next : `${prev}${next}`,
           timestamp: entry.timestamp ?? current.timestamp,
         }
       } else {

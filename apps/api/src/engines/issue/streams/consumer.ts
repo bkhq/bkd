@@ -1,5 +1,6 @@
 import type { CategorizedCommands } from '@bkd/shared'
 import { setAppSetting } from '@/db/helpers'
+import { STDERR_FATAL_PATTERNS } from '@/engines/issue/constants'
 import { refreshSlashCommandsCacheForEngine, slashCommandsKey } from '@/engines/issue/queries'
 import type { ManagedProcess } from '@/engines/issue/types'
 import { normalizeStream } from '@/engines/logs'
@@ -40,16 +41,23 @@ export interface StreamCallbacks {
 
 // ---------- Helpers ----------
 
+function isStderrFatal(content: string): boolean {
+  const lower = content.toLowerCase()
+  return STDERR_FATAL_PATTERNS.some(pattern => lower.includes(pattern.toLowerCase()))
+}
+
 function pushStderrEntry(
   content: string,
   turnIndex: number,
   onEntry: (entry: NormalizedLogEntry) => void,
 ): void {
+  const fatal = isStderrFatal(content)
   const entry: NormalizedLogEntry = {
     entryType: 'error-message',
     content,
     turnIndex,
     timestamp: new Date().toISOString(),
+    metadata: fatal ? { isError: true, error: content } : undefined,
   }
   onEntry(entry)
 }

@@ -13,6 +13,7 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { extname } from 'node:path'
 import { Readable, Writable } from 'node:stream'
+import { ACP_PROMPT_TIMEOUT_MS } from '@/engines/issue/constants'
 import type { EngineAttachment, EngineModel, PermissionPolicy } from '@/engines/types'
 import { logger } from '@/logger'
 import { createEventSink } from './transport'
@@ -266,10 +267,7 @@ export class AcpProtocolHandler {
     }
 
     try {
-      const result = await this.connection.prompt({
-        sessionId: this.sessionId,
-        prompt: contentBlocks,
-      })
+      const result = await this.runPromptWithTimeout(contentBlocks)
 
       this.sink.emit({
         type: 'acp-prompt-result',
@@ -294,7 +292,33 @@ export class AcpProtocolHandler {
         durationMs: Date.now() - startedAt,
         error: message,
       })
+      // Attempt to cancel the hung prompt to free resources — best-effort.
+      void this.interrupt().catch(() => {})
     }
+  }
+
+  private async runPromptWithTimeout(
+    contentBlocks: ContentBlock[],
+  ): Promise<{ stopReason: string }> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`ACP prompt timed out after ${ACP_PROMPT_TIMEOUT_MS / 60000} minutes`))
+      }, ACP_PROMPT_TIMEOUT_MS)
+
+      this.connection
+        .prompt({
+          sessionId: this.sessionId!,
+          prompt: contentBlocks,
+        })
+        .then((result) => {
+          clearTimeout(timeout)
+          resolve(result)
+        })
+        .catch((error) => {
+          clearTimeout(timeout)
+          reject(error)
+        })
+    })
   }
 
   private async buildImageBlock(attachment: EngineAttachment): Promise<ContentBlock | null> {

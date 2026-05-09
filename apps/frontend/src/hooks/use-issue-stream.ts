@@ -212,10 +212,18 @@ export function useIssueStream({
 
     // Dedup by messageId (keep first occurrence after sort)
     const deduped = new Set<string>()
+    // Fallback: streaming entries (no messageId) may duplicate a persisted entry
+    // with the same content. This happens when an ACP streaming assistant-message
+    // chunk arrives after the HTTP snapshot already contains the flushed version.
+    const contentDeduped = new Set<string>()
     return sorted.filter((entry) => {
-      if (!entry.messageId) return true
-      if (deduped.has(entry.messageId)) return false
-      deduped.add(entry.messageId)
+      if (entry.messageId) {
+        if (deduped.has(entry.messageId)) return false
+        deduped.add(entry.messageId)
+      }
+      const contentKey = `${entry.turnIndex ?? 0}:${entry.entryType}:${entry.content}`
+      if (contentDeduped.has(contentKey)) return false
+      contentDeduped.add(contentKey)
       return true
     })
   }, [olderLogs, liveLogs])

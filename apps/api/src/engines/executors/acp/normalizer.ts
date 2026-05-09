@@ -60,7 +60,16 @@ function normalizeAssistantChunk(
 
   const content = update.content
   if (content.type === 'text') {
-    state.assistantTextParts.push(content.text)
+    // Detect full-content vs incremental streaming.
+    // Some agents send the entire accumulated text in every chunk;
+    // others send only the delta. We handle both by checking if the
+    // new text starts with the previously accumulated text.
+    const accumulated = state.assistantTextParts.join('')
+    if (accumulated && content.text.startsWith(accumulated)) {
+      state.assistantTextParts = [content.text]
+    } else {
+      state.assistantTextParts.push(content.text)
+    }
     return {
       entryType: 'assistant-message',
       content: content.text,
@@ -563,8 +572,24 @@ function normalizeAcpEventWithState(
           } else {
             thoughtText = JSON.stringify(thoughtContent)
           }
-          state.thinkingTextParts.push(thoughtText)
-          return null
+
+          // Detect full-content vs incremental streaming.
+          // Some agents send the entire accumulated text in every chunk;
+          // others send only the delta. We handle both by checking if the
+          // new text starts with the previously accumulated text.
+          const accumulated = state.thinkingTextParts.join('')
+          if (accumulated && thoughtText.startsWith(accumulated)) {
+            state.thinkingTextParts = [thoughtText]
+          } else {
+            state.thinkingTextParts.push(thoughtText)
+          }
+
+          return {
+            entryType: 'thinking',
+            content: state.thinkingTextParts.join(''),
+            timestamp: new Date().toISOString(),
+            metadata: { streaming: true },
+          }
         }
 
         if (update.sessionUpdate === 'plan') {

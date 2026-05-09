@@ -7,6 +7,7 @@ import {
   Loader2,
   MoreHorizontal,
   Paperclip,
+  Play,
   RefreshCw,
   SlashSquare,
   X,
@@ -42,7 +43,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
-import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue, useOmitModel } from '@/hooks/use-kanban'
+import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue, useOmitModel, useRestartIssue } from '@/hooks/use-kanban'
 import { formatFileSize, formatModelName } from '@/lib/format'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { BusyAction, EngineModel, SessionStatus } from '@/types/kanban'
@@ -169,6 +170,7 @@ export function ChatInput({
 
   const followUp = useFollowUpIssue(projectId ?? '')
   const clearSession = useClearIssueSession(projectId ?? '')
+  const restartIssue = useRestartIssue(projectId ?? '')
   const [clearSessionOpen, setClearSessionOpen] = useState(false)
   const changesSummary = useChangesSummary(projectId, issueId ?? undefined)
   const changedCount = changesSummary?.fileCount ?? 0
@@ -176,6 +178,7 @@ export function ChatInput({
   const deletions = changesSummary?.deletions ?? 0
   const changesRoot = (changesSummary as { root?: string } | null)?.root
   const openFileBrowser = useFileBrowserStore(s => s.openForIssue)
+  const fileBrowserOpen = useFileBrowserStore(s => s.isOpen)
 
   // Fetch models for current engine, filtering out hidden ones
   const { data: discovery } = useEngineAvailability(!!engineType)
@@ -514,6 +517,8 @@ export function ChatInput({
   // Auto-grow textarea: shrink to content, expand up to ~8 lines, then scroll.
   // useLayoutEffect runs before paint so the resize never flashes a stale
   // height. Skipped while a manual override is active.
+  // Re-runs when fileBrowserOpen changes so the height recalculates after
+  // returning from the fullscreen file-browser overlay on mobile.
   useLayoutEffect(() => {
     if (manualHeight !== null) return
     const ta = textareaRef.current
@@ -521,7 +526,7 @@ export function ChatInput({
     ta.style.height = '0px'
     const next = Math.min(ta.scrollHeight, 200)
     ta.style.height = `${Math.max(next, 32)}px`
-  }, [input, manualHeight])
+  }, [input, manualHeight, fileBrowserOpen])
 
   // Apply manual height when user drags the resize handle.
   useLayoutEffect(() => {
@@ -838,6 +843,25 @@ export function ChatInput({
           >
             <Eraser className="size-3.5" />
           </Button>
+          {sessionStatus === 'failed' || sessionStatus === 'cancelled' ?
+              (
+                <Button
+                  type="button"
+                  size="icon"
+                  disabled={!issueId || restartIssue.isPending}
+                  onClick={() => {
+                    if (!issueId) return
+                    restartIssue.mutate(issueId)
+                  }}
+                  title={t('chat.restart')}
+                  className="rounded-full size-7 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  {restartIssue.isPending ?
+                      <Loader2 className="size-3.5 animate-spin" /> :
+                      <Play className="size-3.5" strokeWidth={2.5} />}
+                </Button>
+              ) :
+            null}
           <Button
             type="button"
             size="icon"

@@ -189,6 +189,70 @@ describe('useIssueStream', () => {
     expect(result.current.logs.at(-1)?.content).toBe(`msg-${totalEntries - 1}`)
   })
 
+  it('dedups streaming entry when a persisted entry with the same content exists', async () => {
+    // Regression: ACP streaming assistant-message chunks have no messageId.
+    // When the HTTP snapshot already contains the flushed persisted version,
+    // both the streaming chunk and the persisted entry would render unless
+    // we dedup by (turnIndex, entryType, content).
+    let handler: IssueEventHandler | null = null
+    subscribeMock.mockImplementation((_issueId: string, nextHandler: IssueEventHandler) => {
+      handler = nextHandler
+      return () => {}
+    })
+
+    const persistedEntry: NormalizedLogEntry = {
+      messageId: '01ARZ3NDEKTSV4RRFFQ69G5FAA',
+      entryType: 'assistant-message',
+      content: 'Same content',
+      timestamp: new Date().toISOString(),
+      turnIndex: 1,
+    }
+
+    getIssueLogsMock.mockResolvedValue({
+      issue: null,
+      logs: [persistedEntry],
+      nextCursor: null,
+      hasMore: false,
+    })
+
+    const { result } = renderHook(
+      () =>
+        useIssueStream({
+          projectId: 'proj-1',
+          issueId: 'issue-1',
+          sessionStatus: 'running',
+        }),
+      {
+        wrapper: createWrapper(),
+      },
+    )
+
+    // Wait for HTTP snapshot to load
+    await waitFor(() => {
+      expect(result.current.logs).toHaveLength(1)
+    })
+    expect(result.current.logs[0]?.messageId).toBe('01ARZ3NDEKTSV4RRFFQ69G5FAA')
+
+    // Simulate a late streaming chunk arriving after the snapshot
+    const streamingChunk: NormalizedLogEntry = {
+      entryType: 'assistant-message',
+      content: 'Same content',
+      timestamp: new Date().toISOString(),
+      turnIndex: 1,
+      metadata: { streaming: true },
+    }
+
+    act(() => {
+      handler?.onLog(streamingChunk)
+    })
+
+    // Should still be 1 entry, not 2
+    await waitFor(() => {
+      expect(result.current.logs).toHaveLength(1)
+    })
+    expect(result.current.logs[0]?.messageId).toBe('01ARZ3NDEKTSV4RRFFQ69G5FAA')
+  })
+
   it('prefers the SSE-updated entry over a stale initial snapshot with the same messageId', async () => {
     let handler: IssueEventHandler | null = null
     subscribeMock.mockImplementation((_issueId: string, nextHandler: IssueEventHandler) => {

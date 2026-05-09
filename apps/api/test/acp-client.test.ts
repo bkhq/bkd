@@ -333,6 +333,225 @@ describe('AcpLogNormalizer', () => {
     expect(entries[1]?.entryType).toBe('system-message')
     expect(entries[1]?.metadata?.turnCompleted).toBe(true)
   })
+
+  test('streams thinking chunks in real-time', () => {
+    const normalizer = new AcpLogNormalizer()
+
+    const chunk1 = normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-03-13T00:00:00.000Z',
+      update: {
+        sessionUpdate: 'agent_thought_chunk',
+        content: 'I need to',
+      },
+    }))
+
+    expect(chunk1).toBeTruthy()
+    expect(Array.isArray(chunk1)).toBe(false)
+    expect(chunk1).toMatchObject({
+      entryType: 'thinking',
+      content: 'I need to',
+      metadata: { streaming: true },
+    })
+
+    const chunk2 = normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-03-13T00:00:01.000Z',
+      update: {
+        sessionUpdate: 'agent_thought_chunk',
+        content: 'I need to analyze the codebase',
+      },
+    }))
+
+    expect(chunk2).toMatchObject({
+      entryType: 'thinking',
+      content: 'I need to analyze the codebase',
+      metadata: { streaming: true },
+    })
+  })
+
+  test('handles incremental thinking deltas', () => {
+    const normalizer = new AcpLogNormalizer()
+
+    // First delta
+    const chunk1 = normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-03-13T00:00:00.000Z',
+      update: {
+        sessionUpdate: 'agent_thought_chunk',
+        content: { text: 'Let me' },
+      },
+    }))
+    expect(chunk1).toMatchObject({
+      entryType: 'thinking',
+      content: 'Let me',
+      metadata: { streaming: true },
+    })
+
+    // Second delta (incremental)
+    const chunk2 = normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-03-13T00:00:01.000Z',
+      update: {
+        sessionUpdate: 'agent_thought_chunk',
+        content: { text: ' check the imports' },
+      },
+    }))
+    expect(chunk2).toMatchObject({
+      entryType: 'thinking',
+      content: 'Let me check the imports',
+      metadata: { streaming: true },
+    })
+
+    // Third delta (incremental)
+    const chunk3 = normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-03-13T00:00:02.000Z',
+      update: {
+        sessionUpdate: 'agent_thought_chunk',
+        content: { text: ' and fix the types' },
+      },
+    }))
+    expect(chunk3).toMatchObject({
+      entryType: 'thinking',
+      content: 'Let me check the imports and fix the types',
+      metadata: { streaming: true },
+    })
+  })
+
+  test('handles full-content thinking chunks (startsWith)', () => {
+    const normalizer = new AcpLogNormalizer()
+
+    // Agent sends full accumulated text each time
+    const chunk1 = normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-03-13T00:00:00.000Z',
+      update: {
+        sessionUpdate: 'agent_thought_chunk',
+        content: 'Thinking about',
+      },
+    }))
+    expect(chunk1).toMatchObject({
+      entryType: 'thinking',
+      content: 'Thinking about',
+      metadata: { streaming: true },
+    })
+
+    // Next chunk contains the full accumulated text
+    const chunk2 = normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-03-13T00:00:01.000Z',
+      update: {
+        sessionUpdate: 'agent_thought_chunk',
+        content: 'Thinking about the problem',
+      },
+    }))
+    expect(chunk2).toMatchObject({
+      entryType: 'thinking',
+      content: 'Thinking about the problem',
+      metadata: { streaming: true },
+    })
+
+    // Verify no duplication (should not be "Thinking aboutThinking about the problem")
+    expect(chunk2!.content).toBe('Thinking about the problem')
+  })
+
+  test('flushes final thinking on prompt result after streaming', () => {
+    const normalizer = new AcpLogNormalizer()
+
+    // Streaming thinking during the turn
+    normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-03-13T00:00:00.000Z',
+      update: {
+        sessionUpdate: 'agent_thought_chunk',
+        content: 'Analyzing requirements',
+      },
+    }))
+
+    normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-03-13T00:00:01.000Z',
+      update: {
+        sessionUpdate: 'agent_thought_chunk',
+        content: ' and planning the solution',
+      },
+    }))
+
+    // Turn completes — flushes final thinking + assistant + system
+    const result = normalizer.parse(JSON.stringify({
+      type: 'acp-prompt-result',
+      timestamp: '2026-03-13T00:00:02.000Z',
+      stopReason: 'end_turn',
+      durationMs: 42,
+    }))
+
+    expect(Array.isArray(result)).toBe(true)
+    const entries = result as Array<{ entryType: string, content: string, metadata?: Record<string, unknown> }>
+
+    // Should contain the flushed thinking entry
+    const thinkingEntry = entries.find(e => e.entryType === 'thinking')
+    expect(thinkingEntry).toBeTruthy()
+    expect(thinkingEntry!.content).toBe('Analyzing requirements and planning the solution')
+    expect(thinkingEntry!.metadata?.streaming).toBeUndefined()
+
+    // Should also contain turn completion
+    const completionEntry = entries.find(e => e.entryType === 'system-message')
+    expect(completionEntry).toBeTruthy()
+    expect(completionEntry!.metadata?.turnCompleted).toBe(true)
+  })
+
+  test('handles non-text thinking content (JSON fallback)', () => {
+    const normalizer = new AcpLogNormalizer()
+
+    const chunk = normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-03-13T00:00:00.000Z',
+      update: {
+        sessionUpdate: 'agent_thought_chunk',
+        content: { reasoning: 'deep', steps: 3 },
+      },
+    }))
+
+    expect(chunk).toBeTruthy()
+    expect(chunk).toMatchObject({
+      entryType: 'thinking',
+      content: JSON.stringify({ reasoning: 'deep', steps: 3 }),
+      metadata: { streaming: true },
+    })
+  })
+
+  test('ignores empty thinking chunks', () => {
+    const normalizer = new AcpLogNormalizer()
+
+    const chunk = normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-03-13T00:00:00.000Z',
+      update: {
+        sessionUpdate: 'agent_thought_chunk',
+        content: '',
+      },
+    }))
+
+    expect(chunk).toBeTruthy()
+    expect(chunk).toMatchObject({
+      entryType: 'thinking',
+      content: '',
+      metadata: { streaming: true },
+    })
+
+    // Prompt result should not emit an empty thinking entry
+    const result = normalizer.parse(JSON.stringify({
+      type: 'acp-prompt-result',
+      timestamp: '2026-03-13T00:00:01.000Z',
+      stopReason: 'end_turn',
+    }))
+
+    expect(Array.isArray(result)).toBe(true)
+    const entries = result as Array<{ entryType: string }>
+    const thinkingEntries = entries.filter(e => e.entryType === 'thinking')
+    expect(thinkingEntries).toHaveLength(0)
+  })
 })
 
 describe('parseAcpModel', () => {

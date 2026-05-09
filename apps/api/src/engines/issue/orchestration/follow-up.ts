@@ -122,6 +122,27 @@ export async function followUpIssue(
         return { executionId: active.executionId, messageId: null }
       }
 
+      // If the model changed we must respawn — the running process was started
+      // with the old model and cannot switch at runtime.
+      const modelChanged = model && model !== issue.sessionFields.model
+      if (modelChanged) {
+        logger.info(
+          { issueId, oldModel: issue.sessionFields.model, newModel: model },
+          'followup_model_changed_force_respawn',
+        )
+        return spawnFollowUpProcess(
+          ctx,
+          issueId,
+          prompt,
+          effectiveModel,
+          permissionMode,
+          displayPrompt,
+          metadata,
+          opts,
+          attachments,
+        )
+      }
+
       // Engine is idle: send immediately on existing process.
       // If this races with process exit, fall back to spawning a follow-up process.
       try {
