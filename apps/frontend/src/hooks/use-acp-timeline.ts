@@ -227,17 +227,36 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
     // Only streaming thinking is cached. Non-streaming thinking (e.g. Codex
     // reasoning items persisted to DB) is output immediately to avoid
     // concatenating multiple independent thinking entries.
+    // Skip empty/very short thinking fragments (< 10 chars) — these are
+    // typically noise from ACP protocol, not real reasoning content.
     if (entry.entryType === 'thinking') {
+      if ((entry.content?.length ?? 0) < 10) {
+        continue
+      }
       if (entry.metadata?.streaming === true) {
         if (pendingThinking && pendingThinking.turnIndex === entry.turnIndex) {
           const current = pendingThinking as NormalizedLogEntry
           const prevText = current.content
           const nextText = entry.content
           const isFullContent = nextText.startsWith(prevText)
-          pendingThinking = {
-            ...current,
-            content: isFullContent ? nextText : `${prevText}${nextText}`,
-            timestamp: entry.timestamp ?? current.timestamp,
+          // Fix: if not full content and text is unrelated (e.g. a new
+          // reasoning segment), flush the old thinking and start fresh
+          // instead of concatenating unrelated thoughts into garbage.
+          if (!isFullContent && prevText.length > 20 && nextText.length > 20) {
+            flushToolBuffer()
+            items.push({
+              type: 'thinking',
+              id: entryId(current, nextId('acp-thinking')),
+              entry: current,
+              isStreaming: true,
+            })
+            pendingThinking = { ...entry }
+          } else {
+            pendingThinking = {
+              ...current,
+              content: isFullContent ? nextText : `${prevText}${nextText}`,
+              timestamp: entry.timestamp ?? current.timestamp,
+            }
           }
         } else {
           pendingThinking = { ...entry }
@@ -367,13 +386,26 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
 
   flushStreamingAssistant()
   // If thinking stream hasn't finished, add it as a streaming item.
+  // Insert BEFORE the first assistant message of the same turn so the
+  // thinking appears in the correct logical position (not at the very
+  // bottom of the timeline).
   if (pendingThinking) {
-    items.push({
+    const insertIndex = items.findIndex((i) => {
+      if (i.type !== 'entry') return false
+      const ent = (i as { entry: NormalizedLogEntry }).entry
+      return ent.entryType === 'assistant-message' && ent.turnIndex === pendingThinking!.turnIndex
+    })
+    const thinkingItem: AcpTimelineThinkingItem = {
       type: 'thinking',
       id: entryId(pendingThinking, nextId('acp-thinking')),
       entry: pendingThinking,
       isStreaming: true,
-    })
+    }
+    if (insertIndex !== -1) {
+      items.splice(insertIndex, 0, thinkingItem)
+    } else {
+      items.push(thinkingItem)
+    }
     pendingThinking = null
   }
   flushToolBuffer()
