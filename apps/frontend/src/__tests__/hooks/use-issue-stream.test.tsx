@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChatMessages } from '@/hooks/use-chat-messages'
 import { useIssueStream } from '@/hooks/use-issue-stream'
 import type { IssueEventHandler } from '@/lib/event-bus'
 import type { NormalizedLogEntry } from '@/types/kanban'
@@ -436,6 +437,151 @@ describe('useIssueStream', () => {
     await waitFor(() => {
       expect(result.current.logs).toHaveLength(1)
       expect(result.current.logs[0]?.metadata?.type).toBeUndefined()
+    })
+  })
+
+  it('end-to-end: cascading thinking + assistant chunks produce 1 assistant message', async () => {
+    // Full integration: data layer (useIssueStream) + message layer (useChatMessages).
+    // OpenCode sends full accumulated text for BOTH thinking and assistant chunks.
+    // This test ensures the UI never shows duplicate thinking + assistant pairs.
+    let handler: IssueEventHandler | null = null
+    subscribeMock.mockImplementation((_issueId: string, nextHandler: IssueEventHandler) => {
+      handler = nextHandler
+      return () => {}
+    })
+
+    getIssueLogsMock.mockResolvedValue({
+      issue: null,
+      logs: [],
+      nextCursor: null,
+      hasMore: false,
+    })
+
+    const { result: streamResult } = renderHook(
+      () =>
+        useIssueStream({
+          projectId: 'proj-1',
+          issueId: 'issue-1',
+          sessionStatus: 'running',
+        }),
+      { wrapper: createWrapper() },
+    )
+
+    await waitFor(() => {
+      expect(handler).not.toBeNull()
+    })
+
+    // Simulate OpenCode behavior: thinking and assistant chunks with identical content
+    const thinkingChunk: NormalizedLogEntry = {
+      entryType: 'thinking',
+      content: '用户问为什么测试兜不住',
+      timestamp: new Date().toISOString(),
+      turnIndex: 0,
+      metadata: { streaming: true },
+    }
+    const assistantChunk: NormalizedLogEntry = {
+      entryType: 'assistant-message',
+      content: '用户问为什么测试兜不住。原因是测试只覆盖了 normalizer，没测前端 state 的去重逻辑',
+      timestamp: new Date(Date.now() + 100).toISOString(),
+      turnIndex: 0,
+      metadata: { streaming: true },
+    }
+
+    act(() => {
+      handler?.onLog(thinkingChunk)
+      handler?.onLog(assistantChunk)
+    })
+
+    // Wait for logs to settle
+    await waitFor(() => {
+      expect(streamResult.current.logs).toHaveLength(2)
+    })
+
+    // Feed the merged logs into useChatMessages
+    const { result: chatResult } = renderHook(
+      () => useChatMessages(streamResult.current.logs),
+      { wrapper: createWrapper() },
+    )
+
+    // Should produce exactly 1 assistant message, no standalone thinking
+    await waitFor(() => {
+      expect(chatResult.current.messages).toHaveLength(1)
+      expect(chatResult.current.messages[0]?.type).toBe('assistant')
+    })
+  })
+
+  it('end-to-end: cascading assistant chunks merge before rendering', async () => {
+    // Regression: assistant-message chunks also cascade (not just thinking).
+    // "Hel" -> "Hello" -> "Hello world" should render as a single message.
+    let handler: IssueEventHandler | null = null
+    subscribeMock.mockImplementation((_issueId: string, nextHandler: IssueEventHandler) => {
+      handler = nextHandler
+      return () => {}
+    })
+
+    getIssueLogsMock.mockResolvedValue({
+      issue: null,
+      logs: [],
+      nextCursor: null,
+      hasMore: false,
+    })
+
+    const { result: streamResult } = renderHook(
+      () =>
+        useIssueStream({
+          projectId: 'proj-1',
+          issueId: 'issue-1',
+          sessionStatus: 'running',
+        }),
+      { wrapper: createWrapper() },
+    )
+
+    await waitFor(() => {
+      expect(handler).not.toBeNull()
+    })
+
+    const chunk1: NormalizedLogEntry = {
+      entryType: 'assistant-message',
+      content: 'Hel',
+      timestamp: new Date().toISOString(),
+      turnIndex: 0,
+      metadata: { streaming: true },
+    }
+    const chunk2: NormalizedLogEntry = {
+      entryType: 'assistant-message',
+      content: 'Hello',
+      timestamp: new Date(Date.now() + 50).toISOString(),
+      turnIndex: 0,
+      metadata: { streaming: true },
+    }
+    const chunk3: NormalizedLogEntry = {
+      entryType: 'assistant-message',
+      content: 'Hello world',
+      timestamp: new Date(Date.now() + 100).toISOString(),
+      turnIndex: 0,
+      metadata: { streaming: true },
+    }
+
+    act(() => {
+      handler?.onLog(chunk1)
+      handler?.onLog(chunk2)
+      handler?.onLog(chunk3)
+    })
+
+    await waitFor(() => {
+      expect(streamResult.current.logs).toHaveLength(1)
+      expect(streamResult.current.logs[0]?.content).toBe('Hello world')
+    })
+
+    const { result: chatResult } = renderHook(
+      () => useChatMessages(streamResult.current.logs),
+      { wrapper: createWrapper() },
+    )
+
+    await waitFor(() => {
+      expect(chatResult.current.messages).toHaveLength(1)
+      expect(chatResult.current.messages[0]?.type).toBe('assistant')
+      expect(chatResult.current.messages[0]?.entry.content).toBe('Hello world')
     })
   })
 })
