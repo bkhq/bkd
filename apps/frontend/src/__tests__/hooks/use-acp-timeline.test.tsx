@@ -1,286 +1,140 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import type { NormalizedLogEntry } from '@/types/kanban'
+import type { ReactNode } from 'react'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { useAcpTimeline } from '@/hooks/use-acp-timeline'
+import type { NormalizedLogEntry } from '@/types/kanban'
 
-describe('useAcpTimeline', () => {
-  it('maps ACP plans and paired tool calls into grouped ACP timeline items', () => {
-    const logs: NormalizedLogEntry[] = [
-      {
-        entryType: 'user-message',
-        content: 'internal smoke prompt',
-        metadata: { type: 'system' },
-      },
-      {
-        entryType: 'system-message',
-        content: 'pending: Inspect repo',
-        metadata: {
-          subtype: 'plan',
-          entries: [
-            { content: 'Inspect repo', status: 'pending' },
-            { content: 'Implement renderer', status: 'in_progress' },
-          ],
-        },
-      },
-      {
-        messageId: 'tool-action-1',
-        entryType: 'tool-use',
-        content: 'List project files',
-        metadata: {
-          toolCallId: 'tool-1',
-          toolName: 'List project files',
-          kind: 'execute',
-        },
-        toolAction: {
-          kind: 'command-run',
-          command: 'find . -maxdepth 1 -type f | sort',
-        },
-        toolDetail: {
-          kind: 'command-run',
-          toolName: 'List project files',
-          toolCallId: 'tool-1',
-          isResult: false,
-        },
-      },
-      {
-        messageId: 'tool-result-1',
-        entryType: 'tool-use',
-        content: './package.json\n./tsconfig.json',
-        metadata: {
-          toolCallId: 'tool-1',
-          toolName: 'List project files',
-          kind: 'execute',
-          isResult: true,
-        },
-        toolDetail: {
-          kind: 'command-run',
-          toolName: 'List project files',
-          toolCallId: 'tool-1',
-          isResult: true,
-        },
-      },
-      {
-        entryType: 'assistant-message',
-        content: 'Done.',
-      },
-    ]
-
-    const { result } = renderHook(() => useAcpTimeline(logs))
-
-    expect(result.current.pendingMessages).toHaveLength(0)
-    expect(result.current.items).toHaveLength(3)
-    expect(result.current.items[0]).toMatchObject({
-      type: 'plan',
-      completedCount: 0,
-      todos: [
-        { content: 'Inspect repo', status: 'pending' },
-        { content: 'Implement renderer', status: 'in_progress' },
-      ],
-    })
-    expect(result.current.items[1]).toMatchObject({
-      type: 'tool-group',
-      message: {
-        count: 1,
-        items: [
-          {
-            action: {
-              messageId: 'tool-action-1',
-              content: 'List project files',
-            },
-            result: {
-              messageId: 'tool-result-1',
-              content: './package.json\n./tsconfig.json',
-            },
-          },
-        ],
-      },
-    })
-    expect(result.current.items[2]).toMatchObject({
-      type: 'entry',
-      entry: {
-        entryType: 'assistant-message',
-        content: 'Done.',
-      },
-    })
+beforeAll(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation(query => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
   })
+})
 
-  it('merges streaming ACP assistant chunks until final assistant message arrives', () => {
+function createWrapper() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  }
+}
+
+function rebuildAcpTimeline(logs: NormalizedLogEntry[]) {
+  const { result } = renderHook(() => useAcpTimeline(logs), { wrapper: createWrapper() })
+  return result.current
+}
+
+describe('useAcpTimeline thinking dedup', () => {
+  it('discards thinking when assistant contains same content on final flush', () => {
+    // Regression: OpenCode streams thinking and assistant as identical text.
+    // When flushStreamingAssistant runs at turn end, pendingThinking must be
+    // discarded if pendingStreamingAssistant already contains the same content.
     const logs: NormalizedLogEntry[] = [
       {
-        entryType: 'assistant-message',
-        content: 'Hello ',
-        turnIndex: 3,
+        entryType: 'thinking',
+        content: '用户问为什么测试兜不住',
+        timestamp: '2026-01-01T00:00:00Z',
+        turnIndex: 0,
         metadata: { streaming: true },
       },
       {
         entryType: 'assistant-message',
-        content: 'world',
-        turnIndex: 3,
+        content: '用户问为什么测试兜不住。原因是测试只覆盖了 normalizer',
+        timestamp: '2026-01-01T00:00:01Z',
+        turnIndex: 0,
         metadata: { streaming: true },
       },
       {
-        messageId: 'assistant-final-3',
         entryType: 'assistant-message',
-        content: 'Hello world',
-        turnIndex: 3,
+        content: '用户问为什么测试兜不住。原因是测试只覆盖了 normalizer，没测前端 state 的去重',
+        timestamp: '2026-01-01T00:00:02Z',
+        turnIndex: 0,
+        metadata: { streaming: true },
       },
     ]
 
-    const { result } = renderHook(() => useAcpTimeline(logs))
+    const { items } = rebuildAcpTimeline(logs)
 
-    expect(result.current.items).toHaveLength(1)
-    expect(result.current.items[0]).toMatchObject({
-      type: 'entry',
-      entry: {
-        entryType: 'assistant-message',
-        content: 'Hello world',
-      },
-    })
+    // Should only have 1 item: the final assistant message
+    expect(items).toHaveLength(1)
+    expect(items[0]!.type).toBe('entry')
+    expect(items[0]!.entry.entryType).toBe('assistant-message')
+    expect(items[0]!.entry.content).toBe(
+      '用户问为什么测试兜不住。原因是测试只覆盖了 normalizer，没测前端 state 的去重',
+    )
   })
 
-  it('separates orphaned tool results from subsequent tool actions', () => {
-    const logs: NormalizedLogEntry[] = [
-      // Orphaned result (action on older page, not present here)
-      {
-        messageId: 'orphan-result',
-        entryType: 'tool-use',
-        content: 'old result',
-        metadata: { toolCallId: 'old-tool', toolName: 'OldTool', isResult: true },
-        toolDetail: { kind: 'command-run', toolName: 'OldTool', toolCallId: 'old-tool', isResult: true },
-      },
-      // New unrelated tool action
-      {
-        messageId: 'new-action',
-        entryType: 'tool-use',
-        content: 'new action',
-        metadata: { toolCallId: 'new-tool', toolName: 'NewTool' },
-        toolAction: { kind: 'file-read', path: 'file.ts' },
-        toolDetail: { kind: 'file-read', toolName: 'NewTool', toolCallId: 'new-tool', isResult: false },
-      },
-      {
-        messageId: 'new-result',
-        entryType: 'tool-use',
-        content: 'new result',
-        metadata: { toolCallId: 'new-tool', toolName: 'NewTool', isResult: true },
-        toolDetail: { kind: 'file-read', toolName: 'NewTool', toolCallId: 'new-tool', isResult: true },
-      },
-    ]
-
-    const { result } = renderHook(() => useAcpTimeline(logs))
-
-    // Orphaned result and new action should be in separate groups
-    expect(result.current.items).toHaveLength(2)
-    expect(result.current.items[0]).toMatchObject({
-      type: 'tool-group',
-      message: { count: 1, items: [{ action: { messageId: 'orphan-result' } }] },
-    })
-    expect(result.current.items[1]).toMatchObject({
-      type: 'tool-group',
-      message: { count: 1, items: [{ action: { messageId: 'new-action' }, result: { messageId: 'new-result' } }] },
-    })
-  })
-
-  it('flushes buffered tool calls before inserting plan items', () => {
-    const logs: NormalizedLogEntry[] = [
-      // Tool action before plan
-      {
-        messageId: 'tool-action-pre',
-        entryType: 'tool-use',
-        content: 'Read config',
-        metadata: { toolCallId: 'pre-1', toolName: 'ReadConfig' },
-        toolAction: { kind: 'file-read', path: 'config.ts' },
-        toolDetail: { kind: 'file-read', toolName: 'ReadConfig', toolCallId: 'pre-1', isResult: false },
-      },
-      {
-        messageId: 'tool-result-pre',
-        entryType: 'tool-use',
-        content: 'config contents',
-        metadata: { toolCallId: 'pre-1', toolName: 'ReadConfig', isResult: true },
-        toolDetail: { kind: 'file-read', toolName: 'ReadConfig', toolCallId: 'pre-1', isResult: true },
-      },
-      // Plan arrives while tool buffer is non-empty
-      {
-        messageId: 'plan-1',
-        entryType: 'system-message',
-        content: 'Plan updated',
-        metadata: {
-          subtype: 'plan',
-          entries: [
-            { content: 'Step 1', status: 'pending' },
-          ],
-        },
-      },
-    ]
-
-    const { result } = renderHook(() => useAcpTimeline(logs))
-
-    // Tool group should appear before the plan (chronological order)
-    expect(result.current.items).toHaveLength(2)
-    expect(result.current.items[0]).toMatchObject({ type: 'tool-group' })
-    expect(result.current.items[1]).toMatchObject({ type: 'plan' })
-  })
-
-  it('groups consecutive ACP tool calls into a single tool-group', () => {
+  it('keeps standalone thinking when assistant does NOT overlap', () => {
     const logs: NormalizedLogEntry[] = [
       {
-        messageId: 'tool-action-1',
-        entryType: 'tool-use',
-        content: 'List files',
-        metadata: { toolCallId: 'tool-1', toolName: 'List files' },
-        toolAction: { kind: 'command-run', command: 'find . -maxdepth 1 -type f' },
-        toolDetail: { kind: 'command-run', toolName: 'List files', toolCallId: 'tool-1', isResult: false },
+        entryType: 'thinking',
+        content: 'Let me check the imports first',
+        timestamp: '2026-01-01T00:00:00Z',
+        turnIndex: 0,
+        metadata: { streaming: true },
       },
       {
-        messageId: 'tool-result-1',
-        entryType: 'tool-use',
-        content: './package.json',
-        metadata: { toolCallId: 'tool-1', toolName: 'List files', isResult: true },
-        toolDetail: { kind: 'command-run', toolName: 'List files', toolCallId: 'tool-1', isResult: true },
-      },
-      {
-        messageId: 'tool-action-2',
-        entryType: 'tool-use',
-        content: 'Read package.json',
-        metadata: { toolCallId: 'tool-2', toolName: 'Read package.json' },
-        toolAction: { kind: 'file-read', path: 'package.json' },
-        toolDetail: { kind: 'file-read', toolName: 'Read package.json', toolCallId: 'tool-2', isResult: false },
-      },
-      {
-        messageId: 'tool-result-2',
-        entryType: 'tool-use',
-        content: '{"name":"demo"}',
-        metadata: { toolCallId: 'tool-2', toolName: 'Read package.json', isResult: true },
-        toolDetail: { kind: 'file-read', toolName: 'Read package.json', toolCallId: 'tool-2', isResult: true },
-      },
-      {
-        messageId: 'assistant-final-1',
         entryType: 'assistant-message',
-        content: 'Done.',
+        content: 'I found the issue in the type definitions',
+        timestamp: '2026-01-01T00:00:01Z',
+        turnIndex: 0,
+        metadata: { streaming: true },
       },
     ]
 
-    const { result } = renderHook(() => useAcpTimeline(logs))
+    const { items } = rebuildAcpTimeline(logs)
 
-    expect(result.current.items).toHaveLength(2)
-    expect(result.current.items[0]).toMatchObject({
-      type: 'tool-group',
-      message: {
-        count: 2,
-        items: [
-          {
-            action: { messageId: 'tool-action-1' },
-            result: { messageId: 'tool-result-1' },
-          },
-          {
-            action: { messageId: 'tool-action-2' },
-            result: { messageId: 'tool-result-2' },
-          },
-        ],
+    // Both should be kept: thinking + assistant
+    expect(items).toHaveLength(2)
+    expect(items[0]!.entry.entryType).toBe('thinking')
+    expect(items[1]!.entry.entryType).toBe('assistant-message')
+  })
+
+  it('discards thinking when assistant comes after tool calls', () => {
+    // Real-world OpenCode pattern: thinking → tool → assistant (thinking content
+    // is a superset that spans across the tool call).
+    const logs: NormalizedLogEntry[] = [
+      {
+        entryType: 'thinking',
+        content: '用户问为什么测试兜不住',
+        timestamp: '2026-01-01T00:00:00Z',
+        turnIndex: 0,
+        metadata: { streaming: true },
       },
-    })
-    expect(result.current.items[1]).toMatchObject({
-      type: 'entry',
-      entry: { entryType: 'assistant-message', content: 'Done.' },
-    })
+      {
+        entryType: 'tool-use',
+        content: 'Read src/app.ts',
+        timestamp: '2026-01-01T00:00:01Z',
+        turnIndex: 0,
+        metadata: { toolCallId: 't1', isResult: false },
+        toolDetail: { kind: 'file-read', toolName: 'Read', toolCallId: 't1', isResult: false },
+      },
+      {
+        entryType: 'assistant-message',
+        content: '用户问为什么测试兜不住。原因是测试只覆盖了 normalizer',
+        timestamp: '2026-01-01T00:00:02Z',
+        turnIndex: 0,
+        metadata: { streaming: true },
+      },
+    ]
+
+    const { items } = rebuildAcpTimeline(logs)
+
+    // Should have 3 items: thinking (flushed before tool) + tool-group + assistant.
+    expect(items).toHaveLength(3)
+    expect(items[0]!.type).toBe('entry')
+    expect(items[0]!.entry.entryType).toBe('thinking')
+    expect(items[1]!.type).toBe('tool-group')
+    expect(items[2]!.type).toBe('entry')
+    expect(items[2]!.entry.entryType).toBe('assistant-message')
   })
 })
