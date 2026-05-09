@@ -91,6 +91,12 @@ function shouldHideAcpEntry(entry: NormalizedLogEntry): boolean {
     return true
   }
 
+  // Filter out meaningless short system noise (e.g. raw "version" text
+  // from ACP protocol that isn't a real system event).
+  if (entry.content.length < 15 && /^[a-z]+$/.test(entry.content.trim())) {
+    return true
+  }
+
   return false
 }
 
@@ -409,6 +415,39 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
     pendingThinking = null
   }
   flushToolBuffer()
+
+  // Deduplicate: if the same turn has multiple thinking items with
+  // overlapping content (e.g. one from older logs and one from live
+  // streaming), keep only the longer one. Preserve distinct thoughts.
+  const turnThinkingMap = new Map<number | undefined, number>() // turnIndex -> lastSeenIndex
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]
+    if (item.type === 'thinking') {
+      const turn = item.entry.turnIndex
+      const lastIdx = turnThinkingMap.get(turn)
+      if (lastIdx !== undefined) {
+        const lastContent = (items[lastIdx] as { entry: NormalizedLogEntry }).entry.content
+        const currentContent = item.entry.content
+        // If one is a superset of the other, keep the longer one
+        if (
+          lastContent.startsWith(currentContent) ||
+          currentContent.startsWith(lastContent) ||
+          lastContent.endsWith(currentContent) ||
+          currentContent.endsWith(lastContent)
+        ) {
+          // Remove the shorter one
+          if (lastContent.length >= currentContent.length) {
+            items.splice(i, 1)
+          } else {
+            items.splice(lastIdx, 1)
+            turnThinkingMap.set(turn, i)
+          }
+          continue
+        }
+      }
+      turnThinkingMap.set(turn, i)
+    }
+  }
 
   return { items, pendingMessages }
 }
