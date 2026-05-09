@@ -253,6 +253,131 @@ describe('useIssueStream', () => {
     expect(result.current.logs[0]?.messageId).toBe('01ARZ3NDEKTSV4RRFFQ69G5FAA')
   })
 
+  it('merges cascading streaming thinking entries into one', async () => {
+    // Regression: ACP/Codex engines send full accumulated text on every
+    // thinking chunk, creating cascading duplicates like
+    // "用户" → "用户问" → "用户问更新". Only the latest full text should remain.
+    let handler: IssueEventHandler | null = null
+    subscribeMock.mockImplementation((_issueId: string, nextHandler: IssueEventHandler) => {
+      handler = nextHandler
+      return () => {}
+    })
+
+    getIssueLogsMock.mockResolvedValue({
+      issue: null,
+      logs: [],
+      nextCursor: null,
+      hasMore: false,
+    })
+
+    const { result } = renderHook(
+      () =>
+        useIssueStream({
+          projectId: 'proj-1',
+          issueId: 'issue-1',
+          sessionStatus: 'running',
+        }),
+      { wrapper: createWrapper() },
+    )
+
+    await waitFor(() => {
+      expect(handler).not.toBeNull()
+    })
+
+    // Simulate three cascading thinking chunks
+    const chunk1: NormalizedLogEntry = {
+      entryType: 'thinking',
+      content: '用户',
+      timestamp: new Date().toISOString(),
+      turnIndex: 0,
+      metadata: { streaming: true },
+    }
+    const chunk2: NormalizedLogEntry = {
+      entryType: 'thinking',
+      content: '用户问',
+      timestamp: new Date(Date.now() + 100).toISOString(),
+      turnIndex: 0,
+      metadata: { streaming: true },
+    }
+    const chunk3: NormalizedLogEntry = {
+      entryType: 'thinking',
+      content: '用户问更新',
+      timestamp: new Date(Date.now() + 200).toISOString(),
+      turnIndex: 0,
+      metadata: { streaming: true },
+    }
+
+    act(() => {
+      handler?.onLog(chunk1)
+      handler?.onLog(chunk2)
+      handler?.onLog(chunk3)
+    })
+
+    // Should collapse to a single thinking entry with the latest full text
+    await waitFor(() => {
+      const thinkingEntries = result.current.logs.filter(e => e.entryType === 'thinking')
+      expect(thinkingEntries).toHaveLength(1)
+      expect(thinkingEntries[0]!.content).toBe('用户问更新')
+    })
+  })
+
+  it('keeps non-cascading thinking entries separate', async () => {
+    // If a later thinking chunk is NOT a superset of the previous one,
+    // both should be kept (e.g. a new reasoning segment started).
+    let handler: IssueEventHandler | null = null
+    subscribeMock.mockImplementation((_issueId: string, nextHandler: IssueEventHandler) => {
+      handler = nextHandler
+      return () => {}
+    })
+
+    getIssueLogsMock.mockResolvedValue({
+      issue: null,
+      logs: [],
+      nextCursor: null,
+      hasMore: false,
+    })
+
+    const { result } = renderHook(
+      () =>
+        useIssueStream({
+          projectId: 'proj-1',
+          issueId: 'issue-1',
+          sessionStatus: 'running',
+        }),
+      { wrapper: createWrapper() },
+    )
+
+    await waitFor(() => {
+      expect(handler).not.toBeNull()
+    })
+
+    const chunk1: NormalizedLogEntry = {
+      entryType: 'thinking',
+      content: 'First reasoning',
+      timestamp: new Date().toISOString(),
+      turnIndex: 0,
+      metadata: { streaming: true },
+    }
+    const chunk2: NormalizedLogEntry = {
+      entryType: 'thinking',
+      content: 'Second thought',
+      timestamp: new Date(Date.now() + 100).toISOString(),
+      turnIndex: 0,
+      metadata: { streaming: true },
+    }
+
+    act(() => {
+      handler?.onLog(chunk1)
+      handler?.onLog(chunk2)
+    })
+
+    // Both should be kept because content does not overlap
+    await waitFor(() => {
+      const thinkingEntries = result.current.logs.filter(e => e.entryType === 'thinking')
+      expect(thinkingEntries).toHaveLength(2)
+    })
+  })
+
   it('prefers the SSE-updated entry over a stale initial snapshot with the same messageId', async () => {
     let handler: IssueEventHandler | null = null
     subscribeMock.mockImplementation((_issueId: string, nextHandler: IssueEventHandler) => {
