@@ -6,6 +6,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { GlobalCommandPalette } from './components/GlobalCommandPalette'
 import { Toaster } from './components/ui/sonner'
 import { useAuth } from './hooks/use-auth'
 import { useSystemInfo } from './hooks/use-kanban'
@@ -73,6 +74,7 @@ const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const TerminalPage = lazy(() => import('./pages/TerminalPage'))
 const CronPage = lazy(() => import('./pages/CronPage'))
 const WhiteboardPage = lazy(() => import('./pages/WhiteboardPage'))
+const SearchPage = lazy(() => import('./pages/SearchPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const LoginCallbackPage = lazy(() => import('./pages/LoginCallbackPage'))
 const LazyTerminalDrawer = lazy(() =>
@@ -368,6 +370,16 @@ if (!rootElement.innerHTML) {
                     </AuthGate>
                   )}
                 />
+                <Route
+                  path="/search"
+                  element={(
+                    <AuthGate>
+                      <ErrorBoundary>
+                        <SearchPage />
+                      </ErrorBoundary>
+                    </AuthGate>
+                  )}
+                />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
@@ -379,6 +391,7 @@ if (!rootElement.innerHTML) {
           <Toaster position="top-center" />
           <EventBusManager />
           <ServerConfigLoader />
+          <GlobalCommandPalette />
         </ErrorBoundary>
       </BrowserRouter>
       {import.meta.env.DEV ? <ReactQueryDevtools initialIsOpen={false} /> : null}

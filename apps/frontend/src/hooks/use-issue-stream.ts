@@ -236,7 +236,7 @@ export function useIssueStream({
       e.metadata?.streaming === true
       && (e.entryType === 'thinking' || e.entryType === 'assistant-message')
     for (const entry of filtered) {
-      const last = merged[merged.length - 1]
+      const last = merged.at(-1)
       if (
         last
         && isStreamingEntry(entry)
@@ -311,7 +311,7 @@ export function useIssueStream({
         // Merge adjacent streaming entries (thinking or assistant-message) from
         // the same turn. ACP/Codex engines send full accumulated text on every
         // chunk, causing cascading duplicates like "用户" → "用户问" → "用户问更新".
-        const last = prev[prev.length - 1]
+        const last = prev.at(-1)
         const isStreamingEntry = (e: NormalizedLogEntry) =>
           e.metadata?.streaming === true
           && (e.entryType === 'thinking' || e.entryType === 'assistant-message')

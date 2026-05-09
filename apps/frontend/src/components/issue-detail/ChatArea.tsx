@@ -3,8 +3,9 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { useIssue, useUpdateIssue } from '@/hooks/use-kanban'
+import { useIssue, useProject, useUpdateIssue } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { addRecentIssue } from '@/hooks/use-recent-issues'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import { getIssueUrl } from '@/stores/server-store'
 import { ChatBody } from './ChatBody'
@@ -40,7 +41,23 @@ export function ChatArea({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { data: issue, isLoading, isError } = useIssue(projectId, issueId)
+  const { data: project } = useProject(projectId)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Track recently visited issues for global search
+  useEffect(() => {
+    if (issue && project) {
+      addRecentIssue({
+        id: issue.id,
+        title: issue.title,
+        issueNumber: issue.issueNumber,
+        projectAlias: project.alias,
+        projectName: project.name,
+        statusId: issue.statusId,
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [issue?.id, project?.alias])
   const [copied, setCopied] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')

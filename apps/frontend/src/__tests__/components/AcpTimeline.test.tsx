@@ -31,7 +31,7 @@ function createWrapper() {
   }
 }
 
-describe('AcpTimeline', () => {
+describe('acpTimeline', () => {
   it('renders a single assistant message when thinking and message share content', () => {
     // Regression: OpenCode sends thinking chunks with the same content as
     // assistant-message. The UI should not show a separate thinking entry.
@@ -54,8 +54,8 @@ describe('AcpTimeline', () => {
 
     render(<AcpTimeline logs={logs} />, { wrapper: createWrapper() })
 
-    // Should NOT show a "Thinking:" summary
-    expect(screen.queryByText(/Thinking:/i)).not.toBeInTheDocument()
+    // Should NOT show streaming thinking
+    expect(screen.queryByText(/Thinking\.\.\./i)).not.toBeInTheDocument()
 
     // Should show the full assistant message
     expect(screen.getByText(/用户问为什么测试兜不住/)).toBeInTheDocument()
@@ -94,18 +94,91 @@ describe('AcpTimeline', () => {
     expect(messages[0]).toHaveTextContent('Hello world')
   })
 
-  it('shows standalone thinking when it does NOT overlap with assistant', () => {
+  it('survives 50+ interleaved thinking/assistant/tool chunks without duplication', () => {
+    // Stress test: OpenCode sends full accumulated text on every chunk,
+    // creating cascading content. The timeline must merge them into a
+    // single assistant message + one tool group.
+    const logs: NormalizedLogEntry[] = []
+    const baseTime = Date.now()
+
+    // Phase 1: thinking cascades (5 chunks of accumulating text)
+    for (let i = 1; i <= 5; i++) {
+      logs.push({
+        entryType: 'thinking',
+        content: '用户'.repeat(i),
+        timestamp: new Date(baseTime + i * 10).toISOString(),
+        turnIndex: 0,
+        metadata: { streaming: true },
+      })
+    }
+
+    // Phase 2: assistant starts (overlaps with thinking)
+    for (let i = 1; i <= 10; i++) {
+      logs.push({
+        entryType: 'assistant-message',
+        content: '用户'.repeat(5) + '，这是回复内容'.repeat(i),
+        timestamp: new Date(baseTime + 100 + i * 10).toISOString(),
+        turnIndex: 0,
+        metadata: { streaming: true },
+      })
+    }
+
+    // Phase 3: tool call in the middle
+    logs.push({
+      entryType: 'tool-use',
+      content: 'Read src/config.ts',
+      timestamp: new Date(baseTime + 250).toISOString(),
+      turnIndex: 0,
+      metadata: { toolCallId: 't1', isResult: false },
+      toolDetail: { kind: 'file-read', toolName: 'Read', toolCallId: 't1', isResult: false },
+    })
+
+    // Phase 4: more assistant after tool
+    for (let i = 1; i <= 5; i++) {
+      logs.push({
+        entryType: 'assistant-message',
+        content: '用户'.repeat(5) + '，这是回复内容'.repeat(10) + '后续内容'.repeat(i),
+        timestamp: new Date(baseTime + 300 + i * 10).toISOString(),
+        turnIndex: 0,
+        metadata: { streaming: true },
+      })
+    }
+
+    // Phase 5: non-streaming duplicate (acp-prompt-result style)
+    logs.push({
+      entryType: 'assistant-message',
+      content: '用户'.repeat(5) + '，这是回复内容'.repeat(10) + '后续内容'.repeat(5),
+      timestamp: new Date(baseTime + 400).toISOString(),
+      turnIndex: 0,
+      metadata: {},
+    })
+
+    render(<AcpTimeline logs={logs} />, { wrapper: createWrapper() })
+
+    // Should NOT show streaming thinking indicator
+    expect(screen.queryByText(/Thinking\.\.\./i)).not.toBeInTheDocument()
+
+    // Should have exactly ONE assistant message rendered (match full final text)
+    const finalContent = '用户'.repeat(5) + '，这是回复内容'.repeat(10) + '后续内容'.repeat(5)
+    expect(screen.getByText(finalContent)).toBeInTheDocument()
+
+    // Tool call should be present ( rendered inside ToolGroupMessage )
+    expect(screen.queryAllByText('Read src/config.ts').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('shows completed thinking as collapsed block when thinking finishes', () => {
+    // UX: thinking streams in real-time, then collapses when assistant starts.
     const logs: NormalizedLogEntry[] = [
       {
         entryType: 'thinking',
-        content: 'Let me check the imports first',
+        content: 'Let me analyze the problem',
         timestamp: new Date().toISOString(),
         turnIndex: 0,
         metadata: { streaming: true },
       },
       {
         entryType: 'assistant-message',
-        content: 'I found the issue in the type definitions',
+        content: 'The issue is in the type definitions',
         timestamp: new Date(Date.now() + 100).toISOString(),
         turnIndex: 0,
         metadata: { streaming: true },
@@ -114,10 +187,28 @@ describe('AcpTimeline', () => {
 
     render(<AcpTimeline logs={logs} />, { wrapper: createWrapper() })
 
-    // Should show the thinking entry
-    expect(screen.getByText(/Thinking:/i)).toBeInTheDocument()
+    // Should show collapsed thinking block with thinking content
+    expect(screen.getByText(/Let me analyze the problem/)).toBeInTheDocument()
 
     // Should also show the assistant message
-    expect(screen.getByText(/I found the issue/)).toBeInTheDocument()
+    expect(screen.getByText(/The issue is/)).toBeInTheDocument()
+  })
+
+  it('shows streaming thinking in real-time before assistant arrives', () => {
+    // Simulate mid-stream: only thinking chunks received so far
+    const logs: NormalizedLogEntry[] = [
+      {
+        entryType: 'thinking',
+        content: 'Analyzing the codebase...',
+        timestamp: new Date().toISOString(),
+        turnIndex: 0,
+        metadata: { streaming: true },
+      },
+    ]
+
+    render(<AcpTimeline logs={logs} isRunning />, { wrapper: createWrapper() })
+
+    // Should show streaming thinking content (i18n label not loaded in tests)
+    expect(screen.getByText(/Analyzing the codebase/)).toBeInTheDocument()
   })
 })

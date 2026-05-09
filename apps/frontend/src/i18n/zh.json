@@ -8,6 +8,20 @@
     "copy": "复制",
     "save": "保存"
   },
+  "search": {
+    "title": "搜索",
+    "placeholder": "搜索任务、项目...",
+    "recent": "最近访问",
+    "projects": "项目",
+    "quickActions": "快捷操作",
+    "noResults": "无结果",
+    "running": "运行中",
+    "review": "待 Review",
+    "gotoHome": "首页",
+    "gotoReview": "Review 页面",
+    "openTerminal": "终端",
+    "gotoCron": "定时任务"
+  },
   "project": {
     "projects": "项目",
     "create": "创建项目",
@@ -217,7 +231,8 @@
     "disconnected": "未连接",
     "sending": "发送中...",
     "starting": "启动中...",
-    "thinking": "AI 思考中...",
+    "thinking": "思考中...",
+    "thoughtProcess": "思考过程",
     "cancelling": "取消中...",
     "cancellingBtn": "取消中...",
     "loadMore": "查看更多记录",

@@ -1,5 +1,5 @@
 import type { NormalizedLogEntry } from '@bkd/shared'
-import { CheckCircle2, Circle, ListTodo, Loader2 } from 'lucide-react'
+import { CheckCircle2, Circle, Lightbulb, ListTodo, Loader2 } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAcpTimeline } from '@/hooks/use-acp-timeline'
@@ -63,6 +63,49 @@ function AcpPlanCard({
           ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Real-time streaming thinking block — shows content as it arrives. */
+function StreamingThinking({ entry }: { entry: NormalizedLogEntry }) {
+  const { t } = useTranslation()
+  const preview = entry.content.length > 120 ? `${entry.content.slice(0, 120)}…` : entry.content
+
+  return (
+    <div className="animate-message-enter my-0.5">
+      <div className="border border-violet-300/30 dark:border-violet-500/20 bg-violet-500/[0.04] dark:bg-violet-500/[0.03]">
+        <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-violet-600/80 dark:text-violet-400/70">
+          <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+          <span className="font-medium">{t('session.thinking')}</span>
+        </div>
+        <div className="px-3 pb-2 pt-0.5 border-t border-violet-300/15 dark:border-violet-500/10">
+          <pre className="text-xs text-violet-600/60 dark:text-violet-300/50 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
+            {preview}
+          </pre>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Completed thinking block — collapsed by default, user can expand. */
+function CompletedThinking({ entry }: { entry: NormalizedLogEntry }) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="animate-message-enter my-0.5">
+      <details className="bg-violet-500/[0.03] border border-violet-300/20 dark:border-violet-500/15 transition-all duration-200 open:bg-violet-500/[0.05]">
+        <summary className="cursor-pointer list-none px-3 py-1.5 text-xs text-violet-500/60 dark:text-violet-400/60 hover:bg-violet-500/[0.04] transition-colors flex items-center gap-2">
+          <Lightbulb className="h-3 w-3 shrink-0" />
+          <span className="font-medium">{t('session.thoughtProcess')}</span>
+        </summary>
+        <div className="px-3 pb-2 pt-1 border-t border-violet-300/10 dark:border-violet-500/10">
+          <pre className="text-xs text-violet-600/60 dark:text-violet-300/50 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
+            {entry.content}
+          </pre>
+        </div>
+      </details>
     </div>
   )
 }
@@ -163,16 +206,16 @@ export function AcpTimeline({
                 completedCount={item.completedCount}
               />
             )
+          case 'thinking':
+            return item.isStreaming && isRunning ?
+                <StreamingThinking key={item.id} entry={item.entry} /> :
+                <CompletedThinking key={item.id} entry={item.entry} />
           case 'entry':
             return <LogEntry key={item.id} entry={item.entry} />
           default:
             return null
         }
       })}
-
-      {/* Thinking indicator is owned by ThinkingHover in ChatBody — do not
-          duplicate here. ThinkingHover shows elapsed time, thinking preview,
-          and cancel button. */}
 
       {pendingMessages.length > 0 ?
           (

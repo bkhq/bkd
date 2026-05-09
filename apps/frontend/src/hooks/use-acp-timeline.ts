@@ -27,12 +27,20 @@ export interface AcpTimelineToolGroupItem {
   message: ToolGroupChatMessage
 }
 
+export interface AcpTimelineThinkingItem {
+  type: 'thinking'
+  id: string
+  entry: NormalizedLogEntry
+  isStreaming: boolean
+}
+
 export type AcpTimelineItem =
   | AcpTimelineEntryItem
   | AcpTimelinePlanItem
   | AcpTimelineToolGroupItem
+  | AcpTimelineThinkingItem
 
-interface AcpTimelineResult {
+export interface AcpTimelineResult {
   items: AcpTimelineItem[]
   pendingMessages: NormalizedLogEntry[]
 }
@@ -113,20 +121,20 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
   /** Caches the latest thinking entry for potential merging with assistant-message. */
   let pendingThinking: NormalizedLogEntry | null = null
 
-  function buildToolGroup(items: ToolGroupItem[]): ToolGroupChatMessage {
+  function buildToolGroup(toolItems: ToolGroupItem[]): ToolGroupChatMessage {
     const stats: Record<string, number> = {}
-    for (const item of items) {
+    for (const item of toolItems) {
       const kind = item.action.toolDetail?.kind ?? item.action.toolAction?.kind ?? 'other'
       stats[kind] = (stats[kind] ?? 0) + 1
     }
 
-    const stableId = items[0]?.action.messageId ?? nextId('acp-tg')
+    const stableId = toolItems[0]?.action.messageId ?? nextId('acp-tg')
     return {
       type: 'tool-group',
       id: `acp-tg-${stableId}`,
-      items,
+      items: toolItems,
       stats,
-      count: items.length,
+      count: toolItems.length,
       hiddenCount: 0,
     }
   }
@@ -152,12 +160,13 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
     ) {
       pendingThinking = null
     }
+    // Order: thinking -> tool calls -> assistant
     if (pendingThinking) {
-      flushToolBuffer()
       items.push({
-        type: 'entry',
-        id: entryId(pendingThinking, nextId('acp-entry')),
+        type: 'thinking',
+        id: entryId(pendingThinking, nextId('acp-thinking')),
         entry: pendingThinking,
+        isStreaming: false,
       })
       pendingThinking = null
     }
@@ -180,6 +189,27 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
       return
     }
 
+    // If there's a cached thinking for this turn, flush it before the assistant.
+    if (
+      entry.entryType === 'assistant-message' &&
+      pendingThinking &&
+      pendingThinking.turnIndex === entry.turnIndex
+    ) {
+      // Discard if assistant already contains the thinking content.
+      if (entry.content.startsWith(pendingThinking.content)) {
+        pendingThinking = null
+      } else {
+        flushToolBuffer()
+        items.push({
+          type: 'thinking',
+          id: entryId(pendingThinking, nextId('acp-thinking')),
+          entry: pendingThinking,
+          isStreaming: false,
+        })
+        pendingThinking = null
+      }
+    }
+
     flushToolBuffer()
     items.push({
       type: 'entry',
@@ -194,7 +224,9 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
     // thinking: cache for potential merging with the following assistant-message.
     // When the engine streams thinking and message as identical text, we skip
     // the standalone thinking display to avoid duplication.
-    if (entry.entryType === 'thinking' && entry.metadata?.streaming === true) {
+    // Both streaming (real-time) and historical (from DB) thinking are cached
+    // here so they can be inserted BEFORE the corresponding assistant message.
+    if (entry.entryType === 'thinking') {
       if (pendingThinking && pendingThinking.turnIndex === entry.turnIndex) {
         const current = pendingThinking as NormalizedLogEntry
         const prevText = current.content
@@ -276,15 +308,11 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
     if (isToolUseResult(entry)) {
       const callId =
         entry.toolDetail?.toolCallId ?? (entry.metadata?.toolCallId as string | undefined)
+      // Skip results that are already paired with an action.
       if (callId && pairedResultCallIds.has(callId)) continue
 
-      // Flush existing buffer first so orphaned results don't merge
-      // with unrelated tool actions that follow
-      flushToolBuffer()
-      toolBuffer.push({
-        action: entry,
-        result: null,
-      })
+      // Orphaned result (no matching action): skip it.
+      // Results are always displayed as part of their action's tool group.
       continue
     }
 
@@ -326,13 +354,13 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
   }
 
   flushStreamingAssistant()
-  // Flush any remaining thinking that wasn't paired with an assistant
+  // If thinking stream hasn't finished, add it as a streaming item.
   if (pendingThinking) {
-    flushToolBuffer()
     items.push({
-      type: 'entry',
-      id: entryId(pendingThinking, nextId('acp-entry')),
+      type: 'thinking',
+      id: entryId(pendingThinking, nextId('acp-thinking')),
       entry: pendingThinking,
+      isStreaming: true,
     })
     pendingThinking = null
   }

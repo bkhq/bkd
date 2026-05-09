@@ -82,6 +82,18 @@ export function KanbanHeader({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {/* Global search — icon on mobile, hidden on desktop (desktop uses Cmd+K) */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground md:hidden"
+            onClick={() => navigate('/search')}
+            aria-label={t('search.title', '搜索')}
+            title={t('search.title', '搜索')}
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+
           {/* Search — hidden on mobile */}
           <div className="hidden md:flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5">
             <Search className="h-3.5 w-3.5 text-muted-foreground" />

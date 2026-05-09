@@ -8,6 +8,20 @@
     "copy": "Copy",
     "save": "Save"
   },
+  "search": {
+    "title": "Search",
+    "placeholder": "Search issues, projects...",
+    "recent": "Recent",
+    "projects": "Projects",
+    "quickActions": "Quick Actions",
+    "noResults": "No results",
+    "running": "Running",
+    "review": "Review",
+    "gotoHome": "Home",
+    "gotoReview": "Review",
+    "openTerminal": "Terminal",
+    "gotoCron": "Cron Jobs"
+  },
   "project": {
     "projects": "Projects",
     "create": "Create Project",
@@ -218,7 +232,8 @@
     "disconnected": "Disconnected",
     "sending": "Sending...",
     "starting": "Starting...",
-    "thinking": "AI is thinking...",
+    "thinking": "Thinking...",
+    "thoughtProcess": "Thought process",
     "cancelling": "Cancelling...",
     "cancellingBtn": "Cancelling...",
     "loadMore": "Load earlier messages",

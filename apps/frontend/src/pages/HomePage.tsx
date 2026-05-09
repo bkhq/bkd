@@ -21,6 +21,7 @@ import {
   Hash,
   Menu,
   Plus,
+  Search,
   Settings,
   StickyNote,
   TerminalSquare,
@@ -326,6 +327,21 @@ function MobileHomeMenu({
           <div className="flex flex-col h-full">
             {/* Actions -- no header */}
             <div className="flex-1 pt-2">
+              {/* Search */}
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false)
+                  void navigate('/search')
+                }}
+                className="flex items-center gap-3 w-full px-4 min-h-[48px] text-sm text-foreground/80 hover:bg-accent/50 active:bg-accent transition-colors"
+              >
+                <Search className="h-4.5 w-4.5 text-muted-foreground" />
+                {t('search.title', '搜索')}
+              </button>
+
+              <Separator />
+
               {/* New project */}
               <button
                 type="button"
@@ -427,6 +443,16 @@ function DesktopHeaderControls({
 
   return (
     <div className="ml-auto flex items-center gap-2">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-muted-foreground"
+        onClick={() => navigate('/search')}
+        aria-label={t('search.title', '搜索')}
+        title={t('search.title', '搜索')}
+      >
+        <Search className="h-4 w-4" />
+      </Button>
       <Button
         variant="ghost"
         size="icon"

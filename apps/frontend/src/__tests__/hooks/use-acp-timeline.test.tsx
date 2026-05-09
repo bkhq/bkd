@@ -72,6 +72,9 @@ describe('useAcpTimeline thinking dedup', () => {
     expect(entry0.entry.content).toBe(
       '用户问为什么测试兜不住。原因是测试只覆盖了 normalizer，没测前端 state 的去重',
     )
+
+    // Thinking should be discarded (merged into assistant)
+    expect(items.some(i => i.type === 'thinking')).toBe(false)
   })
 
   it('keeps standalone thinking when assistant does NOT overlap', () => {
@@ -94,12 +97,14 @@ describe('useAcpTimeline thinking dedup', () => {
 
     const { items } = rebuildAcpTimeline(logs)
 
-    // Both should be kept: thinking + assistant
+    // Thinking comes before assistant in items
     expect(items).toHaveLength(2)
-    const entry0b = items[0] as { entry: NormalizedLogEntry }
-    const entry1b = items[1] as { entry: NormalizedLogEntry }
-    expect(entry0b.entry.entryType).toBe('thinking')
-    expect(entry1b.entry.entryType).toBe('assistant-message')
+    expect(items[0]!.type).toBe('thinking')
+    expect((items[0] as { entry: NormalizedLogEntry }).entry.entryType).toBe('thinking')
+    expect((items[0] as { entry: NormalizedLogEntry }).entry.content).toBe('Let me check the imports first')
+
+    expect(items[1]!.type).toBe('entry')
+    expect((items[1] as { entry: NormalizedLogEntry }).entry.entryType).toBe('assistant-message')
   })
 
   it('discards thinking when assistant comes after tool calls', () => {
@@ -140,5 +145,8 @@ describe('useAcpTimeline thinking dedup', () => {
     expect(items[1]!.type).toBe('entry')
     const assistantItem = items[1] as { entry: NormalizedLogEntry }
     expect(assistantItem.entry.entryType).toBe('assistant-message')
+
+    // Thinking should be discarded (merged into assistant)
+    expect(items.some(i => i.type === 'thinking')).toBe(false)
   })
 })
