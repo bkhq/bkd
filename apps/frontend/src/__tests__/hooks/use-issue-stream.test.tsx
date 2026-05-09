@@ -585,4 +585,68 @@ describe('useIssueStream', () => {
       expect(assistantMsg.entry.content).toBe('Hello world')
     })
   })
+
+  it('does NOT concatenate unrelated assistant chunks', async () => {
+    // Regression: when two assistant chunks have unrelated content,
+    // they must NOT be merged into garbled text.
+    let handler: IssueEventHandler | null = null
+    subscribeMock.mockImplementation((_issueId: string, nextHandler: IssueEventHandler) => {
+      handler = nextHandler
+      return () => {}
+    })
+
+    getIssueLogsMock.mockResolvedValue({
+      issue: null,
+      logs: [],
+      nextCursor: null,
+      hasMore: false,
+    })
+
+    const { result: streamResult } = renderHook(
+      () =>
+        useIssueStream({
+          projectId: 'proj-1',
+          issueId: 'issue-1',
+          sessionStatus: 'running',
+        }),
+      { wrapper: createWrapper() },
+    )
+
+    await waitFor(() => {
+      expect(handler).not.toBeNull()
+    })
+
+    const chunk1: NormalizedLogEntry = {
+      entryType: 'assistant-message',
+      content: 'B里还留着历史销售记录',
+      timestamp: new Date().toISOString(),
+      turnIndex: 0,
+      metadata: { streaming: true },
+    }
+    const chunk2: NormalizedLogEntry = {
+      entryType: 'assistant-message',
+      content: '---查 ttpos_product_package的delete_time字段',
+      timestamp: new Date(Date.now() + 50).toISOString(),
+      turnIndex: 0,
+      metadata: { streaming: true },
+    }
+
+    act(() => {
+      handler?.onLog(chunk1)
+      handler?.onLog(chunk2)
+    })
+
+    // useIssueStream may keep both entries (no superset/subset relation).
+    // The key assertion: no single entry should contain concatenated text.
+    await waitFor(() => {
+      expect(streamResult.current.logs.length).toBeGreaterThanOrEqual(1)
+    })
+
+    const concatenatedFound = streamResult.current.logs.some(l =>
+      l.entryType === 'assistant-message'
+      && l.content.includes('B里还留着历史销售记录')
+      && l.content.includes('delete_time字段'),
+    )
+    expect(concatenatedFound).toBe(false)
+  })
 })

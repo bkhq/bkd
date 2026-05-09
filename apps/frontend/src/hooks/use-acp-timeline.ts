@@ -224,21 +224,33 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
     // thinking: cache for potential merging with the following assistant-message.
     // When the engine streams thinking and message as identical text, we skip
     // the standalone thinking display to avoid duplication.
-    // Both streaming (real-time) and historical (from DB) thinking are cached
-    // here so they can be inserted BEFORE the corresponding assistant message.
+    // Only streaming thinking is cached. Non-streaming thinking (e.g. Codex
+    // reasoning items persisted to DB) is output immediately to avoid
+    // concatenating multiple independent thinking entries.
     if (entry.entryType === 'thinking') {
-      if (pendingThinking && pendingThinking.turnIndex === entry.turnIndex) {
-        const current = pendingThinking as NormalizedLogEntry
-        const prevText = current.content
-        const nextText = entry.content
-        const isFullContent = nextText.startsWith(prevText)
-        pendingThinking = {
-          ...current,
-          content: isFullContent ? nextText : `${prevText}${nextText}`,
-          timestamp: entry.timestamp ?? current.timestamp,
+      if (entry.metadata?.streaming === true) {
+        if (pendingThinking && pendingThinking.turnIndex === entry.turnIndex) {
+          const current = pendingThinking as NormalizedLogEntry
+          const prevText = current.content
+          const nextText = entry.content
+          const isFullContent = nextText.startsWith(prevText)
+          pendingThinking = {
+            ...current,
+            content: isFullContent ? nextText : `${prevText}${nextText}`,
+            timestamp: entry.timestamp ?? current.timestamp,
+          }
+        } else {
+          pendingThinking = { ...entry }
         }
       } else {
-        pendingThinking = { ...entry }
+        // Non-streaming thinking: output immediately, don't merge.
+        flushToolBuffer()
+        items.push({
+          type: 'thinking',
+          id: entryId(entry, nextId('acp-thinking')),
+          entry,
+          isStreaming: false,
+        })
       }
       continue
     }
@@ -260,19 +272,19 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
         pendingStreamingAssistant.turnIndex === entry.turnIndex
       ) {
         const current: NormalizedLogEntry = pendingStreamingAssistant
-        // Detect full-content vs incremental streaming.
-        // Some ACP agents send the entire accumulated text in every chunk.
         const prev = current.content
         const next = entry.content
         const isFullContent = next.startsWith(prev)
+        // Fix: never concatenate unrelated chunks. If not full content,
+        // assume it's the latest full version (some agents send corrected
+        // accumulated text that doesn't start with previous).
         pendingStreamingAssistant = {
           ...current,
-          content: isFullContent ? next : `${prev}${next}`,
+          content: isFullContent ? next : (next.length > prev.length ? next : prev),
           timestamp: entry.timestamp ?? current.timestamp,
         }
       } else {
         // Only flush the previous turn's assistant; don't flush thinking here.
-        // thinking will be discarded or flushed when this turn's assistant completes.
         if (pendingStreamingAssistant) {
           flushStreamingAssistant()
         }
