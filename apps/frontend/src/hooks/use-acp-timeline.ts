@@ -143,11 +143,11 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
   }
 
   function flushStreamingAssistant(): void {
+    if (!pendingStreamingAssistant) return
     // If assistant already contains the thinking content, discard thinking
     // instead of rendering it as a standalone entry (avoids duplication).
     if (
       pendingThinking
-      && pendingStreamingAssistant
       && pendingStreamingAssistant.content.startsWith(pendingThinking.content)
     ) {
       pendingThinking = null
@@ -161,7 +161,6 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
       })
       pendingThinking = null
     }
-    if (!pendingStreamingAssistant) return
     flushToolBuffer()
     items.push({
       type: 'entry',
@@ -240,7 +239,11 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
           timestamp: entry.timestamp ?? current.timestamp,
         }
       } else {
-        flushStreamingAssistant()
+        // Only flush the previous turn's assistant; don't flush thinking here.
+        // thinking will be discarded or flushed when this turn's assistant completes.
+        if (pendingStreamingAssistant) {
+          flushStreamingAssistant()
+        }
         pendingStreamingAssistant = { ...entry }
       }
       continue
@@ -323,6 +326,16 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
   }
 
   flushStreamingAssistant()
+  // Flush any remaining thinking that wasn't paired with an assistant
+  if (pendingThinking) {
+    flushToolBuffer()
+    items.push({
+      type: 'entry',
+      id: entryId(pendingThinking, nextId('acp-entry')),
+      entry: pendingThinking,
+    })
+    pendingThinking = null
+  }
   flushToolBuffer()
 
   return { items, pendingMessages }

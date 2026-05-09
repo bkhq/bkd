@@ -67,8 +67,9 @@ describe('useAcpTimeline thinking dedup', () => {
     // Should only have 1 item: the final assistant message
     expect(items).toHaveLength(1)
     expect(items[0]!.type).toBe('entry')
-    expect(items[0]!.entry.entryType).toBe('assistant-message')
-    expect(items[0]!.entry.content).toBe(
+    const entry0 = items[0] as { entry: NormalizedLogEntry }
+    expect(entry0.entry.entryType).toBe('assistant-message')
+    expect(entry0.entry.content).toBe(
       '用户问为什么测试兜不住。原因是测试只覆盖了 normalizer，没测前端 state 的去重',
     )
   })
@@ -95,8 +96,10 @@ describe('useAcpTimeline thinking dedup', () => {
 
     // Both should be kept: thinking + assistant
     expect(items).toHaveLength(2)
-    expect(items[0]!.entry.entryType).toBe('thinking')
-    expect(items[1]!.entry.entryType).toBe('assistant-message')
+    const entry0b = items[0] as { entry: NormalizedLogEntry }
+    const entry1b = items[1] as { entry: NormalizedLogEntry }
+    expect(entry0b.entry.entryType).toBe('thinking')
+    expect(entry1b.entry.entryType).toBe('assistant-message')
   })
 
   it('discards thinking when assistant comes after tool calls', () => {
@@ -129,12 +132,13 @@ describe('useAcpTimeline thinking dedup', () => {
 
     const { items } = rebuildAcpTimeline(logs)
 
-    // Should have 3 items: thinking (flushed before tool) + tool-group + assistant.
-    expect(items).toHaveLength(3)
-    expect(items[0]!.type).toBe('entry')
-    expect(items[0]!.entry.entryType).toBe('thinking')
-    expect(items[1]!.type).toBe('tool-group')
-    expect(items[2]!.type).toBe('entry')
-    expect(items[2]!.entry.entryType).toBe('assistant-message')
+    // Should have 2 items: tool-group + assistant (thinking discarded by assistant).
+    // The thinking before the tool call is kept pending, then discarded when
+    // the assistant arrives with the same content.
+    expect(items).toHaveLength(2)
+    expect(items[0]!.type).toBe('tool-group')
+    expect(items[1]!.type).toBe('entry')
+    const assistantItem = items[1] as { entry: NormalizedLogEntry }
+    expect(assistantItem.entry.entryType).toBe('assistant-message')
   })
 })
