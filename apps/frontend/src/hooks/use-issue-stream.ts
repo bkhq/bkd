@@ -216,7 +216,7 @@ export function useIssueStream({
     // with the same content. This happens when an ACP streaming assistant-message
     // chunk arrives after the HTTP snapshot already contains the flushed version.
     const contentDeduped = new Set<string>()
-    return sorted.filter((entry) => {
+    const filtered = sorted.filter((entry) => {
       if (entry.messageId) {
         if (deduped.has(entry.messageId)) return false
         deduped.add(entry.messageId)
@@ -226,6 +226,40 @@ export function useIssueStream({
       contentDeduped.add(contentKey)
       return true
     })
+
+    // Merge adjacent streaming thinking entries from the same turn.
+    // ACP/Codex engines send full accumulated text on every chunk, producing
+    // cascading duplicates. Collapse them so only the latest full text remains.
+    const merged: NormalizedLogEntry[] = []
+    for (const entry of filtered) {
+      const last = merged[merged.length - 1]
+      if (
+        last
+        && entry.entryType === 'thinking'
+        && entry.metadata?.streaming === true
+        && last.entryType === 'thinking'
+        && last.metadata?.streaming === true
+        && (entry.turnIndex ?? 0) === (last.turnIndex ?? 0)
+      ) {
+        const newContent = entry.content
+        const oldContent = last.content
+        const isSuperset = newContent.length > oldContent.length
+          && newContent.startsWith(oldContent)
+        const isSubset = oldContent.length > newContent.length
+          && oldContent.startsWith(newContent)
+        if (isSuperset) {
+          // Replace last with longer entry
+          merged[merged.length - 1] = entry
+          continue
+        }
+        if (isSubset) {
+          // Skip shorter entry, keep last
+          continue
+        }
+      }
+      merged.push(entry)
+    }
+    return merged
   }, [olderLogs, liveLogs])
 
   const clearLogs = useCallback(() => {
