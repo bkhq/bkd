@@ -227,18 +227,21 @@ export function useIssueStream({
       return true
     })
 
-    // Merge adjacent streaming thinking entries from the same turn.
-    // ACP/Codex engines send full accumulated text on every chunk, producing
-    // cascading duplicates. Collapse them so only the latest full text remains.
+    // Merge adjacent streaming entries (thinking or assistant-message) from
+    // the same turn. ACP/Codex engines send full accumulated text on every
+    // chunk, producing cascading duplicates. Collapse them so only the latest
+    // full text remains.
     const merged: NormalizedLogEntry[] = []
+    const isStreamingEntry = (e: NormalizedLogEntry) =>
+      e.metadata?.streaming === true
+      && (e.entryType === 'thinking' || e.entryType === 'assistant-message')
     for (const entry of filtered) {
       const last = merged[merged.length - 1]
       if (
         last
-        && entry.entryType === 'thinking'
-        && entry.metadata?.streaming === true
-        && last.entryType === 'thinking'
-        && last.metadata?.streaming === true
+        && isStreamingEntry(entry)
+        && isStreamingEntry(last)
+        && entry.entryType === last.entryType
         && (entry.turnIndex ?? 0) === (last.turnIndex ?? 0)
       ) {
         const newContent = entry.content
@@ -305,19 +308,18 @@ export function useIssueStream({
       setLiveLogs((prev) => {
         if (isSeen(incoming)) return prev
 
-        // Merge adjacent streaming thinking entries from the same turn.
-        // ACP/Codex engines send full accumulated text on every chunk,
-        // causing "用户" → "用户问" → "用户问更新" cascading duplicates.
-        // When the new thinking content contains (or is contained by) the
-        // previous one, replace instead of append so only the latest full
-        // text is kept.
+        // Merge adjacent streaming entries (thinking or assistant-message) from
+        // the same turn. ACP/Codex engines send full accumulated text on every
+        // chunk, causing cascading duplicates like "用户" → "用户问" → "用户问更新".
         const last = prev[prev.length - 1]
+        const isStreamingEntry = (e: NormalizedLogEntry) =>
+          e.metadata?.streaming === true
+          && (e.entryType === 'thinking' || e.entryType === 'assistant-message')
         if (
           last
-          && incoming.entryType === 'thinking'
-          && incoming.metadata?.streaming === true
-          && last.entryType === 'thinking'
-          && last.metadata?.streaming === true
+          && isStreamingEntry(incoming)
+          && isStreamingEntry(last)
+          && incoming.entryType === last.entryType
           && (incoming.turnIndex ?? 0) === (last.turnIndex ?? 0)
         ) {
           const newContent = incoming.content

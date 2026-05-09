@@ -292,7 +292,19 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
 
     // ── Conversation messages flush the tool group ──
     flushToolBuffer()
-    flushPendingThinking()
+
+    // If the next message is an assistant-message that already contains the
+    // thinking content, skip the standalone thinking display (avoid duplication
+    // when engines stream thinking and message as the same text).
+    if (
+      entry.entryType === 'assistant-message'
+      && pendingThinking
+      && entry.content.startsWith(pendingThinking.content)
+    ) {
+      pendingThinking = null
+    } else {
+      flushPendingThinking()
+    }
 
     switch (entry.entryType) {
       case 'user-message': {
