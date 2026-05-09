@@ -58,10 +58,6 @@ export const issues = sqliteTable(
     useWorktree: integer('use_worktree', { mode: 'boolean' }).notNull().default(false),
     isPinned: integer('is_pinned', { mode: 'boolean' }).notNull().default(false),
     keepAlive: integer('keep_alive', { mode: 'boolean' }).notNull().default(false),
-    // Hidden issues are excluded from default listings (e.g. whiteboard-bound
-    // AI sessions). They remain fetchable by id and still run through the
-    // full IssueEngine lifecycle.
-    isHidden: integer('is_hidden', { mode: 'boolean' }).notNull().default(false),
     // Session fields (null = no engine session started)
     engineType: text('engine_type'),
     sessionStatus: text('session_status'),
@@ -227,29 +223,6 @@ export const cronJobLogs = sqliteTable(
     index('cron_job_logs_job_id_idx').on(table.jobId),
     index('cron_job_logs_job_id_started_at_idx').on(table.jobId, table.startedAt),
     index('cron_job_logs_status_idx').on(table.status),
-  ],
-)
-
-export const whiteboardNodes = sqliteTable(
-  'whiteboard_nodes',
-  {
-    id: shortId(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id),
-    parentId: text('parent_id'), // self-ref, app-level FK
-    label: text('label').notNull().default(''),
-    content: text('content').notNull().default(''),
-    icon: text('icon').default(''),
-    sortOrder: text('sort_order').notNull().default('a0'),
-    isCollapsed: integer('is_collapsed', { mode: 'boolean' }).notNull().default(false),
-    metadata: text('metadata'), // JSON
-    boundIssueId: text('bound_issue_id').references(() => issues.id),
-    ...commonFields,
-  },
-  table => [
-    index('whiteboard_nodes_project_id_idx').on(table.projectId),
-    index('whiteboard_nodes_parent_id_idx').on(table.parentId),
   ],
 )
 

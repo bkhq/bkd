@@ -134,6 +134,13 @@
       "when": 1777334400000,
       "tag": "0018_reset_whiteboard_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1778976000000,
+      "tag": "0019_drop_whiteboard",
+      "breakpoints": true
     }
   ]
 }

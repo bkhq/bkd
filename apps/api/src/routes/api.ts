@@ -9,7 +9,6 @@ import issues from './issues'
 import reviewIssues from './issues/review'
 import processes from './processes'
 import projects from './projects'
-import whiteboard from './whiteboard'
 import worktrees from './worktrees'
 
 const apiRoutes = createOpenAPIRouter()
@@ -17,7 +16,6 @@ const apiRoutes = createOpenAPIRouter()
 // DB-backed routes
 apiRoutes.route('/projects', projects)
 apiRoutes.route('/projects/:projectId/issues', issues)
-apiRoutes.route('/projects/:projectId/whiteboard', whiteboard)
 apiRoutes.route('/issues/review', reviewIssues)
 apiRoutes.route('/files', files)
 apiRoutes.route('/projects/:projectId/worktrees', worktrees)

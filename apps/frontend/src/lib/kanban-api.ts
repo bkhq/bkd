@@ -20,7 +20,6 @@ import type {
   Webhook,
   WebhookDelivery,
   WebhookEventType,
-  WhiteboardNode,
 } from '@/types/kanban'
 
 /** Encode a filesystem path as base58 for use in URL path segments. */
@@ -615,54 +614,6 @@ export const kanbanApi = {
   getGlobalEnvVars: () => get<Record<string, string>>('/api/settings/global-env-vars'),
   setGlobalEnvVars: (vars: Record<string, string>) =>
     put<Record<string, string>>('/api/settings/global-env-vars', { vars }),
-
-  // Whiteboard
-  getWhiteboardNodes: (projectId: string) =>
-    get<WhiteboardNode[]>(`/api/projects/${projectId}/whiteboard/nodes`),
-  createWhiteboardNode: (projectId: string, data: {
-    parentId?: string | null
-    label?: string
-    content?: string
-    icon?: string
-    sortOrder?: string
-    metadata?: Record<string, unknown>
-  }) => post<WhiteboardNode>(`/api/projects/${projectId}/whiteboard/nodes`, data),
-  updateWhiteboardNode: (projectId: string, nodeId: string, data: {
-    parentId?: string | null
-    label?: string
-    content?: string
-    icon?: string
-    sortOrder?: string
-    isCollapsed?: boolean
-    metadata?: Record<string, unknown>
-    boundIssueId?: string | null
-  }) => patch<WhiteboardNode>(`/api/projects/${projectId}/whiteboard/nodes/${nodeId}`, data),
-  deleteWhiteboardNode: (projectId: string, nodeId: string) =>
-    del<{ ids: string[] }>(`/api/projects/${projectId}/whiteboard/nodes/${nodeId}`),
-  bulkUpdateWhiteboardNodes: (projectId: string, nodes: Array<{
-    id: string
-    parentId?: string | null
-    sortOrder?: string
-  }>) => patch<WhiteboardNode[]>(`/api/projects/${projectId}/whiteboard/nodes/bulk`, { nodes }),
-  resetWhiteboard: (projectId: string) =>
-    del<{ count: number }>(`/api/projects/${projectId}/whiteboard/nodes`),
-  whiteboardAsk: (projectId: string, data: {
-    // Optional focal node (context); omit to ask about the whole board.
-    nodeId?: string
-    prompt: string
-    engineType?: string
-    model?: string
-  }) => post<{ issueId: string, executionId?: string, queued?: boolean }>(
-    `/api/projects/${projectId}/whiteboard/ask`,
-    data,
-  ),
-  parseWhiteboardResponse: (projectId: string, data: { nodeId: string, issueId: string, skipInsert?: boolean }) =>
-    post<{ nodes: WhiteboardNode[], rawContent: string }>(`/api/projects/${projectId}/whiteboard/parse-response`, data),
-  generateIssuesFromNodes: (projectId: string, data: { nodeIds: string[] }) =>
-    post<Array<{ nodeId: string, title: string, prompt: string }>>(
-      `/api/projects/${projectId}/whiteboard/generate-issues`,
-      data,
-    ),
 
   // Cron
   getCronJobs: () => get<CronJob[]>('/api/cron'),

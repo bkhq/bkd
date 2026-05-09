@@ -22,7 +22,6 @@ query.openapi(R.listIssues, async (c) => {
     .where(and(
       eq(issuesTable.projectId, project.id),
       eq(issuesTable.isDeleted, 0),
-      eq(issuesTable.isHidden, false),
     ))
     .orderBy(desc(issuesTable.isPinned), desc(issuesTable.statusUpdatedAt))
 

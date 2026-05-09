@@ -1,7 +1,6 @@
-import { Activity, FolderOpen, Network, Plus, Search, Settings } from 'lucide-react'
+import { Activity, FolderOpen, Plus, Search, Settings } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 import { ProjectSettingsDialog } from '@/components/ProjectSettingsDialog'
 import { Button } from '@/components/ui/button'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
@@ -28,7 +27,6 @@ export function KanbanHeader({
   const openCreateDialog = usePanelStore(s => s.openCreateDialog)
   const toggleFileBrowser = useFileBrowserStore(s => s.toggleDrawer)
   const toggleProcessManager = useProcessManagerStore(s => s.toggle)
-  const navigate = useNavigate()
   const [showSettings, setShowSettings] = useState(false)
 
   return (
@@ -66,15 +64,6 @@ export function KanbanHeader({
             title={t('processManager.title')}
           >
             <Activity className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate(`/projects/${project.id}/whiteboard`)}
-            className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-foreground/[0.07] transition-colors shrink-0"
-            aria-label={t('whiteboard.title')}
-            title={t('whiteboard.title')}
-          >
-            <Network className="h-3.5 w-3.5" />
           </button>
           <span className="text-xs text-muted-foreground tabular-nums hidden md:inline">
             {t('project.issueCount', { count: issueCount })}

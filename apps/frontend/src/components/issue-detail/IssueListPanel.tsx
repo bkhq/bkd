@@ -2,7 +2,6 @@ import {
   Activity,
   FolderOpen,
   MoreHorizontal,
-  Network,
   Plus,
   Search,
   Settings,
@@ -117,16 +116,6 @@ export function IssueListPanel({
             title={t('processManager.title')}
           >
             <Activity className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            onClick={() => navigate(`/projects/${projectId}/whiteboard`)}
-            aria-label={t('whiteboard.title')}
-            title={t('whiteboard.title')}
-          >
-            <Network className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="ghost"
