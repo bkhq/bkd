@@ -3,7 +3,7 @@ import { renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { useAcpTimeline } from '@/hooks/use-acp-timeline'
-import type { NormalizedLogEntry } from '@/types/kanban'
+import type { NormalizedLogEntry, TimelineEntry } from '@/types/kanban'
 
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -28,8 +28,28 @@ function createWrapper() {
   }
 }
 
+function toTimeline(entries: NormalizedLogEntry[]): TimelineEntry[] {
+  return entries.map((entry) => {
+    const typeMap: Record<string, TimelineEntry['type']> = {
+      thinking: 'thinking',
+      'assistant-message': 'assistant',
+      'tool-use': 'tool',
+      'system-message': 'system',
+      'error-message': 'error',
+      'user-message': 'user',
+    }
+    const type = typeMap[entry.entryType] ?? 'system'
+    const turn = entry.turnIndex ?? 0
+    return {
+      ...entry,
+      id: entry.messageId ?? `turn-${turn}-${type}`,
+      type,
+    }
+  })
+}
+
 function rebuildAcpTimeline(logs: NormalizedLogEntry[]) {
-  const { result } = renderHook(() => useAcpTimeline(logs), { wrapper: createWrapper() })
+  const { result } = renderHook(() => useAcpTimeline(toTimeline(logs)), { wrapper: createWrapper() })
   return result.current
 }
 
@@ -38,6 +58,8 @@ describe('useAcpTimeline thinking dedup', () => {
     // Regression: OpenCode streams thinking and assistant as identical text.
     // When flushStreamingAssistant runs at turn end, pendingThinking must be
     // discarded if pendingStreamingAssistant already contains the same content.
+    // Backend TimelineConverter already merges cascading assistant chunks.
+    // Only the final accumulated text reaches the frontend.
     const logs: NormalizedLogEntry[] = [
       {
         entryType: 'thinking',
@@ -48,23 +70,16 @@ describe('useAcpTimeline thinking dedup', () => {
       },
       {
         entryType: 'assistant-message',
-        content: '用户问为什么测试兜不住。原因是测试只覆盖了 normalizer',
-        timestamp: '2026-01-01T00:00:01Z',
-        turnIndex: 0,
-        metadata: { streaming: true },
-      },
-      {
-        entryType: 'assistant-message',
         content: '用户问为什么测试兜不住。原因是测试只覆盖了 normalizer，没测前端 state 的去重',
         timestamp: '2026-01-01T00:00:02Z',
         turnIndex: 0,
-        metadata: { streaming: true },
+        metadata: { streaming: false, completed: true },
       },
     ]
 
     const { items } = rebuildAcpTimeline(logs)
 
-    // Should only have 1 item: the final assistant message
+    // Should only have 1 item: the final assistant message (thinking discarded)
     expect(items).toHaveLength(1)
     expect(items[0]!.type).toBe('entry')
     const entry0 = items[0] as { entry: NormalizedLogEntry }
@@ -188,27 +203,14 @@ describe('useAcpTimeline streaming merge regression', () => {
   it('handles cascading accumulated text correctly', () => {
     // ACP agents send full accumulated text on every chunk.
     // Should keep only the latest full text.
+    // Backend TimelineConverter already merges cascading chunks.
     const logs: NormalizedLogEntry[] = [
-      {
-        entryType: 'assistant-message',
-        content: 'B里还留着历史销售记录',
-        timestamp: '2026-01-01T00:00:00Z',
-        turnIndex: 0,
-        metadata: { streaming: true },
-      },
-      {
-        entryType: 'assistant-message',
-        content: 'B里还留着历史销售记录，月份的报表',
-        timestamp: '2026-01-01T00:00:01Z',
-        turnIndex: 0,
-        metadata: { streaming: true },
-      },
       {
         entryType: 'assistant-message',
         content: 'B里还留着历史销售记录，月份的报表还能看到这个"派对套餐"',
         timestamp: '2026-01-01T00:00:02Z',
         turnIndex: 0,
-        metadata: { streaming: true },
+        metadata: { streaming: false, completed: true },
       },
     ]
 

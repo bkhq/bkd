@@ -75,13 +75,30 @@ function buildToolGroup(items: ToolGroupItem[]): ToolGroupChatMessage {
  * - deduplication, accumulation, ordering, noise filtering
  * This layer only handles: tool pairing, plan extraction, pending messages.
  */
+const TYPE_ORDER: Record<string, number> = {
+  user: 0,
+  thinking: 1,
+  tool: 2,
+  assistant: 3,
+  system: 4,
+  error: 5,
+}
+
+function compareEntry(a: TimelineEntry, b: TimelineEntry): number {
+  const ta = a.turnIndex ?? 0
+  const tb = b.turnIndex ?? 0
+  if (ta !== tb) return ta - tb
+  return (TYPE_ORDER[a.type] ?? 99) - (TYPE_ORDER[b.type] ?? 99)
+}
+
 function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
+  const sorted = [...entries].sort(compareEntry)
   const items: AcpTimelineItem[] = []
   const pendingMessages: NormalizedLogEntry[] = []
   const resultMap = new Map<string, TimelineEntry>()
 
   // Collect tool results
-  for (const entry of entries) {
+  for (const entry of sorted) {
     if (entry.type === 'tool' && entry.metadata?.isResult) {
       const callId = entry.metadata?.toolCallId as string | undefined
       if (callId) resultMap.set(callId, entry)
@@ -97,7 +114,7 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
     toolBuffer = []
   }
 
-  for (const entry of entries) {
+  for (const entry of sorted) {
     if (isHiddenEntry(entry)) continue
 
     if (entry.entryType === 'user-message' && (entry.metadata?.type === 'pending' || entry.metadata?.type === 'done')) {
@@ -106,6 +123,13 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
     }
 
     if (entry.type === 'thinking') {
+      // Skip if a later assistant in the same turn already contains this thinking
+      const hasEnclosingAssistant = sorted.some(e =>
+        e.type === 'assistant'
+        && (e.turnIndex ?? 0) === (entry.turnIndex ?? 0)
+        && e.content.startsWith(entry.content),
+      )
+      if (hasEnclosingAssistant) continue
       flushToolBuffer()
       items.push({
         type: 'thinking',

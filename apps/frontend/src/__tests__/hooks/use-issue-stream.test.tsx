@@ -144,10 +144,13 @@ describe('useIssueStream', () => {
       // ULID-like IDs: pad with leading zeros so sort is correct
       const messageId = `01ARZ${String(i).padStart(20, '0')}`
       allEntries.push({
+        id: `turn-${i}-assistant`,
         messageId,
         entryType: 'assistant-message',
+        type: 'assistant',
         content: `msg-${i}`,
         timestamp: ts,
+        turnIndex: i,
       })
     }
 
@@ -201,9 +204,11 @@ describe('useIssueStream', () => {
       return () => {}
     })
 
-    const persistedEntry: NormalizedLogEntry = {
+    const persistedEntry = {
+      id: 'turn-1-assistant',
       messageId: '01ARZ3NDEKTSV4RRFFQ69G5FAA',
       entryType: 'assistant-message',
+      type: 'assistant',
       content: 'Same content',
       timestamp: new Date().toISOString(),
       turnIndex: 1,
@@ -232,7 +237,7 @@ describe('useIssueStream', () => {
     await waitFor(() => {
       expect(result.current.logs).toHaveLength(1)
     })
-    expect(result.current.logs[0]?.messageId).toBe('01ARZ3NDEKTSV4RRFFQ69G5FAA')
+    expect(result.current.logs[0]?.id).toBe('turn-1-assistant')
 
     // Simulate a late streaming chunk arriving after the snapshot
     const streamingChunk: NormalizedLogEntry = {
@@ -247,11 +252,12 @@ describe('useIssueStream', () => {
       handler?.onLog(streamingChunk)
     })
 
-    // Should still be 1 entry, not 2
+    // Should still be 1 entry, not 2 (same id overwrites)
     await waitFor(() => {
       expect(result.current.logs).toHaveLength(1)
     })
-    expect(result.current.logs[0]?.messageId).toBe('01ARZ3NDEKTSV4RRFFQ69G5FAA')
+    expect(result.current.logs[0]?.id).toBe('turn-1-assistant')
+    expect(result.current.logs[0]?.content).toBe('Same content')
   })
 
   it('merges cascading streaming thinking entries into one', async () => {
@@ -352,6 +358,7 @@ describe('useIssueStream', () => {
       expect(handler).not.toBeNull()
     })
 
+    // Backend normalizer accumulates chunks, so SSE receives accumulated content
     const chunk1: NormalizedLogEntry = {
       entryType: 'thinking',
       content: 'First reasoning',
@@ -361,7 +368,7 @@ describe('useIssueStream', () => {
     }
     const chunk2: NormalizedLogEntry = {
       entryType: 'thinking',
-      content: 'Second thought',
+      content: 'First reasoningSecond thought',
       timestamp: new Date(Date.now() + 100).toISOString(),
       turnIndex: 0,
       metadata: { streaming: true },
@@ -372,10 +379,11 @@ describe('useIssueStream', () => {
       handler?.onLog(chunk2)
     })
 
-    // Both should be kept because content does not overlap
+    // Same turn thinking is merged into one entry (backend normalization)
     await waitFor(() => {
       const thinkingEntries = result.current.logs.filter(e => e.entryType === 'thinking')
-      expect(thinkingEntries).toHaveLength(2)
+      expect(thinkingEntries).toHaveLength(1)
+      expect(thinkingEntries[0].content).toBe('First reasoningSecond thought')
     })
   })
 
