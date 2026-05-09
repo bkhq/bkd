@@ -1,9 +1,17 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { AcpTimeline } from '@/components/issue-detail/AcpTimeline'
 import type { NormalizedLogEntry, TimelineEntry } from '@/types/kanban'
+
+// Mock react-i18next to avoid i18n initialization in tests
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: 'en' },
+  }),
+}))
 
 beforeAll(() => {
   // Mock matchMedia for theme detection in jsdom
@@ -106,7 +114,7 @@ describe('acpTimeline', () => {
     render(<AcpTimeline logs={toTimeline(logs)} />, { wrapper: createWrapper() })
 
     // Should NOT show streaming thinking indicator
-    expect(screen.queryByText(/Thinking\.{3}/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('session.thinking')).not.toBeInTheDocument()
 
     // Should have exactly ONE assistant message rendered
     expect(screen.getByText(finalContent)).toBeInTheDocument()
@@ -136,7 +144,14 @@ describe('acpTimeline', () => {
 
     render(<AcpTimeline logs={toTimeline(logs)} />, { wrapper: createWrapper() })
 
-    // Should show collapsed thinking block with thinking content
+    // Completed thinking is collapsed by default — click to expand
+    const thinkingButton = screen.getByText('session.thoughtProcess')
+    expect(thinkingButton).toBeInTheDocument()
+
+    // Click to expand
+    fireEvent.click(thinkingButton)
+
+    // Should show thinking content after expand
     expect(screen.getByText(/Let me analyze the problem/)).toBeInTheDocument()
 
     // Should also show the assistant message

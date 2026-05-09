@@ -1,6 +1,6 @@
 import type { NormalizedLogEntry, TimelineEntry } from '@bkd/shared'
 import { CheckCircle2, Circle, Lightbulb, ListTodo, Loader2 } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAcpTimeline } from '@/hooks/use-acp-timeline'
 import { useViewModeStore } from '@/stores/view-mode-store'
@@ -67,10 +67,15 @@ function AcpPlanCard({
   )
 }
 
-/** Real-time streaming thinking block — shows content as it arrives. */
+/** Real-time streaming thinking block — full content with auto-scroll. */
 function StreamingThinking({ entry }: { entry: NormalizedLogEntry }) {
   const { t } = useTranslation()
-  const preview = entry.content.length > 120 ? `${entry.content.slice(0, 120)}…` : entry.content
+  const contentRef = useRef<HTMLPreElement>(null)
+
+  useEffect(() => {
+    const el = contentRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [entry.content])
 
   return (
     <div className="animate-message-enter my-0.5">
@@ -80,8 +85,11 @@ function StreamingThinking({ entry }: { entry: NormalizedLogEntry }) {
           <span className="font-medium">{t('session.thinking')}</span>
         </div>
         <div className="px-3 pb-2 pt-0.5 border-t border-violet-300/15 dark:border-violet-500/10">
-          <pre className="text-xs text-violet-600/60 dark:text-violet-300/50 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
-            {preview}
+          <pre
+            ref={contentRef}
+            className="text-xs text-violet-600/60 dark:text-violet-300/50 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto max-h-[300px] overflow-y-auto"
+          >
+            {entry.content}
           </pre>
         </div>
       </div>
@@ -89,23 +97,30 @@ function StreamingThinking({ entry }: { entry: NormalizedLogEntry }) {
   )
 }
 
-/** Completed thinking block — collapsed by default, user can expand. */
+/** Completed thinking block — auto-collapsed to one line, click to expand. */
 function CompletedThinking({ entry }: { entry: NormalizedLogEntry }) {
   const { t } = useTranslation()
+  const [isOpen, setIsOpen] = useState(false)
 
   return (
     <div className="animate-message-enter my-0.5">
-      <details className="bg-violet-500/[0.03] border border-violet-300/20 dark:border-violet-500/15 transition-all duration-200 open:bg-violet-500/[0.05]">
-        <summary className="cursor-pointer list-none px-3 py-1.5 text-xs text-violet-500/60 dark:text-violet-400/60 hover:bg-violet-500/[0.04] transition-colors flex items-center gap-2">
+      <div className="bg-violet-500/[0.03] border border-violet-300/20 dark:border-violet-500/15">
+        <button
+          type="button"
+          onClick={() => setIsOpen(v => !v)}
+          className="w-full cursor-pointer px-3 py-1.5 text-xs text-violet-500/60 dark:text-violet-400/60 hover:bg-violet-500/[0.04] transition-colors flex items-center gap-2"
+        >
           <Lightbulb className="h-3 w-3 shrink-0" />
           <span className="font-medium">{t('session.thoughtProcess')}</span>
-        </summary>
-        <div className="px-3 pb-2 pt-1 border-t border-violet-300/10 dark:border-violet-500/10">
-          <pre className="text-xs text-violet-600/60 dark:text-violet-300/50 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
-            {entry.content}
-          </pre>
-        </div>
-      </details>
+        </button>
+        {isOpen && (
+          <div className="px-3 pb-2 pt-1 border-t border-violet-300/10 dark:border-violet-500/10">
+            <pre className="text-xs text-violet-600/60 dark:text-violet-300/50 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
+              {entry.content}
+            </pre>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
