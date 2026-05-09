@@ -147,11 +147,10 @@ describe('useIssueStream', () => {
         id: `turn-${i}-assistant`,
         messageId,
         entryType: 'assistant-message',
-        type: 'assistant',
         content: `msg-${i}`,
         timestamp: ts,
         turnIndex: i,
-      })
+      } as NormalizedLogEntry)
     }
 
     act(() => {
@@ -208,11 +207,10 @@ describe('useIssueStream', () => {
       id: 'turn-1-assistant',
       messageId: '01ARZ3NDEKTSV4RRFFQ69G5FAA',
       entryType: 'assistant-message',
-      type: 'assistant',
       content: 'Same content',
       timestamp: new Date().toISOString(),
       turnIndex: 1,
-    }
+    } as NormalizedLogEntry
 
     getIssueLogsMock.mockResolvedValue({
       issue: null,
@@ -237,10 +235,12 @@ describe('useIssueStream', () => {
     await waitFor(() => {
       expect(result.current.logs).toHaveLength(1)
     })
-    expect(result.current.logs[0]?.id).toBe('turn-1-assistant')
+    expect(result.current.logs[0]?.messageId).toBe('01ARZ3NDEKTSV4RRFFQ69G5FAA')
 
     // Simulate a late streaming chunk arriving after the snapshot
     const streamingChunk: NormalizedLogEntry = {
+      id: 'turn-1-assistant',
+      messageId: '01ARZ3NDEKTSV4RRFFQ69G5FAA',
       entryType: 'assistant-message',
       content: 'Same content',
       timestamp: new Date().toISOString(),
@@ -256,7 +256,7 @@ describe('useIssueStream', () => {
     await waitFor(() => {
       expect(result.current.logs).toHaveLength(1)
     })
-    expect(result.current.logs[0]?.id).toBe('turn-1-assistant')
+    expect(result.current.logs[0]?.messageId).toBe('01ARZ3NDEKTSV4RRFFQ69G5FAA')
     expect(result.current.logs[0]?.content).toBe('Same content')
   })
 

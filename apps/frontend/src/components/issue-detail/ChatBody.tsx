@@ -354,7 +354,7 @@ export function ChatBody({
             ) :
           null}
         <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden">
-          <div className="flex flex-col min-h-full justify-end py-2">
+          <div className="flex flex-col min-h-full justify-end py-1">
             <Suspense
               fallback={
                 <div className="px-5 py-2 text-xs text-muted-foreground">{t('common.loading')}</div>

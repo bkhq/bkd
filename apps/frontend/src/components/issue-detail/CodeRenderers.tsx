@@ -267,22 +267,22 @@ export function ToolPanel({
   if (collapsible) {
     return (
       <details className="group/panel transition-all duration-200">
-        <summary className="flex items-center cursor-pointer list-none px-3 py-1.5 transition-colors hover:bg-muted/10">
+        <summary className="flex items-center cursor-pointer list-none px-2.5 py-1 transition-colors hover:bg-muted/10">
           <div className="flex-1 min-w-0">{summary}</div>
           {actions ? <div className="shrink-0 ml-1">{actions}</div> : null}
-          <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/40 transition-transform group-open/panel:rotate-90 ml-1" />
+          <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/30 transition-transform group-open/panel:rotate-90 ml-1" />
         </summary>
-        <div className="border-t border-border">{children}</div>
+        <div className="border-t border-border/40">{children}</div>
       </details>
     )
   }
   return (
     <div>
-      <div className="flex items-center px-3 py-1.5">
+      <div className="flex items-center px-2.5 py-1">
         <div className="flex-1 min-w-0">{summary}</div>
         {actions ? <div className="shrink-0 ml-1">{actions}</div> : null}
       </div>
-      {children ? <div className="border-t border-border">{children}</div> : null}
+      {children ? <div className="border-t border-border/40">{children}</div> : null}
     </div>
   )
 }

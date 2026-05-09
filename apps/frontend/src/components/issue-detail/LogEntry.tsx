@@ -21,22 +21,13 @@ import {
   Timer,
   Wrench,
 } from 'lucide-react'
-import { lazy, Suspense, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { getCommandPreview } from '@/lib/command-preview'
 import { formatFileSize } from '@/lib/format'
 import type { NormalizedLogEntry, ToolAction } from '@/types/kanban'
 import { MarkdownContent } from './MarkdownContent'
-
-const MarkdownRenderer = lazy(() =>
-  import('@/components/files/MarkdownRenderer').then(m => ({ default: m.MarkdownRenderer })),
-)
 
 interface AttachmentMeta {
   id: string
@@ -289,16 +280,16 @@ export function LogEntry({
       if (!displayContent && messageAttachments.length === 0 && !isPending && !isDone)
         return null
       const barColor = isPending ?
-        'border-amber-400 bg-amber-500/[0.06]' :
+        'border-amber-400/60 bg-amber-500/[0.04]' :
         isDone ?
-          'border-emerald-400 bg-emerald-500/[0.06]' :
-          'border-foreground/70'
+          'border-emerald-400/60 bg-emerald-500/[0.04]' :
+          'border-foreground/40 bg-muted/40'
       return (
-        <div className="group py-2 animate-message-enter">
-          <div className={`bg-muted/70 px-3 py-2.5 border border-l-[3px] ${barColor}`}>
+        <div className="group py-1.5 animate-message-enter">
+          <div className={`px-3 py-2 border-l-[2px] ${barColor}`}>
             {displayContent ?
                 (
-                  <div className="text-[15px] whitespace-pre-wrap break-words text-foreground leading-[1.75]">
+                  <div className="text-[15px] whitespace-pre-wrap break-words text-foreground leading-[1.7]">
                     {displayContent}
                   </div>
                 ) :
@@ -532,7 +523,6 @@ function AssistantMessage({
 }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
-  const [viewOpen, setViewOpen] = useState(false)
 
   const handleCopy = () => {
     navigator.clipboard
@@ -545,68 +535,38 @@ function AssistantMessage({
   }
 
   return (
-    <div className="group py-1.5 animate-message-enter">
+    <div className="group py-1 animate-message-enter">
       <div className="relative min-w-0">
-        <div className="absolute right-0 top-0 flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150 z-10">
-          <button
-            type="button"
-            onClick={() => setViewOpen(true)}
-            className="rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50"
-            title={t('session.viewMessage')}
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50"
-            title={t('session.copyMessage')}
-          >
-            {copied ?
-                (
-                  <Check className="h-3.5 w-3.5 text-emerald-500" />
-                ) :
-                (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="absolute right-0 top-0 rounded p-1 text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-muted/40 transition-all opacity-0 group-hover:opacity-100"
+          title={t('session.copyMessage')}
+        >
+          {copied ?
+              (
+                <Check className="h-3 w-3 text-emerald-500" />
+              ) :
+              (
+                <Copy className="h-3 w-3" />
+              )}
+        </button>
         <MarkdownContent
           content={content}
-          className="text-[16px] leading-[1.85] md:text-[14px] md:leading-[1.75]"
+          className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65]"
         />
       </div>
-      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent
-          className="
-            max-md:!top-0 max-md:!left-0
-            max-md:!translate-x-0 max-md:!translate-y-0
-            max-md:!w-screen max-md:!h-screen
-            max-md:!max-w-none max-md:!max-h-none
-            max-md:!rounded-none max-md:!p-0
-            w-[90vw] max-w-[90vw] sm:max-w-[90vw] max-h-[90vh]
-            flex flex-col
-          "
-        >
-          <DialogTitle className="sr-only">{t('session.viewMessage')}</DialogTitle>
-          <div className="flex-1 overflow-y-auto min-h-0 max-md:px-4 max-md:py-12">
-            <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading...</div>}>
-              <MarkdownRenderer content={content} />
-            </Suspense>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <div className="flex items-center gap-2 mt-1">
+      <div className="flex items-center gap-2 mt-0.5">
         {timestamp ?
             (
-              <span className="text-[10px] text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors duration-200">
+              <span className="text-[10px] text-muted-foreground/20 group-hover:text-muted-foreground/40 transition-colors duration-200">
                 {formatTime(timestamp)}
               </span>
             ) :
           null}
         {durationMs != null ?
             (
-              <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/40">
+              <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/20 group-hover:text-muted-foreground/40 transition-colors">
                 <Clock className="h-2.5 w-2.5" />
                 {t('session.duration', { time: formatDuration(durationMs) })}
               </span>

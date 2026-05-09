@@ -192,7 +192,7 @@ export function AcpTimeline({
   if (items.length === 0 && pendingMessages.length === 0 && !isRunning) return null
 
   return (
-    <div className={`flex flex-col py-2 px-5${fullWidthChat ? '' : ' max-w-4xl'}`}>
+    <div className={`flex flex-col py-1.5 px-4${fullWidthChat ? '' : ' max-w-3xl'}`}>
       {hasOlderLogs && onLoadOlder ?
           (
             <div className="flex justify-center py-2">

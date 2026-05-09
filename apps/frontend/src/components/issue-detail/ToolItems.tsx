@@ -862,21 +862,21 @@ export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage })
   }, [])
 
   return (
-    <div className="py-1.5 animate-message-enter">
-      <div className="border border-border/60 bg-card/50">
+    <div className="py-1 animate-message-enter">
+      <div className="border border-border/40 bg-card/30">
         <button
           type="button"
           onClick={handleHeaderClick}
           aria-expanded={bodyVisible}
           aria-controls={bodyId}
           aria-disabled={isActive || undefined}
-          className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted-foreground cursor-pointer select-none bg-muted/60"
+          className="flex w-full items-center gap-2 px-2.5 py-1.5 text-xs text-muted-foreground cursor-pointer select-none bg-muted/40"
         >
           <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${bodyVisible ? 'rotate-90' : ''}`} />
           <span className="truncate">{description || statsLabel}</span>
           {description
             ? (
-                <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/50">
+                <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/40">
                   {statsLabel}
                 </span>
               )
@@ -884,7 +884,7 @@ export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage })
         </button>
         {bodyVisible
           ? (
-              <div id={bodyId} role="region" className="divide-y divide-border/50">
+              <div id={bodyId} role="region" className="divide-y divide-border/30">
                 {visibleItems.map((item, idx) => (
                   <MemoizedToolItemRenderer key={item.action.messageId ?? item.action.toolDetail?.toolCallId ?? `ti-${idx}`} item={item} />
                 ))}
@@ -892,7 +892,7 @@ export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage })
                   ? (
                       <button
                         type="button"
-                        className="w-full px-3 py-1.5 text-[11px] text-muted-foreground/70 hover:text-muted-foreground hover:bg-muted/40 transition-colors text-center cursor-pointer"
+                        className="w-full px-2.5 py-1 text-[11px] text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30 transition-colors text-center cursor-pointer"
                         onClick={() => setExpanded(true)}
                       >
                         {t('session.tool.showMore', { count: truncatedCount })}
@@ -903,7 +903,7 @@ export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage })
                   ? (
                       <button
                         type="button"
-                        className="w-full px-3 py-1.5 text-[11px] text-muted-foreground/70 hover:text-muted-foreground hover:bg-muted/40 transition-colors text-center cursor-pointer"
+                        className="w-full px-2.5 py-1 text-[11px] text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30 transition-colors text-center cursor-pointer"
                         onClick={() => setExpanded(false)}
                       >
                         {t('session.tool.showLess')}

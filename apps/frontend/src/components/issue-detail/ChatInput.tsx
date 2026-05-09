@@ -566,10 +566,10 @@ export function ChatInput({
   return (
     <div className="shrink-0 w-full min-w-0 px-2 pb-2 relative z-30">
       <div
-        className={`rounded-2xl border bg-card/80 backdrop-blur-sm shadow-sm transition-all duration-200 focus-within:border-border/80 focus-within:shadow-md ${
+        className={`rounded-xl border bg-card/60 backdrop-blur-sm transition-all duration-200 focus-within:border-border/70 focus-within:bg-card/80 ${
           isDragOver ?
             'border-primary/50 bg-primary/[0.03] ring-2 ring-primary/20' :
-            'border-border/50'
+            'border-border/40'
         }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
