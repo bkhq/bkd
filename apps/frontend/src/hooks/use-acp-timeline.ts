@@ -143,6 +143,15 @@ function rebuildAcpTimeline(entries: NormalizedLogEntry[]): AcpTimelineResult {
   }
 
   function flushStreamingAssistant(): void {
+    // If assistant already contains the thinking content, discard thinking
+    // instead of rendering it as a standalone entry (avoids duplication).
+    if (
+      pendingThinking
+      && pendingStreamingAssistant
+      && pendingStreamingAssistant.content.startsWith(pendingThinking.content)
+    ) {
+      pendingThinking = null
+    }
     if (pendingThinking) {
       flushToolBuffer()
       items.push({
