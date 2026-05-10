@@ -26,6 +26,16 @@ export function registerTimelineEmitStage(
 ): () => void {
   return on(
     (data) => {
+      // `dbOnly` entries are the merged final-content snapshots produced by
+      // engine normalizers (currently ACP's `flushAssistantMessage` /
+      // `flushThinkingMessage` at `acp-prompt-result`). They exist solely so
+      // the persist stage (order 10) can land the full merged content in
+      // `issue_logs` — streaming chunks themselves are dropped there. Letting
+      // them re-enter `liveConverter.ingest` here would open a fresh segment
+      // next to the streaming buffer that already holds the same content,
+      // producing duplicate assistant/thinking bubbles per turn. See PLAN-009.
+      if (data.entry.metadata?.dbOnly === true) return
+
       // Tool-use streaming updates are dropped — only the final non-streaming
       // tool entry reaches clients. Assistant + thinking streaming chunks pass
       // so users see real-time generation.

@@ -90,8 +90,73 @@ describe('AcpLogNormalizer', () => {
       content: 'hello from acp',
     })
     expect(entries[0]?.metadata?.streaming).toBeUndefined()
+    // Regression (CHAT-003): the flushed final-content entry must carry
+    // `dbOnly: true` so the timeline-emit pipeline stage skips it. Without
+    // this flag it re-enters `liveConverter.ingest` and opens a duplicate
+    // assistant segment next to the streaming buffer that already holds the
+    // same content — producing two visible bubbles per turn for OpenCode.
+    expect(entries[0]?.metadata?.dbOnly).toBe(true)
     expect(entries[1]?.entryType).toBe('system-message')
     expect(entries[1]?.metadata?.turnCompleted).toBe(true)
+    // The closing system-message must NOT be dbOnly — it's the natural turn
+    // boundary the timeline-converter relies on to close any open buffers.
+    expect(entries[1]?.metadata?.dbOnly).toBeUndefined()
+  })
+
+  test('flushes thinking and assistant with dbOnly:true on turn completion (CHAT-003)', () => {
+    const normalizer = new AcpLogNormalizer()
+
+    // OpenCode-style interleave: thinking → assistant → thinking → assistant.
+    normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-05-10T00:00:00.000Z',
+      update: { sessionUpdate: 'agent_thought_chunk', content: { text: 'thinking part 1' } },
+    }))
+    normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-05-10T00:00:00.100Z',
+      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '1. step one\n' } },
+    }))
+    normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-05-10T00:00:00.200Z',
+      update: { sessionUpdate: 'agent_thought_chunk', content: { text: ' thinking part 2' } },
+    }))
+    normalizer.parse(JSON.stringify({
+      type: 'acp-session-update',
+      timestamp: '2026-05-10T00:00:00.300Z',
+      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '2. step two' } },
+    }))
+
+    const result = normalizer.parse(JSON.stringify({
+      type: 'acp-prompt-result',
+      timestamp: '2026-05-10T00:00:00.400Z',
+      stopReason: 'end_turn',
+    }))
+
+    expect(Array.isArray(result)).toBe(true)
+    const entries = result as Array<{
+      entryType: string
+      content: string
+      metadata?: Record<string, unknown>
+    }>
+    // [thinking-flush, assistant-flush, system-message]
+    expect(entries).toHaveLength(3)
+
+    const thinking = entries.find(e => e.entryType === 'thinking')
+    const assistant = entries.find(e => e.entryType === 'assistant-message')
+    const system = entries.find(e => e.entryType === 'system-message')
+
+    // Both thinking + assistant flush entries must be dbOnly so they land
+    // in the DB but skip the live timeline (which already has the streaming
+    // buffer's content).
+    expect(thinking?.metadata?.dbOnly).toBe(true)
+    expect(assistant?.metadata?.dbOnly).toBe(true)
+    expect(system?.metadata?.dbOnly).toBeUndefined()
+
+    // Merged content covers the whole turn, not just one segment.
+    expect(thinking?.content).toBe('thinking part 1 thinking part 2')
+    expect(assistant?.content).toBe('1. step one\n2. step two')
   })
 
   test('pairs tool call actions with terminal results', () => {

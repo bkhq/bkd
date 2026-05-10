@@ -42,3 +42,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [-] [**CHAT-001 Backend normalization & frontend simplification**](CHAT-001.md) `P0`
 - [x] [**CHAT-002 Fix chat UI ordering root causes and close test invariant gaps**](CHAT-002.md) `P0`
 - [x] [**FILE-001 Lift attachment upload limit and add upload progress UX**](FILE-001.md) `P1`
+- [x] [**CHAT-003 Eliminate OpenCode double-emit assistant/thinking bubbles**](CHAT-003.md) `P1`

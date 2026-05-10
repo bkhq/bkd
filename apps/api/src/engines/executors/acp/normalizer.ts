@@ -63,6 +63,15 @@ function flushAssistantMessage(
     entryType: 'assistant-message',
     content,
     timestamp,
+    // Flagged dbOnly so the entry reaches the persist stage (which is the
+    // only thing that lands assistant/thinking content in `issue_logs` —
+    // streaming chunks are dropped at persist) but NOT the timeline-emit
+    // stage. Without this, the entry re-enters `liveConverter.ingest` and
+    // opens a fresh `turn-N-assistant-NNNN` segment alongside the streaming
+    // buffer that already accumulated the same content during the turn —
+    // producing two visible bubbles for one logical assistant message
+    // (raw-streaming-text bubble + flushed-markdown bubble). See PLAN-009.
+    metadata: { dbOnly: true },
   }
 }
 
@@ -77,6 +86,8 @@ function flushThinkingMessage(
     entryType: 'thinking',
     content,
     timestamp,
+    // dbOnly: persist-only, no timeline re-entry. See `flushAssistantMessage`.
+    metadata: { dbOnly: true },
   }
 }
 

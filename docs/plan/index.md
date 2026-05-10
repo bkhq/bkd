@@ -37,3 +37,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [~] [**PLAN-006 Backend chat normalization & frontend simplification**](PLAN-006.md) `2026-05-09` (superseded — see PLAN-006 rationale)
 - [x] [**PLAN-007 Chat UI ordering root causes + invariant test coverage + markdown copy UX**](PLAN-007.md) `2026-05-10`
 - [x] [**PLAN-008 Lift attachment upload limit and add upload progress UX**](PLAN-008.md) `2026-05-10`
+- [x] [**PLAN-009 OpenCode assistant/thinking double-emit fix via dbOnly pipeline lane**](PLAN-009.md) `2026-05-10`
