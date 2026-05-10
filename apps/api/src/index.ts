@@ -148,6 +148,10 @@ const http = Bun.serve({
   port: listenPort,
   hostname: listenHost,
   idleTimeout: 60,
+  // Worst-case multipart upload: MAX_FILES * MAX_FILE_SIZE + a little
+  // framing overhead. Bun's default rejects large project-seed tarballs
+  // attached via the chat input. See apps/api/src/uploads.ts.
+  maxRequestBodySize: 1024 * 1024 * 1024 + 16 * 1024 * 1024, // 1040 MB
   fetch: app.fetch,
   websocket,
 })

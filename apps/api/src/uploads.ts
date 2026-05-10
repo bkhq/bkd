@@ -3,7 +3,17 @@ import { extname, resolve } from 'node:path'
 import { ulid } from 'ulid'
 
 export const UPLOAD_DIR = resolve(process.cwd(), 'data/uploads')
-export const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+
+// Per-file ceiling for chat attachments. Sized to comfortably fit
+// hand-crafted project tarballs / zips that users attach to seed an
+// issue's working directory ("please initialize this project from the
+// archive"). Bun's `request.formData()` already streams large files to
+// `Bun.tempDir()` and `Bun.write` reads from the temp file, so the
+// runtime memory cost is bounded regardless of this value. If users
+// regularly hit this limit, raise it; if they hit it on flaky networks
+// often enough, that's the trigger for a chunked / resumable follow-up
+// task (deferred per PLAN-008).
+export const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100 MB
 export const MAX_FILES = 10
 
 export interface SavedFile {

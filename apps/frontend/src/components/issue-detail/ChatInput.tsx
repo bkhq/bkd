@@ -48,7 +48,10 @@ import { formatFileSize, formatModelName } from '@/lib/format'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { BusyAction, EngineModel, SessionStatus } from '@/types/kanban'
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+// Mirrors apps/api/src/uploads.ts. Keep both sides in sync — backend
+// rejects via validateFiles() so any drift would surface as a confusing
+// 400 after the user already waited for the upload to finish.
+const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100 MB
 const MAX_FILES = 10
 
 const MODE_OPTIONS = ['auto', 'ask'] as const
@@ -164,6 +167,13 @@ export function ChatInput({
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
   const [previewFile, setPreviewFile] = useState<File | null>(null)
+  // Upload progress is whole-batch (XMLHttpRequest emits a single
+  // upload.progress event for the entire multipart body, not per file),
+  // so a single bar across the chip strip — labelled with file count and
+  // total bytes — is the truthful representation. Null when no upload in
+  // flight.
+  const [uploadProgress, setUploadProgress] =
+    useState<{ loaded: number, total: number, fileCount: number } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isSendingRef = useRef(false)
@@ -338,8 +348,17 @@ export function ChatInput({
         /* ignore */
       }
     }
-    setAttachedFiles([])
+    // Note: attachedFiles is intentionally NOT cleared here — we keep
+    // the chips visible through the upload so users can see progress
+    // attached to the artefacts they selected. Cleared on success below;
+    // left in place on error so the user can retry without re-picking
+    // every file.
     setSendError(null)
+    setUploadProgress(
+      filesToSend.length > 0
+        ? { loaded: 0, total: 0, fileCount: filesToSend.length }
+        : null,
+    )
     try {
       const isTodo = statusId === 'todo'
       const isDone = statusId === 'done'
@@ -351,7 +370,14 @@ export function ChatInput({
         permissionMode: toPermissionMode(mode),
         busyAction: effectiveBusyAction,
         files: filesToSend.length > 0 ? filesToSend : undefined,
+        onUploadProgress:
+          filesToSend.length > 0
+            ? ({ loaded, total }) =>
+                setUploadProgress({ loaded, total, fileCount: filesToSend.length })
+            : undefined,
       })
+      setUploadProgress(null)
+      setAttachedFiles([])
       // Append message with server-assigned messageId
       if (result.messageId) {
         const filesMeta =
@@ -392,12 +418,14 @@ export function ChatInput({
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setSendError(msg)
-      // Restore input and files on failure — only if still on the same issue.
+      setUploadProgress(null)
+      // Restore input on failure — only if still on the same issue.
       // Compare against the ref (live value) rather than the closure-captured
-      // issueId, which is always the same value as draftKey's source.
+      // issueId, which is always the same value as draftKey's source. Files
+      // were never cleared so no restoration needed; the chips users selected
+      // remain in place and they can retry without re-picking everything.
       if (issueIdRef.current === issueId) {
         setInput(prompt)
-        setAttachedFiles(filesToSend)
       }
       setTimeout(setSendError, 5000, null)
     } finally {
@@ -643,35 +671,76 @@ export function ChatInput({
         {/* File preview bar — above the textarea row when files are attached */}
         {attachedFiles.length > 0 ?
             (
-              <div className="flex flex-wrap gap-1.5 px-2 pb-1.5">
-                {attachedFiles.map((file, idx) => (
-                  <div
-                    key={`${file.name}-${file.size}`}
-                    className="group/file flex items-center gap-1.5 rounded-lg bg-muted/50 border border-border/40 px-2 py-1 text-xs cursor-pointer hover:bg-muted/70 transition-colors"
-                    onClick={() => setPreviewFile(file)}
-                  >
-                    {file.type.startsWith('image/') ?
-                        (
-                          <ImageIcon className="h-3 w-3 shrink-0 text-blue-500" />
-                        ) :
-                        (
-                          <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
-                        )}
-                    <span className="truncate max-w-[120px]">{file.name}</span>
-                    <span className="text-muted-foreground/60">{formatFileSize(file.size)}</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        removeFile(idx)
-                      }}
-                      className="ml-0.5 rounded p-0.5 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      title={t('chat.removeFile')}
+              <div
+                className="flex flex-col gap-1 px-2 pb-1.5"
+                data-testid="chat-input-attachment-strip"
+              >
+                <div className="flex flex-wrap gap-1.5">
+                  {attachedFiles.map((file, idx) => (
+                    <div
+                      key={`${file.name}-${file.size}`}
+                      className="group/file flex items-center gap-1.5 rounded-lg bg-muted/50 border border-border/40 px-2 py-1 text-xs cursor-pointer hover:bg-muted/70 transition-colors"
+                      onClick={() => setPreviewFile(file)}
                     >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
+                      {file.type.startsWith('image/') ?
+                          (
+                            <ImageIcon className="h-3 w-3 shrink-0 text-blue-500" />
+                          ) :
+                          (
+                            <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          )}
+                      <span className="truncate max-w-[120px]">{file.name}</span>
+                      <span className="text-muted-foreground/60">{formatFileSize(file.size)}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          removeFile(idx)
+                        }}
+                        // Disabled mid-upload — pulling a chip out would
+                        // create a confusing partial state where the
+                        // backend still receives the file we just
+                        // visually removed.
+                        disabled={uploadProgress !== null}
+                        className="ml-0.5 rounded p-0.5 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                        title={t('chat.removeFile')}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {uploadProgress
+                  ? (
+                      <div
+                        className="flex items-center gap-2 text-[11px] text-muted-foreground"
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={uploadProgress.total || 100}
+                        aria-valuenow={uploadProgress.loaded}
+                        data-testid="chat-input-upload-progress"
+                      >
+                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted/60">
+                          <div
+                            className="h-full bg-blue-500/70 transition-[width] duration-150"
+                            style={{
+                              width: uploadProgress.total > 0
+                                ? `${Math.min(100, Math.round((uploadProgress.loaded / uploadProgress.total) * 100))}%`
+                                : '5%',
+                            }}
+                          />
+                        </div>
+                        <span className="tabular-nums">
+                          {uploadProgress.total > 0
+                            ? t('chat.uploadProgress', {
+                                percent: Math.min(100, Math.round((uploadProgress.loaded / uploadProgress.total) * 100)),
+                                count: uploadProgress.fileCount,
+                              })
+                            : t('chat.uploadStarting', { count: uploadProgress.fileCount })}
+                        </span>
+                      </div>
+                    )
+                  : null}
               </div>
             ) :
           null}
@@ -703,7 +772,10 @@ export function ChatInput({
           <Button
             variant="ghost"
             size="icon"
-            title={t('chat.attach')}
+            // Surface the seed-capable hint on hover. The button label
+            // stays short ('chat.attach'); the longer copy lives in
+            // `chat.attachHint` and renders as a multi-line tooltip.
+            title={`${t('chat.attach')} — ${t('chat.attachHint')}`}
             onClick={() => fileInputRef.current?.click()}
             className="size-7"
           >

@@ -357,6 +357,8 @@ export function useFollowUpIssue(projectId: string) {
       permissionMode?: 'auto' | 'supervised' | 'plan'
       busyAction?: 'queue' | 'cancel'
       files?: File[]
+      /** Fires while a multipart upload is in flight; ignored for JSON-only follow-ups. */
+      onUploadProgress?: (event: { loaded: number, total: number }) => void
     }) =>
       kanbanApi.followUpIssue({
         projectId,
@@ -366,6 +368,7 @@ export function useFollowUpIssue(projectId: string) {
         permissionMode: args.permissionMode,
         busyAction: args.busyAction,
         files: args.files,
+        onUploadProgress: args.onUploadProgress,
       }),
     onSuccess: (_data, args) => {
       queryClient.invalidateQueries({

@@ -166,38 +166,127 @@ function del<T>(url: string) {
   return request<T>(url, { method: 'DELETE' })
 }
 
-async function postFormData<T>(url: string, formData: FormData, timeoutMs = 60_000): Promise<T> {
+export interface UploadProgressEvent {
+  /** Bytes the browser has finished transmitting for this request. */
+  loaded: number
+  /** Total bytes in the request body (multipart-encoded, not raw file size). */
+  total: number
+}
+
+interface PostFormDataOptions {
+  /** Default 5 minutes — upload time scales with file size and link speed. */
+  timeoutMs?: number
+  /** Fires repeatedly while the request body uploads. */
+  onProgress?: (event: UploadProgressEvent) => void
+  /** External cancel — calls xhr.abort() when triggered. */
+  signal?: AbortSignal
+}
+
+const DEFAULT_UPLOAD_TIMEOUT_MS = 5 * 60 * 1000
+
+/**
+ * POST a multipart/form-data request via XHR.
+ *
+ * Uses XMLHttpRequest (instead of fetch) so callers can observe upload
+ * progress: `fetch` does not surface `upload.onprogress` events, only
+ * download progress via the response body. For attachment uploads we
+ * specifically want byte-level progress on the request body so users
+ * can see a 100 MB project tarball move during the seconds-to-minutes
+ * it takes to upload on slower links.
+ */
+async function postFormData<T>(
+  url: string,
+  formData: FormData,
+  options?: PostFormDataOptions,
+): Promise<T> {
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_UPLOAD_TIMEOUT_MS
   const token = getToken()
-  const headers: Record<string, string> = {}
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
 
-  let res: Response
-  try {
-    res = await fetch(url, { method: 'POST', body: formData, headers, signal: controller.signal })
-  } catch (err) {
-    clearTimeout(timer)
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new ApiError(`Upload timed out after ${timeoutMs}ms: ${url}`, 408)
+  return new Promise<T>((resolveResult, rejectResult) => {
+    const xhr = new XMLHttpRequest()
+    let settled = false
+    const settle = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      fn()
     }
-    throw err
-  }
-  clearTimeout(timer)
 
-  if (res.status === 401) {
-    clearToken()
-    window.location.href = '/login'
-    throw new ApiError('Unauthorized', 401)
-  }
+    const timer = setTimeout(() => {
+      try {
+        xhr.abort()
+      } catch { /* ignore — XHR already settled */ }
+      settle(() => rejectResult(new ApiError(`Upload timed out after ${timeoutMs}ms: ${url}`, 408)))
+    }, timeoutMs)
 
-  const json = (await res.json()) as ApiResponse<T>
-  if (!json.success) {
-    throw new ApiError(json.error, res.status)
-  }
-  return json.data
+    const onAbort = () => {
+      try {
+        xhr.abort()
+      } catch { /* ignore — XHR already settled */ }
+      clearTimeout(timer)
+      settle(() => rejectResult(new ApiError('Upload aborted', 0)))
+    }
+    if (options?.signal) {
+      if (options.signal.aborted) {
+        clearTimeout(timer)
+        settle(() => rejectResult(new ApiError('Upload aborted', 0)))
+        return
+      }
+      options.signal.addEventListener('abort', onAbort, { once: true })
+    }
+
+    xhr.open('POST', url)
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    // Browsers set Content-Type with the multipart boundary automatically
+    // when the body is a FormData; never override it here.
+
+    if (options?.onProgress) {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          options.onProgress!({ loaded: e.loaded, total: e.total })
+        }
+      })
+    }
+
+    xhr.onload = () => {
+      clearTimeout(timer)
+      options?.signal?.removeEventListener('abort', onAbort)
+
+      if (xhr.status === 401) {
+        clearToken()
+        window.location.href = '/login'
+        settle(() => rejectResult(new ApiError('Unauthorized', 401)))
+        return
+      }
+
+      let json: ApiResponse<T>
+      try {
+        json = JSON.parse(xhr.responseText) as ApiResponse<T>
+      } catch {
+        settle(() => rejectResult(new ApiError(`Malformed JSON from ${url}`, xhr.status)))
+        return
+      }
+      if (!json.success) {
+        settle(() => rejectResult(new ApiError(json.error, xhr.status)))
+        return
+      }
+      settle(() => resolveResult(json.data))
+    }
+
+    xhr.onerror = () => {
+      clearTimeout(timer)
+      options?.signal?.removeEventListener('abort', onAbort)
+      settle(() => rejectResult(new ApiError(`Network error during upload: ${url}`, 0)))
+    }
+
+    try {
+      xhr.send(formData)
+    } catch (err) {
+      clearTimeout(timer)
+      options?.signal?.removeEventListener('abort', onAbort)
+      const msg = err instanceof Error ? err.message : 'send failed'
+      settle(() => rejectResult(new ApiError(msg, 0)))
+    }
+  })
 }
 
 export const kanbanApi = {
@@ -303,6 +392,8 @@ export const kanbanApi = {
     busyAction?: BusyAction
     files?: File[]
     displayPrompt?: string
+    /** Fires while a multipart upload is in flight. Ignored for the JSON path. */
+    onUploadProgress?: (event: UploadProgressEvent) => void
   }) => {
     if (opts.files && opts.files.length > 0) {
       const fd = new FormData()
@@ -315,6 +406,7 @@ export const kanbanApi = {
       return postFormData<ExecuteIssueResponse>(
         `/api/projects/${opts.projectId}/issues/${opts.issueId}/follow-up`,
         fd,
+        { onProgress: opts.onUploadProgress },
       )
     }
     return post<ExecuteIssueResponse>(

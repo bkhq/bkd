@@ -180,10 +180,13 @@
       "cancel": "取消后发送"
     },
     "attach": "附加文件",
+    "attachHint": "每个 ≤ 100 MB。可上传 zip / tar.gz 当项目种子，AI 会自动解压。",
     "attachDragHint": "拖放文件到此处",
     "fileTooBig": "文件 \"{{name}}\" 超过 {{limit}}MB 限制",
     "tooManyFiles": "文件数量过多（最多 {{max}} 个）",
     "removeFile": "删除文件",
+    "uploadProgress_other": "正在上传 {{count}} 个文件… {{percent}}%",
+    "uploadStarting_other": "正在上传 {{count}} 个文件…",
     "unknownType": "未知类型",
     "closePreview": "关闭预览",
     "commands": "命令",

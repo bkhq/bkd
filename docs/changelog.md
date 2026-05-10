@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-05-10 15:25 [progress]
+
+Lift the chat attachment upload ceiling from 10 MB to 100 MB so users can
+send a project tarball / zip as a seed for AI initialization, and add
+visible upload progress so multi-second uploads no longer feel like the
+UI hung.
+
+- `apps/api/src/uploads.ts` — `MAX_FILE_SIZE` 10 MB → 100 MB.
+  `MAX_FILES` stays at 10.
+- `apps/api/src/index.ts` — `Bun.serve maxRequestBodySize` raised to
+  1040 MB so the worst-case multipart batch (10 × 100 MB + framing)
+  is accepted at the runtime layer.
+- `apps/frontend/src/lib/kanban-api.ts` — `postFormData` rewritten on
+  top of `XMLHttpRequest` (fetch can't surface upload progress) and
+  `followUpIssue` exposes an `onUploadProgress` callback.
+- `apps/frontend/src/components/issue-detail/ChatInput.tsx` — chips
+  stay visible during upload with the remove button disabled; a
+  whole-batch progress bar + tabular percent renders in the chip
+  strip; on failure chips and input both stay so the user can retry
+  without re-picking files.
+- i18n: `chat.attachHint`, `chat.uploadProgress_*`,
+  `chat.uploadStarting_*` added in both `en.json` and `zh.json`. The
+  paperclip tooltip now mentions the seed-capable behaviour ("zip /
+  tar.gz works — AI will extract").
+
+Verification:
+- 5 new backend tests in `apps/api/test/uploads-large.test.ts`.
+- 4 new frontend tests in `apps/frontend/src/__tests__/lib/kanban-api-upload.test.ts`.
+- Frontend total 86 → 90 pass; backend converter / upload subset 48 → 53 pass.
+- Lint: zero new violations from this task.
+
+Tracking: FILE-001 / PLAN-008.
+
+Out of scope: chunked / resumable uploads. Trigger condition for the
+follow-up FILE task: real user reports of >100 MB uploads failing
+mid-transfer often enough to matter.
+
 ## 2026-05-10 12:55 [BUG-P0]
 
 Close residual chat UI ordering bugs the targeted nine-bug fix
