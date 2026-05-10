@@ -102,8 +102,9 @@ interface IssueState {
   assistantFlushCount: number
   thinkingBuffer: Buffer | null
   assistantBuffer: Buffer | null
-  /** Monotonic per-issue sequence — used for ordering on frontend. */
-  nextSequence: number
+  /** Per-ms tiebreaker counter (resets when timestamp moves forward). */
+  lastTimestampMs: number
+  subSeq: number
 }
 
 function newIssueState(): IssueState {
@@ -113,8 +114,35 @@ function newIssueState(): IssueState {
     assistantFlushCount: 0,
     thinkingBuffer: null,
     assistantBuffer: null,
-    nextSequence: 0,
+    lastTimestampMs: 0,
+    subSeq: 0,
   }
+}
+
+/**
+ * Compute monotonic sequence number from entry timestamp.
+ *
+ * Formula: `timestamp_ms * 1000 + tiebreaker` — gives a single number that's
+ * stable across:
+ *   - Server restarts (live converter no longer starts from 0 and collides
+ *     with old batch-converted entries that were sequenced 0..N)
+ *   - Streaming vs batch paths (both compute the same value for the same
+ *     timestamp, so refresh and live views agree)
+ *   - Frontend optimistic adds (caller can compute `Date.now() * 1000`
+ *     to position a pending entry at the bottom of the timeline)
+ *
+ * The tiebreaker (subSeq) handles the rare case of entries arriving within
+ * the same millisecond — it keeps strict insertion order within that ms.
+ */
+function nextSequence(state: IssueState, entry: NormalizedLogEntry): number {
+  const ts = entry.timestamp ? new Date(entry.timestamp).getTime() : Date.now()
+  if (ts > state.lastTimestampMs) {
+    state.lastTimestampMs = ts
+    state.subSeq = 0
+  } else {
+    state.subSeq++
+  }
+  return ts * 1000 + state.subSeq
 }
 
 function bufferToEntry(buffer: Buffer, type: TimelineEntry['type']): TimelineEntry {
@@ -199,7 +227,7 @@ export class TimelineConverter {
           metadata: buildMetadata(entry),
           entryType: entry.entryType,
           id: `turn-${turn}-thinking${suffix}`,
-          sequence: state.nextSequence++,
+          sequence: nextSequence(state, entry),
         }
       } else {
         mergeChunk(state.thinkingBuffer, entry)
@@ -223,7 +251,7 @@ export class TimelineConverter {
           metadata: buildMetadata(entry),
           entryType: entry.entryType,
           id: `turn-${turn}-assistant${suffix}`,
-          sequence: state.nextSequence++,
+          sequence: nextSequence(state, entry),
         }
       } else {
         mergeChunk(state.assistantBuffer, entry)
@@ -248,7 +276,8 @@ export class TimelineConverter {
       state.assistantFlushCount++
     }
 
-    const idSuffix = entry.messageId ?? entry.timestamp ?? `idx-${state.nextSequence}`
+    const seq = nextSequence(state, entry)
+    const idSuffix = entry.messageId ?? entry.timestamp ?? `seq-${seq}`
     out.push({
       id: `turn-${turn}-${type}-${idSuffix}`,
       turnIndex: turn,
@@ -256,7 +285,7 @@ export class TimelineConverter {
       entryType: entry.entryType,
       content: entry.content,
       timestamp: entry.timestamp ?? new Date().toISOString(),
-      sequence: state.nextSequence++,
+      sequence: seq,
       metadata: buildMetadata(entry),
     })
     return out

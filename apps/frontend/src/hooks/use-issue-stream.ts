@@ -80,10 +80,16 @@ function toTimelineEntry(entry: NormalizedLogEntry): TimelineEntry {
     ? `turn-${turn}-${type}`
     : `turn-${turn}-${type}-${entry.messageId ?? Date.now()}`
 
+  // Synthetic sequence for legacy entries that pre-date the backend field.
+  // Mirrors the backend formula: ms-since-epoch * 1000 so legacy entries
+  // sort consistently against modern ones (modern wins on tie because
+  // they have larger or equal values from the canonical converter).
+  const ts = entry.timestamp ? new Date(entry.timestamp).getTime() : Date.now()
   return {
     ...entry,
     id,
     type,
+    sequence: ts * 1000,
   } as TimelineEntry
 }
 
@@ -193,10 +199,27 @@ export function useIssueStream({
     setRefreshCounter(c => c + 1)
   }, [clearLogs])
 
-  /** Append or replace by stable id */
+  /**
+   * Match an existing entry to a new one by:
+   *   1. exact id (normal upsert path), OR
+   *   2. same messageId — handles optimistic entries (id = raw messageId)
+   *      colliding with canonical entries (id = `turn-N-user-{messageId}`).
+   *      Without this, the user-message render duplicates, and the optimistic
+   *      copy sticks at the wrong position with no sequence assigned.
+   */
+  function findExisting(prev: TimelineEntry[], entry: TimelineEntry): number {
+    const byId = prev.findIndex(e => e.id === entry.id)
+    if (byId >= 0) return byId
+    if (entry.messageId) {
+      return prev.findIndex(e => e.messageId === entry.messageId)
+    }
+    return -1
+  }
+
+  /** Append or replace */
   const appendEntry = useCallback((entry: TimelineEntry) => {
     setLiveLogs((prev) => {
-      const idx = prev.findIndex(e => e.id === entry.id)
+      const idx = findExisting(prev, entry)
       let next: TimelineEntry[]
       if (idx >= 0) {
         next = [...prev]
@@ -216,10 +239,10 @@ export function useIssueStream({
     })
   }, [])
 
-  /** Replace by id if exists, else append */
+  /** Replace if exists (by id or messageId), else append */
   const upsertEntry = useCallback((entry: TimelineEntry) => {
     setLiveLogs((prev) => {
-      const idx = prev.findIndex(e => e.id === entry.id)
+      const idx = findExisting(prev, entry)
       if (idx >= 0) {
         const next = [...prev]
         next[idx] = entry
@@ -241,13 +264,25 @@ export function useIssueStream({
       if (metadata?.type !== 'pending') {
         doneReceivedRef.current = false
       }
+      // Optimistic add — gets replaced by the canonical SSE entry within ms
+      // (see findExisting: matches on messageId when ids differ, which they
+      // do because backend prefixes user ids with `turn-{N}-user-`).
+      //
+      // Sequence is `Date.now() * 1000` to mirror the backend's timestamp-
+      // based sequence formula, so the optimistic entry sorts to the bottom
+      // of the timeline immediately. Without this, an undefined `sequence`
+      // sorted before all backend entries (root cause: post-restart user
+      // message disappearing until refresh).
+      const now = Date.now()
       appendEntry({
         id: messageId,
+        messageId,
         turnIndex: 0,
         type: 'user',
         entryType: 'user-message',
         content: trimmed,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(now).toISOString(),
+        sequence: now * 1000,
         metadata: metadata ?? {},
       })
     },

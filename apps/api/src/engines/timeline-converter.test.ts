@@ -363,10 +363,14 @@ describe('TimelineConverter — sequence and segment ids', () => {
     conv.ingest('x', { entryType: 'thinking', content: 'old', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z' })
     conv.reset('x')
     const out = conv.ingest('x', { entryType: 'thinking', content: 'new', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z' })
-    // Fresh state — first thinking in turn 0 has no segment suffix
+    // Fresh state — first thinking in turn 0 has no segment suffix.
     expect(out[0].id).toBe('turn-0-thinking')
     expect(out[0].content).toBe('new')
-    expect(out[0].sequence).toBe(0)
+    // Sequence is timestamp-based (ms-since-epoch * 1000) so post-reset
+    // entries still sort coherently against pre-reset state and against
+    // entries from the batch toTimeline path. After reset, the first
+    // entry's subSeq is 0, so sequence = ts * 1000 exactly.
+    expect(out[0].sequence).toBe(new Date('2026-01-01T00:00:00Z').getTime() * 1000)
   })
 
   it('multi-segment thinking gets distinct ids within a turn', () => {
