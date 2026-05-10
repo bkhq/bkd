@@ -289,6 +289,223 @@ describe('invariant: refresh after backend restart converges to canonical state'
   })
 })
 
+describe('invariant: optimistic position survives intermediate entries', () => {
+  beforeEach(() => {
+    subscribeMock.mockReset()
+    getIssueLogsMock.mockReset()
+  })
+
+  it('user message stays at bottom even when a loading entry lands between optimistic and canonical', async () => {
+    // Reproduces the "我刚发的消息跑到 loading 后面去了" symptom:
+    // 1. user clicks send → frontend appends optimistic at sequence T1.
+    // 2. before canonical user-message arrives, the engine emits a system /
+    //    loading entry with a slightly later timestamp; SSE delivers it.
+    // 3. canonical user-message finally arrives; messageId-based dedup
+    //    REPLACES the optimistic entry with the canonical one.
+    //
+    // If the canonical's sequence is smaller than the in-flight loading
+    // entry, the timeline re-sorts and the user's own message ends up ABOVE
+    // (i.e., earlier than) a system entry that the user perceives as
+    // happening AFTER they pressed send. The fix: optimistic sequence is
+    // `max(maxLiveSeq+1, Date.now()*1000)` so any entry observed before the
+    // optimistic is positioned earlier; the canonical, by being assigned
+    // strictly later (lastSeq+1 on the backend), is also at or after.
+    let handler: IssueEventHandler | null = null
+    subscribeMock.mockImplementation((_id: string, h: IssueEventHandler) => {
+      handler = h
+      return () => {}
+    })
+    getIssueLogsMock.mockResolvedValue({
+      issue: null,
+      logs: [],
+      nextCursor: null,
+      hasMore: false,
+    })
+
+    const { result } = renderHook(
+      () => useIssueStream({ projectId: 'p', issueId: 'i', sessionStatus: 'running' }),
+      { wrapper: createWrapper() },
+    )
+    await waitFor(() => expect(getIssueLogsMock).toHaveBeenCalled())
+
+    // Plant a loading entry already in liveLogs with a sequence that
+    // matches a backend "max(ts*1000, lastSeq+1)" — i.e. very large.
+    const futureSeq = Date.now() * 1000 + 50
+    act(() => {
+      handler?.onLog({
+        id: 'turn-1-system-loading',
+        messageId: 'sys-load',
+        turnIndex: 1,
+        type: 'system',
+        entryType: 'system-message',
+        content: 'thinking…',
+        timestamp: new Date(Date.now() + 50).toISOString(),
+        sequence: futureSeq,
+        metadata: { subtype: 'loading' },
+      } as NormalizedLogEntry)
+    })
+    expect(result.current.logs).toHaveLength(1)
+
+    // User sends a message; optimistic add happens AFTER the loading entry
+    // landed, so naive `Date.now() * 1000` (which equals or is smaller
+    // than `futureSeq`) would let the canonical replacement reorder.
+    const messageId = 'u_under_load'
+    act(() => {
+      result.current.appendServerMessage(messageId, 'hi')
+    })
+
+    // Optimistic entry ends up at the bottom (its sequence is max+1).
+    expect(result.current.logs).toHaveLength(2)
+    expect(result.current.logs.at(-1)?.content).toBe('hi')
+
+    // Canonical entry from backend with its own large sequence — also
+    // strictly greater than every previous one (lastSeq+1 semantics).
+    const canonicalSeq = futureSeq + 100
+    act(() => {
+      handler?.onLog({
+        id: `turn-1-user-${messageId}`,
+        messageId,
+        turnIndex: 1,
+        type: 'user',
+        entryType: 'user-message',
+        content: 'hi',
+        timestamp: new Date(Date.now() + 100).toISOString(),
+        sequence: canonicalSeq,
+        metadata: {},
+      } as NormalizedLogEntry)
+    })
+
+    // After replacement, the user message must STILL be at the bottom.
+    expect(result.current.logs).toHaveLength(2)
+    expect(result.current.logs.at(-1)?.content).toBe('hi')
+    expect(result.current.logs.at(-1)?.id).toBe(`turn-1-user-${messageId}`)
+  })
+})
+
+describe('invariant: LRU cache survives issue-switch effects', () => {
+  beforeEach(() => {
+    subscribeMock.mockReset()
+    getIssueLogsMock.mockReset()
+  })
+
+  it('switching to issue B then back to A restores A’s logs from cache without blanking', async () => {
+    // The bug: render-time inline block restores cached logs into liveLogs,
+    // then the scope-change effect calls clearLogs() and wipes them. The
+    // user sees a flicker of empty timeline before /logs returns. After the
+    // fix, the effect must NOT clear on scope change — only update the
+    // scope ref so subscribers swap.
+    let handler: IssueEventHandler | null = null
+    subscribeMock.mockImplementation((_id: string, h: IssueEventHandler) => {
+      handler = h
+      return () => {}
+    })
+
+    // /logs returns a single canonical entry per issue
+    getIssueLogsMock.mockImplementation((_p: string, id: string) => {
+      return Promise.resolve({
+        issue: null,
+        logs: [
+          {
+            id: `turn-0-user-${id}`,
+            messageId: id,
+            turnIndex: 0,
+            type: 'user',
+            entryType: 'user-message',
+            content: `from ${id}`,
+            timestamp: '2026-01-01T00:00:00Z',
+            sequence: new Date('2026-01-01T00:00:00Z').getTime() * 1000,
+            metadata: {},
+          },
+        ],
+        nextCursor: null,
+        hasMore: false,
+      })
+    })
+
+    const { result, rerender } = renderHook(
+      ({ issueId }: { issueId: string }) => useIssueStream({ projectId: 'p', issueId, sessionStatus: 'completed' }),
+      { wrapper: createWrapper(), initialProps: { issueId: 'A' } },
+    )
+    await waitFor(() => expect(result.current.logs).toHaveLength(1))
+    expect(result.current.logs[0].content).toBe('from A')
+
+    // Append a live SSE entry for A — this is what the cache should retain.
+    act(() => {
+      handler?.onLog({
+        id: 'turn-0-assistant-0000',
+        messageId: 'a-live',
+        turnIndex: 0,
+        type: 'assistant',
+        entryType: 'assistant-message',
+        content: 'live A',
+        timestamp: '2026-01-01T00:00:01Z',
+        sequence: new Date('2026-01-01T00:00:01Z').getTime() * 1000,
+        metadata: {},
+      } as NormalizedLogEntry)
+    })
+    await waitFor(() => expect(result.current.logs).toHaveLength(2))
+
+    // Switch to B
+    rerender({ issueId: 'B' })
+    await waitFor(() => expect(result.current.logs.some(l => l.content === 'from B')).toBe(true))
+
+    // Switch back to A — at the very first render, the inline restoration
+    // block must surface the cached logs WITHOUT the effect wiping them.
+    rerender({ issueId: 'A' })
+    // Must NEVER drop to an empty array between renders.
+    expect(result.current.logs.length).toBeGreaterThan(0)
+  })
+})
+
+describe('invariant: removeEntries deletes by raw messageId from backend events', () => {
+  beforeEach(() => {
+    subscribeMock.mockReset()
+    getIssueLogsMock.mockReset()
+  })
+
+  it('onLogRemoved with the canonical ULID drops the entry from the timeline', async () => {
+    // emitIssueLogRemoved on the backend ships raw ULIDs (DB primary keys);
+    // the frontend timeline entries carry id=`turn-N-...`. Without dual-key
+    // matching the filter never hit, recalled pending messages lingered.
+    let handler: IssueEventHandler | null = null
+    subscribeMock.mockImplementation((_id: string, h: IssueEventHandler) => {
+      handler = h
+      return () => {}
+    })
+    getIssueLogsMock.mockResolvedValue({
+      issue: null,
+      logs: [
+        {
+          id: 'turn-0-user-msg_abc',
+          messageId: 'msg_abc',
+          turnIndex: 0,
+          type: 'user',
+          entryType: 'user-message',
+          content: 'recalled',
+          timestamp: '2026-01-01T00:00:00Z',
+          sequence: new Date('2026-01-01T00:00:00Z').getTime() * 1000,
+          metadata: { type: 'pending' },
+        },
+      ],
+      nextCursor: null,
+      hasMore: false,
+    })
+
+    const { result } = renderHook(
+      () => useIssueStream({ projectId: 'p', issueId: 'i', sessionStatus: 'completed' }),
+      { wrapper: createWrapper() },
+    )
+    await waitFor(() => expect(result.current.logs).toHaveLength(1))
+
+    // Backend emits a removal with the raw messageId, NOT the converter id.
+    act(() => {
+      handler?.onLogRemoved(['msg_abc'])
+    })
+
+    expect(result.current.logs).toHaveLength(0)
+  })
+})
+
 describe('invariant: post-restart sequences sort live entries to the bottom', () => {
   beforeEach(() => {
     subscribeMock.mockReset()

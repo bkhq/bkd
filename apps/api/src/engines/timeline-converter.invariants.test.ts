@@ -47,18 +47,19 @@ describe('Invariant: streaming === batch (live SSE refresh and HTTP /logs agree)
     const batch = toTimeline(fixture.entries)
 
     expect(stream.length).toBe(batch.length)
-    // Compare structural rendering fields. Sequence numbers may differ within
-    // a single millisecond between paths because subSeq tiebreaker counts
-    // ingest calls; the order of those calls can vary if wire delivery
-    // doesn't perfectly match (turnIndex, timestamp) sort. What matters for
-    // rendering is that BOTH sequences are monotonic per path (asserted
-    // separately) and that ids/content match.
+    // Both paths must agree on every rendering field — including `sequence`,
+    // which the frontend uses as the primary sort key. If sequence values
+    // differ between paths, the timeline reorders on every `/logs` refresh
+    // (e.g. after `onDone`) and users see entries jump around mid-conversation.
+    // The previous note here said "sequence may differ within a single ms" —
+    // that note was the bug, not a justification.
     for (let i = 0; i < stream.length; i++) {
       expect(stream[i].id).toBe(batch[i].id)
       expect(stream[i].type).toBe(batch[i].type)
       expect(stream[i].entryType).toBe(batch[i].entryType)
       expect(stream[i].content).toBe(batch[i].content)
       expect(stream[i].turnIndex).toBe(batch[i].turnIndex)
+      expect(stream[i].sequence).toBe(batch[i].sequence)
     }
   })
 
@@ -277,7 +278,7 @@ describe('Invariant: sequence numbers monotonic across converter restart', () =>
   })
 
   it('no two entries within an issue share the same sequence', () => {
-    // Even within the same millisecond, the tiebreaker subSeq guarantees
+    // Even within the same millisecond, the tiebreaker (lastSeq + 1) guarantees
     // unique sequence values per entry. Otherwise sort would be ambiguous
     // and rendering order would jitter.
     const conv = new TimelineConverter()
@@ -299,6 +300,86 @@ describe('Invariant: sequence numbers monotonic across converter restart', () =>
     for (let i = 1; i < seqs.length; i++) {
       expect(seqs[i]).toBeGreaterThan(seqs[i - 1])
     }
+  })
+
+  it('out-of-order timestamps still produce strictly monotonic sequences', () => {
+    // Some engines emit chunks whose `timestamp` lags wall-clock by a few ms
+    // (e.g. ACP's "compaction" on a re-flushed thinking buffer). The previous
+    // formula `ts*1000 + subSeq` would then return a value smaller than the
+    // predecessor's sequence. The new formula `max(ts*1000, lastSeq+1)` keeps
+    // strict monotonicity regardless of timestamp ordering.
+    const conv = new TimelineConverter()
+    const byId = new Map<string, TimelineEntry>()
+    for (const out of conv.ingest('x', {
+      entryType: 'thinking',
+      content: 'a',
+      turnIndex: 0,
+      timestamp: '2026-01-01T00:00:05Z',
+    })) byId.set(out.id, out)
+    // Force the second entry to break the streaming buffer (different type)
+    // so we observe its own sequence — and feed it an EARLIER timestamp.
+    for (const out of conv.ingest('x', {
+      entryType: 'tool-use',
+      content: 'late chunk',
+      turnIndex: 0,
+      timestamp: '2026-01-01T00:00:00Z',
+      messageId: 'late',
+      metadata: { toolCallId: 'late' },
+    })) byId.set(out.id, out)
+
+    // Collapse by id (matches client upsert semantics) then check strict
+    // monotonicity on the per-id latest snapshots.
+    const seqs = Array.from(byId.values())
+      .map(e => e.sequence!)
+      .sort((a, b) => a - b)
+    for (let i = 1; i < seqs.length; i++) {
+      expect(seqs[i]).toBeGreaterThan(seqs[i - 1])
+    }
+    // The late tool entry must out-rank the earlier thinking despite its
+    // older `timestamp` — that's the regression the new formula prevents.
+    const thinking = Array.from(byId.values()).find(e => e.type === 'thinking')!
+    const tool = Array.from(byId.values()).find(e => e.type === 'tool')!
+    expect(tool.sequence!).toBeGreaterThan(thinking.sequence!)
+  })
+})
+
+// ─── Invariant 7: long-turn segment ordering survives id tiebreak ───────────
+
+describe('Invariant: 20+ alternating thinking/tool segments preserve numerical order', () => {
+  it('20-segment turn renders in numerical not lexicographic order', () => {
+    // Bug class: when sequence equality forced compareTimeline to fall back
+    // to id, lexicographic comparison ranked `thinking-10` before
+    // `thinking-2`. With zero-padded suffixes (`thinking-0010` vs
+    // `thinking-0002`), lexicographic == numerical for any turn shorter
+    // than 10000 segments.
+    const conv = new TimelineConverter()
+    const out: TimelineEntry[] = []
+    for (let i = 0; i < 20; i++) {
+      const baseTs = new Date('2026-01-01T00:00:00Z').getTime() + i * 2000
+      out.push(...conv.ingest('long', {
+        entryType: 'thinking',
+        content: `t${i}`,
+        turnIndex: 0,
+        timestamp: new Date(baseTs).toISOString(),
+      }))
+      out.push(...conv.ingest('long', {
+        entryType: 'tool-use',
+        content: `tool ${i}`,
+        turnIndex: 0,
+        timestamp: new Date(baseTs + 1000).toISOString(),
+        messageId: `tool-${i}`,
+        metadata: { toolCallId: `tool-${i}` },
+      }))
+    }
+    out.push(...conv.flush('long'))
+
+    const thinkingIds = out
+      .filter(e => e.type === 'thinking')
+      .map(e => e.id)
+    // Lexicographic sort matches insertion order — this is the assertion
+    // that the bare numeric suffix would break.
+    const lexSorted = [...thinkingIds].sort()
+    expect(lexSorted).toEqual(thinkingIds)
   })
 })
 
