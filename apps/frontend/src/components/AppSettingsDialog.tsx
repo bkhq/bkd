@@ -270,9 +270,10 @@ function GeneralSection({ open }: { open: boolean }) {
             onValueChange={value => i18n.changeLanguage(value ?? undefined)}
           >
             <SelectTrigger>
-              <SelectValue
-                placeholder={LANGUAGES.find(l => i18n.language.startsWith(l.id))?.label}
-              />
+              <SelectValue>
+                {(value: string | null) =>
+                  LANGUAGES.find(l => l.id === value)?.label ?? value}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {LANGUAGES.map(lang => (
@@ -290,7 +291,12 @@ function GeneralSection({ open }: { open: boolean }) {
             onValueChange={value => setTheme(value as 'system' | 'light' | 'dark')}
           >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue>
+                {(value: string | null) => {
+                  const option = THEME_OPTIONS.find(o => o.id === value)
+                  return option ? t(option.labelKey) : value
+                }}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {THEME_OPTIONS.map(option => (
