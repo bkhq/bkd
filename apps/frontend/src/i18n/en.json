@@ -168,6 +168,11 @@
   },
   "chat": {
     "send": "Send",
+    "currentPrompt": {
+      "viewing": "Viewing answer to",
+      "scrollHint": "Click to jump back",
+      "turn": "Turn {{n}}"
+    },
     "filesChanged": "{{count}} files changed",
     "placeholder": "Continue working on this task...",
     "placeholderTodo": "Type a message (queued until execution starts)",

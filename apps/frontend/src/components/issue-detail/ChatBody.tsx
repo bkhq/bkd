@@ -28,6 +28,7 @@ import { useChatFilterStore } from '@/stores/chat-filter-store'
 import { useScrollPositionStore } from '@/stores/scroll-position-store'
 import type { Issue, NormalizedLogEntry } from '@/types/kanban'
 import { ChatInput } from './ChatInput'
+import { CurrentPromptHover } from './CurrentPromptHover'
 import { IssueDetail } from './IssueDetail'
 import { ThinkingHover } from './ThinkingHover'
 
@@ -321,21 +322,25 @@ export function ChatBody({
     <>
       {/* Messages */}
       <div className="relative flex-1 overflow-hidden">
-        {/* Floating ThinkingHover at the top of chat — ONLY visible when
-            the user has scrolled up past ~200px (showScrollBottom). The
-            user is reading history; the inline ticker at the bottom of
-            the message list is off-screen, so this overlay surfaces the
-            running state without forcing them to scroll back.
-            When the user is near the bottom watching for the next reply,
-            this is hidden — the inline variant inside the message flow
-            takes over. */}
-        {showScrollBottom ?
-            (
-              <div
-                className={`pointer-events-none absolute left-2 right-2 z-10 transition-[top,opacity] duration-200 ease-out ${
-                  titleVisible ? 'top-2 max-md:top-[52px]' : 'top-2'
-                }`}
-              >
+        {/* Floating overlays at the top of chat:
+            • CurrentPromptHover — surfaces the user prompt of the turn
+              the reader is currently viewing once they've scrolled past
+              it. Self-gates internally (hides when only one turn or
+              when the prompt is in view), so it's mounted unconditionally.
+            • ThinkingHover (floating variant) — visible only when the
+              user has scrolled up past ~200px. The inline ticker at the
+              bottom takes over otherwise. Stacked below CurrentPromptHover.
+        */}
+        <div
+          className={`pointer-events-none absolute left-2 right-2 z-10 flex flex-col gap-1.5 transition-[top,opacity] duration-200 ease-out ${
+            titleVisible ? 'top-2 max-md:top-[52px]' : 'top-2'
+          }`}
+        >
+          <div className="pointer-events-auto">
+            <CurrentPromptHover logs={logs} scrollRef={scrollRef} />
+          </div>
+          {showScrollBottom ?
+              (
                 <div className="pointer-events-auto">
                   <ThinkingHover
                     isActive={isThinking}
@@ -350,9 +355,9 @@ export function ChatBody({
                     variant="floating"
                   />
                 </div>
-              </div>
-            ) :
-          null}
+              ) :
+            null}
+        </div>
         <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden">
           <div className="flex flex-col min-h-full justify-end py-1">
             <Suspense

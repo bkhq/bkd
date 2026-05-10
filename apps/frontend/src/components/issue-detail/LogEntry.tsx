@@ -286,8 +286,18 @@ function LogEntryImpl({
         isDone ?
           'border-emerald-400/60 bg-emerald-500/[0.04]' :
           'border-foreground/40 bg-muted/40'
+      // data-user-turn: stable DOM anchor for CurrentPromptHover. Skip
+      // pending/done bubbles (they bypass the message list — see ChatBody)
+      // so the hover only tracks landed turns.
+      const turnIndex = entry.turnIndex
+      const anchorTurn = !isPending && !isDone && typeof turnIndex === 'number' ?
+        turnIndex :
+        undefined
       return (
-        <div className="group py-1.5 animate-message-enter">
+        <div
+          className="group py-1.5 animate-message-enter"
+          data-user-turn={anchorTurn}
+        >
           <div className={`px-3 py-2 border-l-[2px] ${barColor}`}>
             {displayContent ?
                 (

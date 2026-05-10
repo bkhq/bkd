@@ -168,6 +168,11 @@
   },
   "chat": {
     "send": "发送",
+    "currentPrompt": {
+      "viewing": "正在查看回答",
+      "scrollHint": "点击回到该提问",
+      "turn": "第 {{n}} 轮"
+    },
     "filesChanged": "{{count}} 个文件已更改",
     "placeholder": "继续处理此任务...",
     "placeholderTodo": "输入消息（将在执行开始时发送）",
