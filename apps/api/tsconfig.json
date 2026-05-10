@@ -1,9 +1,8 @@
 {
   "extends": "@bkd/tsconfig/hono.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
+      "@/*": ["./src/*"],
       "@bkd/shared": ["../../packages/shared/src/index.ts"]
     }
   },

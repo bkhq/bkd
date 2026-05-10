@@ -16,10 +16,12 @@ Structured as a **Bun Workspaces monorepo**:
 ## Commands
 
 ```bash
-# Dev (starts both API + Vite in parallel via Bun --filter)
-bun run dev                  # API on 3010 + Vite on 3000
-bun run dev:api              # API server only (port 3010)
-bun run dev:frontend         # Vite dev server only (port 3000)
+# Dev (starts both API + Vite in parallel via Bun --filter; both wrapped in nsl)
+# Access via http://bkd.localhost — nsl proxy routes /api/* → API, rest → Vite.
+# This is the only dev entry point: Vite no longer has a /api/* proxy.
+bun run dev                  # API + Vite in parallel
+bun run dev:api              # API server only (port 3010, registered at bkd.localhost/api)
+bun run dev:frontend         # Vite dev server only (port 3000, registered at bkd.localhost)
 
 # All workspaces
 bun install                  # single install for all workspaces
@@ -188,7 +190,7 @@ Polls GitHub Releases (`repos/bkhq/bkd/releases/latest`) every 1h. Downloads to 
 - **Syntax highlighting**: Shiki (slim bundle via custom Vite plugin)
 - **i18n**: i18next + react-i18next, Chinese (zh, default) and English (en). Translations in `src/i18n/{en,zh}.json`
 - **Path alias**: `@/*` maps to `src/*`
-- **Dev proxy**: Vite `server.proxy` forwards `/api/*` to `localhost:3010`
+- **Dev URL routing**: dev scripts wrap servers in `nsl run` so `http://bkd.localhost/api/*` reaches the API and the rest reaches Vite. This is the only dev entry — Vite no longer has a `/api/*` proxy.
 
 #### Frontend Routes
 

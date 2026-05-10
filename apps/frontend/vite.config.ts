@@ -1,9 +1,9 @@
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import viteReact from '@vitejs/plugin-react'
+import { defineConfig, loadEnv } from 'vite'
 import tsconfigPaths from 'vite-tsconfig-paths'
-import type { Plugin } from 'vitest/config'
-import { defineConfig } from 'vitest/config'
+import type { Plugin } from 'vite'
 
 /**
  * Slim shiki bundles: ~20 languages (from 232), 2 themes (from 64),
@@ -45,10 +45,10 @@ function shikiSlim(): Plugin {
   }
 }
 
-const config = defineConfig(() => {
-  const apiPort = Number(process.env.VITE_API_PORT) || 3010
-  const devPort = Number(process.env.VITE_DEV_PORT) || 3000
-  const devHost = process.env.VITE_DEV_HOST || '0.0.0.0'
+const config = defineConfig(({ mode }) => {
+  const env = loadEnv(mode, import.meta.dirname)
+  const devPort = Number(env.VITE_DEV_PORT) || 3000
+  const devHost = env.VITE_DEV_HOST || '0.0.0.0'
 
   return {
     plugins: [
@@ -82,22 +82,11 @@ const config = defineConfig(() => {
         },
       },
     },
-    test: {
-      environment: 'jsdom',
-      globals: true,
-      setupFiles: ['./src/test-setup.ts'],
-    },
     server: {
       port: devPort,
       host: devHost,
-      // Dev only: allow all hosts
+      // Dev only: allow all hosts (nsl proxy fronts the dev server)
       allowedHosts: true,
-      proxy: {
-        '/api': {
-          target: `http://localhost:${apiPort}`,
-          changeOrigin: true,
-        },
-      },
     },
   }
 })

@@ -64,5 +64,8 @@ export default antfu({
     'react/no-array-index-key': 'off',
     'react-naming-convention/context-name': 'off',
     'react/prefer-use-state-lazy-initialization': 'off',
+    'react/set-state-in-effect': 'off',
+    'react/unsupported-syntax': 'off',
+    'react/component-hook-factories': 'off',
   },
 })
