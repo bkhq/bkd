@@ -373,7 +373,10 @@ describe('AcpLogNormalizer', () => {
   test('handles incremental thinking deltas', () => {
     const normalizer = new AcpLogNormalizer()
 
-    // First delta
+    // The streaming `content` is the chunk text verbatim (not the cumulative
+    // accumulation) — accumulation is the live converter's job downstream
+    // and the normalizer-side flush's job at turn end. This keeps per-chunk
+    // work O(chunk_size) instead of O(cumulative_size).
     const chunk1 = normalizer.parse(JSON.stringify({
       type: 'acp-session-update',
       timestamp: '2026-03-13T00:00:00.000Z',
@@ -388,7 +391,6 @@ describe('AcpLogNormalizer', () => {
       metadata: { streaming: true },
     })
 
-    // Second delta (incremental)
     const chunk2 = normalizer.parse(JSON.stringify({
       type: 'acp-session-update',
       timestamp: '2026-03-13T00:00:01.000Z',
@@ -399,11 +401,10 @@ describe('AcpLogNormalizer', () => {
     }))
     expect(chunk2).toMatchObject({
       entryType: 'thinking',
-      content: 'Let me check the imports',
+      content: ' check the imports',
       metadata: { streaming: true },
     })
 
-    // Third delta (incremental)
     const chunk3 = normalizer.parse(JSON.stringify({
       type: 'acp-session-update',
       timestamp: '2026-03-13T00:00:02.000Z',
@@ -414,9 +415,20 @@ describe('AcpLogNormalizer', () => {
     }))
     expect(chunk3).toMatchObject({
       entryType: 'thinking',
-      content: 'Let me check the imports and fix the types',
+      content: ' and fix the types',
       metadata: { streaming: true },
     })
+
+    // Final flush concatenates deltas correctly.
+    const result = normalizer.parse(JSON.stringify({
+      type: 'acp-prompt-result',
+      timestamp: '2026-03-13T00:00:03.000Z',
+      stopReason: 'end_turn',
+    }))
+    const entries = result as Array<{ entryType: string, content: string, metadata?: Record<string, unknown> }>
+    const thinkingEntry = entries.find(e => e.entryType === 'thinking')
+    expect(thinkingEntry?.content).toBe('Let me check the imports and fix the types')
+    expect(thinkingEntry?.metadata?.streaming).toBeUndefined()
   })
 
   test('handles full-content thinking chunks (startsWith)', () => {

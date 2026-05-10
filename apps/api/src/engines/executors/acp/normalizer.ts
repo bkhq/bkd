@@ -24,11 +24,39 @@ function resetNormalizeState(state: AcpNormalizeState): void {
   state.toolCalls.clear()
 }
 
+/**
+ * Walk streaming chunks and produce the canonical accumulated text.
+ * Mirrors the logic in `timeline-converter.ts:mergeChunk` so flush-time
+ * accumulation matches what the live converter would produce:
+ *   - Cumulative-style agents (each chunk = full accumulated so far) →
+ *     longest prefix-extending part wins (no concatenation).
+ *   - Delta-style agents → parts get concatenated.
+ *   - Out-of-order shorter prefixes → discarded.
+ *
+ * O(N) over the total content size; runs once per turn at flush time
+ * instead of once per chunk (which was O(N²) cumulative).
+ */
+function mergeStreamingParts(parts: readonly string[]): string {
+  let merged = ''
+  for (const part of parts) {
+    if (part.length > merged.length && part.startsWith(merged)) {
+      merged = part
+    }
+    else if (merged.length > part.length && merged.startsWith(part)) {
+      // keep merged — out-of-order shorter delivery
+    }
+    else {
+      merged += part
+    }
+  }
+  return merged
+}
+
 function flushAssistantMessage(
   state: AcpNormalizeState,
   timestamp: string,
 ): NormalizedLogEntry | null {
-  const content = state.assistantTextParts.join('').trim()
+  const content = mergeStreamingParts(state.assistantTextParts).trim()
   state.assistantTextParts = []
   if (!content) return null
   return {
@@ -42,7 +70,7 @@ function flushThinkingMessage(
   state: AcpNormalizeState,
   timestamp: string,
 ): NormalizedLogEntry | null {
-  const content = state.thinkingTextParts.join('').trim()
+  const content = mergeStreamingParts(state.thinkingTextParts).trim()
   state.thinkingTextParts = []
   if (!content) return null
   return {
@@ -60,16 +88,12 @@ function normalizeAssistantChunk(
 
   const content = update.content
   if (content.type === 'text') {
-    // Detect full-content vs incremental streaming.
-    // Some agents send the entire accumulated text in every chunk;
-    // others send only the delta. We handle both by checking if the
-    // new text starts with the previously accumulated text.
-    const accumulated = state.assistantTextParts.join('')
-    if (accumulated && content.text.startsWith(accumulated)) {
-      state.assistantTextParts = [content.text]
-    } else {
-      state.assistantTextParts.push(content.text)
-    }
+    // Push the chunk verbatim — `mergeStreamingParts` at flush time handles
+    // both cumulative (each chunk = full accumulated text) and delta agents.
+    // Doing detection per chunk is O(N) per chunk → O(N²) cumulative for
+    // long thinking/assistant streams, which is enough to OOM the process
+    // under sustained high-frequency chunks.
+    state.assistantTextParts.push(content.text)
     return {
       entryType: 'assistant-message',
       content: content.text,
@@ -573,20 +597,21 @@ function normalizeAcpEventWithState(
             thoughtText = JSON.stringify(thoughtContent)
           }
 
-          // Detect full-content vs incremental streaming.
-          // Some agents send the entire accumulated text in every chunk;
-          // others send only the delta. We handle both by checking if the
-          // new text starts with the previously accumulated text.
-          const accumulated = state.thinkingTextParts.join('')
-          if (accumulated && thoughtText.startsWith(accumulated)) {
-            state.thinkingTextParts = [thoughtText]
-          } else {
-            state.thinkingTextParts.push(thoughtText)
-          }
+          // Push the chunk verbatim and emit just this chunk's text.
+          // The downstream `liveConverter.mergeChunk` (timeline-converter.ts)
+          // already auto-detects cumulative vs delta agents and accumulates
+          // correctly into the per-issue buffer; the streaming entry's
+          // `content` only flows to that converter, so per-chunk content
+          // can be the raw chunk. This drops the O(N²) per-chunk join+
+          // startsWith work that dominated CPU + GC under high-frequency
+          // OpenCode reasoning streams. Final flush at `acp-prompt-result`
+          // collapses parts via `mergeStreamingParts` for the persisted
+          // (non-streaming) entry.
+          state.thinkingTextParts.push(thoughtText)
 
           return {
             entryType: 'thinking',
-            content: state.thinkingTextParts.join(''),
+            content: thoughtText,
             timestamp: new Date().toISOString(),
             metadata: { streaming: true },
           }
