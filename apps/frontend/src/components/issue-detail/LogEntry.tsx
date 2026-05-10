@@ -3,6 +3,7 @@ import {
   Bot,
   Check,
   CheckCircle2,
+  ChevronRight,
   Circle,
   Clock,
   Copy,
@@ -24,6 +25,7 @@ import {
 import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
+import { splitAssistantPreamble } from '@/lib/assistant-preamble'
 import { getCommandPreview } from '@/lib/command-preview'
 import { formatFileSize } from '@/lib/format'
 import type { NormalizedLogEntry, ToolAction } from '@/types/kanban'
@@ -547,6 +549,13 @@ function AssistantMessage({
 }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
+  const [preambleOpen, setPreambleOpen] = useState(false)
+
+  // opencode/ACP engines emit a structured task-tracking preamble (Goal,
+  // Constraints, Progress, ...) before the actual reply, all in one assistant
+  // message. Users perceive this as "thinking content mixed into the reply".
+  // Detect and split: render preamble as a collapsed block, reply normally.
+  const { preamble, reply } = splitAssistantPreamble(content)
 
   const handleCopy = () => {
     navigator.clipboard
@@ -575,18 +584,50 @@ function AssistantMessage({
                 <Copy className="h-3 w-3" />
               )}
         </button>
-        {isStreaming ?
-            (
-              <div className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65] whitespace-pre-wrap break-words">
-                {content}
+
+        {preamble
+          ? (
+              <div className="mb-2 border border-border/40 bg-muted/20 rounded-sm">
+                <button
+                  type="button"
+                  onClick={() => setPreambleOpen(v => !v)}
+                  className="flex w-full items-center gap-2 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/30 transition-colors"
+                >
+                  <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${preambleOpen ? 'rotate-90' : ''}`} />
+                  <ListTodo className="h-3 w-3 shrink-0 text-indigo-500/70" />
+                  <span className="font-medium">{t('session.taskTrackingPreamble')}</span>
+                  <span className="ml-auto text-[10px] opacity-50">{preambleOpen ? t('common.collapse') : t('common.expand')}</span>
+                </button>
+                {preambleOpen
+                  ? (
+                      <div className="px-3 pb-2 pt-1 border-t border-border/30">
+                        <MarkdownContent
+                          content={preamble}
+                          className="text-[13px] leading-[1.65] text-muted-foreground"
+                        />
+                      </div>
+                    )
+                  : null}
               </div>
-            ) :
-            (
-              <MarkdownContent
-                content={content}
-                className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65]"
-              />
-            )}
+            )
+          : null}
+
+        {reply
+          ? (
+              isStreaming
+                ? (
+                    <div className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65] whitespace-pre-wrap break-words">
+                      {reply}
+                    </div>
+                  )
+                : (
+                    <MarkdownContent
+                      content={reply}
+                      className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65]"
+                    />
+                  )
+            )
+          : null}
       </div>
       <div className="flex items-center gap-2 mt-0.5">
         {timestamp ?

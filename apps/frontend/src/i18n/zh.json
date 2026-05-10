@@ -6,7 +6,9 @@
     "select": "选择",
     "edit": "编辑",
     "copy": "复制",
-    "save": "保存"
+    "save": "保存",
+    "expand": "展开",
+    "collapse": "收起"
   },
   "search": {
     "title": "搜索",
@@ -233,6 +235,7 @@
     "starting": "启动中...",
     "thinking": "思考中...",
     "thoughtProcess": "思考过程",
+    "taskTrackingPreamble": "任务追踪",
     "cancelling": "取消中...",
     "cancellingBtn": "取消中...",
     "loadMore": "查看更多记录",

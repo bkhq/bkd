@@ -6,7 +6,9 @@
     "select": "Select",
     "edit": "Edit",
     "copy": "Copy",
-    "save": "Save"
+    "save": "Save",
+    "expand": "Expand",
+    "collapse": "Collapse"
   },
   "search": {
     "title": "Search",
@@ -234,6 +236,7 @@
     "starting": "Starting...",
     "thinking": "Thinking...",
     "thoughtProcess": "Thought process",
+    "taskTrackingPreamble": "Task tracking",
     "cancelling": "Cancelling...",
     "cancellingBtn": "Cancelling...",
     "loadMore": "Load earlier messages",
