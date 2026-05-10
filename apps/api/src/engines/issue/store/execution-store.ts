@@ -1,6 +1,35 @@
 import { Database } from 'bun:sqlite'
 import type { NormalizedLogEntry, ToolDetail, ToolGroupItem } from '@bkd/shared'
 
+// ---------- Caps ----------
+
+/**
+ * Max rows kept in a single ExecutionStore. When exceeded, the oldest
+ * `TRIM_BATCH` rows are deleted.
+ *
+ * Why a cap: ACP/Codex long-lived processes share one ExecutionStore across
+ * every turn of a session — without a cap, a 100-turn OpenCode reasoning
+ * session can balloon the in-memory SQLite into the GB range, contributing
+ * to the OOM that bit us in v0.0.134-lc. Persistent SQLite (`bkd.db`) keeps
+ * the full history regardless, so anything trimmed here is recoverable
+ * via the HTTP `/logs` endpoint that reads from disk.
+ *
+ * 5000 rows comfortably covers ~50–100 typical turns; trimming oldest 1000
+ * at a time keeps the trim hot path O(1) amortized.
+ */
+const MAX_ENTRIES = 5000
+const TRIM_BATCH = 1000
+
+/**
+ * Single-field byte caps. Most entries are well under these; the outliers
+ * are tool_result rows that contain entire file contents / command stdout
+ * (especially with opus-4-7[1m] reading large files), and toolAction
+ * metadata that occasionally embeds large input/output blobs. Truncating
+ * to a generous-but-bounded size keeps the row count cheap to reason about.
+ */
+const MAX_CONTENT_BYTES = 256 * 1024
+const MAX_METADATA_BYTES = 256 * 1024
+
 interface EntryRow {
   idx: number
   message_id: string | null
@@ -18,6 +47,13 @@ interface EntryRow {
 
 // ---------- Helpers ----------
 
+function truncateContent(content: string): { value: string, truncated: boolean } {
+  if (content.length <= MAX_CONTENT_BYTES) return { value: content, truncated: false }
+  const droppedKB = ((content.length - MAX_CONTENT_BYTES) / 1024) | 0
+  const value = `${content.slice(0, MAX_CONTENT_BYTES)}\n\n... [truncated by bkd: ${droppedKB} KB more]`
+  return { value, truncated: true }
+}
+
 function entryToRow(entry: NormalizedLogEntry): Omit<EntryRow, 'idx'> {
   const detail = entry.toolDetail
   // Merge toolAction into metadata so it survives the round-trip
@@ -25,13 +61,31 @@ function entryToRow(entry: NormalizedLogEntry): Omit<EntryRow, 'idx'> {
   if (entry.toolAction && !metadata?.toolAction) {
     metadata = { ...metadata, toolAction: entry.toolAction }
   }
+
+  const { value: content, truncated: contentTruncated } = truncateContent(entry.content)
+  if (contentTruncated) {
+    metadata = { ...metadata, _contentTruncated: true, _originalContentBytes: entry.content.length }
+  }
+
+  let metadataStr: string | null = metadata ? JSON.stringify(metadata) : null
+  if (metadataStr && metadataStr.length > MAX_METADATA_BYTES) {
+    // Metadata too large after JSON serialization (typically a tool input
+    // / output blob inside `toolAction`). Replace with a placeholder so
+    // ExecutionStore stays bounded; full metadata still persists to
+    // `bkd.db` via the parallel `pipeline/persist.ts` stage.
+    metadataStr = JSON.stringify({
+      _metadataTruncated: true,
+      _originalMetadataBytes: metadataStr.length,
+    })
+  }
+
   return {
     message_id: entry.messageId ?? null,
     reply_to_message_id: entry.replyToMessageId ?? null,
     turn_index: entry.turnIndex ?? 0,
     entry_type: entry.entryType,
-    content: entry.content,
-    metadata: metadata ? JSON.stringify(metadata) : null,
+    content,
+    metadata: metadataStr,
     tool_call_id: detail?.toolCallId ?? (entry.metadata?.toolCallId as string | undefined) ?? null,
     tool_name: detail?.toolName ?? (entry.metadata?.toolName as string | undefined) ?? null,
     tool_kind: detail?.kind ?? null,
@@ -106,6 +160,10 @@ export class ExecutionStore {
   private countByTurnStmt: ReturnType<Database['prepare']>
   private totalCountStmt: ReturnType<Database['prepare']>
   private hasEntryStmt: ReturnType<Database['prepare']>
+  private trimOldestStmt: ReturnType<Database['prepare']>
+  // In-memory row counter. Tracking it explicitly (rather than COUNT(*) on
+  // every append) keeps the hot path allocation-free.
+  private rowCount = 0
 
   constructor(readonly executionId: string) {
     this.db = new Database(':memory:')
@@ -166,6 +224,12 @@ export class ExecutionStore {
     )
     this.totalCountStmt = this.db.prepare('SELECT COUNT(*) as cnt FROM entries')
     this.hasEntryStmt = this.db.prepare('SELECT 1 FROM entries WHERE message_id = ? LIMIT 1')
+    // Trim oldest N rows when the store exceeds MAX_ENTRIES. Uses the
+    // primary key (idx) ordering so the deleted rows are guaranteed to be
+    // the earliest inserted regardless of turn_index.
+    this.trimOldestStmt = this.db.prepare(
+      'DELETE FROM entries WHERE idx IN (SELECT idx FROM entries ORDER BY idx LIMIT ?)',
+    )
   }
 
   /** Append a normalized entry. */
@@ -185,6 +249,11 @@ export class ExecutionStore {
       $is_result: row.is_result,
       $timestamp: row.timestamp,
     })
+    this.rowCount++
+    if (this.rowCount > MAX_ENTRIES) {
+      this.trimOldestStmt.run(TRIM_BATCH)
+      this.rowCount -= TRIM_BATCH
+    }
   }
 
   /** Get all entries for a given turn, ordered by insertion. */

@@ -142,6 +142,26 @@ export class CodexLogNormalizer {
 
   // ---------- v2 notification handlers ----------
 
+  // The four `*/delta` handlers below previously did `this.<field> += delta`
+  // and emitted `content: this.<field>` (the cumulative accumulated text)
+  // per chunk. Under sustained high-frequency reasoning streams (especially
+  // o3 / o3-pro on Codex with verbose thinking) this is O(N) per chunk →
+  // O(N²) cumulative — enough to dominate CPU and outpace GC, leaking
+  // through as multi-GB RSS climb over a long turn.
+  //
+  // The streaming entries are flagged `streaming: true` and only flow to
+  // `liveConverter.mergeChunk` (timeline-converter.ts), which already
+  // accumulates correctly via its prefix-extension/concat detection. So
+  // each emit can carry just the chunk delta — no need for per-chunk
+  // accumulation here. The canonical full-text final entry comes from the
+  // agent's `reasoning` / `agentMessage` ThreadItem on `handleResponse`,
+  // which is unaffected by this change.
+  //
+  // The `this.assistantText = ''` / `this.thinkingText = ''` resets are
+  // kept as cross-stream boundary markers (read by no consumer today, but
+  // cheap and preserve original intent in case any state-aware path is
+  // added later).
+
   /**
    * Handle `item/agentMessage/delta` — streaming assistant message text.
    * Wire format: { method: "item/agentMessage/delta", params: { threadId, turnId, itemId, delta } }
@@ -151,10 +171,9 @@ export class CodexLogNormalizer {
     const delta = params.delta as string | undefined
     if (!delta) return null
     this.thinkingText = ''
-    this.assistantText += delta
     return {
       entryType: 'assistant-message',
-      content: this.assistantText,
+      content: delta,
       timestamp: now,
       metadata: { streaming: true },
     }
@@ -169,10 +188,9 @@ export class CodexLogNormalizer {
     const delta = params.delta as string | undefined
     if (!delta) return null
     this.assistantText = ''
-    this.thinkingText += delta
     return {
       entryType: 'thinking',
-      content: this.thinkingText,
+      content: delta,
       timestamp: now,
       metadata: { streaming: true },
     }
@@ -187,10 +205,9 @@ export class CodexLogNormalizer {
     const delta = params.delta as string | undefined
     if (!delta) return null
     this.assistantText = ''
-    this.thinkingText += delta
     return {
       entryType: 'thinking',
-      content: this.thinkingText,
+      content: delta,
       timestamp: now,
       metadata: { streaming: true },
     }
@@ -205,10 +222,9 @@ export class CodexLogNormalizer {
     const delta = params.delta as string | undefined
     if (!delta) return null
     this.thinkingText = ''
-    this.assistantText += delta
     return {
       entryType: 'assistant-message',
-      content: this.assistantText,
+      content: delta,
       timestamp: now,
       metadata: { streaming: true, isPlan: true },
     }

@@ -207,6 +207,60 @@ describe('ExecutionStore', () => {
     store.destroy()
   })
 
+  test('truncates content larger than the per-field cap', () => {
+    const store = new ExecutionStore('exec-trunc-content')
+    const big = 'x'.repeat(300 * 1024) // 300 KB > 256 KB cap
+    store.append(makeEntry({ messageId: 'big-1', content: big }))
+
+    const entries = store.getAllEntries()
+    expect(entries).toHaveLength(1)
+    expect(entries[0].content.length).toBeLessThan(big.length)
+    expect(entries[0].content).toContain('[truncated by bkd:')
+    expect(entries[0].metadata?._contentTruncated).toBe(true)
+    expect(entries[0].metadata?._originalContentBytes).toBe(big.length)
+
+    store.destroy()
+  })
+
+  test('drops metadata above the per-field cap into a placeholder', () => {
+    const store = new ExecutionStore('exec-trunc-metadata')
+    // Build a metadata.toolAction whose JSON serializes well over 256 KB.
+    const huge = 'y'.repeat(300 * 1024)
+    store.append(makeEntry({
+      messageId: 'big-meta',
+      metadata: { toolAction: { kind: 'other', payload: huge } } as never,
+    }))
+
+    const entries = store.getAllEntries()
+    expect(entries).toHaveLength(1)
+    expect(entries[0].metadata?._metadataTruncated).toBe(true)
+    expect((entries[0].metadata?._originalMetadataBytes as number) > 256 * 1024).toBe(true)
+
+    store.destroy()
+  })
+
+  test('caps total row count and trims the oldest entries when exceeded', () => {
+    const store = new ExecutionStore('exec-cap')
+    // Append past the cap. After 5001 inserts the first batch trim fires
+    // (deletes the oldest 1000), leaving rowCount at 4001. Subsequent
+    // inserts up to 5000 fill back up; cross 5001 again and another
+    // 1000 trim fires. We only assert: total rows never exceed MAX_ENTRIES
+    // after the cap kicks in, and the surviving rows are the most recent.
+    const TOTAL = 6500
+    for (let i = 0; i < TOTAL; i++) {
+      store.append(makeEntry({ messageId: `m-${i}`, content: `n=${i}` }))
+    }
+
+    expect(store.totalEntries).toBeLessThanOrEqual(5000)
+    expect(store.totalEntries).toBeGreaterThan(0)
+
+    // Most recent entries should still be present; very early ones gone.
+    expect(store.hasEntry(`m-${TOTAL - 1}`)).toBe(true)
+    expect(store.hasEntry('m-0')).toBe(false)
+
+    store.destroy()
+  })
+
   test('metadata.isResult fallback round-trips correctly', () => {
     const store = new ExecutionStore('exec-isresult')
     // Entry with isResult only in metadata, no toolDetail
