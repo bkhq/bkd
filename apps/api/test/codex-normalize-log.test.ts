@@ -342,6 +342,77 @@ describe('CodexExecutor.normalizeLog', () => {
       expect(entry!.content).toBe('summary')
       expect(entry!.metadata?.streaming).toBe(true)
     })
+
+    // Regression guard: the streaming `content` MUST be the chunk delta only,
+    // not the cumulative accumulated text. The previous (pre-561352e) impl
+    // did `this.thinkingText += delta` and emitted `content: this.thinkingText`
+    // per chunk — O(N) work per chunk → O(N²) cumulative, which under
+    // sustained reasoning streams produced enough GC pressure to OOM the bkd
+    // process. Running the same normalizer instance across multi delta would
+    // expose any regression to that pattern (cumulative emit grows; delta
+    // emit stays equal to input).
+    test('reasoning textDelta emits per-chunk delta, not cumulative (multi-call)', () => {
+      const stateful = executor.createNormalizer()
+      const out: string[] = []
+      for (const delta of ['Let ', 'me ', 'think ', 'this ', 'through']) {
+        const result = stateful.parse(JSON.stringify({
+          method: 'item/reasoning/textDelta',
+          params: { delta },
+        }))
+        const entry = asSingleEntry(result)
+        expect(entry).not.toBeNull()
+        expect(entry!.entryType).toBe('thinking')
+        expect(entry!.metadata?.streaming).toBe(true)
+        out.push(entry!.content)
+      }
+      // Each emit must equal its input chunk — NOT the cumulative accumulation.
+      expect(out).toEqual(['Let ', 'me ', 'think ', 'this ', 'through'])
+    })
+
+    test('reasoning summaryTextDelta emits per-chunk delta, not cumulative (multi-call)', () => {
+      const stateful = executor.createNormalizer()
+      const out: string[] = []
+      for (const delta of ['First ', 'point ', 'and ', 'second']) {
+        const result = stateful.parse(JSON.stringify({
+          method: 'item/reasoning/summaryTextDelta',
+          params: { delta },
+        }))
+        const entry = asSingleEntry(result)
+        out.push(entry!.content)
+      }
+      expect(out).toEqual(['First ', 'point ', 'and ', 'second'])
+    })
+
+    test('agentMessage delta emits per-chunk delta, not cumulative (multi-call)', () => {
+      const stateful = executor.createNormalizer()
+      const out: string[] = []
+      for (const delta of ['Hello', ' ', 'world']) {
+        const result = stateful.parse(JSON.stringify({
+          method: 'item/agentMessage/delta',
+          params: { delta },
+        }))
+        const entry = asSingleEntry(result)
+        expect(entry!.entryType).toBe('assistant-message')
+        expect(entry!.metadata?.streaming).toBe(true)
+        out.push(entry!.content)
+      }
+      expect(out).toEqual(['Hello', ' ', 'world'])
+    })
+
+    test('plan delta emits per-chunk delta, not cumulative (multi-call)', () => {
+      const stateful = executor.createNormalizer()
+      const out: string[] = []
+      for (const delta of ['Step 1\n', 'Step 2\n', 'Step 3']) {
+        const result = stateful.parse(JSON.stringify({
+          method: 'item/plan/delta',
+          params: { delta },
+        }))
+        const entry = asSingleEntry(result)
+        expect(entry!.metadata?.isPlan).toBe(true)
+        out.push(entry!.content)
+      }
+      expect(out).toEqual(['Step 1\n', 'Step 2\n', 'Step 3'])
+    })
   })
 
   // ------------------------------------------------------------------
