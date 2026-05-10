@@ -145,7 +145,19 @@ function nextSequence(state: IssueState, entry: NormalizedLogEntry): number {
   return ts * 1000 + state.subSeq
 }
 
-function bufferToEntry(buffer: Buffer, type: TimelineEntry['type']): TimelineEntry {
+function bufferToEntry(
+  buffer: Buffer,
+  type: TimelineEntry['type'],
+  opts?: { closing?: boolean },
+): TimelineEntry {
+  // When closing the buffer (segment ended, turn flushed, settle reached),
+  // force `streaming: false` on the emitted entry. Without this, an engine
+  // killed mid-stream leaves the buffer's streaming flag stuck at true —
+  // the frontend then renders that entry as a live streaming block forever
+  // (full content, no collapse) whenever ANY later turn is running.
+  const metadata = opts?.closing
+    ? { ...buffer.metadata, streaming: false as boolean | undefined }
+    : buffer.metadata
   return {
     id: buffer.id,
     turnIndex: parseTurnFromId(buffer.id),
@@ -154,7 +166,7 @@ function bufferToEntry(buffer: Buffer, type: TimelineEntry['type']): TimelineEnt
     content: buffer.content,
     timestamp: buffer.timestamp,
     sequence: buffer.sequence,
-    metadata: buffer.metadata,
+    metadata,
   }
 }
 
@@ -199,11 +211,11 @@ export class TimelineConverter {
     // Turn boundary: flush both buffers (final state) before continuing.
     if (turn !== state.currentTurn && state.currentTurn >= 0) {
       if (state.thinkingBuffer) {
-        out.push(bufferToEntry(state.thinkingBuffer, 'thinking'))
+        out.push(bufferToEntry(state.thinkingBuffer, 'thinking', { closing: true }))
         state.thinkingBuffer = null
       }
       if (state.assistantBuffer) {
-        out.push(bufferToEntry(state.assistantBuffer, 'assistant'))
+        out.push(bufferToEntry(state.assistantBuffer, 'assistant', { closing: true }))
         state.assistantBuffer = null
       }
       state.thinkingFlushCount = 0
@@ -215,7 +227,7 @@ export class TimelineConverter {
       // Thinking after assistant in same turn → close assistant segment first,
       // bump assistantFlushCount so the NEXT assistant chunk opens a new segment.
       if (state.assistantBuffer) {
-        out.push(bufferToEntry(state.assistantBuffer, 'assistant'))
+        out.push(bufferToEntry(state.assistantBuffer, 'assistant', { closing: true }))
         state.assistantBuffer = null
         state.assistantFlushCount++
       }
@@ -239,7 +251,7 @@ export class TimelineConverter {
     if (type === 'assistant') {
       // Assistant after thinking → close thinking segment, bump count.
       if (state.thinkingBuffer) {
-        out.push(bufferToEntry(state.thinkingBuffer, 'thinking'))
+        out.push(bufferToEntry(state.thinkingBuffer, 'thinking', { closing: true }))
         state.thinkingBuffer = null
         state.thinkingFlushCount++
       }
@@ -266,12 +278,12 @@ export class TimelineConverter {
     // fresh segment with a new id (this is what enables Cursor-style inline
     // rendering: 思考 → 工具 → 再思考 → 工具 → 回答).
     if (state.thinkingBuffer) {
-      out.push(bufferToEntry(state.thinkingBuffer, 'thinking'))
+      out.push(bufferToEntry(state.thinkingBuffer, 'thinking', { closing: true }))
       state.thinkingBuffer = null
       state.thinkingFlushCount++
     }
     if (state.assistantBuffer) {
-      out.push(bufferToEntry(state.assistantBuffer, 'assistant'))
+      out.push(bufferToEntry(state.assistantBuffer, 'assistant', { closing: true }))
       state.assistantBuffer = null
       state.assistantFlushCount++
     }
@@ -301,12 +313,12 @@ export class TimelineConverter {
     if (!state) return []
     const out: TimelineEntry[] = []
     if (state.thinkingBuffer) {
-      out.push(bufferToEntry(state.thinkingBuffer, 'thinking'))
+      out.push(bufferToEntry(state.thinkingBuffer, 'thinking', { closing: true }))
       state.thinkingBuffer = null
       state.thinkingFlushCount++
     }
     if (state.assistantBuffer) {
-      out.push(bufferToEntry(state.assistantBuffer, 'assistant'))
+      out.push(bufferToEntry(state.assistantBuffer, 'assistant', { closing: true }))
       state.assistantBuffer = null
       state.assistantFlushCount++
     }
