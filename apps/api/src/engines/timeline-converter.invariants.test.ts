@@ -328,9 +328,91 @@ describe('Invariant: tool entries preserve toolCallId for client-side pairing', 
   })
 })
 
-// ─── Invariant 5: real-data structural sanity ───────────────────────────────
+// ─── Invariant 5: messageId preserved on output ─────────────────────────────
 
-describe('Invariant: real-data shape integrity', () => {
+describe('invariant: messageId is preserved on output (frontend dedup contract)', () => {
+  // The bug class: optimistic frontend entries carry the raw messageId, but
+  // canonical entries from the backend converter use id=`turn-N-{type}-{messageId}`.
+  // Without the messageId field on the canonical entry, the frontend's
+  // findExisting fallback (match by messageId when ids differ) can't fire,
+  // and the user sees the same message twice — once with the optimistic
+  // attachment URL and once with the canonical one. Screenshot caught this.
+  it('every input entry with a messageId produces an output entry that carries it', () => {
+    const inputs: NormalizedLogEntry[] = [
+      {
+        entryType: 'user-message',
+        content: 'with image',
+        turnIndex: 0,
+        timestamp: '2026-01-01T00:00:00Z',
+        messageId: 'msg_user_1',
+        metadata: { attachments: [{ id: 'a1', name: 'image.png' }] },
+      },
+      {
+        entryType: 'tool-use',
+        content: 'bash',
+        turnIndex: 0,
+        timestamp: '2026-01-01T00:00:01Z',
+        messageId: 'msg_tool_1',
+        metadata: { toolCallId: 't1' },
+      },
+      {
+        entryType: 'tool-use',
+        content: 'output',
+        turnIndex: 0,
+        timestamp: '2026-01-01T00:00:02Z',
+        messageId: 'msg_tool_1_r',
+        metadata: { toolCallId: 't1', isResult: true },
+      },
+    ]
+    const out = toTimeline(inputs)
+    const userOut = out.find(e => e.type === 'user')
+    expect(userOut?.messageId).toBe('msg_user_1')
+    const toolActions = out.filter(e => e.type === 'tool' && !e.metadata?.isResult)
+    expect(toolActions[0]?.messageId).toBe('msg_tool_1')
+    const toolResults = out.filter(e => e.type === 'tool' && e.metadata?.isResult)
+    expect(toolResults[0]?.messageId).toBe('msg_tool_1_r')
+  })
+
+  it('thinking/assistant buffers preserve messageId from the first chunk', () => {
+    const conv = new TimelineConverter()
+    const out: TimelineEntry[] = []
+    out.push(...conv.ingest('it', {
+      entryType: 'thinking',
+      content: 'first',
+      turnIndex: 0,
+      timestamp: '2026-01-01T00:00:00Z',
+      messageId: 'msg_think_1',
+      metadata: { streaming: true },
+    }))
+    out.push(...conv.ingest('it', {
+      entryType: 'thinking',
+      content: 'first second',
+      turnIndex: 0,
+      timestamp: '2026-01-01T00:00:01Z',
+      messageId: 'msg_think_1',
+      metadata: { streaming: true },
+    }))
+    for (const e of out.filter(x => x.type === 'thinking')) {
+      expect(e.messageId).toBe('msg_think_1')
+    }
+  })
+
+  it('real-captured user entries all carry their messageId', () => {
+    const out = toTimeline(fixture.entries)
+    const inputUsersWithMid = fixture.entries.filter(
+      e => e.entryType === 'user-message' && e.messageId,
+    )
+    const outputUsers = out.filter(e => e.type === 'user')
+    for (const src of inputUsersWithMid) {
+      const match = outputUsers.find(o => o.messageId === src.messageId)
+      expect(match).toBeDefined()
+    }
+  })
+})
+
+// ─── Invariant 6: real-data structural sanity ───────────────────────────────
+
+describe('invariant: real-data shape integrity', () => {
   it('every entry has a non-empty id, type, and sequence', () => {
     const out = toTimeline(fixture.entries)
     for (const e of out) {

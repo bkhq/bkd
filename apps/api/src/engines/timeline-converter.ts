@@ -70,6 +70,15 @@ interface Buffer {
   id: string
   /** Sequence assigned at first chunk; subsequent chunks reuse it (no re-ordering) */
   sequence: number
+  /**
+   * Original NormalizedLogEntry.messageId. Preserved on output so the client
+   * can dedupe optimistic entries (which carry the raw messageId) against
+   * canonical entries (which have id=`turn-N-{type}-{messageId}` and would
+   * otherwise look unrelated). Without this field, sending an attachment
+   * shows the user-message twice — optimistic with broken-image URL plus
+   * canonical with proper image — until refresh.
+   */
+  messageId?: string
 }
 
 /**
@@ -160,6 +169,7 @@ function bufferToEntry(
     : buffer.metadata
   return {
     id: buffer.id,
+    messageId: buffer.messageId,
     turnIndex: parseTurnFromId(buffer.id),
     type,
     entryType: buffer.entryType,
@@ -240,9 +250,15 @@ export class TimelineConverter {
           entryType: entry.entryType,
           id: `turn-${turn}-thinking${suffix}`,
           sequence: nextSequence(state, entry),
+          messageId: entry.messageId,
         }
       } else {
         mergeChunk(state.thinkingBuffer, entry)
+        // Adopt the chunk's messageId if the buffer didn't have one yet
+        // (engines that only set messageId on the final non-streaming chunk).
+        if (!state.thinkingBuffer.messageId && entry.messageId) {
+          state.thinkingBuffer.messageId = entry.messageId
+        }
       }
       out.push(bufferToEntry(state.thinkingBuffer, 'thinking'))
       return out
@@ -264,9 +280,13 @@ export class TimelineConverter {
           entryType: entry.entryType,
           id: `turn-${turn}-assistant${suffix}`,
           sequence: nextSequence(state, entry),
+          messageId: entry.messageId,
         }
       } else {
         mergeChunk(state.assistantBuffer, entry)
+        if (!state.assistantBuffer.messageId && entry.messageId) {
+          state.assistantBuffer.messageId = entry.messageId
+        }
       }
       out.push(bufferToEntry(state.assistantBuffer, 'assistant'))
       return out
@@ -292,6 +312,7 @@ export class TimelineConverter {
     const idSuffix = entry.messageId ?? entry.timestamp ?? `seq-${seq}`
     out.push({
       id: `turn-${turn}-${type}-${idSuffix}`,
+      messageId: entry.messageId,
       turnIndex: turn,
       type,
       entryType: entry.entryType,

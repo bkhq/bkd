@@ -41,11 +41,20 @@ function createWrapper() {
   }
 }
 
-/** Mimic backend converter id format for user entries. */
+/**
+ * Mimic ACTUAL backend converter output — the on-the-wire shape that SSE
+ * delivers and /logs returns. Critically: includes `messageId` (the field
+ * I forgot to preserve in the converter, which let the screenshot bug
+ * slip through dedup).
+ *
+ * If you find yourself "fixing" this helper to make a test pass, STOP —
+ * the test should match the backend's real output. Update the converter
+ * instead.
+ */
 function backendUserEntry(messageId: string, turn: number, ts: string, content: string): TimelineEntry {
   return {
     id: `turn-${turn}-user-${messageId}`,
-    messageId,
+    messageId, // ← backend MUST output this; verified by backend invariants
     turnIndex: turn,
     type: 'user',
     entryType: 'user-message',
@@ -56,9 +65,10 @@ function backendUserEntry(messageId: string, turn: number, ts: string, content: 
   }
 }
 
-function backendThinkingEntry(turn: number, ts: string, content: string, streaming: boolean): TimelineEntry {
+function backendThinkingEntry(turn: number, ts: string, content: string, streaming: boolean, messageId?: string): TimelineEntry {
   return {
     id: `turn-${turn}-thinking`,
+    messageId,
     turnIndex: turn,
     type: 'thinking',
     entryType: 'thinking',
