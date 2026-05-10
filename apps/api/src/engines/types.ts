@@ -220,8 +220,12 @@ export interface TimelineEntry {
   id: string
   turnIndex: number
   type: 'thinking' | 'assistant' | 'tool' | 'system' | 'error' | 'user'
+  /** Underlying NormalizedLogEntry.entryType, preserved so renderers can branch on subtype */
+  entryType: string
   content: string
   timestamp: string
+  /** Monotonic per-issue sequence — frontend sorts by this for strict insertion order */
+  sequence?: number
   metadata?: {
     streaming?: boolean
     completed?: boolean
@@ -232,6 +236,7 @@ export interface TimelineEntry {
     duration?: number
     input?: unknown
     path?: string
+    subtype?: string
     [key: string]: unknown
   }
 }

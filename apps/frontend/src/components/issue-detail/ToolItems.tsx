@@ -787,7 +787,21 @@ function getGroupSummaryLabel(
   if (stats['command-run']) parts.push(`${stats['command-run']} ${t('session.tool.commandRun')}`)
   if (stats.search) parts.push(`${stats.search} ${t('session.tool.search')}`)
   if (stats['web-fetch']) parts.push(`${stats['web-fetch']} ${t('session.tool.webFetch')}`)
-  const otherCount = count - Object.values(stats).reduce((a, b) => a + b, 0) + (stats.other ?? 0)
+  if (stats.agent) parts.push(`${stats.agent} ${t('session.tool.agent')}`)
+  if (stats['task-plan']) parts.push(`${stats['task-plan']} ${t('session.tool.taskPlan')}`)
+  if (stats['user-question']) parts.push(`${stats['user-question']} ${t('session.tool.userQuestion')}`)
+  // Anything left over after summing the known kinds is genuine "other"
+  // (kinds the backend hasn't categorized). Plus any explicitly-other items.
+  const known = (stats['file-read'] ?? 0)
+    + (stats['file-edit'] ?? 0)
+    + (stats['command-run'] ?? 0)
+    + (stats.search ?? 0)
+    + (stats['web-fetch'] ?? 0)
+    + (stats.agent ?? 0)
+    + (stats['task-plan'] ?? 0)
+    + (stats['user-question'] ?? 0)
+    + (stats.other ?? 0)
+  const otherCount = (stats.other ?? 0) + Math.max(0, count - known)
   if (otherCount > 0) parts.push(`${otherCount} other`)
   return parts.length > 0 ? parts.join(', ') : `${count} tool calls`
 }
@@ -813,7 +827,7 @@ const DEFAULT_VISIBLE_COUNT = 3
 
 const MemoizedToolItemRenderer = memo(ToolItemRenderer)
 
-export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage }) {
+function ToolGroupMessageImpl({ message }: { message: ToolGroupChatMessage }) {
   const { t } = useTranslation()
   const { items, stats, count, description, isActive } = message
   const statsLabel = getGroupSummaryLabel(stats, count, t)
@@ -862,7 +876,7 @@ export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage })
   }, [])
 
   return (
-    <div className="py-1 animate-message-enter">
+    <div className={`py-1 ${isActive ? '' : 'animate-message-enter'}`}>
       <div className="border border-border/40 bg-card/30">
         <button
           type="button"
@@ -917,3 +931,28 @@ export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage })
     </div>
   )
 }
+
+/**
+ * Memoized so the list of historical groups doesn't re-render on every
+ * streaming chunk in the active group. Equality covers the visual fields:
+ * id, item count, isActive flag, and per-item action.messageId + result presence.
+ */
+export const ToolGroupMessage = memo(ToolGroupMessageImpl, (prev, next) => {
+  const a = prev.message
+  const b = next.message
+  if (a.id !== b.id) return false
+  if (a.count !== b.count) return false
+  if (a.isActive !== b.isActive) return false
+  if (a.description !== b.description) return false
+  if (a.items.length !== b.items.length) return false
+  for (let i = 0; i < a.items.length; i++) {
+    const ai = a.items[i]
+    const bi = b.items[i]
+    if (ai.action.messageId !== bi.action.messageId) return false
+    if (ai.action.content !== bi.action.content) return false
+    if (Boolean(ai.result) !== Boolean(bi.result)) return false
+    if (ai.result?.messageId !== bi.result?.messageId) return false
+    if (ai.result?.content !== bi.result?.content) return false
+  }
+  return true
+})

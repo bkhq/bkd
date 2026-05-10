@@ -147,10 +147,17 @@ export interface NormalizedLogEntry {
 // Backend guarantees: stable id, accumulated content, deduplicated, ordered, noise-filtered.
 // Extends NormalizedLogEntry for backwards compatibility during migration.
 export interface TimelineEntry extends NormalizedLogEntry {
-  /** Stable id: turn-{n}-{type} */
+  /** Stable id: turn-{n}-{type}[-{segment}] for thinking/assistant, turn-{n}-{type}-{messageId} for tool/system/error/user */
   id: string
   /** Simplified type (mapped from entryType) */
   type: 'thinking' | 'assistant' | 'tool' | 'system' | 'error' | 'user'
+  /**
+   * Monotonic per-issue sequence assigned by backend. Frontend sorts by this
+   * number — strict insertion order — instead of (turnIndex, timestamp, type),
+   * so multi-segment thinking, interleaved tools, and same-timestamp entries
+   * stay in their natural chronological order.
+   */
+  sequence?: number
 }
 
 // ── ChatMessage (rebuilt from NormalizedLogEntry[]) ───────
@@ -397,6 +404,13 @@ export interface AppEventMap {
   }
   'log-updated': { issueId: string, entry: NormalizedLogEntry }
   'log-removed': { issueId: string, messageIds: string[] }
+  /**
+   * Emitted by the timeline-emit pipeline stage (order 90) after running the
+   * raw NormalizedLogEntry through the per-issue stateful TimelineConverter.
+   * SSE subscribers consume this directly so conversion happens once per emit
+   * regardless of how many clients are connected.
+   */
+  'timeline-entry': { issueId: string, entry: TimelineEntry }
   'state': { issueId: string, executionId: string, state: string }
   'done': { issueId: string, executionId: string, finalStatus: string }
   'issue-updated': { issueId: string, changes: Record<string, unknown> }

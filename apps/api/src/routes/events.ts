@@ -1,7 +1,6 @@
 import { streamSSE } from 'hono/streaming'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import { isVisible } from '@/engines/issue/utils/visibility'
-import { toTimelineEntry } from '@/engines/timeline-converter'
 import { appEvents } from '@/events'
 import { logger } from '@/logger'
 
@@ -37,27 +36,21 @@ events.get('/', async (c) => {
         stream.writeSSE({ event, data: JSON.stringify(data) }).catch(stop)
       }
 
-      // Subscribe to log events (order 100 — runs after DB persist + ring buffer)
-      // Visibility filter applied here at the SSE boundary only, so internal
-      // stages (DB persist, failure detection) always process all entries.
+      // Subscribe to 'timeline-entry' — already converted by the pipeline
+      // stage at order 90, exactly once per emit regardless of how many
+      // SSE clients are connected. We just forward the wire.
       const unsubLog = appEvents.on(
-        'log',
+        'timeline-entry',
         (data) => {
-          // Allow thinking and assistant-message streaming entries through SSE
-          // so users can see the AI's reasoning process in real-time (especially
-          // for ACP engines like opencode that stream thought/message chunks).
-          // Other streaming entries (tool-use updates) are skipped — they'll be
-          // sent when the non-streaming result arrives.
-          if (data.streaming && data.entry.entryType !== 'assistant-message' && data.entry.entryType !== 'thinking') return
-          if (!isVisible(data.entry)) return
-          writeEvent('log', { issueId: data.issueId, entry: toTimelineEntry(data.entry) })
+          writeEvent('log', { issueId: data.issueId, entry: data.entry })
         },
-        { order: 100 },
       )
 
       const unsubLogUpdated = appEvents.on('log-updated', (data) => {
         if (!isVisible(data.entry)) return
-        writeEvent('log-updated', { ...data, entry: toTimelineEntry(data.entry) })
+        // log-updated is rare (used for retroactive entry updates) — pass the
+        // raw entry as-is. Clients still upsert by id.
+        writeEvent('log-updated', data)
       })
 
       const unsubLogRemoved = appEvents.on('log-removed', (data) => {
@@ -74,7 +67,9 @@ events.get('/', async (c) => {
         })
       })
 
-      // Terminal state (done event comes AFTER DB is updated)
+      // Terminal state — converter flush already happened in settleIssue()
+      // (lifecycle/settle.ts) before this event was emitted, so any tail
+      // 'timeline-entry' events have already been delivered to subscribers.
       const unsubDone = appEvents.on('done', (data) => {
         writeEvent('state', {
           issueId: data.issueId,

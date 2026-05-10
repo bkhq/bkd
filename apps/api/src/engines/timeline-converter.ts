@@ -1,13 +1,22 @@
 import type { NormalizedLogEntry, TimelineEntry } from './types'
 
-const TYPE_ORDER: Record<string, number> = {
-  user: 0,
-  thinking: 1,
-  tool: 2,
-  assistant: 3,
-  system: 4,
-  error: 5,
-}
+// ────────────────────────────────────────────────────────────────────────────
+// TimelineConverter — single source of truth for NormalizedLogEntry → TimelineEntry.
+//
+// Both the SSE streaming path (events.ts → toTimelineEntry) and the batch HTTP
+// path (logs.ts → toTimeline) go through ONE stateful converter so live and
+// refreshed views are byte-for-byte identical.
+//
+// Key guarantees:
+//   - Multi-segment thinking/assistant per turn (split on tool/non-thinking).
+//   - chunk merging via startsWith / fallback concat (handles cumulative + delta).
+//   - Tool/system/error/user entries pass through with stable ids.
+//   - Monotonic per-issue `sequence` for insertion-order rendering on the client.
+//   - Noise filtering (short pure-word system messages, ACP boilerplate).
+//
+// State scope: per-issue Map. The streaming path uses one shared instance;
+// the batch path constructs a fresh instance, ingests every entry, and discards it.
+// ────────────────────────────────────────────────────────────────────────────
 
 function mapType(entryType: string): TimelineEntry['type'] {
   switch (entryType) {
@@ -23,15 +32,15 @@ function mapType(entryType: string): TimelineEntry['type'] {
 
 function isNoise(entry: NormalizedLogEntry): boolean {
   const trimmed = entry.content.trim()
-  // Only filter noise for system-message entries.
-  // Thinking/assistant deltas may be short fragments — never drop them.
   if (entry.entryType === 'system-message') {
     if (trimmed.length < 15 && /^[a-z]+$/.test(trimmed)) return true
     if (
       trimmed === 'ACP session loaded' ||
       trimmed === 'ACP session started' ||
       trimmed === 'ACP session initialized'
-    ) return true
+    ) {
+      return true
+    }
   }
   return false
 }
@@ -52,116 +61,288 @@ function buildMetadata(entry: NormalizedLogEntry): NonNullable<TimelineEntry['me
   }
 }
 
-function compareTimeline(a: TimelineEntry, b: TimelineEntry): number {
-  if (a.turnIndex !== b.turnIndex) return a.turnIndex - b.turnIndex
-  return (TYPE_ORDER[a.type] ?? 99) - (TYPE_ORDER[b.type] ?? 99)
+interface Buffer {
+  content: string
+  timestamp: string
+  metadata: NonNullable<TimelineEntry['metadata']>
+  entryType: string
+  /** Stable id assigned at first chunk so subsequent chunks upsert in place */
+  id: string
+  /** Sequence assigned at first chunk; subsequent chunks reuse it (no re-ordering) */
+  sequence: number
 }
 
 /**
- * Convert raw NormalizedLogEntry array into a unified TimelineEntry array.
- *
- * Backend guarantees applied:
- * 1. Accumulation: thinking/assistant chunks are merged into full text per turn
- * 2. Deduplication: one thinking + one assistant per turn
- * 3. Noise filter: short pure-word entries dropped
- * 4. Ordering: by turnIndex, within turn: thinking → tool → assistant → system → error
- * 5. Stable IDs: turn-{n}-{type}
+ * Smart merge for streaming chunks:
+ *   - new starts with old → full replacement (cumulative-style streams)
+ *   - old starts with new → keep old (out-of-order delivery, drop the shorter)
+ *   - otherwise → concatenate (true delta streams)
  */
+function mergeChunk(buffer: Buffer, entry: NormalizedLogEntry): void {
+  const text = entry.content
+  if (text.length > buffer.content.length && text.startsWith(buffer.content)) {
+    buffer.content = text
+  } else if (buffer.content.length > text.length && buffer.content.startsWith(text)) {
+    // keep old
+  } else {
+    buffer.content += text
+  }
+  buffer.timestamp = entry.timestamp ?? buffer.timestamp
+  if (entry.metadata?.streaming === true) {
+    buffer.metadata.streaming = true
+  }
+  if (entry.metadata?.streaming === false) {
+    buffer.metadata.streaming = false
+  }
+}
+
+interface IssueState {
+  currentTurn: number
+  thinkingFlushCount: number
+  assistantFlushCount: number
+  thinkingBuffer: Buffer | null
+  assistantBuffer: Buffer | null
+  /** Monotonic per-issue sequence — used for ordering on frontend. */
+  nextSequence: number
+}
+
+function newIssueState(): IssueState {
+  return {
+    currentTurn: -1,
+    thinkingFlushCount: 0,
+    assistantFlushCount: 0,
+    thinkingBuffer: null,
+    assistantBuffer: null,
+    nextSequence: 0,
+  }
+}
+
+function bufferToEntry(buffer: Buffer, type: TimelineEntry['type']): TimelineEntry {
+  return {
+    id: buffer.id,
+    turnIndex: parseTurnFromId(buffer.id),
+    type,
+    entryType: buffer.entryType,
+    content: buffer.content,
+    timestamp: buffer.timestamp,
+    sequence: buffer.sequence,
+    metadata: buffer.metadata,
+  }
+}
+
+function parseTurnFromId(id: string): number {
+  // id format: turn-{n}-{type}[-suffix]
+  const m = /^turn-(\d+)-/.exec(id)
+  return m ? Number(m[1]) : 0
+}
+
+export class TimelineConverter {
+  private issues = new Map<string, IssueState>()
+
+  private getState(issueId: string): IssueState {
+    let s = this.issues.get(issueId)
+    if (!s) {
+      s = newIssueState()
+      this.issues.set(issueId, s)
+    }
+    return s
+  }
+
+  reset(issueId: string): void {
+    this.issues.delete(issueId)
+  }
+
+  /**
+   * Ingest one NormalizedLogEntry. Returns 0..N TimelineEntry to upsert
+   * by id on the client. Each returned entry is either:
+   *   - a streaming buffer snapshot (thinking/assistant) with the SAME id
+   *     across chunks → frontend overwrites in place
+   *   - a flushed segment closing entry (when a new segment opens)
+   *   - a tool/system/error/user passthrough with stable id
+   */
+  ingest(issueId: string, entry: NormalizedLogEntry): TimelineEntry[] {
+    if (isNoise(entry)) return []
+
+    const state = this.getState(issueId)
+    const type = mapType(entry.entryType)
+    const turn = entry.turnIndex ?? 0
+    const out: TimelineEntry[] = []
+
+    // Turn boundary: flush both buffers (final state) before continuing.
+    if (turn !== state.currentTurn && state.currentTurn >= 0) {
+      if (state.thinkingBuffer) {
+        out.push(bufferToEntry(state.thinkingBuffer, 'thinking'))
+        state.thinkingBuffer = null
+      }
+      if (state.assistantBuffer) {
+        out.push(bufferToEntry(state.assistantBuffer, 'assistant'))
+        state.assistantBuffer = null
+      }
+      state.thinkingFlushCount = 0
+      state.assistantFlushCount = 0
+    }
+    state.currentTurn = turn
+
+    if (type === 'thinking') {
+      // Thinking after assistant in same turn → close assistant segment first,
+      // bump assistantFlushCount so the NEXT assistant chunk opens a new segment.
+      if (state.assistantBuffer) {
+        out.push(bufferToEntry(state.assistantBuffer, 'assistant'))
+        state.assistantBuffer = null
+        state.assistantFlushCount++
+      }
+      if (!state.thinkingBuffer) {
+        const suffix = state.thinkingFlushCount === 0 ? '' : `-${state.thinkingFlushCount}`
+        state.thinkingBuffer = {
+          content: entry.content,
+          timestamp: entry.timestamp ?? new Date().toISOString(),
+          metadata: buildMetadata(entry),
+          entryType: entry.entryType,
+          id: `turn-${turn}-thinking${suffix}`,
+          sequence: state.nextSequence++,
+        }
+      } else {
+        mergeChunk(state.thinkingBuffer, entry)
+      }
+      out.push(bufferToEntry(state.thinkingBuffer, 'thinking'))
+      return out
+    }
+
+    if (type === 'assistant') {
+      // Assistant after thinking → close thinking segment, bump count.
+      if (state.thinkingBuffer) {
+        out.push(bufferToEntry(state.thinkingBuffer, 'thinking'))
+        state.thinkingBuffer = null
+        state.thinkingFlushCount++
+      }
+      if (!state.assistantBuffer) {
+        const suffix = state.assistantFlushCount === 0 ? '' : `-${state.assistantFlushCount}`
+        state.assistantBuffer = {
+          content: entry.content,
+          timestamp: entry.timestamp ?? new Date().toISOString(),
+          metadata: buildMetadata(entry),
+          entryType: entry.entryType,
+          id: `turn-${turn}-assistant${suffix}`,
+          sequence: state.nextSequence++,
+        }
+      } else {
+        mergeChunk(state.assistantBuffer, entry)
+      }
+      out.push(bufferToEntry(state.assistantBuffer, 'assistant'))
+      return out
+    }
+
+    // tool / system / error / user — passthrough with stable id.
+    // Both buffers close because a non-thinking/non-assistant entry interrupts
+    // the segment. Bump counters so the next chunk of the same type opens a
+    // fresh segment with a new id (this is what enables Cursor-style inline
+    // rendering: 思考 → 工具 → 再思考 → 工具 → 回答).
+    if (state.thinkingBuffer) {
+      out.push(bufferToEntry(state.thinkingBuffer, 'thinking'))
+      state.thinkingBuffer = null
+      state.thinkingFlushCount++
+    }
+    if (state.assistantBuffer) {
+      out.push(bufferToEntry(state.assistantBuffer, 'assistant'))
+      state.assistantBuffer = null
+      state.assistantFlushCount++
+    }
+
+    const idSuffix = entry.messageId ?? entry.timestamp ?? `idx-${state.nextSequence}`
+    out.push({
+      id: `turn-${turn}-${type}-${idSuffix}`,
+      turnIndex: turn,
+      type,
+      entryType: entry.entryType,
+      content: entry.content,
+      timestamp: entry.timestamp ?? new Date().toISOString(),
+      sequence: state.nextSequence++,
+      metadata: buildMetadata(entry),
+    })
+    return out
+  }
+
+  /**
+   * Flush any pending thinking/assistant buffers as final entries.
+   * Called when an issue settles (turn ends, run completes) — without this,
+   * the last in-flight segment never gets a "final" snapshot pushed to clients.
+   */
+  flush(issueId: string): TimelineEntry[] {
+    const state = this.issues.get(issueId)
+    if (!state) return []
+    const out: TimelineEntry[] = []
+    if (state.thinkingBuffer) {
+      out.push(bufferToEntry(state.thinkingBuffer, 'thinking'))
+      state.thinkingBuffer = null
+      state.thinkingFlushCount++
+    }
+    if (state.assistantBuffer) {
+      out.push(bufferToEntry(state.assistantBuffer, 'assistant'))
+      state.assistantBuffer = null
+      state.assistantFlushCount++
+    }
+    return out
+  }
+}
+
+// Singleton for the live SSE pipeline. Issue state cleared on settle (see issue/lifecycle/settle.ts).
+export const liveConverter = new TimelineConverter()
+
 /**
- * Convert a single NormalizedLogEntry to TimelineEntry (for SSE streaming).
- * Uses stable IDs so frontend can simply overwrite by id.
+ * Convert a single entry for SSE streaming.
+ *
+ * Note: this returns a SINGLE entry (latest snapshot for that id). In the
+ * streaming path each NormalizedLogEntry maps to exactly one SSE write, so
+ * we collapse multi-emit cases (segment-flush + new-segment) into the LAST
+ * entry of the ingest output. Callers that need every interim flush should
+ * use `liveConverter.ingest()` directly.
  */
 export function toTimelineEntry(entry: NormalizedLogEntry): TimelineEntry {
-  const type = mapType(entry.entryType)
-  const turn = entry.turnIndex ?? 0
-  const id = (type === 'thinking' || type === 'assistant')
-    ? `turn-${turn}-${type}`
-    : `turn-${turn}-${type}-${entry.messageId ?? Date.now()}`
-
-  return {
-    id,
-    turnIndex: turn,
-    type,
+  // Issue id is unknown here (legacy single-arg signature). Use a global
+  // bucket so segment counters at least monotonic-rise within the process.
+  // The new path (events.ts) uses liveConverter.ingest with the real issueId.
+  const out = liveConverter.ingest('__legacy__', entry)
+  return out.at(-1) ?? {
+    id: `turn-${entry.turnIndex ?? 0}-${mapType(entry.entryType)}`,
+    turnIndex: entry.turnIndex ?? 0,
+    type: mapType(entry.entryType),
+    entryType: entry.entryType,
     content: entry.content,
     timestamp: entry.timestamp ?? new Date().toISOString(),
+    sequence: 0,
     metadata: buildMetadata(entry),
   }
 }
 
+/**
+ * Batch conversion for the HTTP `/logs` endpoint. Creates a fresh converter,
+ * ingests in chronological order, and flushes any tail buffers — guaranteeing
+ * the result is identical to what the client accumulated via SSE.
+ */
 export function toTimeline(entries: NormalizedLogEntry[]): TimelineEntry[] {
-  const accumulated = new Map<string, {
-    content: string
-    timestamp: string
-    metadata: NonNullable<TimelineEntry['metadata']>
-  }>()
+  const sorted = [...entries].sort((a, b) => {
+    const ta = a.turnIndex ?? 0
+    const tb = b.turnIndex ?? 0
+    if (ta !== tb) return ta - tb
+    const tsa = a.timestamp ? new Date(a.timestamp).getTime() : 0
+    const tsb = b.timestamp ? new Date(b.timestamp).getTime() : 0
+    return tsa - tsb
+  })
 
-  const direct: TimelineEntry[] = []
+  const conv = new TimelineConverter()
+  const out: TimelineEntry[] = []
+  // Track the latest snapshot per id so multi-emit ingest results collapse to
+  // one entry per id (matches what the client sees after SSE upserts).
+  const byId = new Map<string, TimelineEntry>()
 
-  for (const entry of entries) {
-    if (isNoise(entry)) continue
-
-    const type = mapType(entry.entryType)
-    const turn = entry.turnIndex ?? 0
-
-    // Only thinking and assistant need accumulation
-    if (type === 'thinking' || type === 'assistant') {
-      const id = `turn-${turn}-${type}`
-      const existing = accumulated.get(id)
-      const text = entry.content
-
-      if (existing) {
-        // Smart merge: if new text starts with old, it's a full replacement
-        if (text.length > existing.content.length && text.startsWith(existing.content)) {
-          existing.content = text
-        } else if (existing.content.length > text.length && existing.content.startsWith(text)) {
-          // Old is longer — keep old (shouldn't happen with correct backend)
-        } else {
-          // Fallback: concatenate (for engines that send true deltas)
-          existing.content += text
-        }
-        existing.timestamp = entry.timestamp ?? existing.timestamp
-        if (entry.metadata?.streaming === true) {
-          existing.metadata.streaming = true
-        }
-        if (entry.metadata?.streaming === false) {
-          existing.metadata.streaming = false
-        }
-      } else {
-        accumulated.set(id, {
-          content: text,
-          timestamp: entry.timestamp ?? new Date().toISOString(),
-          metadata: buildMetadata(entry),
-        })
-      }
-    } else {
-      // Direct output for tool/system/error/user (no accumulation needed)
-      // Each entry gets a unique id so action+result pairs are preserved
-      const idSuffix = entry.messageId ?? `idx-${direct.length}`
-      direct.push({
-        id: `turn-${turn}-${type}-${idSuffix}`,
-        turnIndex: turn,
-        type,
-        content: entry.content,
-        timestamp: entry.timestamp ?? new Date().toISOString(),
-        metadata: buildMetadata(entry),
-      })
-    }
+  for (const entry of sorted) {
+    const produced = conv.ingest('batch', entry)
+    for (const p of produced) byId.set(p.id, p)
   }
+  for (const tail of conv.flush('batch')) byId.set(tail.id, tail)
 
-  // Convert accumulated entries to TimelineEntry
-  for (const [id, acc] of accumulated) {
-    const match = id.match(/turn-(\d+)-(thinking|assistant)/)
-    if (!match) continue
-    const [, turnStr, type] = match
-    direct.push({
-      id,
-      turnIndex: parseInt(turnStr),
-      type: type as 'thinking' | 'assistant',
-      content: acc.content,
-      timestamp: acc.timestamp,
-      metadata: acc.metadata,
-    })
-  }
-
-  return direct.sort(compareTimeline)
+  // Re-emit in sequence order to preserve insertion order even after upserts.
+  for (const e of byId.values()) out.push(e)
+  out.sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+  return out
 }

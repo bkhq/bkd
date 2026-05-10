@@ -1,13 +1,13 @@
 import type { NormalizedLogEntry, TimelineEntry } from '@bkd/shared'
 import { CheckCircle2, Circle, Lightbulb, ListTodo, Loader2 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAcpTimeline } from '@/hooks/use-acp-timeline'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import { LogEntry } from './LogEntry'
 import { ToolGroupMessage } from './ToolItems'
 
-function AcpPlanCard({
+const AcpPlanCard = memo(({
   entry,
   todos,
   completedCount,
@@ -15,7 +15,7 @@ function AcpPlanCard({
   entry: NormalizedLogEntry
   todos: Array<{ content: string, status: string, activeForm?: string }>
   completedCount: number
-}) {
+}) => {
   const { t } = useTranslation()
   const title = entry.content.trim() || 'Plan updated'
 
@@ -65,10 +65,10 @@ function AcpPlanCard({
       </div>
     </div>
   )
-}
+})
 
 /** Real-time streaming thinking block — full content with auto-scroll. */
-function StreamingThinking({ entry }: { entry: NormalizedLogEntry }) {
+const StreamingThinking = memo(({ entry }: { entry: NormalizedLogEntry }) => {
   const { t } = useTranslation()
   const contentRef = useRef<HTMLPreElement>(null)
 
@@ -78,16 +78,16 @@ function StreamingThinking({ entry }: { entry: NormalizedLogEntry }) {
   }, [entry.content])
 
   return (
-    <div className="animate-message-enter my-0.5">
-      <div className="border border-violet-300/30 dark:border-violet-500/20 bg-violet-500/[0.04] dark:bg-violet-500/[0.03]">
-        <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-violet-600/80 dark:text-violet-400/70">
+    <div className="my-1">
+      <div className="border border-violet-300/20 dark:border-violet-500/15 bg-violet-500/[0.02] dark:bg-violet-500/[0.02] rounded-sm">
+        <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-violet-500/50 dark:text-violet-400/50">
           <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
           <span className="font-medium">{t('session.thinking')}</span>
         </div>
-        <div className="px-3 pb-2 pt-0.5 border-t border-violet-300/15 dark:border-violet-500/10">
+        <div className="px-3 pb-2 pt-0.5 border-t border-violet-300/10 dark:border-violet-500/10">
           <pre
             ref={contentRef}
-            className="text-xs text-violet-600/60 dark:text-violet-300/50 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto max-h-[300px] overflow-y-auto"
+            className="text-xs text-violet-600/50 dark:text-violet-300/40 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto max-h-[300px] overflow-y-auto scroll-smooth"
           >
             {entry.content}
           </pre>
@@ -95,27 +95,30 @@ function StreamingThinking({ entry }: { entry: NormalizedLogEntry }) {
       </div>
     </div>
   )
-}
+})
 
-/** Completed thinking block — auto-collapsed to one line, click to expand. */
-function CompletedThinking({ entry }: { entry: NormalizedLogEntry }) {
+/** Completed thinking block — collapsed by default, click to expand. */
+const CompletedThinking = memo(({ entry }: { entry: NormalizedLogEntry }) => {
   const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <div className="animate-message-enter my-0.5">
-      <div className="bg-violet-500/[0.03] border border-violet-300/20 dark:border-violet-500/15">
+    <div className="animate-message-enter my-1">
+      <div className="bg-violet-500/[0.02] border border-violet-300/15 dark:border-violet-500/10 rounded-sm">
         <button
           type="button"
           onClick={() => setIsOpen(v => !v)}
-          className="w-full cursor-pointer px-3 py-1.5 text-xs text-violet-500/60 dark:text-violet-400/60 hover:bg-violet-500/[0.04] transition-colors flex items-center gap-2"
+          className="w-full cursor-pointer px-3 py-1.5 text-xs text-violet-500/50 dark:text-violet-400/50 hover:bg-violet-500/[0.03] transition-colors flex items-center gap-2"
         >
           <Lightbulb className="h-3 w-3 shrink-0" />
           <span className="font-medium">{t('session.thoughtProcess')}</span>
+          <span className="ml-auto text-[10px] opacity-50">
+            {isOpen ? '收起' : '展开'}
+          </span>
         </button>
         {isOpen && (
           <div className="px-3 pb-2 pt-1 border-t border-violet-300/10 dark:border-violet-500/10">
-            <pre className="text-xs text-violet-600/60 dark:text-violet-300/50 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
+            <pre className="text-xs text-violet-600/50 dark:text-violet-300/40 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto max-h-[400px] overflow-y-auto">
               {entry.content}
             </pre>
           </div>
@@ -123,7 +126,7 @@ function CompletedThinking({ entry }: { entry: NormalizedLogEntry }) {
       </div>
     </div>
   )
-}
+})
 
 export function AcpTimeline({
   logs,

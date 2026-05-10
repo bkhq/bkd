@@ -2,6 +2,7 @@ import { autoMoveToReview, updateIssueSession } from '@/engines/engine-store'
 import type { EngineContext } from '@/engines/issue/context'
 import { emitDiagnosticLog } from '@/engines/issue/diagnostic'
 import { emitIssueSettled } from '@/engines/issue/events'
+import { flushTimelineConverter } from '@/engines/issue/pipeline/timeline-emit'
 import { cleanupDomainData } from '@/engines/issue/process/state'
 import { logger } from '@/logger'
 
@@ -34,6 +35,10 @@ export async function settleIssue(
       event: 'issue_settled',
       status,
     })
+    // Flush any in-flight thinking/assistant streaming buffers as final
+    // 'timeline-entry' events BEFORE 'done' so clients don't drop the tail
+    // of the response (the frontend's done-guard previously masked this).
+    flushTimelineConverter(issueId)
     emitIssueSettled(issueId, executionId, status)
   }
 }

@@ -60,11 +60,18 @@ describe('useIssueStream', () => {
       return () => {}
     })
 
-    const pendingEntry: NormalizedLogEntry = {
+    // Backend GET /logs now returns TimelineEntry[] (post-TimelineConverter),
+    // so the mock must include the stable id and type fields the frontend
+    // uses for upsert-by-id.
+    const pendingEntry: NormalizedLogEntry & { id: string, type: string, sequence: number } = {
+      id: 'turn-0-user-01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      type: 'user',
+      sequence: 0,
       messageId: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
       entryType: 'user-message',
       content: 'queued follow-up',
       timestamp: new Date().toISOString(),
+      turnIndex: 0,
       metadata: { type: 'pending' },
     }
 

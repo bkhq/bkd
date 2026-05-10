@@ -32,26 +32,42 @@ interface UseIssueStreamReturn {
 const TERMINAL: Set<string> = new Set(['completed', 'failed', 'cancelled'])
 const MAX_LIVE_LOGS = 500
 
-const TYPE_ORDER: Record<string, number> = {
-  user: 0,
-  thinking: 1,
-  tool: 2,
-  assistant: 3,
-  system: 4,
-  error: 5,
-}
-
+/**
+ * Sort by backend-assigned monotonic `sequence` for strict insertion order.
+ * Falls back to (turnIndex, timestamp) for entries that pre-date the field
+ * (legacy DB rows), and finally to id for total stability.
+ */
 function compareTimeline(a: TimelineEntry, b: TimelineEntry): number {
+  const sa = a.sequence
+  const sb = b.sequence
+  if (sa !== undefined && sb !== undefined) return sa - sb
+  // Mixed legacy + new: legacy rows go first to keep history stable.
+  if (sa === undefined && sb !== undefined) return -1
+  if (sa !== undefined && sb === undefined) return 1
+
   const ta = a.turnIndex ?? 0
   const tb = b.turnIndex ?? 0
   if (ta !== tb) return ta - tb
-  return (TYPE_ORDER[a.type] ?? 99) - (TYPE_ORDER[b.type] ?? 99)
+  const tsa = a.timestamp ? new Date(a.timestamp).getTime() : 0
+  const tsb = b.timestamp ? new Date(b.timestamp).getTime() : 0
+  if (tsa !== tsb) return tsa - tsb
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
-/** Convert backend NormalizedLogEntry to frontend TimelineEntry */
+/**
+ * Convert backend NormalizedLogEntry to frontend TimelineEntry.
+ *  Backend already sends TimelineEntry (with stable id) via SSE — use it directly.
+ */
 function toTimelineEntry(entry: NormalizedLogEntry): TimelineEntry {
+  // Backend TimelineEntry extends NormalizedLogEntry and adds id + type
+  const e = entry as Partial<TimelineEntry>
+  if (e.id && e.type) {
+    return entry as TimelineEntry
+  }
+
+  // Fallback: generate id locally for plain NormalizedLogEntry
   const typeMap: Record<string, TimelineEntry['type']> = {
-    thinking: 'thinking',
+    'thinking': 'thinking',
     'assistant-message': 'assistant',
     'tool-use': 'tool',
     'system-message': 'system',
@@ -60,7 +76,7 @@ function toTimelineEntry(entry: NormalizedLogEntry): TimelineEntry {
   }
   const type = typeMap[entry.entryType] ?? 'system'
   const turn = entry.turnIndex ?? 0
-  const id = (type === 'thinking' || type === 'assistant')
+  const id = type === 'assistant' || type === 'thinking'
     ? `turn-${turn}-${type}`
     : `turn-${turn}-${type}-${entry.messageId ?? Date.now()}`
 
@@ -68,7 +84,7 @@ function toTimelineEntry(entry: NormalizedLogEntry): TimelineEntry {
     ...entry,
     id,
     type,
-  }
+  } as TimelineEntry
 }
 
 // ---- LRU cache ----
@@ -268,7 +284,13 @@ export function useIssueStream({
         olderCursorRef.current = data.nextCursor
         setHasOlderLogs(data.hasMore)
         setOlderLogs((prev) => {
-          const next = [...data.logs, ...prev].sort(compareTimeline)
+          // Dedup by id — repeated loads (rare but possible on cursor edges)
+          // would otherwise stack duplicates in the array even though the
+          // outer logs useMemo dedupes for render.
+          const map = new Map<string, TimelineEntry>()
+          for (const e of prev) map.set(e.id, e)
+          for (const e of data.logs) map.set(e.id, e)
+          const next = Array.from(map.values()).sort(compareTimeline)
           olderLogsRef.current = next
           return next
         })
@@ -321,8 +343,16 @@ export function useIssueStream({
             liveLogsRef.current = data.logs
             return data.logs
           }
-          const map = new Map(data.logs.map(e => [e.id, e]))
+          // Fresh data from /logs is the authoritative reconstruction
+          // (TimelineConverter on the server rebuilt it from the full log
+          // history). It must override any cached/streaming snapshot for
+          // the same id — cached state may have intermediate streaming
+          // content that's now superseded.
+          //
+          // Order: cache first, fresh data overwrites by id.
+          const map = new Map<string, TimelineEntry>()
           for (const e of prev) map.set(e.id, e)
+          for (const e of data.logs) map.set(e.id, e)
           const next = Array.from(map.values()).sort(compareTimeline)
           liveLogsRef.current = next
           return next
@@ -353,7 +383,14 @@ export function useIssueStream({
 
     cleanup.unsub = eventBus.subscribe(issueId, {
       onLog: (entry) => {
-        if (doneReceivedRef.current && entry.entryType !== 'error-message') return
+        // Previously this handler dropped late-arriving entries when
+        // doneReceivedRef was true ("done already came, ignore tail"). That
+        // assumption broke whenever the SSE done event raced ahead of the
+        // last log chunks, causing the tail of the response to vanish until
+        // the user refreshed. Backend now flushes all pending streaming
+        // buffers BEFORE emitting done (see settle.ts → flushTimelineConverter)
+        // so late entries are no longer expected — but we still accept them
+        // defensively if any slip through, since onDone refetches /logs.
         const allowed = typesSetRef.current
         if (allowed && !allowed.has(entry.entryType)) return
         appendEntry(toTimelineEntry(entry))
@@ -385,6 +422,12 @@ export function useIssueStream({
       onDone: () => {
         queryClient.invalidateQueries({ queryKey: queryKeys.issue(projectId, issueId) })
         queryClient.invalidateQueries({ queryKey: queryKeys.issues(projectId) })
+        // Final reconciliation: refetch the canonical timeline from the
+        // server. If any chunk was missed during streaming (drop, race,
+        // backend converter desync), this brings the client to ground truth.
+        // Cheap because the LRU cache already has most of it; the merge
+        // map dedupes by id so existing entries are unchanged.
+        setRefreshCounter(c => c + 1)
       },
     })
 

@@ -21,7 +21,7 @@ import {
   Timer,
   Wrench,
 } from 'lucide-react'
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import { getCommandPreview } from '@/lib/command-preview'
@@ -257,7 +257,7 @@ function TaskPlanEntry({ entry }: { entry: NormalizedLogEntry }) {
   )
 }
 
-export function LogEntry({
+function LogEntryImpl({
   entry,
   durationMs,
   inToolGroup = false,
@@ -365,6 +365,7 @@ export function LogEntry({
           content={entry.content}
           timestamp={entry.timestamp}
           durationMs={durationMs}
+          isStreaming={entry.metadata?.streaming === true}
         />
       )
 
@@ -512,14 +513,37 @@ export function LogEntry({
   }
 }
 
+/**
+ * LogEntry is rendered N times per turn and lives in a list whose parent
+ * re-renders on every SSE chunk. Memoize on the relevant entry fields so
+ * historical messages don't re-render when only the tail of the conversation
+ * is updating (root cause 8: tab-freeze under heavy streams).
+ */
+export const LogEntry = memo(LogEntryImpl, (prev, next) => {
+  if (prev.durationMs !== next.durationMs) return false
+  if (prev.inToolGroup !== next.inToolGroup) return false
+  const a = prev.entry
+  const b = next.entry
+  return (
+    a === b
+    || (a.messageId === b.messageId
+      && a.entryType === b.entryType
+      && a.content === b.content
+      && a.metadata?.streaming === b.metadata?.streaming
+      && a.metadata?.completed === b.metadata?.completed)
+  )
+})
+
 function AssistantMessage({
   content,
   timestamp,
   durationMs,
+  isStreaming = false,
 }: {
   content: string
   timestamp?: string
   durationMs?: number
+  isStreaming?: boolean
 }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
@@ -535,12 +559,12 @@ function AssistantMessage({
   }
 
   return (
-    <div className="group py-1 animate-message-enter">
+    <div className={`group py-1 ${isStreaming ? '' : 'animate-message-enter'}`}>
       <div className="relative min-w-0">
         <button
           type="button"
           onClick={handleCopy}
-          className="absolute right-0 top-0 rounded p-1 text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-muted/40 transition-all opacity-0 group-hover:opacity-100"
+          className="absolute right-0 top-0 rounded p-1 text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-muted/40 transition-all opacity-0 group-hover:opacity-100 z-10"
           title={t('session.copyMessage')}
         >
           {copied ?
@@ -551,10 +575,18 @@ function AssistantMessage({
                 <Copy className="h-3 w-3" />
               )}
         </button>
-        <MarkdownContent
-          content={content}
-          className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65]"
-        />
+        {isStreaming ?
+            (
+              <div className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65] whitespace-pre-wrap break-words">
+                {content}
+              </div>
+            ) :
+            (
+              <MarkdownContent
+                content={content}
+                className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65]"
+              />
+            )}
       </div>
       <div className="flex items-center gap-2 mt-0.5">
         {timestamp ?

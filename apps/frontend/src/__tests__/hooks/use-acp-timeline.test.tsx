@@ -28,22 +28,58 @@ function createWrapper() {
   }
 }
 
+/**
+ * Test helper that mimics what the backend `TimelineConverter` produces:
+ *   - sort by timestamp (chronological)
+ *   - assign monotonic `sequence`
+ *   - segment-aware ids for thinking/assistant when interrupted by tools
+ *
+ * Frontend `useAcpTimeline` is a pure mapping over already-converted
+ * TimelineEntry — these tests must feed it post-conversion data.
+ */
 function toTimeline(entries: NormalizedLogEntry[]): TimelineEntry[] {
-  return entries.map((entry) => {
-    const typeMap: Record<string, TimelineEntry['type']> = {
-      thinking: 'thinking',
-      'assistant-message': 'assistant',
-      'tool-use': 'tool',
-      'system-message': 'system',
-      'error-message': 'error',
-      'user-message': 'user',
-    }
+  const typeMap: Record<string, TimelineEntry['type']> = {
+    'thinking': 'thinking',
+    'assistant-message': 'assistant',
+    'tool-use': 'tool',
+    'system-message': 'system',
+    'error-message': 'error',
+    'user-message': 'user',
+  }
+  const sorted = [...entries].sort((a, b) => {
+    const ta = a.turnIndex ?? 0
+    const tb = b.turnIndex ?? 0
+    if (ta !== tb) return ta - tb
+    const tsa = a.timestamp ? new Date(a.timestamp).getTime() : 0
+    const tsb = b.timestamp ? new Date(b.timestamp).getTime() : 0
+    return tsa - tsb
+  })
+  // Track segment counters so multi-segment thinking/assistant get distinct ids
+  const segCount: Record<string, Record<string, number>> = {}
+  const lastNonStreaming: Record<number, string | null> = {}
+  return sorted.map((entry, idx) => {
     const type = typeMap[entry.entryType] ?? 'system'
     const turn = entry.turnIndex ?? 0
+    let id: string
+    if (type === 'thinking' || type === 'assistant') {
+      const turnSeg = segCount[turn] ?? (segCount[turn] = {})
+      // If the previous entry within this turn was a different streaming type
+      // (or a tool/non-streaming), bump segment count.
+      const last = lastNonStreaming[turn]
+      if (last && last !== type) turnSeg[type] = (turnSeg[type] ?? -1) + 1
+      const segIdx = turnSeg[type] ?? 0
+      turnSeg[type] = segIdx
+      id = segIdx === 0 ? `turn-${turn}-${type}` : `turn-${turn}-${type}-${segIdx}`
+      lastNonStreaming[turn] = type
+    } else {
+      id = entry.messageId ?? `turn-${turn}-${type}-${idx}`
+      lastNonStreaming[turn] = type === 'tool' ? 'tool' : type
+    }
     return {
       ...entry,
-      id: entry.messageId ?? `turn-${turn}-${type}`,
+      id,
       type,
+      sequence: idx,
     }
   })
 }
@@ -53,13 +89,13 @@ function rebuildAcpTimeline(logs: NormalizedLogEntry[]) {
   return result.current
 }
 
-describe('useAcpTimeline thinking dedup', () => {
-  it('discards thinking when assistant contains same content on final flush', () => {
-    // Regression: OpenCode streams thinking and assistant as identical text.
-    // When flushStreamingAssistant runs at turn end, pendingThinking must be
-    // discarded if pendingStreamingAssistant already contains the same content.
-    // Backend TimelineConverter already merges cascading assistant chunks.
-    // Only the final accumulated text reaches the frontend.
+describe('useAcpTimeline rendering', () => {
+  it('renders thinking and assistant as independent items (no frontend dedup)', () => {
+    // Contract change (2026-05-10): backend TimelineConverter splits
+    // thinking/assistant into segment-aware entries with distinct ids.
+    // The frontend renders BOTH — no more "discard thinking if assistant
+    // contains same prefix" heuristic, which was the source of flicker
+    // during streaming and lost-content bugs.
     const logs: NormalizedLogEntry[] = [
       {
         entryType: 'thinking',
@@ -79,17 +115,13 @@ describe('useAcpTimeline thinking dedup', () => {
 
     const { items } = rebuildAcpTimeline(logs)
 
-    // Should only have 1 item: the final assistant message (thinking discarded)
-    expect(items).toHaveLength(1)
-    expect(items[0]!.type).toBe('entry')
-    const entry0 = items[0] as { entry: NormalizedLogEntry }
-    expect(entry0.entry.entryType).toBe('assistant-message')
-    expect(entry0.entry.content).toBe(
-      '用户问为什么测试兜不住。原因是测试只覆盖了 normalizer，没测前端 state 的去重',
+    expect(items).toHaveLength(2)
+    expect(items[0]!.type).toBe('thinking')
+    expect((items[0] as { entry: NormalizedLogEntry }).entry.content).toBe(
+      '用户问为什么测试兜不住',
     )
-
-    // Thinking should be discarded (merged into assistant)
-    expect(items.some(i => i.type === 'thinking')).toBe(false)
+    expect(items[1]!.type).toBe('entry')
+    expect((items[1] as { entry: NormalizedLogEntry }).entry.entryType).toBe('assistant-message')
   })
 
   it('keeps standalone thinking when assistant does NOT overlap', () => {
@@ -122,9 +154,10 @@ describe('useAcpTimeline thinking dedup', () => {
     expect((items[1] as { entry: NormalizedLogEntry }).entry.entryType).toBe('assistant-message')
   })
 
-  it('discards thinking when assistant comes after tool calls', () => {
-    // Real-world OpenCode pattern: thinking → tool → assistant (thinking content
-    // is a superset that spans across the tool call).
+  it('keeps thinking, tool group, and assistant inline (Cursor-style)', () => {
+    // Real-world OpenCode pattern: thinking → tool → assistant. Each segment
+    // is its own entry — no overlapping content discards. This is what makes
+    // multi-step reasoning visible to users.
     const logs: NormalizedLogEntry[] = [
       {
         entryType: 'thinking',
@@ -138,6 +171,7 @@ describe('useAcpTimeline thinking dedup', () => {
         content: 'Read src/app.ts',
         timestamp: '2026-01-01T00:00:01Z',
         turnIndex: 0,
+        messageId: 't1',
         metadata: { toolCallId: 't1', isResult: false },
         toolDetail: { kind: 'file-read', toolName: 'Read', toolCallId: 't1', isResult: false },
       },
@@ -152,17 +186,13 @@ describe('useAcpTimeline thinking dedup', () => {
 
     const { items } = rebuildAcpTimeline(logs)
 
-    // Should have 2 items: tool-group + assistant (thinking discarded by assistant).
-    // The thinking before the tool call is kept pending, then discarded when
-    // the assistant arrives with the same content.
-    expect(items).toHaveLength(2)
-    expect(items[0]!.type).toBe('tool-group')
-    expect(items[1]!.type).toBe('entry')
-    const assistantItem = items[1] as { entry: NormalizedLogEntry }
+    // 3 items: thinking, tool-group, assistant — all inline.
+    expect(items).toHaveLength(3)
+    expect(items[0]!.type).toBe('thinking')
+    expect(items[1]!.type).toBe('tool-group')
+    expect(items[2]!.type).toBe('entry')
+    const assistantItem = items[2] as { entry: NormalizedLogEntry }
     expect(assistantItem.entry.entryType).toBe('assistant-message')
-
-    // Thinking should be discarded (merged into assistant)
-    expect(items.some(i => i.type === 'thinking')).toBe(false)
   })
 })
 
@@ -290,8 +320,10 @@ describe('useAcpTimeline streaming merge regression', () => {
   })
 
   it('stable order regardless of event arrival order', () => {
-    // Regression: order depends on event arrival timing.
-    // Reordering the same entries should produce the same output.
+    // Backend assigns sequence based on chronological ingest order, and
+    // useIssueStream sorts by sequence. The test helper here mimics that
+    // by sorting on timestamp, so any input ordering of the same entries
+    // produces the same output.
     const baseEntries: NormalizedLogEntry[] = [
       {
         entryType: 'thinking',
@@ -305,6 +337,7 @@ describe('useAcpTimeline streaming merge regression', () => {
         content: 'Read db/schema.ts',
         timestamp: '2026-01-01T00:00:01Z',
         turnIndex: 0,
+        messageId: 't1',
         metadata: { toolCallId: 't1', isResult: false },
         toolDetail: { kind: 'file-read', toolName: 'Read', toolCallId: 't1', isResult: false },
       },
@@ -318,7 +351,6 @@ describe('useAcpTimeline streaming merge regression', () => {
     ]
 
     const order1 = rebuildAcpTimeline(baseEntries).items.map(i => i.type)
-
     // Shuffle entries (different arrival order, same semantic content)
     const shuffled = [baseEntries[1], baseEntries[0], baseEntries[2]]
     const order2 = rebuildAcpTimeline(shuffled).items.map(i => i.type)
