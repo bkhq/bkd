@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatMessages } from '@/hooks/use-chat-messages'
 import { useIssueStream } from '@/hooks/use-issue-stream'
 import type { IssueEventHandler } from '@/lib/event-bus'
-import type { NormalizedLogEntry } from '@/types/kanban'
+import type { NormalizedLogEntry, TimelineEntry } from '@/types/kanban'
 
 const subscribeMock = vi.fn()
 const getIssueLogsMock = vi.fn()
@@ -138,7 +138,7 @@ describe('useIssueStream', () => {
 
     // Push MAX_LIVE_LOGS + 10 entries via SSE to trigger trimming
     const totalEntries = MAX_LIVE_LOGS + 10
-    const allEntries: NormalizedLogEntry[] = []
+    const allEntries: TimelineEntry[] = []
     for (let i = 0; i < totalEntries; i++) {
       const ts = new Date(Date.now() + i * 100).toISOString()
       // ULID-like IDs: pad with leading zeros so sort is correct
@@ -150,7 +150,8 @@ describe('useIssueStream', () => {
         content: `msg-${i}`,
         timestamp: ts,
         turnIndex: i,
-      } as NormalizedLogEntry)
+        type: 'assistant',
+      })
     }
 
     act(() => {
@@ -203,14 +204,15 @@ describe('useIssueStream', () => {
       return () => {}
     })
 
-    const persistedEntry = {
+    const persistedEntry: TimelineEntry = {
       id: 'turn-1-assistant',
       messageId: '01ARZ3NDEKTSV4RRFFQ69G5FAA',
       entryType: 'assistant-message',
       content: 'Same content',
       timestamp: new Date().toISOString(),
       turnIndex: 1,
-    } as NormalizedLogEntry
+      type: 'assistant',
+    }
 
     getIssueLogsMock.mockResolvedValue({
       issue: null,
@@ -238,13 +240,14 @@ describe('useIssueStream', () => {
     expect(result.current.logs[0]?.messageId).toBe('01ARZ3NDEKTSV4RRFFQ69G5FAA')
 
     // Simulate a late streaming chunk arriving after the snapshot
-    const streamingChunk: NormalizedLogEntry = {
+    const streamingChunk: TimelineEntry = {
       id: 'turn-1-assistant',
       messageId: '01ARZ3NDEKTSV4RRFFQ69G5FAA',
       entryType: 'assistant-message',
       content: 'Same content',
       timestamp: new Date().toISOString(),
       turnIndex: 1,
+      type: 'assistant',
       metadata: { streaming: true },
     }
 
