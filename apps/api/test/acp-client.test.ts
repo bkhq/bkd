@@ -564,6 +564,51 @@ describe('AcpLogNormalizer', () => {
     const thinkingEntries = entries.filter(e => e.entryType === 'thinking')
     expect(thinkingEntries).toHaveLength(0)
   })
+
+  // Heap-bound regression guard. The pre-596bf4a `agent_thought_chunk` handler
+  // computed `state.thinkingTextParts.join('')` twice and `startsWith` once
+  // per chunk — O(N) per chunk → O(N²) cumulative. With 5000 chunks that
+  // produces ~1.25 GB of transient string allocations, ballooning V8/JSC heap
+  // and OS-resident pages into the hundreds of MB. After 596bf4a the inner
+  // loop just pushes the chunk into the parts array (O(chunkSize)) and emits
+  // the chunk text verbatim, so total allocation stays in the low MB.
+  //
+  // RSS rather than heapUsed because heapUsed can shrink near-zero after
+  // `Bun.gc(true)` regardless of allocation history; what matters for the
+  // OOM scenario is the heap high-water-mark / RSS, which sticks around. A
+  // 100 MB threshold catches the quadratic regression with ~10× safety
+  // margin against healthy linear behavior + concurrent test fixture noise.
+  test('5000 thought chunks stays under 100 MB RSS delta (O(N) regression guard)', () => {
+    const N = 5000
+    const CHUNK_BYTES = 100
+    const chunkText = 'y'.repeat(CHUNK_BYTES)
+
+    // Warm up the JIT so first-call costs don't pollute the measurement.
+    const warmup = new AcpLogNormalizer()
+    for (let i = 0; i < 200; i++) {
+      warmup.parse(JSON.stringify({
+        type: 'acp-session-update',
+        timestamp: '2026-03-13T00:00:00.000Z',
+        update: { sessionUpdate: 'agent_thought_chunk', content: chunkText },
+      }))
+    }
+
+    Bun.gc(true)
+    const before = process.memoryUsage().rss
+
+    const normalizer = new AcpLogNormalizer()
+    for (let i = 0; i < N; i++) {
+      normalizer.parse(JSON.stringify({
+        type: 'acp-session-update',
+        timestamp: '2026-03-13T00:00:00.000Z',
+        update: { sessionUpdate: 'agent_thought_chunk', content: chunkText },
+      }))
+    }
+
+    Bun.gc(true)
+    const delta = process.memoryUsage().rss - before
+    expect(delta).toBeLessThan(100 * 1024 * 1024)
+  })
 })
 
 describe('parseAcpModel', () => {

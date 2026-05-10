@@ -413,6 +413,45 @@ describe('CodexExecutor.normalizeLog', () => {
       }
       expect(out).toEqual(['Step 1\n', 'Step 2\n', 'Step 3'])
     })
+
+    // Heap-bound regression guard. Under the pre-561352e O(N²) accumulator
+    // pattern, processing 5000 reasoning chunks would allocate ~1.25 GB of
+    // transient strings (Σ k from 1 to N of k×chunkSize), which forces V8/JSC
+    // to expand its heap into the hundreds of MB. After 561352e the inner
+    // loop is O(chunkSize) per call, total allocation ~500 KB → heap growth
+    // is dwarfed by other test fixture overhead.
+    //
+    // We measure RSS rather than heapUsed: heapUsed shrinks back to near-zero
+    // after `Bun.gc(true)` regardless of which version ran (transients all
+    // become reclaimable), but the heap high-water-mark and OS-resident pages
+    // stick around — which is exactly what eats the 10 GB OOM budget in
+    // production. 100 MB threshold has a ~10× safety margin against the
+    // healthy linear path while still catching the quadratic regression
+    // (would balloon by hundreds of MB).
+    test('5000 reasoning chunks stays under 100 MB RSS delta (O(N) regression guard)', () => {
+      const N = 5000
+      const CHUNK_BYTES = 100
+      const chunk = 'x'.repeat(CHUNK_BYTES)
+
+      // Warm up so the JIT and any one-time allocations don't show up
+      // in the measurement window.
+      const warmup = executor.createNormalizer()
+      for (let i = 0; i < 200; i++) {
+        warmup.parse(JSON.stringify({ method: 'item/reasoning/textDelta', params: { delta: chunk } }))
+      }
+
+      Bun.gc(true)
+      const before = process.memoryUsage().rss
+
+      const stateful = executor.createNormalizer()
+      for (let i = 0; i < N; i++) {
+        stateful.parse(JSON.stringify({ method: 'item/reasoning/textDelta', params: { delta: chunk } }))
+      }
+
+      Bun.gc(true)
+      const delta = process.memoryUsage().rss - before
+      expect(delta).toBeLessThan(100 * 1024 * 1024)
+    })
   })
 
   // ------------------------------------------------------------------
