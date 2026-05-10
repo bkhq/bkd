@@ -34,38 +34,57 @@ const MAX_LIVE_LOGS = 500
 
 /**
  * Sort by backend-assigned monotonic `sequence` for strict insertion order.
- * Falls back to (turnIndex, timestamp) for entries that pre-date the field
- * (legacy DB rows), and finally to id for total stability.
+ *
+ * Backend's `TimelineConverter` (or the local fallback in `toTimelineEntry`
+ * below) guarantees a defined `sequence` on every TimelineEntry. The previous
+ * "legacy first" branch was a fragile escape hatch — any single missing
+ * `sequence` pinned an entry ahead of all properly-sequenced ones, which
+ * could rotate the timeline visibly. Removed.
+ *
+ * Tiebreaker on identical `sequence` (rare; backend's `max(ts*1000, lastSeq+1)`
+ * is strictly monotonic per issue) is the lexicographic id — segment ids are
+ * zero-padded so this matches numerical insertion order for thinking and
+ * assistant segments.
  */
 function compareTimeline(a: TimelineEntry, b: TimelineEntry): number {
-  const sa = a.sequence
-  const sb = b.sequence
-  if (sa !== undefined && sb !== undefined) return sa - sb
-  // Mixed legacy + new: legacy rows go first to keep history stable.
-  if (sa === undefined && sb !== undefined) return -1
-  if (sa !== undefined && sb === undefined) return 1
-
-  const ta = a.turnIndex ?? 0
-  const tb = b.turnIndex ?? 0
-  if (ta !== tb) return ta - tb
-  const tsa = a.timestamp ? new Date(a.timestamp).getTime() : 0
-  const tsb = b.timestamp ? new Date(b.timestamp).getTime() : 0
-  if (tsa !== tsb) return tsa - tsb
+  const sa = a.sequence ?? 0
+  const sb = b.sequence ?? 0
+  if (sa !== sb) return sa - sb
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
 /**
  * Convert backend NormalizedLogEntry to frontend TimelineEntry.
- *  Backend already sends TimelineEntry (with stable id) via SSE — use it directly.
+ *
+ * Backend already sends fully-populated TimelineEntry via SSE — id, type, AND
+ * sequence. Older payloads (e.g. mocks in legacy tests, or hypothetical
+ * upstream regressions that strip the sequence field) fall through to the
+ * synthesizer below. `compareTimeline` requires every entry to carry a
+ * sequence; without one, all entries collapse to sequence=0 and the id-based
+ * tiebreaker takes over — which is lexicographic and breaks numerical turn
+ * ordering once turn numbers cross 9.
  */
 function toTimelineEntry(entry: NormalizedLogEntry): TimelineEntry {
-  // Backend TimelineEntry extends NormalizedLogEntry and adds id + type
+  // Backend TimelineEntry extends NormalizedLogEntry and adds id + type.
   const e = entry as Partial<TimelineEntry>
+
+  // Synthesize sequence whenever it's missing — this is the single
+  // chokepoint for "every TimelineEntry has a defined sequence by the time
+  // it lands in liveLogs". Mirrors the backend formula `ts * 1000` so when
+  // the canonical entry arrives later it carries an equal-or-larger value
+  // (backend uses `max(ts*1000, lastSeq+1)`) and replacement preserves order.
+  const synthesizedSeq = (() => {
+    if (e.sequence !== undefined) return e.sequence
+    const ts = entry.timestamp ? new Date(entry.timestamp).getTime() : Date.now()
+    return ts * 1000
+  })()
+
   if (e.id && e.type) {
-    return entry as TimelineEntry
+    if (e.sequence !== undefined) return entry as TimelineEntry
+    return { ...entry, sequence: synthesizedSeq } as TimelineEntry
   }
 
-  // Fallback: generate id locally for plain NormalizedLogEntry
+  // Fallback: generate id locally for plain NormalizedLogEntry.
   const typeMap: Record<string, TimelineEntry['type']> = {
     'thinking': 'thinking',
     'assistant-message': 'assistant',
@@ -80,16 +99,11 @@ function toTimelineEntry(entry: NormalizedLogEntry): TimelineEntry {
     ? `turn-${turn}-${type}`
     : `turn-${turn}-${type}-${entry.messageId ?? Date.now()}`
 
-  // Synthetic sequence for legacy entries that pre-date the backend field.
-  // Mirrors the backend formula: ms-since-epoch * 1000 so legacy entries
-  // sort consistently against modern ones (modern wins on tie because
-  // they have larger or equal values from the canonical converter).
-  const ts = entry.timestamp ? new Date(entry.timestamp).getTime() : Date.now()
   return {
     ...entry,
     id,
     type,
-    sequence: ts * 1000,
+    sequence: synthesizedSeq,
   } as TimelineEntry
 }
 
@@ -268,12 +282,20 @@ export function useIssueStream({
       // (see findExisting: matches on messageId when ids differ, which they
       // do because backend prefixes user ids with `turn-{N}-user-`).
       //
-      // Sequence is `Date.now() * 1000` to mirror the backend's timestamp-
-      // based sequence formula, so the optimistic entry sorts to the bottom
-      // of the timeline immediately. Without this, an undefined `sequence`
-      // sorted before all backend entries (root cause: post-restart user
-      // message disappearing until refresh).
+      // Sequence must out-rank EVERY existing live entry so the optimistic
+      // bubble lands at the bottom regardless of the entries already in
+      // view. Using `Date.now() * 1000` alone (the previous formula) loses
+      // the race when an entry with `sequence > Date.now() * 1000` is
+      // already present — e.g. a `loading`/`system-message` emitted slightly
+      // after the user pressed send. The canonical replacement carries the
+      // backend's strictly-monotonic sequence (which is also `> maxSeqAtSendTime`
+      // by `max(ts*1000, lastSeq+1)`), so position survives the swap.
       const now = Date.now()
+      const maxSeq = liveLogsRef.current.reduce(
+        (m, e) => ((e.sequence ?? 0) > m ? (e.sequence ?? 0) : m),
+        0,
+      )
+      const sequence = Math.max(maxSeq + 1, now * 1000)
       appendEntry({
         id: messageId,
         messageId,
@@ -282,7 +304,7 @@ export function useIssueStream({
         entryType: 'user-message',
         content: trimmed,
         timestamp: new Date(now).toISOString(),
-        sequence: now * 1000,
+        sequence,
         metadata: metadata ?? {},
       })
     },
@@ -292,13 +314,22 @@ export function useIssueStream({
   const removeEntries = useCallback((ids: string[]) => {
     if (ids.length === 0) return
     const idSet = new Set(ids)
+    // Backend emits removal events with raw `messageId` (DB primary keys,
+    // ULIDs) — see `emitIssueLogRemoved` in `events/issue-events.ts`. Frontend
+    // timeline entries carry `id` in the converter form `turn-N-{type}-...`,
+    // which never matches a raw ULID. Match on either field so pending
+    // recall (DELETE /pending) and turn-completion relocations actually
+    // remove the rendered entries instead of leaving them visible until the
+    // next `/logs` refresh.
+    const matches = (e: TimelineEntry) =>
+      idSet.has(e.id) || (e.messageId !== undefined && idSet.has(e.messageId))
     setLiveLogs((prev) => {
-      const next = prev.filter(e => !idSet.has(e.id))
+      const next = prev.filter(e => !matches(e))
       liveLogsRef.current = next
       return next
     })
     setOlderLogs((prev) => {
-      const next = prev.filter(e => !idSet.has(e.id))
+      const next = prev.filter(e => !matches(e))
       olderLogsRef.current = next
       return next
     })
@@ -318,13 +349,19 @@ export function useIssueStream({
         }
         olderCursorRef.current = data.nextCursor
         setHasOlderLogs(data.hasMore)
+        // Normalize through toTimelineEntry so any entry missing `sequence`
+        // (legacy DB rows from before TimelineConverter, or test fixtures)
+        // gets a synthesized one. Without this, sequence-less entries collapse
+        // to sequence=0 on sort and the lexicographic id tiebreaker reorders
+        // them — see compareTimeline.
+        const incoming = data.logs.map(e => toTimelineEntry(e))
         setOlderLogs((prev) => {
           // Dedup by id — repeated loads (rare but possible on cursor edges)
           // would otherwise stack duplicates in the array even though the
           // outer logs useMemo dedupes for render.
           const map = new Map<string, TimelineEntry>()
           for (const e of prev) map.set(e.id, e)
-          for (const e of data.logs) map.set(e.id, e)
+          for (const e of incoming) map.set(e.id, e)
           const next = Array.from(map.values()).sort(compareTimeline)
           olderLogsRef.current = next
           return next
@@ -338,7 +375,20 @@ export function useIssueStream({
       })
   }, [projectId, issueId, isLoadingOlder, typesFilter])
 
-  // Scope / status effects
+  // Scope / status effects.
+  //
+  // The render-time inline block above (search "Scope change") already does
+  // the heavy lifting — caches outgoing logs, restores cached logs for the
+  // new scope, resets refs. This effect just publishes the new scope into
+  // `streamScopeRef` so subscribers (the SSE handler below, the historical
+  // /logs fetcher) can detect a scope change.
+  //
+  // Critically, this effect MUST NOT call `clearLogs()` on a scope change.
+  // The inline block runs first (during render) and writes the cached logs
+  // into `liveLogs` state. If this effect then calls `clearLogs()` it wipes
+  // the just-restored cache, leaving the timeline blank until the /logs
+  // request returns — defeating the LRU cache entirely and producing a
+  // visible blank-then-flicker on every issue switch.
   useEffect(() => {
     if (!issueId || !enabled) {
       streamScopeRef.current = null
@@ -350,7 +400,6 @@ export function useIssueStream({
     if (streamScopeRef.current !== scope) {
       streamScopeRef.current = scope
       setSessionStatus(externalStatus ?? null)
-      clearLogs()
     }
   }, [projectId, issueId, enabled, clearLogs, externalStatus, typesKey])
 
@@ -373,10 +422,13 @@ export function useIssueStream({
       .getIssueLogs(projectId, issueId, typesFilter ? { types: typesFilter } : undefined)
       .then((data) => {
         if (cancelled || streamScopeRef.current !== scope) return
+        // Normalize so every entry has a `sequence` (no-op for backend output;
+        // synthesizes for legacy / test fixtures).
+        const incoming = data.logs.map(e => toTimelineEntry(e))
         setLiveLogs((prev) => {
           if (prev.length === 0) {
-            liveLogsRef.current = data.logs
-            return data.logs
+            liveLogsRef.current = incoming
+            return incoming
           }
           // Fresh data from /logs is the authoritative reconstruction
           // (TimelineConverter on the server rebuilt it from the full log
@@ -387,14 +439,14 @@ export function useIssueStream({
           // Order: cache first, fresh data overwrites by id.
           const map = new Map<string, TimelineEntry>()
           for (const e of prev) map.set(e.id, e)
-          for (const e of data.logs) map.set(e.id, e)
+          for (const e of incoming) map.set(e.id, e)
           const next = Array.from(map.values()).sort(compareTimeline)
           liveLogsRef.current = next
           return next
         })
         olderLogsRef.current = []
         setOlderLogs([])
-        setCachedLogs(scope, data.logs)
+        setCachedLogs(scope, incoming)
         setHasOlderLogs(data.hasMore || trimCursorSetRef.current)
         if (!trimCursorSetRef.current) {
           olderCursorRef.current = data.nextCursor

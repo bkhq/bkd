@@ -573,7 +573,14 @@ function AssistantMessage({
         <button
           type="button"
           onClick={handleCopy}
-          className="absolute right-0 top-0 rounded p-1 text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-muted/40 transition-all opacity-0 group-hover:opacity-100 z-10"
+          // Always faintly visible (opacity-30) so users discover that raw
+          // markdown is copyable. The MarkdownContent rewrite changed the
+          // assistant message from a Shiki-tokenized raw-source view to a
+          // rendered HTML view, which made select-and-copy yield rendered
+          // text without the `**`/`#` markers. The Copy button calls
+          // `writeText(content)` with the original markdown source — we just
+          // need to make sure users can find it.
+          className="absolute right-0 top-0 rounded p-1 text-muted-foreground/40 hover:text-muted-foreground/80 hover:bg-muted/40 transition-all opacity-30 hover:opacity-100 z-10"
           title={t('session.copyMessage')}
         >
           {copied ?

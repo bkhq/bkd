@@ -3,9 +3,10 @@ import type { NormalizedLogEntry, TimelineEntry } from './types'
 // ────────────────────────────────────────────────────────────────────────────
 // TimelineConverter — single source of truth for NormalizedLogEntry → TimelineEntry.
 //
-// Both the SSE streaming path (events.ts → toTimelineEntry) and the batch HTTP
-// path (logs.ts → toTimeline) go through ONE stateful converter so live and
-// refreshed views are byte-for-byte identical.
+// Both the SSE streaming path (timeline-emit.ts → liveConverter.ingest) and
+// the batch HTTP path (logs.ts → toTimeline) go through ONE stateful converter
+// so live and refreshed views are byte-for-byte identical, including the
+// `sequence` field used for client-side sort.
 //
 // Key guarantees:
 //   - Multi-segment thinking/assistant per turn (split on tool/non-thinking).
@@ -111,9 +112,12 @@ interface IssueState {
   assistantFlushCount: number
   thinkingBuffer: Buffer | null
   assistantBuffer: Buffer | null
-  /** Per-ms tiebreaker counter (resets when timestamp moves forward). */
-  lastTimestampMs: number
-  subSeq: number
+  /**
+   * The last sequence number issued for this issue. Sequences are strictly
+   * monotonic — every call to `nextSequence` returns a value greater than
+   * `lastSeq`, regardless of timestamp ordering.
+   */
+  lastSeq: number
 }
 
 function newIssueState(): IssueState {
@@ -123,35 +127,45 @@ function newIssueState(): IssueState {
     assistantFlushCount: 0,
     thinkingBuffer: null,
     assistantBuffer: null,
-    lastTimestampMs: 0,
-    subSeq: 0,
+    lastSeq: 0,
   }
 }
 
 /**
- * Compute monotonic sequence number from entry timestamp.
+ * Compute a strictly-monotonic sequence number anchored to the entry timestamp.
  *
- * Formula: `timestamp_ms * 1000 + tiebreaker` — gives a single number that's
- * stable across:
- *   - Server restarts (live converter no longer starts from 0 and collides
- *     with old batch-converted entries that were sequenced 0..N)
- *   - Streaming vs batch paths (both compute the same value for the same
- *     timestamp, so refresh and live views agree)
- *   - Frontend optimistic adds (caller can compute `Date.now() * 1000`
- *     to position a pending entry at the bottom of the timeline)
- *
- * The tiebreaker (subSeq) handles the rare case of entries arriving within
- * the same millisecond — it keeps strict insertion order within that ms.
+ * Formula: `max(timestamp_ms * 1000, lastSeq + 1)` — guarantees:
+ *   - Strict monotonicity inside an issue, even when entries arrive with
+ *     out-of-order or backward timestamps (some engines emit chunks whose
+ *     `timestamp` lags wall-clock by a few ms; the previous formula could
+ *     emit a smaller sequence than its predecessor in that case).
+ *   - Determinism across paths: same input → same sequence regardless of
+ *     which TimelineConverter instance processed it. The live SSE singleton
+ *     and the per-request batch converter (in `toTimeline`) now agree
+ *     byte-for-byte, so frontend re-sorts on `/logs` refresh do not jitter
+ *     the rendered order.
+ *   - Optimistic adds on the frontend can still use `Date.now() * 1000` —
+ *     when the canonical entry replaces it, the canonical sequence is at
+ *     least as large (later wall-clock) and ordering is preserved.
  */
 function nextSequence(state: IssueState, entry: NormalizedLogEntry): number {
   const ts = entry.timestamp ? new Date(entry.timestamp).getTime() : Date.now()
-  if (ts > state.lastTimestampMs) {
-    state.lastTimestampMs = ts
-    state.subSeq = 0
-  } else {
-    state.subSeq++
-  }
-  return ts * 1000 + state.subSeq
+  const next = Math.max(ts * 1000, state.lastSeq + 1)
+  state.lastSeq = next
+  return next
+}
+
+/**
+ * Zero-padded segment suffix for thinking/assistant buffer ids.
+ *
+ * Why: segment ids feed into `compareTimeline`'s id-based tiebreaker. With
+ * a bare numeric suffix, lexicographic comparison ranks `thinking-10` before
+ * `thinking-2`. Padding to four digits keeps lexicographic == numerical for
+ * any turn with up to 9999 segments — effectively unbounded for real
+ * conversations.
+ */
+function segmentSuffix(count: number): string {
+  return count.toString().padStart(4, '0')
 }
 
 function bufferToEntry(
@@ -242,13 +256,12 @@ export class TimelineConverter {
         state.assistantFlushCount++
       }
       if (!state.thinkingBuffer) {
-        const suffix = state.thinkingFlushCount === 0 ? '' : `-${state.thinkingFlushCount}`
         state.thinkingBuffer = {
           content: entry.content,
           timestamp: entry.timestamp ?? new Date().toISOString(),
           metadata: buildMetadata(entry),
           entryType: entry.entryType,
-          id: `turn-${turn}-thinking${suffix}`,
+          id: `turn-${turn}-thinking-${segmentSuffix(state.thinkingFlushCount)}`,
           sequence: nextSequence(state, entry),
           messageId: entry.messageId,
         }
@@ -272,13 +285,12 @@ export class TimelineConverter {
         state.thinkingFlushCount++
       }
       if (!state.assistantBuffer) {
-        const suffix = state.assistantFlushCount === 0 ? '' : `-${state.assistantFlushCount}`
         state.assistantBuffer = {
           content: entry.content,
           timestamp: entry.timestamp ?? new Date().toISOString(),
           metadata: buildMetadata(entry),
           entryType: entry.entryType,
-          id: `turn-${turn}-assistant${suffix}`,
+          id: `turn-${turn}-assistant-${segmentSuffix(state.assistantFlushCount)}`,
           sequence: nextSequence(state, entry),
           messageId: entry.messageId,
         }
@@ -351,60 +363,35 @@ export class TimelineConverter {
 export const liveConverter = new TimelineConverter()
 
 /**
- * Convert a single entry for SSE streaming.
- *
- * Note: this returns a SINGLE entry (latest snapshot for that id). In the
- * streaming path each NormalizedLogEntry maps to exactly one SSE write, so
- * we collapse multi-emit cases (segment-flush + new-segment) into the LAST
- * entry of the ingest output. Callers that need every interim flush should
- * use `liveConverter.ingest()` directly.
- */
-export function toTimelineEntry(entry: NormalizedLogEntry): TimelineEntry {
-  // Issue id is unknown here (legacy single-arg signature). Use a global
-  // bucket so segment counters at least monotonic-rise within the process.
-  // The new path (events.ts) uses liveConverter.ingest with the real issueId.
-  const out = liveConverter.ingest('__legacy__', entry)
-  return out.at(-1) ?? {
-    id: `turn-${entry.turnIndex ?? 0}-${mapType(entry.entryType)}`,
-    turnIndex: entry.turnIndex ?? 0,
-    type: mapType(entry.entryType),
-    entryType: entry.entryType,
-    content: entry.content,
-    timestamp: entry.timestamp ?? new Date().toISOString(),
-    sequence: 0,
-    metadata: buildMetadata(entry),
-  }
-}
-
-/**
  * Batch conversion for the HTTP `/logs` endpoint. Creates a fresh converter,
- * ingests in chronological order, and flushes any tail buffers — guaranteeing
- * the result is identical to what the client accumulated via SSE.
+ * ingests entries in their incoming order, and flushes any tail buffers —
+ * guaranteeing the result is identical to what the client accumulated via SSE.
+ *
+ * No pre-sort: the caller must pass entries in the same order the live
+ * pipeline saw them. `getLogsFromDb` already returns rows ordered by id (ULID
+ * = chronological insertion order = wire order from `consumeStream`), so the
+ * batch path observes the same input sequence as `liveConverter.ingest`. With
+ * the strictly-monotonic `nextSequence` formula, this produces byte-identical
+ * `TimelineEntry` (including `sequence`) across both paths. A defensive
+ * pre-sort here would make sequences depend on canonical (turnIndex,
+ * timestamp) order while the live path keeps wire order, causing post-refresh
+ * timeline jumps.
  */
 export function toTimeline(entries: NormalizedLogEntry[]): TimelineEntry[] {
-  const sorted = [...entries].sort((a, b) => {
-    const ta = a.turnIndex ?? 0
-    const tb = b.turnIndex ?? 0
-    if (ta !== tb) return ta - tb
-    const tsa = a.timestamp ? new Date(a.timestamp).getTime() : 0
-    const tsb = b.timestamp ? new Date(b.timestamp).getTime() : 0
-    return tsa - tsb
-  })
-
   const conv = new TimelineConverter()
-  const out: TimelineEntry[] = []
   // Track the latest snapshot per id so multi-emit ingest results collapse to
   // one entry per id (matches what the client sees after SSE upserts).
   const byId = new Map<string, TimelineEntry>()
 
-  for (const entry of sorted) {
+  for (const entry of entries) {
     const produced = conv.ingest('batch', entry)
     for (const p of produced) byId.set(p.id, p)
   }
   for (const tail of conv.flush('batch')) byId.set(tail.id, tail)
 
-  // Re-emit in sequence order to preserve insertion order even after upserts.
-  for (const e of byId.values()) out.push(e)
-  out.sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
-  return out
+  // Re-emit in sequence order — it is the canonical insertion order on the
+  // client. Identical to `streamAndCollect` in tests.
+  return [...byId.values()].sort(
+    (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
+  )
 }

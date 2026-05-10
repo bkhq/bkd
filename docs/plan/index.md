@@ -1,6 +1,6 @@
 # BKD - Plan Index
 
-> Updated: 2026-04-14
+> Updated: 2026-05-10
 
 ## Usage
 
@@ -35,3 +35,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [ ] [**PLAN-004 Enable AskUserQuestion in claude-code-sdk executor (web UI answer flow)**](PLAN-004.md) `2026-04-18`
 - [x] [**PLAN-005 Fix OpenCode hanging without error on quota exhaustion**](PLAN-005.md) `2026-05-09`
 - [~] [**PLAN-006 Backend chat normalization & frontend simplification**](PLAN-006.md) `2026-05-09` (superseded — see PLAN-006 rationale)
+- [x] [**PLAN-007 Chat UI ordering root causes + invariant test coverage + markdown copy UX**](PLAN-007.md) `2026-05-10`

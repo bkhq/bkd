@@ -60,7 +60,7 @@ describe('toTimeline', () => {
     const result = toTimeline(entries)
     expect(result).toHaveLength(1)
     expect(result[0]).toMatchObject({
-      id: 'turn-0-assistant',
+      id: 'turn-0-assistant-0000',
       turnIndex: 0,
       type: 'assistant',
       content: 'Hello world',
@@ -352,8 +352,8 @@ describe('TimelineConverter — sequence and segment ids', () => {
     const conv = new TimelineConverter()
     const a = conv.ingest('A', { entryType: 'thinking', content: 'A1', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z' })
     const b = conv.ingest('B', { entryType: 'thinking', content: 'B1', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z' })
-    expect(a[0].id).toBe('turn-0-thinking')
-    expect(b[0].id).toBe('turn-0-thinking')
+    expect(a[0].id).toBe('turn-0-thinking-0000')
+    expect(b[0].id).toBe('turn-0-thinking-0000')
     expect(a[0].content).toBe('A1')
     expect(b[0].content).toBe('B1')
   })
@@ -363,13 +363,13 @@ describe('TimelineConverter — sequence and segment ids', () => {
     conv.ingest('x', { entryType: 'thinking', content: 'old', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z' })
     conv.reset('x')
     const out = conv.ingest('x', { entryType: 'thinking', content: 'new', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z' })
-    // Fresh state — first thinking in turn 0 has no segment suffix.
-    expect(out[0].id).toBe('turn-0-thinking')
+    // Fresh state — first thinking in turn 0 carries the zero-padded suffix.
+    expect(out[0].id).toBe('turn-0-thinking-0000')
     expect(out[0].content).toBe('new')
-    // Sequence is timestamp-based (ms-since-epoch * 1000) so post-reset
-    // entries still sort coherently against pre-reset state and against
-    // entries from the batch toTimeline path. After reset, the first
-    // entry's subSeq is 0, so sequence = ts * 1000 exactly.
+    // Sequence is anchored to entry timestamp (ms-since-epoch * 1000) and is
+    // strictly greater than the previous lastSeq. On a fresh-reset issue the
+    // first entry's lastSeq is 0, so sequence = max(ts * 1000, 1) — for any
+    // realistic timestamp this is just ts * 1000 exactly.
     expect(out[0].sequence).toBe(new Date('2026-01-01T00:00:00Z').getTime() * 1000)
   })
 
@@ -385,8 +385,8 @@ describe('TimelineConverter — sequence and segment ids', () => {
     const ids = new Set(thinkings.map(e => e.id))
     // Two distinct thinking segments → two distinct ids
     expect(ids.size).toBeGreaterThanOrEqual(2)
-    expect(ids.has('turn-0-thinking')).toBe(true)
-    expect(ids.has('turn-0-thinking-1')).toBe(true)
+    expect(ids.has('turn-0-thinking-0000')).toBe(true)
+    expect(ids.has('turn-0-thinking-0001')).toBe(true)
   })
 
   it('flush() emits final snapshots and clears in-flight buffers', () => {
@@ -398,6 +398,6 @@ describe('TimelineConverter — sequence and segment ids', () => {
     expect(tail[0].content).toBe('partial')
     // After flush, a follow-up thinking opens a fresh segment (no carry-over)
     const next = conv.ingest('q', { entryType: 'thinking', content: 'new', turnIndex: 0, timestamp: '2026-01-01T00:00:01Z' })
-    expect(next[0].id).toBe('turn-0-thinking-1')
+    expect(next[0].id).toBe('turn-0-thinking-0001')
   })
 })
