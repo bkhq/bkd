@@ -30,6 +30,10 @@ mock.module('@/engines/issue/diagnostic', () => ({
  * 5. Dead processes are terminated immediately
  */
 
+test('idle timeout is configured to 90 minutes', () => {
+  expect(IDLE_TIMEOUT_MS).toBe(90 * 60 * 1000)
+})
+
 // ---------- Mock helpers ----------
 
 function makeManagedProcess(
@@ -257,7 +261,7 @@ describe('gcSweep — stream stall detection', () => {
   })
 
   test('kills idle process after IDLE_TIMEOUT_MS (existing behavior)', () => {
-    const idleAt = new Date(Date.now() - IDLE_TIMEOUT_MS - 60_000) // 31 min ago
+    const idleAt = new Date(Date.now() - IDLE_TIMEOUT_MS - 60_000) // past idle timeout
     const managed = makeManagedProcess({
       issueId: 'issue-4',
       executionId: 'exec-4',
@@ -275,7 +279,7 @@ describe('gcSweep — stream stall detection', () => {
   })
 
   test('does NOT kill idle process within IDLE_TIMEOUT_MS', () => {
-    const recentIdle = new Date(Date.now() - 4 * 60_000) // 4 min ago (within 5 min timeout)
+    const recentIdle = new Date(Date.now() - 4 * 60_000) // within idle timeout
     const managed = makeManagedProcess({
       issueId: 'issue-5',
       executionId: 'exec-5',

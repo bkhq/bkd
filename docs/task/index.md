@@ -42,3 +42,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**AUTH-001 Remove OIDC authentication**](AUTH-001.md) `P2`
 - [x] [**WB-005 Remove whiteboard / mindmap feature**](WB-005.md) `P1`
 - [-] [**REL-001 Upgrade launcher Bun runtime**](REL-001.md) `P1`
+- [x] [**ENG-004 Extend idle engine timeout**](ENG-004.md) `P2`
