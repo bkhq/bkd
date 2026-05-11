@@ -15,10 +15,12 @@ Workspaces:
 ## Commands
 
 ```bash
-# Dev (starts both API + Vite in parallel via Bun --filter)
-bun run dev                  # API on 3010 + Vite on 3000
-bun run dev:api              # API server only (port 3010)
-bun run dev:frontend         # Vite dev server only (port 3000)
+# Dev (starts both API + Vite in parallel via Bun --filter; both wrapped in nsl)
+# Access via http://bkd.localhost — nsl proxy routes /api/* → API, rest → Vite.
+# This is the only dev entry point: Vite no longer has a /api/* proxy.
+bun run dev                  # API + Vite in parallel
+bun run dev:api              # API server only (port 3010, registered at bkd.localhost/api)
+bun run dev:frontend         # Vite dev server only (port 3000, registered at bkd.localhost)
 
 # All workspaces
 bun install                  # single install for all workspaces
@@ -148,7 +150,7 @@ All API responses use the envelope `{ success: true, data: T } | { success: fals
 - **Icons**: lucide-react
 - **i18n**: i18next + react-i18next, Chinese (zh, default) and English (en). Translations in `apps/frontend/src/i18n/{en,zh}.json`. Language persisted to localStorage (`i18n-lang`).
 - **Path alias**: `@/*` maps to `apps/frontend/src/*`
-- **Dev proxy**: Vite's built-in `server.proxy` forwards `/api/*` requests to the Bun API server (`localhost:3010`) during development
+- **Dev URL routing**: dev scripts wrap servers in `nsl run`, so `http://bkd.localhost/api/*` reaches the API and the rest reaches Vite. This is the only dev entry — Vite no longer has a `/api/*` proxy.
 
 #### State Management
 
@@ -200,7 +202,8 @@ Components use the shadcn/ui pattern: `cn()` utility (`apps/frontend/src/lib/uti
 
 ### Dev Workflow
 
-- `bun run dev` starts both API (port 3010) and Vite (port 3000) via `bun --filter '*' dev`. Vite proxies `/api/*` to the API server.
+- `bun run dev` starts both API (port 3010) and Vite (port 3000) via `bun --filter`. Each server is wrapped in `nsl run`, registering routes at `http://bkd.localhost/api` and `http://bkd.localhost/`. The nsl proxy daemon must be running (`bunx nsl start` once); the npm package `@nsio/nsl` is installed at the repo root, so `bun install` is the only setup step.
+- `http://bkd.localhost` is the only dev entry — Vite has no `/api/*` proxy.
 - `bun run dev:api` / `bun run dev:frontend` can be run individually in separate terminals if needed
 - Production: `bun run build` then `bun run start` — the Bun server handles both API and static file serving on port 3000
 

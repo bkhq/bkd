@@ -12,7 +12,7 @@
   },
   "module": "src/index.ts",
   "scripts": {
-    "dev": "bun --hot src/index.ts",
+    "dev": "nsl run --name bkd:/api bun --hot src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
     "test": "bun test --preload ./test/preload.ts test/",
     "test:watch": "bun test --preload ./test/preload.ts --watch test/",
@@ -20,26 +20,27 @@
     "db:migrate": "bunx drizzle-kit migrate"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.16.1",
-    "@anthropic-ai/claude-agent-sdk": "~0.2.114",
+    "@agentclientprotocol/sdk": "^0.21.0",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.138",
     "@hono/swagger-ui": "^0.6.1",
-    "@hono/zod-openapi": "^1.2.3",
-    "@hono/zod-validator": "^0.7.6",
+    "@hono/zod-openapi": "^1.4.0",
+    "@hono/zod-validator": "^0.8.0",
+    "bs58": "^6.0.0",
     "consola": "^3.4.2",
     "cronbake": "^0.4.0",
-    "drizzle-orm": "^0.45.1",
-    "hono": "^4.12.7",
-    "jittered-fractional-indexing": "^1.0.1",
-    "nanoid": "^5.1.6",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.18",
+    "jittered-fractional-indexing": "catalog:",
+    "nanoid": "^5.1.11",
     "pino": "^10.3.1",
     "ulid": "^3.0.2",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@bkd/tsconfig": "workspace:*",
-    "drizzle-kit": "^0.31.9",
-    "@libsql/client": "^0.17.0",
-    "@types/bun": "^1.3.11",
+    "@libsql/client": "^0.17.3",
+    "@types/bun": "^1.3.13",
+    "drizzle-kit": "^0.31.10",
     "typescript": "catalog:"
   }
 }

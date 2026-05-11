@@ -1,7 +1,6 @@
 {
   "extends": "@bkd/tsconfig/react.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     },

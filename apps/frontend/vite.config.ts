@@ -1,9 +1,8 @@
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import viteReact from '@vitejs/plugin-react'
-import tsconfigPaths from 'vite-tsconfig-paths'
-import type { Plugin } from 'vitest/config'
-import { defineConfig } from 'vitest/config'
+import { defineConfig, loadEnv } from 'vite'
+import type { Plugin } from 'vite'
 
 /**
  * Slim shiki bundles: ~20 languages (from 232), 2 themes (from 64),
@@ -45,59 +44,47 @@ function shikiSlim(): Plugin {
   }
 }
 
-const config = defineConfig(() => {
-  const apiPort = Number(process.env.VITE_API_PORT) || 3010
-  const devPort = Number(process.env.VITE_DEV_PORT) || 3000
-  const devHost = process.env.VITE_DEV_HOST || '0.0.0.0'
+const config = defineConfig(({ mode }) => {
+  const env = loadEnv(mode, import.meta.dirname)
+  const devPort = Number(env.VITE_DEV_PORT) || 3000
+  const devHost = env.VITE_DEV_HOST || '0.0.0.0'
 
   return {
     plugins: [
       shikiSlim(),
-      tsconfigPaths({ projects: ['./tsconfig.json'] }),
       tailwindcss(),
       viteReact(),
     ],
+    resolve: {
+      tsconfigPaths: true,
+    },
     build: {
-      rollupOptions: {
+      rolldownOptions: {
         output: {
-          manualChunks(id) {
-            if (!id.includes('node_modules')) return undefined
-            const m = id.match(/node_modules\/((?:@[^/]+\/)?[^/]+)/)
-            if (!m) return undefined
-            const pkg = m[1]
-            if (pkg === 'react' || pkg === 'scheduler') return 'vendor-react'
-            if (pkg === 'react-dom') return 'vendor-react-dom'
-            if (pkg === 'react-router' || pkg === 'react-router-dom') return 'vendor-router'
-            if (pkg === '@tanstack/react-query') return 'vendor-query'
-            if (pkg.startsWith('@dnd-kit/')) return 'vendor-dnd'
-            if (pkg.startsWith('@base-ui/') || pkg === 'lucide-react') return 'vendor-ui'
-            if (pkg === '@pierre/diffs') return 'vendor-diff'
-            if (pkg === 'shiki' || pkg.startsWith('@shikijs/')) return 'vendor-shiki'
-            if (pkg === 'i18next' || pkg === 'react-i18next') return 'vendor-i18n'
-            if (pkg === 'tailwind-merge' || pkg === 'clsx' || pkg === 'class-variance-authority')
-              return 'vendor-style'
-            if (pkg === 'zustand') return 'vendor-state'
-            if (pkg.startsWith('@xterm/')) return 'vendor-xterm'
+          advancedChunks: {
+            groups: [
+              { name: 'vendor-react-dom', test: /[\\/]node_modules[\\/]react-dom[\\/]/ },
+              { name: 'vendor-react', test: /[\\/]node_modules[\\/](react|scheduler)[\\/]/ },
+              { name: 'vendor-router', test: /[\\/]node_modules[\\/]react-router(-dom)?[\\/]/ },
+              { name: 'vendor-query', test: /[\\/]node_modules[\\/]@tanstack[\\/]react-query[\\/]/ },
+              { name: 'vendor-dnd', test: /[\\/]node_modules[\\/]@dnd-kit[\\/]/ },
+              { name: 'vendor-ui', test: /[\\/]node_modules[\\/](@base-ui[\\/]|lucide-react[\\/])/ },
+              { name: 'vendor-diff', test: /[\\/]node_modules[\\/]@pierre[\\/]diffs[\\/]/ },
+              { name: 'vendor-shiki', test: /[\\/]node_modules[\\/](shiki|@shikijs)[\\/]/ },
+              { name: 'vendor-i18n', test: /[\\/]node_modules[\\/](i18next|react-i18next)[\\/]/ },
+              { name: 'vendor-style', test: /[\\/]node_modules[\\/](tailwind-merge|clsx|class-variance-authority)[\\/]/ },
+              { name: 'vendor-state', test: /[\\/]node_modules[\\/]zustand[\\/]/ },
+              { name: 'vendor-xterm', test: /[\\/]node_modules[\\/]@xterm[\\/]/ },
+            ],
           },
         },
       },
     },
-    test: {
-      environment: 'jsdom',
-      globals: true,
-      setupFiles: ['./src/test-setup.ts'],
-    },
     server: {
       port: devPort,
       host: devHost,
-      // Dev only: allow all hosts
+      // Dev only: allow all hosts (nsl proxy fronts the dev server)
       allowedHosts: true,
-      proxy: {
-        '/api': {
-          target: `http://localhost:${apiPort}`,
-          changeOrigin: true,
-        },
-      },
     },
   }
 })

@@ -6,23 +6,29 @@
 # Install Bun
 curl -fsSL https://bun.sh/install | bash
 
-# Install dependencies
+# Install dependencies (also installs the nsl dev-URL proxy as @nsio/nsl)
 bun install
 
 # Configure environment
 cp .env.example .env
 
-# Start dev server (API on 3010, frontend on 3000)
+# Start the nsl proxy daemon once (enables http://bkd.localhost routing)
+bunx nsl start
+
+# Start dev server (API on 3010, Vite on 3000, both fronted by nsl)
 bun run dev
 ```
+
+Open `http://bkd.localhost` — nsl routes `/api/*` to the backend (3010) and everything else to Vite (3000). This is the only dev entry point; Vite no longer proxies `/api/*`, so `localhost:3000` will not reach the API.
 
 ## Scripts
 
 ```bash
-# Development
+# Development (each `dev` script is wrapped in `nsl run` to register
+# the server at http://bkd.localhost; see Quick Start above)
 bun run dev              # API + frontend in parallel
-bun run dev:api          # API only (port 3010)
-bun run dev:frontend     # Frontend only (port 3000)
+bun run dev:api          # API only (port 3010, route bkd.localhost/api)
+bun run dev:frontend     # Frontend only (port 3000, route bkd.localhost/)
 
 # Code Quality
 bun run lint             # ESLint check (linting + formatting, all workspaces)
@@ -209,7 +215,8 @@ The engine layer is the most complex part of the backend:
 - **State**: Zustand for UI-only state (drag state, panel open/close, view mode)
 - **Syntax highlighting**: Shiki (slim bundle via custom Vite plugin)
 - **Path alias**: `@/*` maps to `apps/frontend/src/*`
-- **Dev proxy**: Vite forwards `/api/*` to `localhost:3010`
+- **Dev URL routing**: `nsl run` wraps the dev servers; access the app at `http://bkd.localhost` (canonical and only path — Vite no longer has a `/api/*` proxy)
+- **Vitest config**: lives in `apps/frontend/vitest.config.ts` (separate from `vite.config.ts`, only loads `tsconfigPaths` + `viteReact` + jsdom env)
 
 #### Routes
 
@@ -275,11 +282,14 @@ Server name, server URL, webhooks, max concurrent sessions, and other runtime se
 
 ### Frontend (`apps/frontend/.env`)
 
-| Variable        | Description            | Default   |
-| --------------- | ---------------------- | --------- |
-| `VITE_DEV_PORT` | Dev server port        | `3000`    |
-| `VITE_DEV_HOST` | Dev server host        | `0.0.0.0` |
-| `VITE_API_PORT` | API port for dev proxy | `3010`    |
+`vite.config.ts` reads these via `loadEnv(mode, import.meta.dirname)` (Vite-standard `.env` resolution: `.env`, `.env.local`, `.env.[mode]`, `.env.[mode].local`, then matching `process.env` entries).
+
+| Variable        | Description     | Default   |
+| --------------- | --------------- | --------- |
+| `VITE_DEV_PORT` | Dev server port | `3000`    |
+| `VITE_DEV_HOST` | Dev server host | `0.0.0.0` |
+
+> Dev routing goes through nsl at `http://bkd.localhost`. Vite no longer proxies `/api/*` — access the app via `bkd.localhost`. nsl is dev-only — production builds serve everything from a single Bun process.
 
 ## Adding a New API Endpoint (end-to-end)
 

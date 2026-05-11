@@ -13,7 +13,7 @@ let baker: Baker | null = null
 const EVERY_UNITS = new Set(['seconds', 'minutes', 'hours', 'dayOfMonth', 'months', 'dayOfWeek'])
 const SHORT_UNIT_MAP: Record<string, string> = { s: 'seconds', m: 'minutes', h: 'hours', d: 'dayOfMonth' }
 const NAMED_ALIASES = new Set(['@every_second', '@every_minute', '@hourly', '@daily', '@weekly', '@monthly', '@yearly', '@annually'])
-const EVERY_SHORTHAND_RE = /^@every_(\d+)(s|m|h|d)$/
+const EVERY_SHORTHAND_RE = /^@every_(\d+)([smhd])$/
 
 export const SUPPORTED_CRON_FORMATS = [
   '5-field standard: "* * * * *" (min hour dom month dow)',
