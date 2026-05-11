@@ -117,6 +117,19 @@
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
+
+  /* ─── Density tokens (PLAN-012) ───────────────────────────────────────
+     Component-density scale. Keep tight ranges — every extra tier is
+     a license for inconsistency. Icon sizes track the typography body
+     scale; control heights ladder in 4px steps from 24-36px. */
+  --size-icon-sm: 0.875rem;  /* 14px — meta icons inside chips/badges */
+  --size-icon-md: 1rem;      /* 16px — toolbar icon buttons */
+  --size-icon-lg: 1.25rem;   /* 20px — primary actions / drawer titles */
+
+  --size-control-xs: 1.5rem;   /* 24px — chip-mounted close 'x', dense rows */
+  --size-control-sm: 1.75rem;  /* 28px — toolbar icon buttons + chips */
+  --size-control-md: 2rem;     /* 32px — standard inputs */
+  --size-control-lg: 2.25rem;  /* 36px — page-level primary buttons */
 }
 
 /* ─── Entry animations ─── */
@@ -265,6 +278,30 @@
 
   .dark *:hover {
     scrollbar-color: oklch(0.8 0 0 / 25%) transparent;
+  }
+}
+
+@layer components {
+  /* ─── Chip surface (PLAN-012) ────────────────────────────────────────
+     Reusable pill surface for toolbar config controls. Replaces the
+     5-line inline className that was duplicated across Mode/Model/
+     BusyAction/Diff badges. Apply data-active='true' for the selected
+     state (Diff panel open, etc). Override individual properties via
+     cn() append — class-merge handles last-write-wins. */
+  .chip-surface {
+    @apply inline-flex items-center gap-1 h-7 px-2.5 rounded-full
+           text-[11px] font-medium border border-border/30
+           bg-muted/40 text-muted-foreground
+           hover:bg-muted/60 transition-colors;
+  }
+
+  .chip-surface[data-active='true'] {
+    @apply border-primary/30 bg-primary/10 text-foreground;
+  }
+
+  .chip-surface[disabled],
+  .chip-surface[aria-disabled='true'] {
+    @apply opacity-60 cursor-not-allowed hover:bg-muted/40;
   }
 }
 

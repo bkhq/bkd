@@ -1,6 +1,6 @@
 # BKD - Plan Index
 
-> Updated: 2026-05-11
+> Updated: 2026-05-11 (PLAN-012)
 
 ## Usage
 
@@ -40,3 +40,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-009 OpenCode assistant/thinking double-emit fix via dbOnly pipeline lane**](PLAN-009.md) `2026-05-10`
 - [x] [**PLAN-010 Pin TimelineEntry sequence on same-id upsert**](PLAN-010.md) `2026-05-11`
 - [x] [**PLAN-011 Clickable file path chips with quick preview drawer**](PLAN-011.md) `2026-05-11`
+- [x] [**PLAN-012 ChatInput density refactor + design token primitives**](PLAN-012.md) `2026-05-11`

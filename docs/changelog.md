@@ -1,5 +1,49 @@
 # Changelog
 
+## 2026-05-11 18:10 [progress]
+
+ChatInput toolbar density refactor + design-token primitives (UI-001 /
+UI-002 / PLAN-012). The chat composer's bottom row used to pack 12
+interactive elements (4 icon buttons + 4 config chips + 4 right-side
+actions); on narrower laptops it overflowed and visually competed with
+the textarea. The refactor folds the toolbar into three legible groups,
+collapses three separate config chips into a single combined chip, and
+hides three rarely-used desktop controls behind a "More" trigger.
+
+- Engine + Mode + Model chips merge into a single `EngineConfigChip`
+  whose surface shows `<EngineIcon> {mode} · {model}` and whose popover
+  carries an immutable "current engine" header (so users never lose
+  track of which engine the session is bound to, per user feedback).
+- New desktop `DesktopMoreMenu` collects Refresh / Open files / Clear
+  session into a `⋯` popover; mobile keeps `MobileMoreMenu`, now with
+  an explicit "Current engine" label section since the combined chip
+  isn't visible on small viewports.
+- Diff status badge moves from the middle of the row to the right group,
+  immediately left of Send — visually bound to the action cluster.
+- New `<IconButton>` primitive maps a friendly `size: sm|md|lg` API onto
+  the existing `<Button size="icon-*">` ladder + adds an `active` prop
+  for selected-state surfaces, and a new `<Chip>` primitive consumes the
+  new `chip-surface` CSS component class so the 5-line inline pill
+  className soup no longer needs duplicating per call site.
+- `apps/frontend/src/index.css` gains a small density-token scale
+  (3 icon sizes, 4 control heights) under `@theme inline`, plus the
+  `.chip-surface` component class with `data-active` / `disabled`
+  variants. Visual output unchanged until consumers opt in.
+- Dead code removed from `ChatInput.tsx`: the standalone `ModeSelect`
+  and `ModelSelect` private components are no longer reachable after
+  the combined chip subsumes them.
+- New i18n keys: `chat.more`, `chat.configChipTitle`,
+  `chat.configChipCurrentEngine` (en + zh).
+- New test file `ChatInputDensity.test.tsx` (8 cases) pins the
+  invariants: single combined chip, More menu contents, diff badge in
+  the right group, popover engine header, model-less chip degrades
+  cleanly, no duplicate diff badge. All 19 frontend test files (145
+  tests) still pass.
+
+This is phase 1+2 of a longer UI polish track. Phase 3 (KanbanColumn,
+ProcessCard, Drawer headers, HomePage card balance) and phase 4 (color
+ladder + hover-state consolidation) are deferred to a future PLAN.
+
 ## 2026-05-11 17:55 [progress]
 
 Clickable file path chips in chat + quick file preview drawer (FILE-002 /

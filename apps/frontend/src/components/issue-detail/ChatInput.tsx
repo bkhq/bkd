@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Chip } from '@/components/ui/chip'
 import {
   Command,
   CommandEmpty,
@@ -33,6 +34,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
+import { IconButton } from '@/components/ui/icon-button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DropdownMenu,
@@ -45,6 +47,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
 import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue, useOmitModel, useRestartIssue } from '@/hooks/use-kanban'
 import { formatFileSize, formatModelName } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { BusyAction, EngineModel, SessionStatus } from '@/types/kanban'
 
@@ -766,9 +769,12 @@ export function ChatInput({
           className="w-full bg-transparent text-base md:text-sm resize-none outline-none border-none shadow-none placeholder:text-muted-foreground/40 leading-relaxed focus-visible:ring-0 overflow-y-auto min-h-[36px] px-3 pt-2.5 pb-1 [field-sizing:fixed]"
         />
 
-        {/* Row 2: Toolbar — 3 groups with dividers */}
+        {/* Row 2: Toolbar — 3 groups, no dividers (whitespace + flex grouping does the work).
+            Left:   high-frequency icon buttons (attach / commands / more).
+            Center: combined engine·mode·model chip (replaces 3 separate chips).
+            Right:  diff status + restart + send. */}
         <div className="flex items-center gap-1 px-2 pb-2 pt-0.5">
-          {/* Group 1: Actions */}
+          {/* Left group */}
           <Button
             variant="ghost"
             size="icon"
@@ -791,54 +797,35 @@ export function ChatInput({
                 </div>
               ) :
             null}
-          <Button
-            variant="ghost"
-            size="icon"
-            title={t('chat.refreshLogs')}
-            onClick={onRefreshLogs}
-            className="size-7 max-md:hidden"
-          >
-            <RefreshCw className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            title={t('diff.openFiles')}
-            onClick={() => projectId && issueId && openFileBrowser(projectId, issueId, changesRoot)}
-            className="size-7 max-md:hidden"
-          >
-            <FolderOpen className="size-3.5" />
-          </Button>
+          {/* Desktop overflow menu — refresh / files / clear session.
+              Moves rarely-used controls off the visible row so the toolbar
+              stays scannable. Mobile uses MobileMoreMenu below which already
+              folds these in. */}
+          <div className="max-md:hidden">
+            <DesktopMoreMenu
+              onRefreshLogs={onRefreshLogs}
+              onOpenFileBrowser={() => projectId && issueId && openFileBrowser(projectId, issueId, changesRoot)}
+              onClearSession={() => setClearSessionOpen(true)}
+              clearSessionDisabled={!issueId || isSessionActive || clearSession.isPending}
+            />
+          </div>
 
-          {/* Divider — desktop only */}
-          <div className="w-px h-3.5 bg-border/30 mx-0.5 max-md:hidden" />
-
-          {/* Group 2: Chips — desktop only */}
-          {engineType ?
-              (
-                <button
-                  type="button"
-                  className="max-md:hidden inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-medium border border-border/30 bg-muted/40 text-muted-foreground hover:bg-muted/60 transition-colors"
-                >
-                  <EngineIcon engineType={engineType} className="size-3 shrink-0" />
-                  <span className="max-w-[80px] truncate">{t(`createIssue.engineLabel.${engineType}`, engineType)}</span>
-                </button>
-              ) :
-            null}
-          <div className="max-md:hidden"><ModeSelect value={mode} onChange={setMode} /></div>
-          {models.length > 0 ?
-              (
-                <div className="max-md:hidden">
-                  <ModelSelect
-                    models={models}
-                    value={activeModel}
-                    onChange={setSelectedModel}
-                    disabled={isSessionActive || modelLocked}
-                    locked={modelLocked}
-                  />
-                </div>
-              ) :
-            null}
+          {/* Center: combined chip — desktop only.
+              Replaces the previous Engine + Mode + Model trio. Engine icon
+              stays visible (user feedback: "删了引擎，那我就不知道当前会话
+              用的是什么引擎了"); mode/model live in the popover. */}
+          <div className="max-md:hidden">
+            <EngineConfigChip
+              engineType={engineType}
+              mode={mode}
+              onModeChange={setMode}
+              models={models}
+              activeModel={activeModel}
+              onModelChange={setSelectedModel}
+              modelLocked={modelLocked}
+              isSessionActive={isSessionActive}
+            />
+          </div>
           {isSessionActive && !isThinking ?
               (
                 <div className="max-md:hidden">
@@ -870,22 +857,18 @@ export function ChatInput({
             />
           </div>
 
-          {/* Divider */}
-          {hasChanges ?
-              <div className="w-px h-3.5 bg-border/30 mx-0.5 max-md:hidden" /> :
-            null}
+          {/* Spacer pushes the action group to the right edge */}
+          <div className="flex-1" />
 
-          {/* Files changed badge */}
+          {/* Right group: diff status (when relevant) + restart + send */}
           {hasChanges ?
               (
                 <button
                   type="button"
                   onClick={onToggleDiff}
-                  className={`inline-flex items-center gap-1 h-7 px-2 rounded-full text-[11px] font-medium border transition-colors ${
-                    diffOpen ?
-                      'border-primary/30 bg-primary/10 text-foreground' :
-                      'border-border/30 bg-muted/40 text-muted-foreground hover:bg-muted/60'
-                  }`}
+                  data-active={diffOpen || undefined}
+                  className="chip-surface px-2 mr-0.5"
+                  title={t('diff.changes')}
                 >
                   <FileText className="size-3 shrink-0" />
                   <span className="font-mono tabular-nums">{changedCount}</span>
@@ -900,21 +883,6 @@ export function ChatInput({
                 </button>
               ) :
             null}
-
-          {/* Spacer */}
-          <div className="flex-1" />
-
-          {/* Group 3: Send */}
-          <Button
-            variant="ghost"
-            size="icon"
-            title={t('chat.clearSession')}
-            disabled={!issueId || isSessionActive || clearSession.isPending}
-            onClick={() => setClearSessionOpen(true)}
-            className="size-7 max-md:hidden text-muted-foreground/60 hover:text-destructive"
-          >
-            <Eraser className="size-3.5" />
-          </Button>
           {sessionStatus === 'failed' || sessionStatus === 'cancelled' ?
               (
                 <Button
@@ -1084,88 +1052,6 @@ function BusyActionSelect({
   )
 }
 
-// ─── ModelSelect ─────────────────────────────────────────────────────────────
-// Replaced custom dropdown with shadcn DropdownMenu
-
-function ModelSelect({
-  models,
-  value,
-  onChange,
-  disabled = false,
-  locked = false,
-}: {
-  models: EngineModel[]
-  value: string
-  onChange: (v: string) => void
-  disabled?: boolean
-  locked?: boolean
-}) {
-  const { t } = useTranslation()
-  const current = models.find(m => m.id === value)
-  const isDefault = !value
-  const displayName = locked
-    ? t('settings.modelGatewayDefault')
-    : isDefault
-      ? t('createIssue.modelDefault')
-      : current
-        ? formatModelName(current.name || current.id)
-        : formatModelName(value)
-
-  if (locked) {
-    return (
-      <div
-        className="inline-flex items-center h-7 px-2.5 rounded-full text-[11px] font-medium border border-border/30 bg-muted/40 text-muted-foreground cursor-not-allowed"
-        title={t('settings.omitModelHint')}
-      >
-        <span className="truncate italic">{t('settings.modelGatewayDefault')}</span>
-      </div>
-    )
-  }
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={(
-          <button
-            type="button"
-            disabled={disabled}
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-medium border border-border/30 bg-muted/40 text-muted-foreground hover:bg-muted/60 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          />
-        )}
-      >
-        <span className="truncate max-w-[140px]">{displayName}</span>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="top" className="min-w-[180px] max-h-[320px] overflow-y-auto text-xs">
-        <DropdownMenuItem onSelect={() => onChange('')} className={isDefault ? 'bg-primary/10 text-primary font-medium' : ''}>
-          <span className="font-medium">{t('createIssue.modelDefault')}</span>
-          <span className="text-[10px] text-muted-foreground ml-1">
-            (
-            {t('createIssue.modelDefaultHint')}
-            )
-          </span>
-        </DropdownMenuItem>
-        {models.map(m => (
-          <DropdownMenuItem
-            key={m.id}
-            onSelect={() => onChange(m.id)}
-            className={m.id === value ? 'bg-primary/10 text-primary font-medium' : ''}
-          >
-            <span className="font-medium">{formatModelName(m.name || m.id)}</span>
-            {m.isDefault ? (
-              <span className="text-[10px] text-muted-foreground ml-1">
-                (
-                {t('createIssue.engineLabel.default')}
-                )
-              </span>
-            ) :
-              null}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
 // ─── CommandPicker ────────────────────────────────────────────────────────────
 // Replaced custom popover + search with shadcn Popover + Command
 
@@ -1208,40 +1094,6 @@ function CommandPicker({
         </Command>
       </PopoverContent>
     </Popover>
-  )
-}
-
-// ─── ModeSelect ───────────────────────────────────────────────────────────────
-// Replaced custom dropdown with shadcn DropdownMenu
-
-function ModeSelect({ value, onChange }: { value: ModeOption, onChange: (v: ModeOption) => void }) {
-  const { t } = useTranslation()
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={(
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-medium border border-border/30 bg-muted/40 text-muted-foreground hover:bg-muted/60 transition-colors"
-            title={t('createIssue.mode')}
-          />
-        )}
-      >
-        <span className="truncate max-w-[84px]">{t(`createIssue.perm.${value}`)}</span>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="top" className="min-w-[130px] text-xs">
-        {MODE_OPTIONS.map(option => (
-          <DropdownMenuItem
-            key={option}
-            onSelect={() => onChange(option)}
-            className={option === value ? 'bg-primary/10 text-primary font-medium' : ''}
-          >
-            {t(`createIssue.perm.${option}`)}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
   )
 }
 
@@ -1300,11 +1152,18 @@ function MobileMoreMenu({
         <MoreHorizontal className="size-3.5" />
       </PopoverTrigger>
       <PopoverContent align="start" side="top" className="w-56 p-2 space-y-1">
-        {/* Engine info */}
+        {/* Engine info — labeled so users know what their session is bound to.
+            Desktop has the equivalent in EngineConfigChip's popover header; on
+            mobile this is the only place that information surfaces. */}
         {engineType ? (
-          <div className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-muted-foreground">
-            <EngineIcon engineType={engineType} className="size-3.5 shrink-0" />
-            <span>{t(`createIssue.engineLabel.${engineType}`, engineType)}</span>
+          <div className="px-2 pb-1.5 mb-1 border-b border-border/30">
+            <div className="text-[10px] text-muted-foreground/60 mb-1 uppercase tracking-wider">
+              {t('chat.configChipCurrentEngine')}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-foreground/80">
+              <EngineIcon engineType={engineType} className="size-3.5 shrink-0" />
+              <span className="font-medium">{t(`createIssue.engineLabel.${engineType}`, engineType)}</span>
+            </div>
           </div>
         ) : null}
 
@@ -1427,6 +1286,248 @@ function MobileMoreMenu({
           <Eraser className="size-3.5" />
           <span>{t('chat.clearSession')}</span>
         </button>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// ─── DesktopMoreMenu ─────────────────────────────────────────────────────────
+// Folds three rarely-used desktop controls (refresh logs / open file browser /
+// clear session) behind a single "⋯" trigger. Keeps the toolbar scannable
+// while leaving the actions one click away. The matching mobile flow lives
+// in MobileMoreMenu above; the two are intentionally NOT unified into one
+// component because the mobile variant also has to host Mode / Model /
+// BusyAction (which on desktop live in EngineConfigChip).
+
+function DesktopMoreMenu({
+  onRefreshLogs,
+  onOpenFileBrowser,
+  onClearSession,
+  clearSessionDisabled,
+}: {
+  onRefreshLogs?: () => void
+  onOpenFileBrowser: () => void
+  onClearSession: () => void
+  clearSessionDisabled: boolean
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={(
+          <IconButton size="sm" title={t('chat.more')} aria-label={t('chat.more')} />
+        )}
+      >
+        <MoreHorizontal className="size-3.5" />
+      </PopoverTrigger>
+      <PopoverContent align="start" side="top" className="w-44 p-1">
+        <button
+          type="button"
+          onClick={onRefreshLogs}
+          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+        >
+          <RefreshCw className="size-3.5" />
+          <span>{t('chat.refreshLogs')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onOpenFileBrowser}
+          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+        >
+          <FolderOpen className="size-3.5" />
+          <span>{t('diff.openFiles')}</span>
+        </button>
+        <div className="h-px bg-border/30 my-1" />
+        <button
+          type="button"
+          disabled={clearSessionDisabled}
+          onClick={onClearSession}
+          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+        >
+          <Eraser className="size-3.5" />
+          <span>{t('chat.clearSession')}</span>
+        </button>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// ─── EngineConfigChip ────────────────────────────────────────────────────────
+// Replaces three separate desktop chips (Engine label / Mode / Model) with
+// a single combined chip whose surface always shows the EngineIcon and the
+// current mode · model. Clicking opens a popover with the same three
+// concerns split into sections, plus an immutable "current engine" header
+// so users never lose track of what their session is bound to.
+//
+// BusyAction stays as a sibling chip (not folded in) because it only renders
+// when the session is active; cramming a conditional section into this
+// popover would make the layout shift between turns.
+
+function EngineConfigChip({
+  engineType,
+  mode,
+  onModeChange,
+  models,
+  activeModel,
+  onModelChange,
+  modelLocked,
+  isSessionActive,
+}: {
+  engineType?: string
+  mode: ModeOption
+  onModeChange: (v: ModeOption) => void
+  models: EngineModel[]
+  activeModel: string
+  onModelChange: (v: string) => void
+  modelLocked: boolean
+  isSessionActive: boolean
+}) {
+  const { t } = useTranslation()
+  const current = models.find(m => m.id === activeModel)
+  const isDefaultModel = !activeModel
+  const modelDisplay = modelLocked
+    ? t('settings.modelGatewayDefault')
+    : isDefaultModel
+      ? t('createIssue.modelDefault')
+      : current
+        ? formatModelName(current.name || current.id)
+        : formatModelName(activeModel)
+
+  // Hide the model fragment entirely when the engine exposes no models AND
+  // we're not in the locked-gateway state — otherwise the chip would read
+  // "auto · " with a dangling separator.
+  const showModel = models.length > 0 || modelLocked
+  const modeLabel = t(`createIssue.perm.${mode}`)
+  const engineLabel = engineType
+    ? t(`createIssue.engineLabel.${engineType}`, engineType)
+    : ''
+  const triggerTitle = engineLabel
+    ? `${t('chat.configChipTitle')} — ${engineLabel}`
+    : t('chat.configChipTitle')
+
+  // Model list is disabled when the session is running (changing model
+  // mid-turn has no effect) or when omit-model gateway mode is locked.
+  const modelDisabled = isSessionActive || modelLocked
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={(
+          <Chip
+            leading={engineType ? <EngineIcon engineType={engineType} className="size-3" /> : null}
+            title={triggerTitle}
+            className="max-w-[220px]"
+          />
+        )}
+      >
+        <span className="truncate">
+          {modeLabel}
+          {showModel ? (
+            <>
+              <span className="text-muted-foreground/40 mx-1">·</span>
+              <span className={modelLocked ? 'italic' : ''}>{modelDisplay}</span>
+            </>
+          ) : null}
+        </span>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="start" className="w-[260px] p-0">
+        {/* Header: current engine — immutable, just identifies the session */}
+        {engineType ? (
+          <div className="px-3 py-2 border-b border-border/30 flex items-center gap-2">
+            <EngineIcon engineType={engineType} className="size-3.5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider leading-none mb-0.5">
+                {t('chat.configChipCurrentEngine')}
+              </div>
+              <div className="text-xs font-medium text-foreground/90 truncate">{engineLabel}</div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Mode — always available, even mid-turn */}
+        <div className="px-3 py-2">
+          <div className="text-[10px] text-muted-foreground/60 mb-1.5 uppercase tracking-wider">
+            {t('createIssue.mode')}
+          </div>
+          <div className="flex gap-1">
+            {MODE_OPTIONS.map(option => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => onModeChange(option)}
+                className={cn(
+                  'flex-1 px-2 py-1 rounded text-[11px] font-medium transition-colors',
+                  option === mode
+                    ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
+                    : 'bg-muted/40 text-muted-foreground hover:bg-muted/60',
+                )}
+              >
+                {t(`createIssue.perm.${option}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Model — hidden when neither models nor locked-default state apply */}
+        {showModel ? (
+          <div className="px-3 pb-2 border-t border-border/20 pt-2">
+            <div className="text-[10px] text-muted-foreground/60 mb-1.5 uppercase tracking-wider">
+              {t('createIssue.model')}
+            </div>
+            {modelLocked ? (
+              <p className="text-[11px] text-muted-foreground italic px-1 py-1">
+                {t('settings.omitModelHint')}
+              </p>
+            ) : (
+              <div className="max-h-[200px] overflow-y-auto -mx-1 space-y-0.5">
+                <button
+                  type="button"
+                  disabled={modelDisabled}
+                  onClick={() => onModelChange('')}
+                  className={cn(
+                    'w-full text-left px-2 py-1 rounded text-[11px] transition-colors',
+                    'disabled:opacity-50 disabled:cursor-not-allowed',
+                    isDefaultModel
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'hover:bg-muted/40 text-muted-foreground',
+                  )}
+                >
+                  <span className="font-medium">{t('createIssue.modelDefault')}</span>
+                  <span className="text-[10px] text-muted-foreground ml-1">
+                    (
+                    {t('createIssue.modelDefaultHint')}
+                    )
+                  </span>
+                </button>
+                {models.map(m => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    disabled={modelDisabled}
+                    onClick={() => onModelChange(m.id)}
+                    className={cn(
+                      'w-full text-left px-2 py-1 rounded text-[11px] transition-colors',
+                      'disabled:opacity-50 disabled:cursor-not-allowed',
+                      m.id === activeModel
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'hover:bg-muted/40 text-muted-foreground',
+                    )}
+                  >
+                    <span className="font-medium">{formatModelName(m.name || m.id)}</span>
+                    {m.isDefault ? (
+                      <span className="text-[10px] text-muted-foreground ml-1">
+                        (
+                        {t('createIssue.engineLabel.default')}
+                        )
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
       </PopoverContent>
     </Popover>
   )
