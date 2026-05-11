@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-03-25
+> Updated: 2026-05-11
 
 ## Usage
 
@@ -41,3 +41,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-003 Remove ACP engine**](ENG-003.md) `P2`
 - [x] [**AUTH-001 Remove OIDC authentication**](AUTH-001.md) `P2`
 - [x] [**WB-005 Remove whiteboard / mindmap feature**](WB-005.md) `P1`
+- [-] [**REL-001 Upgrade launcher Bun runtime**](REL-001.md) `P1`
