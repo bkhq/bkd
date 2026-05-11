@@ -4,7 +4,7 @@ import { db } from '@/db'
 import { webhookDeliveries, webhooks } from '@/db/schema'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
-import { validateWebhookUrl } from '@/utils/url-safety'
+import { validateWebhookUrlForStorage } from '@/utils/url-safety'
 import { deliver } from '@/webhooks/dispatcher'
 
 const webhooksRoute = createOpenAPIRouter()
@@ -59,8 +59,7 @@ webhooksRoute.openapi(R.createWebhook, async (c) => {
       return c.json({ success: false, error: 'Invalid URL format' }, 400 as const)
     }
 
-    // Async SSRF check — resolve DNS and reject private addresses
-    const result = await validateWebhookUrl(body.url)
+    const result = validateWebhookUrlForStorage(body.url)
     if (!result.ok) {
       return c.json({ success: false, error: result.error ?? 'Invalid URL' }, 400 as const)
     }
@@ -109,7 +108,7 @@ webhooksRoute.openapi(R.updateWebhook, async (c) => {
     body.secret !== undefined && body.secret !== SECRET_MASK ? body.secret : existing.secret
 
   if (effectiveChannel === 'webhook' && body.url !== undefined) {
-    const result = await validateWebhookUrl(effectiveUrl)
+    const result = validateWebhookUrlForStorage(effectiveUrl)
     if (!result.ok) {
       return c.json({ success: false, error: result.error ?? 'Invalid URL' }, 400 as const)
     }

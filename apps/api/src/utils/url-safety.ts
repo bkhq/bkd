@@ -120,23 +120,11 @@ export async function validateWebhookUrl(
   url: string,
   resolver: DnsResolver = defaultResolver,
 ): Promise<UrlValidationResult> {
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    return { ok: false, error: 'Invalid URL format' }
-  }
+  const storageCheck = validateWebhookUrlForStorage(url)
+  if (!storageCheck.ok) return storageCheck
 
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    return { ok: false, error: 'URL must use http or https protocol' }
-  }
-
+  const parsed = new URL(url)
   const hostname = parsed.hostname.toLowerCase()
-
-  // Quick syntactic rejection
-  if (isPrivateHostname(hostname)) {
-    return { ok: false, error: 'URLs pointing to private/internal networks are not allowed' }
-  }
 
   // If the hostname is already a public IP literal, skip DNS
   if (isIP(hostname)) {
@@ -159,6 +147,36 @@ export async function validateWebhookUrl(
     }
   } catch {
     return { ok: false, error: 'Failed to resolve hostname' }
+  }
+
+  return { ok: true }
+}
+
+/**
+ * Validates a webhook URL before storing it.
+ *
+ * This intentionally does not resolve DNS. Saving a webhook does not perform a
+ * delivery, and unresolved hostnames may become valid later. Delivery-time
+ * validation must still call `validateWebhookUrl()` to block DNS rebinding and
+ * private-network targets before any outbound request is made.
+ */
+export function validateWebhookUrlForStorage(url: string): UrlValidationResult {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return { ok: false, error: 'Invalid URL format' }
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { ok: false, error: 'URL must use http or https protocol' }
+  }
+
+  const hostname = parsed.hostname.toLowerCase()
+
+  // Quick syntactic rejection
+  if (isPrivateHostname(hostname)) {
+    return { ok: false, error: 'URLs pointing to private/internal networks are not allowed' }
   }
 
   return { ok: true }

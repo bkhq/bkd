@@ -37,3 +37,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [-] [**PLAN-006 Upgrade launcher Bun runtime**](PLAN-006.md) `2026-05-11`
 - [x] [**PLAN-007 Extend idle engine timeout**](PLAN-007.md) `2026-05-11`
 - [x] [**PLAN-008 Preserve Codex tool actions for grouping**](PLAN-008.md) `2026-05-11`
+- [x] [**PLAN-009 Allow unresolved webhook hostnames on save**](PLAN-009.md) `2026-05-11`

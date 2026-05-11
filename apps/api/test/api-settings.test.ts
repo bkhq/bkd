@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { expectError, expectSuccess, get, patch } from './helpers'
+import { expectError, expectSuccess, get, patch, post } from './helpers'
 /**
  * Settings API tests.
  */
@@ -56,5 +56,43 @@ describe('PATCH /api/settings/workspace-path', () => {
   test('rejects missing path field', async () => {
     const result = await patch<unknown>('/api/settings/workspace-path', {})
     expect(result.status).toBe(400)
+  })
+})
+
+interface WebhookResponse {
+  id: string
+  channel: 'webhook' | 'telegram'
+  url: string
+  secret: string | null
+  events: string[]
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+describe('POST /api/settings/webhooks', () => {
+  test('allows saving a webhook URL whose hostname does not resolve yet', async () => {
+    const result = await post<WebhookResponse>('/api/settings/webhooks', {
+      channel: 'webhook',
+      url: 'https://not-yet-created.invalid/hook',
+      events: ['issue.updated'],
+      isActive: true,
+    })
+
+    expect(result.status).toBe(201)
+    const data = expectSuccess(result)
+    expect(data.url).toBe('https://not-yet-created.invalid/hook')
+  })
+
+  test('still rejects obviously private webhook URLs', async () => {
+    const result = await post<unknown>('/api/settings/webhooks', {
+      channel: 'webhook',
+      url: 'http://localhost:3000/hook',
+      events: ['issue.updated'],
+      isActive: true,
+    })
+
+    expect(result.status).toBe(400)
+    expect(expectError(result, 400)).toContain('private')
   })
 })

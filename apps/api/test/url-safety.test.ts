@@ -8,7 +8,7 @@
  */
 import type { DnsResolver } from '@/utils/url-safety'
 import { describe, expect, test } from 'bun:test'
-import { isPrivateHostname, isPrivateIP, validateWebhookUrl } from '@/utils/url-safety'
+import { isPrivateHostname, isPrivateIP, validateWebhookUrl, validateWebhookUrlForStorage } from '@/utils/url-safety'
 
 // ── Fake resolvers ─────────────────────────────────────────
 
@@ -248,5 +248,32 @@ describe('validateWebhookUrl', () => {
     const result = await validateWebhookUrl('https://empty.example.com/hook', resolver)
     expect(result.ok).toBe(false)
     expect(result.error).toContain('resolve')
+  })
+})
+
+// ── validateWebhookUrlForStorage ───────────────────────────
+
+describe('validateWebhookUrlForStorage', () => {
+  test('accepts unresolved hostnames without DNS lookup', () => {
+    const result = validateWebhookUrlForStorage('https://not-yet-created.invalid/hook')
+    expect(result.ok).toBe(true)
+  })
+
+  test('rejects malformed URLs', () => {
+    const result = validateWebhookUrlForStorage('not a url')
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('Invalid URL')
+  })
+
+  test('rejects non-http protocols', () => {
+    const result = validateWebhookUrlForStorage('ftp://example.com/hook')
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('http or https')
+  })
+
+  test('rejects private hostnames and IP literals', () => {
+    expect(validateWebhookUrlForStorage('http://localhost:3000/hook').ok).toBe(false)
+    expect(validateWebhookUrlForStorage('http://127.0.0.1/hook').ok).toBe(false)
+    expect(validateWebhookUrlForStorage('http://10.0.0.5/hook').ok).toBe(false)
   })
 })
