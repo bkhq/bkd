@@ -358,6 +358,12 @@ export const NoteSchema = z.object({
   title: z.string(),
   content: z.string(),
   isPinned: z.boolean(),
+  // Memory fields
+  projectId: z.string().nullable(),
+  issueId: z.string().nullable(),
+  source: z.enum(['manual', 'ai-summary', 'ai-pattern']),
+  tags: z.array(z.string()),
+  isArchived: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
 }).openapi('Note')
@@ -365,12 +371,18 @@ export const NoteSchema = z.object({
 export const CreateNoteSchema = z.object({
   title: z.string().max(500).optional().default(''),
   content: z.string().max(100_000).optional().default(''),
+  projectId: z.string().optional(),
+  issueId: z.string().optional(),
+  source: z.enum(['manual', 'ai-summary', 'ai-pattern']).optional().default('manual'),
+  tags: z.array(z.string()).optional().default([]),
 }).openapi('CreateNote')
 
 export const UpdateNoteSchema = z.object({
   title: z.string().max(500).optional(),
   content: z.string().max(100_000).optional(),
   isPinned: z.boolean().optional(),
+  isArchived: z.boolean().optional(),
+  tags: z.array(z.string()).optional(),
 }).openapi('UpdateNote')
 
 // ── Worktree schemas ───────────────────────────────────

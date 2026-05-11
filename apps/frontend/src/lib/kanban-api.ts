@@ -726,12 +726,39 @@ export const kanbanApi = {
     get<WebhookDelivery[]>(`/api/settings/webhooks/${id}/deliveries`),
   testWebhook: (id: string) => post<{ sent: boolean }>(`/api/settings/webhooks/${id}/test`, {}),
 
+  // Issue Summary
+  summarizeIssue: (projectId: string, issueId: string) =>
+    post<Note>(`/api/projects/${projectId}/issues/${issueId}/summarize`, {}),
+
   // Notes
-  getNotes: () => get<Note[]>('/api/notes'),
-  createNote: (data: { title?: string, content?: string }) => post<Note>('/api/notes', data),
-  updateNote: (id: string, data: { title?: string, content?: string, isPinned?: boolean }) =>
-    patch<Note>(`/api/notes/${id}`, data),
+  getNotes: (opts?: { projectId?: string, archived?: boolean }) => {
+    const params = new URLSearchParams()
+    if (opts?.projectId) params.set('projectId', opts.projectId)
+    if (opts?.archived) params.set('archived', 'true')
+    const qs = params.toString()
+    return get<Note[]>(`/api/notes${qs ? `?${qs}` : ''}`)
+  },
+  createNote: (data: {
+    title?: string
+    content?: string
+    projectId?: string
+    issueId?: string
+    source?: 'manual' | 'ai-summary' | 'ai-pattern'
+    tags?: string[]
+  }) => post<Note>('/api/notes', data),
+  updateNote: (
+    id: string,
+    data: {
+      title?: string
+      content?: string
+      isPinned?: boolean
+      isArchived?: boolean
+      tags?: string[]
+    },
+  ) => patch<Note>(`/api/notes/${id}`, data),
   deleteNote: (id: string) => del<{ id: string }>(`/api/notes/${id}`),
+  queryNotes: (data: { prompt: string, projectId?: string, limit?: number }) =>
+    post<Array<Note & { score: number }>>('/api/notes/query', data),
 
   // Global Engine Environment Variables
   getGlobalEnvVars: () => get<Record<string, string>>('/api/settings/global-env-vars'),

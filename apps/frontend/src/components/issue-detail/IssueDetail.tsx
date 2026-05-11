@@ -1,10 +1,11 @@
-import { ChevronDown, GitBranch, Tag, Trash2, Wrench, Zap } from 'lucide-react'
+import { Brain, ChevronDown, GitBranch, Tag, Trash2, Wrench, Zap } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useClickOutside } from '@/hooks/use-click-outside'
 import { useProjectWorktrees } from '@/hooks/use-kanban'
+import { useSummarizeIssue } from '@/hooks/use-notes'
 import { tStatus } from '@/lib/i18n-utils'
 import type { StatusDefinition, StatusId } from '@/lib/statuses'
 import { STATUSES } from '@/lib/statuses'
@@ -40,6 +41,7 @@ export function IssueDetail({
   useClickOutside(worktreeRef, showWorktree, () => setShowWorktree(false))
   const devMode = useChatFilterStore(s => s.devMode)
   const toggleDevMode = useChatFilterStore(s => s.toggleDevMode)
+  const summarize = useSummarizeIssue()
 
   const { data: worktrees } = useProjectWorktrees(issue.useWorktree && projectId ? projectId : '')
   const worktreeEntry = useMemo(
@@ -107,6 +109,22 @@ export function IssueDetail({
         <Wrench className="h-3 w-3" />
         <span>{t('issue.devMode')}</span>
       </Button>
+
+      {/* Summarize — generate memory note from issue logs */}
+      {projectId && (
+        <Button
+          type="button"
+          onClick={() => summarize.mutate({ projectId, issueId: issue.id })}
+          size="sm"
+          variant="outline"
+          disabled={summarize.isPending}
+          className={`${badgeButtonBase} cursor-pointer transition-colors border-border/50 bg-muted/20 text-muted-foreground/60 hover:text-foreground hover:border-border`}
+          title={t('issue.summarize')}
+        >
+          <Brain className="h-3 w-3" />
+          <span>{summarize.isPending ? t('issue.summarizing') : t('issue.summarize')}</span>
+        </Button>
+      )}
 
       {/* Tags — editable (comma-separated) */}
       {editingTag ?

@@ -359,7 +359,12 @@ export function ChatBody({
             null}
         </div>
         <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden">
-          <div className="flex flex-col min-h-full justify-end py-1">
+          {/* max-md:pt-[52px]: on mobile the title bar is an absolute
+              overlay (z-20, ~45px tall) — without top padding the "load
+              more" button at the very top of the message list gets hidden
+              behind it when the user scrolls to the start of history.
+              Matches the 52px offset used by the floating overlays above. */}
+          <div className="flex flex-col min-h-full justify-end py-1 max-md:pt-[52px]">
             <Suspense
               fallback={
                 <div className="px-5 py-2 text-xs text-muted-foreground">{t('common.loading')}</div>

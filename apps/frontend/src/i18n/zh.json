@@ -127,7 +127,9 @@
     "deleteWithChildren": "此任务包含子任务，子任务也将一并删除。",
     "deleting": "删除中...",
     "keepAlive": "保持活跃 — 防止空闲超时自动终止进程",
-    "devMode": "Dev"
+    "devMode": "Dev",
+    "summarize": "生成总结",
+    "summarizing": "总结中..."
   },
   "createIssue": {
     "model": "模型",
@@ -595,7 +597,8 @@
     "loadError": "加载笔记失败",
     "minimize": "最小化",
     "maximize": "最大化",
-    "restore": "还原"
+    "restore": "还原",
+    "tagsPlaceholder": "标签，用逗号分隔，如: topic:auth, tech:react"
   },
   "whiteboard": {
     "title": "白板",

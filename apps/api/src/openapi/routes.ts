@@ -466,6 +466,21 @@ export const getIssueChanges = createRoute({
   },
 })
 
+export const summarizeIssue = createRoute({
+  method: 'post',
+  path: '/{issueId}/summarize',
+  tags: ['Issues'],
+  summary: 'Summarize issue logs into a memory note',
+  operationId: 'summarizeIssue',
+  request: { params: projectIssueParams },
+  responses: {
+    201: successResponse(NoteSchema, 'Summary note created'),
+    400: errorResponse('No logs or invalid request'),
+    404: errorResponse('Issue not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
 // ── Engines ────────────────────────────────────────────
 
 export const getAvailableEngines = createRoute({
@@ -859,6 +874,31 @@ export const deleteNote = createRoute({
   responses: {
     200: successResponse(z.object({ id: z.string() }), 'Deleted'),
     404: errorResponse('Note not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const queryNotes = createRoute({
+  method: 'post',
+  path: '/query',
+  tags: ['Notes'],
+  summary: 'Query relevant notes by prompt intent',
+  operationId: 'queryNotes',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            prompt: z.string(),
+            projectId: z.string().optional(),
+            limit: z.number().int().min(1).max(20).optional().default(5),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: successResponse(z.array(NoteSchema.extend({ score: z.number() })), 'Queried notes'),
     500: errorResponse('Internal error'),
   },
 })

@@ -45,7 +45,7 @@ function runMigrations(folder: string) {
     sqlite.run('PRAGMA foreign_keys = ON')
     const errObj = err as { message?: string, cause?: { message?: string } }
     const msg = String(errObj?.message ?? '') + String(errObj?.cause?.message ?? '')
-    const alreadyExists = /^(table|index) .+ already exists$/im.test(msg)
+    const alreadyExists = /^(table|index|column) .+ already exists$/im.test(msg)
     if (!alreadyExists) {
       throw err
     }

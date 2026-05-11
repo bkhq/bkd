@@ -94,13 +94,26 @@ export const appSettings = sqliteTable('app_settings', {
   ...commonFields,
 })
 
-export const notes = sqliteTable('notes', {
-  id: id(),
-  title: text('title').notNull().default(''),
-  content: text('content').notNull().default(''),
-  isPinned: integer('is_pinned', { mode: 'boolean' }).notNull().default(false),
-  ...commonFields,
-})
+export const notes = sqliteTable(
+  'notes',
+  {
+    id: id(),
+    title: text('title').notNull().default(''),
+    content: text('content').notNull().default(''),
+    isPinned: integer('is_pinned', { mode: 'boolean' }).notNull().default(false),
+    // Memory fields: pluggable, archivable, traceable
+    projectId: text('project_id').references(() => projects.id),
+    issueId: text('issue_id').references(() => issues.id),
+    source: text('source').notNull().default('manual'), // 'manual' | 'ai-summary' | 'ai-pattern'
+    tags: text('tags').notNull().default('[]'), // JSON string[]
+    isArchived: integer('is_archived', { mode: 'boolean' }).notNull().default(false),
+    ...commonFields,
+  },
+  table => [
+    index('notes_project_id_idx').on(table.projectId),
+    index('notes_archived_idx').on(table.isArchived),
+  ],
+)
 
 export const issueLogs = sqliteTable(
   'issues_logs',

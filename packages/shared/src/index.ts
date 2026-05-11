@@ -538,6 +538,12 @@ export interface Note {
   title: string
   content: string
   isPinned: boolean
+  // Memory fields
+  projectId: string | null
+  issueId: string | null
+  source: 'manual' | 'ai-summary' | 'ai-pattern'
+  tags: string[]
+  isArchived: boolean
   createdAt: string
   updatedAt: string
 }

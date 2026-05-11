@@ -4,19 +4,28 @@ import type { Note } from '@/types/kanban'
 
 const notesKeys = {
   all: ['notes'] as const,
+  list: (opts?: { projectId?: string, archived?: boolean }) =>
+    [...notesKeys.all, 'list', opts] as const,
 }
 
-export function useNotes() {
+export function useNotes(opts?: { projectId?: string, archived?: boolean }) {
   return useQuery({
-    queryKey: notesKeys.all,
-    queryFn: kanbanApi.getNotes,
+    queryKey: notesKeys.list(opts),
+    queryFn: () => kanbanApi.getNotes(opts),
   })
 }
 
 export function useCreateNote() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { title?: string, content?: string }) => kanbanApi.createNote(data),
+    mutationFn: (data: {
+      title?: string
+      content?: string
+      projectId?: string
+      issueId?: string
+      source?: 'manual' | 'ai-summary' | 'ai-pattern'
+      tags?: string[]
+    }) => kanbanApi.createNote(data),
     onSuccess: () => qc.invalidateQueries({ queryKey: notesKeys.all }),
   })
 }
@@ -32,6 +41,8 @@ export function useUpdateNote() {
       title?: string
       content?: string
       isPinned?: boolean
+      isArchived?: boolean
+      tags?: string[]
     }) => kanbanApi.updateNote(id, data),
     onMutate: async ({ id, ...data }) => {
       await qc.cancelQueries({ queryKey: notesKeys.all })
@@ -70,5 +81,23 @@ export function useDeleteNote() {
       if (ctx?.prev) qc.setQueryData(notesKeys.all, ctx.prev)
     },
     onSettled: () => qc.invalidateQueries({ queryKey: notesKeys.all }),
+  })
+}
+
+export function useQueryNotes() {
+  return useMutation({
+    mutationFn: (data: { prompt: string, projectId?: string, limit?: number }) =>
+      kanbanApi.queryNotes(data),
+  })
+}
+
+export function useSummarizeIssue() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { projectId: string, issueId: string }) =>
+      kanbanApi.summarizeIssue(data.projectId, data.issueId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: notesKeys.all })
+    },
   })
 }

@@ -127,7 +127,9 @@
     "deleteWithChildren": "This issue has sub-issues that will also be deleted.",
     "deleting": "Deleting...",
     "keepAlive": "Keep Alive — prevent idle timeout from terminating the process",
-    "devMode": "Dev"
+    "devMode": "Dev",
+    "summarize": "Summarize",
+    "summarizing": "Summarizing..."
   },
   "createIssue": {
     "model": "Model",
@@ -598,7 +600,8 @@
     "loadError": "Failed to load notes",
     "minimize": "Minimize",
     "maximize": "Maximize",
-    "restore": "Restore"
+    "restore": "Restore",
+    "tagsPlaceholder": "Tags, comma-separated, e.g: topic:auth, tech:react"
   },
   "whiteboard": {
     "title": "Whiteboard",

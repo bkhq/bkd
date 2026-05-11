@@ -395,10 +395,27 @@ function NoteListItem({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             {note.isPinned && <Pin className="h-2.5 w-2.5 text-primary shrink-0 -rotate-45" />}
+            {note.source !== 'manual' && (
+              <span className="text-[9px] px-1 rounded bg-primary/10 text-primary shrink-0">
+                {note.source === 'ai-summary' ? 'AI' : 'AI+'}
+              </span>
+            )}
             <p className="text-xs font-medium truncate">{title}</p>
           </div>
           {preview && (
             <p className="text-[11px] text-muted-foreground/70 truncate mt-0.5">{preview}</p>
+          )}
+          {note.tags.length > 0 && (
+            <div className="flex flex-wrap gap-0.5 mt-1">
+              {note.tags.slice(0, 3).map(tag => (
+                <span key={tag} className="text-[9px] px-1 rounded bg-muted text-muted-foreground">
+                  {tag.replace(/^(project|topic|type|tech|file):/, '')}
+                </span>
+              ))}
+              {note.tags.length > 3 && (
+                <span className="text-[9px] text-muted-foreground/50">+{note.tags.length - 3}</span>
+              )}
+            </div>
           )}
           <p className="text-[10px] text-muted-foreground/50 mt-1 tabular-nums">{lastEdited}</p>
         </div>
@@ -449,15 +466,16 @@ function NoteEditor({
   onDelete,
 }: {
   note: Note
-  onUpdate: (data: { id: string, title?: string, content?: string }) => void
+  onUpdate: (data: { id: string, title?: string, content?: string, tags?: string[] }) => void
   onPin: () => void
   onDelete: () => void
 }) {
   const { t } = useTranslation()
   const [title, setTitle] = useState(note.title)
   const [content, setContent] = useState(note.content)
+  const [tagInput, setTagInput] = useState(note.tags.join(', '))
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingRef = useRef<{ title?: string, content?: string } | null>(null)
+  const pendingRef = useRef<{ title?: string, content?: string, tags?: string[] } | null>(null)
   const noteIdRef = useRef(note.id)
   const onUpdateRef = useRef(onUpdate)
   onUpdateRef.current = onUpdate
@@ -466,10 +484,11 @@ function NoteEditor({
   useEffect(() => {
     setTitle(note.title)
     setContent(note.content)
-  }, [note.title, note.content])
+    setTagInput(note.tags.join(', '))
+  }, [note.title, note.content, note.tags])
 
   const scheduleUpdate = useCallback(
-    (data: { title?: string, content?: string }) => {
+    (data: { title?: string, content?: string, tags?: string[] }) => {
       pendingRef.current = data
       if (debounceRef.current) clearTimeout(debounceRef.current)
       debounceRef.current = setTimeout(() => {
@@ -492,17 +511,25 @@ function NoteEditor({
   const handleTitleChange = useCallback(
     (value: string) => {
       setTitle(value)
-      scheduleUpdate({ title: value, content })
+      scheduleUpdate({ title: value, content, tags: parseTags(tagInput) })
     },
-    [content, scheduleUpdate],
+    [content, tagInput, scheduleUpdate],
   )
 
   const handleContentChange = useCallback(
     (value: string) => {
       setContent(value)
-      scheduleUpdate({ title, content: value })
+      scheduleUpdate({ title, content: value, tags: parseTags(tagInput) })
     },
-    [title, scheduleUpdate],
+    [title, tagInput, scheduleUpdate],
+  )
+
+  const handleTagChange = useCallback(
+    (value: string) => {
+      setTagInput(value)
+      scheduleUpdate({ title, content, tags: parseTags(value) })
+    },
+    [title, content, scheduleUpdate],
   )
 
   const lastEdited = useMemo(() => {
@@ -547,6 +574,17 @@ function NoteEditor({
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
+      </div>
+
+      {/* Tags */}
+      <div className="px-4 py-1.5 border-b border-border shrink-0">
+        <input
+          type="text"
+          value={tagInput}
+          onChange={e => handleTagChange(e.target.value)}
+          placeholder={t('notes.tagsPlaceholder')}
+          className="w-full text-xs bg-transparent outline-none placeholder:text-muted-foreground/50 text-muted-foreground"
+        />
       </div>
 
       {/* Content */}
@@ -701,4 +739,11 @@ function MobileNoteEditor({
       </div>
     </>
   )
+}
+
+function parseTags(input: string): string[] {
+  return input
+    .split(/[,，]/)
+    .map(t => t.trim())
+    .filter(t => t.length > 0)
 }
