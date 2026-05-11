@@ -34,7 +34,7 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [-] [**PLAN-003 Migrate claude executor to @anthropic-ai/claude-agent-sdk**](PLAN-003.md) `2026-04-17`
 - [ ] [**PLAN-004 Enable AskUserQuestion in claude-code-sdk executor (web UI answer flow)**](PLAN-004.md) `2026-04-18`
 - [x] [**PLAN-005 Remove whiteboard / mindmap feature**](PLAN-005.md) `2026-05-09`
-- [-] [**PLAN-006 Upgrade launcher Bun runtime**](PLAN-006.md) `2026-05-11`
+- [x] [**PLAN-006 Upgrade launcher Bun runtime**](PLAN-006.md) `2026-05-11`
 - [x] [**PLAN-007 Extend idle engine timeout**](PLAN-007.md) `2026-05-11`
 - [x] [**PLAN-008 Preserve Codex tool actions for grouping**](PLAN-008.md) `2026-05-11`
 - [x] [**PLAN-009 Allow unresolved webhook hostnames on save**](PLAN-009.md) `2026-05-11`

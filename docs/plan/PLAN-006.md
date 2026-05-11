@@ -1,6 +1,6 @@
 # PLAN-006 Upgrade launcher Bun runtime
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-05-11 00:00
 - **approvedAt**: 2026-05-11 00:00
 - **relatedTask**: REL-001
@@ -53,3 +53,4 @@ Release publication is a separate remote operation after the code change is merg
 - 2026-05-11: User approved option 2 and clarified that future Bun runtime changes should happen through regular version updates.
 - 2026-05-11: Local implementation and verification passed. Remote `launcher-v1` rebuild is intentionally pending until these workflow changes exist on `main`.
 - 2026-05-11: User corrected the approach: because Bun is the launcher runtime, workflow should request `latest` instead of pinning to a local version file.
+- 2026-05-11: Commit `0a2b3ab` was pushed to `main`; launcher workflow run `25651691265` completed successfully and updated `launcher-v1`.
