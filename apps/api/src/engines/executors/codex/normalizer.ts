@@ -258,7 +258,6 @@ export class CodexLogNormalizer {
         content: 'Tool: Bash',
         timestamp: now,
         metadata: {
-          streaming: true,
           toolName: 'Bash',
           toolCallId: item.id as string | undefined,
           input: {
@@ -283,7 +282,6 @@ export class CodexLogNormalizer {
         content: 'Tool: Edit',
         timestamp: now,
         metadata: {
-          streaming: true,
           toolName: 'Edit',
           toolCallId: item.id as string | undefined,
           path: firstPath || undefined,
@@ -304,7 +302,6 @@ export class CodexLogNormalizer {
         content: `Tool: ${toolName}`,
         timestamp: now,
         metadata: {
-          streaming: true,
           toolName,
           toolCallId: item.id as string | undefined,
           input: item.arguments,
@@ -322,7 +319,6 @@ export class CodexLogNormalizer {
         content: `Tool: ${toolName}`,
         timestamp: now,
         metadata: {
-          streaming: true,
           toolName,
           toolCallId: item.id as string | undefined,
           input: item.arguments,
@@ -340,7 +336,6 @@ export class CodexLogNormalizer {
         content: 'Tool: WebSearch',
         timestamp: now,
         metadata: {
-          streaming: true,
           toolName: 'WebSearch',
           toolCallId: item.id as string | undefined,
           input: query ? { query } : undefined,

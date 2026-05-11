@@ -49,6 +49,8 @@ describe('CodexExecutor.normalizeLog', () => {
       expect(entry!.content).toBe('Tool: Bash')
       expect(entry!.metadata?.toolName).toBe('Bash')
       expect(entry!.metadata?.toolCallId).toBe('cmd-1')
+      expect(entry!.metadata?.streaming).toBeUndefined()
+      expect(entry!.metadata?.isResult).toBeUndefined()
     })
 
     test('fileChange returns tool-use with path from changes array', () => {
@@ -69,6 +71,8 @@ describe('CodexExecutor.normalizeLog', () => {
         changeType: 'update',
         unified_diff: '--- a\n+++ b',
       })
+      expect(entry!.metadata?.streaming).toBeUndefined()
+      expect(entry!.metadata?.isResult).toBeUndefined()
     })
 
     test('agentMessage returns null (canonical text emitted by item/completed)', () => {
@@ -395,6 +399,8 @@ describe('CodexExecutor.normalizeLog', () => {
       expect(entry!.entryType).toBe('tool-use')
       expect(entry!.metadata?.toolName).toBe('mcp:myserver:mytool')
       expect(entry!.metadata?.input).toEqual({ q: 'test' })
+      expect(entry!.metadata?.streaming).toBeUndefined()
+      expect(entry!.metadata?.isResult).toBeUndefined()
     })
 
     test('item/completed mcpToolCall with result', () => {
@@ -438,6 +444,8 @@ describe('CodexExecutor.normalizeLog', () => {
       expect(entry).not.toBeNull()
       expect(entry!.entryType).toBe('tool-use')
       expect(entry!.metadata?.toolName).toBe('custom_tool')
+      expect(entry!.metadata?.streaming).toBeUndefined()
+      expect(entry!.metadata?.isResult).toBeUndefined()
     })
 
     test('item/completed dynamicToolCall with content', () => {
@@ -468,6 +476,8 @@ describe('CodexExecutor.normalizeLog', () => {
       expect(entry).not.toBeNull()
       expect(entry!.entryType).toBe('tool-use')
       expect(entry!.metadata?.toolName).toBe('WebSearch')
+      expect(entry!.metadata?.streaming).toBeUndefined()
+      expect(entry!.metadata?.isResult).toBeUndefined()
     })
 
     test('item/completed webSearch returns result', () => {
