@@ -35,10 +35,37 @@ interface FileBrowserStore {
   hideIgnored: boolean
   /** Per-context path cache so switching contexts restores the last position. */
   pathCache: Map<string, string>
+  /**
+   * Target line inside the currently-viewed file (1-based). Set by `openAt`
+   * for chat-triggered previews; the viewer consumes and clears it after
+   * scrolling. Null when no jump is pending.
+   */
+  targetLine: number | null
+  /**
+   * When `openAt` set `targetLine`, this records which file the line refers
+   * to. Used to avoid jumping when the user later navigates to a different
+   * file inside the same drawer session.
+   */
+  targetFile: string | null
   open: (projectId: string, rootPath?: string) => void
   /** Open for a specific issue — tracks path per issue, opens as inline panel. */
   openForIssue: (projectId: string, issueId: string, rootPath?: string) => void
   openFullscreen: (projectId: string, rootPath?: string) => void
+  /**
+   * Quick-preview entry: open the drawer (fullscreen on mobile) navigated
+   * directly to `path` inside `rootPath`, optionally scrolling to `line`.
+   * Reuses the per-context path cache. Mobile auto-fullscreen is decided
+   * at call time via the viewport media query.
+   */
+  openAt: (params: {
+    projectId: string
+    issueId?: string | null
+    rootPath?: string
+    path: string
+    line?: number
+  }) => void
+  /** Clear pending target line/file after the viewer has consumed it. */
+  clearTarget: () => void
   close: () => void
   toggle: (projectId: string) => void
   /** Toggle as drawer (global overlay). */
@@ -92,6 +119,8 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
   currentPath: '.',
   hideIgnored: false,
   pathCache: new Map(),
+  targetLine: null,
+  targetFile: null,
 
   open: (projectId, rootPath) =>
     set((s) => {
@@ -137,7 +166,32 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
         ...ctx,
       }
     }),
-  close: () => set({ isOpen: false }),
+  openAt: ({ projectId, issueId, rootPath, path, line }) =>
+    set((s) => {
+      // Normalize the incoming path: strip leading "./", flip backslashes.
+      const normalized = path.replace(/^\.\//, '').replace(/\\/g, '/')
+      const root = rootPath ?? null
+      const ctx = switchContext(s, projectId, root, issueId ?? null)
+      const isMobile
+        = typeof window !== 'undefined'
+          && typeof window.matchMedia === 'function'
+          && window.matchMedia('(max-width: 767px)').matches
+      return {
+        isOpen: true,
+        isMinimized: false,
+        isDrawer: true,
+        isFullscreen: isMobile,
+        projectId,
+        issueId: issueId ?? null,
+        rootPath: root,
+        pathCache: ctx.pathCache,
+        currentPath: normalized,
+        targetFile: normalized,
+        targetLine: typeof line === 'number' && line > 0 ? line : null,
+      }
+    }),
+  clearTarget: () => set({ targetLine: null, targetFile: null }),
+  close: () => set({ isOpen: false, targetLine: null, targetFile: null }),
   toggle: projectId =>
     set((s) => {
       if (s.isMinimized) {
@@ -202,3 +256,5 @@ export const useFileBrowserIsDrawer = () => useFileBrowserStore(s => s.isDrawer)
 export const useFileBrowserWidth = () => useFileBrowserStore(s => s.width)
 export const useFileBrowserCurrentPath = () => useFileBrowserStore(s => s.currentPath)
 export const useFileBrowserHideIgnored = () => useFileBrowserStore(s => s.hideIgnored)
+export const useFileBrowserTargetLine = () => useFileBrowserStore(s => s.targetLine)
+export const useFileBrowserTargetFile = () => useFileBrowserStore(s => s.targetFile)

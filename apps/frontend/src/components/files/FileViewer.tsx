@@ -1,10 +1,16 @@
 import DOMPurify from 'dompurify'
-import { Code, Eye, FileWarning } from 'lucide-react'
+import { Code, CornerDownRight, Eye, FileWarning } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { codeToHtml } from '@/lib/shiki'
+import {
+  useFileBrowserStore,
+  useFileBrowserTargetFile,
+  useFileBrowserTargetLine,
+} from '@/stores/file-browser-store'
 import type { FileContent } from '@/types/kanban'
 import { MarkdownRenderer } from './MarkdownRenderer'
+import { isTableFile, TableViewer } from './TableViewer'
 
 const CodeEditor = lazy(() => import('./CodeEditor').then(m => ({ default: m.CodeEditor })))
 
@@ -63,6 +69,8 @@ interface FileViewerProps {
   onCancelEdit?: () => void
   onSave?: (content: string) => void
   isSaving?: boolean
+  /** Raw download URL — required by TableViewer for xlsx fetching. */
+  rawFileUrl?: string
 }
 
 export function FileViewer({
@@ -73,14 +81,21 @@ export function FileViewer({
   onCancelEdit,
   onSave,
   isSaving,
+  rawFileUrl,
 }: FileViewerProps) {
   const { t } = useTranslation()
   const [html, setHtml] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const isMd = isMarkdownFile(file.path)
+  const isTable = isTableFile(file.path)
   const [showRendered, setShowRendered] = useState(isMd)
   const prevPath = useRef(file.path)
   const [editContent, setEditContent] = useState(file.content)
+  const targetLine = useFileBrowserTargetLine()
+  const targetFile = useFileBrowserTargetFile()
+  const clearTarget = useFileBrowserStore(s => s.clearTarget)
+  const codeContainerRef = useRef<HTMLDivElement>(null)
+  const [gotoInput, setGotoInput] = useState('')
 
   // Reset view mode when navigating to a different file
   if (prevPath.current !== file.path) {
@@ -103,7 +118,7 @@ export function FileViewer({
   const fileName = file.path.split('/').pop() ?? file.path
 
   useEffect(() => {
-    if (file.isBinary) {
+    if (file.isBinary || isTable) {
       setLoading(false)
       return
     }
@@ -126,7 +141,69 @@ export function FileViewer({
     return () => {
       cancelled = true
     }
-  }, [file.content, file.path, file.isBinary, isMd, showRendered, isEditing])
+  }, [file.content, file.path, file.isBinary, isMd, isTable, showRendered, isEditing])
+
+  /**
+   * Scroll to a 1-based line number and pulse-highlight it for ~2 seconds.
+   * Shiki emits one <span class="line"> per source line; we tag each with a
+   * `data-line` attribute after render, then locate the target span.
+   */
+  const scrollToLine = useCallback((line: number) => {
+    const container = codeContainerRef.current
+    if (!container || line < 1) return
+    // Tag lines lazily on demand — cheap and avoids modifying Shiki output.
+    const lineNodes = container.querySelectorAll<HTMLElement>('.line')
+    lineNodes.forEach((el, idx) => {
+      if (!el.dataset.line) el.dataset.line = String(idx + 1)
+    })
+    const target = container.querySelector<HTMLElement>(`.line[data-line="${line}"]`)
+    if (!target) return
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    target.classList.add('bg-yellow-400/30', 'dark:bg-yellow-300/15')
+    window.setTimeout(() => {
+      target.classList.remove('bg-yellow-400/30', 'dark:bg-yellow-300/15')
+    }, 2000)
+  }, [])
+
+  // Auto-jump when the store reports a target line for the currently-shown
+  // file. Wait until Shiki finishes (loading=false + html set) so the .line
+  // spans exist before we query them.
+  useEffect(() => {
+    if (loading || !html) return
+    if (!targetLine || !targetFile) return
+    if (targetFile !== file.path) return
+    // Defer past commit so the dangerouslySetInnerHTML subtree exists.
+    const id = window.setTimeout(() => {
+      scrollToLine(targetLine)
+      clearTarget()
+    }, 50)
+    return () => window.clearTimeout(id)
+  }, [loading, html, targetLine, targetFile, file.path, scrollToLine, clearTarget])
+
+  const handleGotoSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault()
+    const n = Number.parseInt(gotoInput, 10)
+    if (Number.isFinite(n) && n > 0) scrollToLine(n)
+  }, [gotoInput, scrollToLine])
+
+  if (isTable) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        {breadcrumb && (
+          <div className="bg-muted/50 border-b border-border px-4 py-1.5 shrink-0">
+            {breadcrumb}
+          </div>
+        )}
+        <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border shrink-0">
+          <span className="font-medium text-sm truncate">{fileName}</span>
+          <span className="text-xs text-muted-foreground shrink-0">{formatSize(file.size)}</span>
+        </div>
+        <div className="flex-1 min-h-0">
+          <TableViewer file={file} rawFileUrl={rawFileUrl} />
+        </div>
+      </div>
+    )
+  }
 
   if (file.isBinary) {
     return (
@@ -183,6 +260,27 @@ export function FileViewer({
               )
             : (
                 <>
+                  {!isMd || !showRendered
+                    ? (
+                        <form
+                          onSubmit={handleGotoSubmit}
+                          className="hidden md:flex items-center gap-1 rounded px-1.5 py-0.5 bg-background border border-border/40"
+                          title={t('fileBrowser.gotoLine')}
+                        >
+                          <CornerDownRight className="h-3 w-3 text-muted-foreground/60" />
+                          <input
+                            type="number"
+                            min={1}
+                            max={lineCount > 0 ? lineCount : undefined}
+                            value={gotoInput}
+                            onChange={e => setGotoInput(e.target.value)}
+                            placeholder={t('fileBrowser.gotoLinePlaceholder')}
+                            className="w-12 bg-transparent border-0 outline-none text-[11px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            aria-label={t('fileBrowser.gotoLine')}
+                          />
+                        </form>
+                      )
+                    : null}
                   {isMd
                     ? (
                         <button
@@ -256,7 +354,8 @@ export function FileViewer({
                 )
               : (
                   <div
-                    className="shiki-line-numbers text-xs [&_pre]:!bg-transparent [&_pre]:px-2 [&_pre]:py-1.5 [&_pre]:overflow-x-auto [&_code]:leading-snug"
+                    ref={codeContainerRef}
+                    className="shiki-line-numbers text-xs [&_pre]:!bg-transparent [&_pre]:px-2 [&_pre]:py-1.5 [&_pre]:overflow-x-auto [&_code]:leading-snug [&_.line]:transition-colors [&_.line]:duration-200"
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }}
                   />
                 )}

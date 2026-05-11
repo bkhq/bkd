@@ -1,5 +1,5 @@
 import { Maximize2, Minimize2, Minus, X } from 'lucide-react'
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
@@ -8,6 +8,14 @@ import {
   useFileBrowserStore,
 } from '@/stores/file-browser-store'
 import { FileBrowserContent } from './FileBrowserContent'
+
+/**
+ * Tag names whose `keydown` events should NOT trigger drawer-level Esc-close.
+ *
+ * Without this, pressing Esc while typing in a file-search box or the goto
+ * line input would dismiss the entire drawer.
+ */
+const ESC_BLOCK_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
 export function FileBrowserDrawer() {
   const { t } = useTranslation()
@@ -24,6 +32,37 @@ export function FileBrowserDrawer() {
   } = useFileBrowserStore()
   const isMobile = useIsMobile()
   const dragRef = useRef<{ startX: number, startWidth: number } | null>(null)
+  /**
+   * Records the element that had focus when the drawer opened so we can
+   * restore it on close — keeps the chat composer responsive.
+   */
+  const prevFocusRef = useRef<HTMLElement | null>(null)
+
+  // Esc-to-close + focus preservation. Both are scoped to when the drawer
+  // is actually mounted, so we don't burn a listener while the drawer is
+  // closed (which is the steady state).
+  useEffect(() => {
+    if (!isOpen || !isDrawer) return
+    prevFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const target = e.target as HTMLElement | null
+      // Don't hijack Esc when the user is editing text or
+      // contenteditable — those inputs may have their own Esc handling.
+      if (target && (ESC_BLOCK_TAGS.has(target.tagName) || target.isContentEditable)) return
+      close()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      // Restore previous focus on unmount/close, but only if it still lives.
+      const prev = prevFocusRef.current
+      if (prev && document.contains(prev)) prev.focus()
+      prevFocusRef.current = null
+    }
+  }, [isOpen, isDrawer, close])
 
   if (!isOpen || !projectId || !isDrawer) return null
 

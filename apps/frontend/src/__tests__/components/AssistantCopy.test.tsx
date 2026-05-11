@@ -1,4 +1,6 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { LogEntry } from '@/components/issue-detail/LogEntry'
 import type { TimelineEntry } from '@/types/kanban'
@@ -48,6 +50,22 @@ beforeAll(() => {
   })
 })
 
+/**
+ * AssistantMessage now consults `useFilePreview` to wire inline path chips.
+ * That hook hangs off React Query (`useIssueChanges`) and `useParams`, so
+ * the test tree needs both providers. We use a no-network QueryClient and a
+ * MemoryRouter — `useFilePreview` reports `hasPreview === false` outside an
+ * issue route, which keeps this test focused on copy behavior.
+ */
+function renderWithProviders(ui: React.ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
 function makeAssistantEntry(content: string): TimelineEntry {
   return {
     id: 'turn-0-assistant-0000',
@@ -72,7 +90,7 @@ describe('assistant message copy', () => {
     })
 
     const raw = '# Heading\n\n**bold** and `code`\n\n| a | b |\n|---|---|\n| 1 | 2 |'
-    render(<LogEntry entry={makeAssistantEntry(raw)} />)
+    renderWithProviders(<LogEntry entry={makeAssistantEntry(raw)} />)
 
     // Button is always discoverable — the tooltip key surfaces it.
     const copyButton = screen.getByTitle('session.copyMessage')
@@ -88,7 +106,7 @@ describe('assistant message copy', () => {
       writable: true,
       configurable: true,
     })
-    render(<LogEntry entry={makeAssistantEntry('hello')} />)
+    renderWithProviders(<LogEntry entry={makeAssistantEntry('hello')} />)
     const copyButton = screen.getByTitle('session.copyMessage')
     // The previous implementation used `opacity-0 group-hover:opacity-100`
     // which made the button effectively invisible. Pin the regression: the

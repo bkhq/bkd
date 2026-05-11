@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-05-10
+> Updated: 2026-05-11
 
 ## Usage
 
@@ -45,3 +45,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**CHAT-003 Eliminate OpenCode double-emit assistant/thinking bubbles**](CHAT-003.md) `P1`
 - [x] [**CHAT-004 Floating current-prompt hint while scrolling chat history**](CHAT-004.md) `P2`
 - [x] [**CHAT-005 Pin TimelineEntry sequence on same-id upsert**](CHAT-005.md) `P1`
+- [x] [**FILE-002 Clickable file path chips in chat with quick file preview drawer**](FILE-002.md) `P1`

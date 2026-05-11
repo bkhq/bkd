@@ -542,7 +542,18 @@
     "save": "保存",
     "saving": "保存中...",
     "cancel": "取消",
-    "editNotSupported": "二进制文件无法编辑"
+    "editNotSupported": "二进制文件无法编辑",
+    "previewFile": "预览 {{path}}",
+    "gotoLine": "跳转到行",
+    "gotoLinePlaceholder": "行号",
+    "tableSheet": "工作表",
+    "tableSheets": "工作表",
+    "tableRows": "{{count}} 行",
+    "tableCols": "{{count}} 列",
+    "tableTruncated": "仅显示前 {{shown}} 行，共 {{total}} 行",
+    "tableParseError": "解析表格失败",
+    "tableLoading": "加载表格中…",
+    "tableDownloadFull": "下载完整文件"
   },
   "processManager": {
     "title": "进程",

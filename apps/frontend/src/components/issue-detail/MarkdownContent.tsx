@@ -1,6 +1,9 @@
-import { lazy, Suspense, useCallback, useMemo } from 'react'
+import * as React from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { transformChildrenWithPathChips } from '@/lib/path-chips'
+
+const { lazy, Suspense, useCallback, useMemo } = React
 
 const MermaidDiagram = lazy(() =>
   import('@/components/MermaidDiagram').then(m => ({ default: m.MermaidDiagram })),
@@ -38,9 +41,19 @@ const ShikiCodeBlock = lazy(() =>
 export function MarkdownContent({
   content,
   className: containerClassName = '',
+  knownPaths,
+  onPathClick,
 }: {
   content: string
   className?: string
+  /**
+   * Pre-sorted whitelist of file paths to recognize inside plain text.
+   * When provided together with `onPathClick`, matched substrings become
+   * clickable inline chips. When empty / undefined, text is rendered as-is.
+   */
+  knownPaths?: string[]
+  /** Click handler bound to each generated path chip. */
+  onPathClick?: (path: string, line?: number) => void
 }) {
   const renderPre = useCallback(
     ({ children }: React.HTMLAttributes<HTMLPreElement>) => <>{children}</>,
@@ -111,13 +124,43 @@ export function MarkdownContent({
     [],
   )
 
+  // Build an inline-text component override that swaps known file paths for
+  // PathChip buttons. We only wire it into common inline-text containers
+  // (p, li, td, em, strong) — code/pre/a subtrees are skipped inside
+  // `transformChildrenWithPathChips`. The override is opt-in: without
+  // `knownPaths` + `onPathClick` we use the default react-markdown render.
+  const chipsEnabled = !!onPathClick && !!knownPaths && knownPaths.length > 0
+
+  // Inline-text renderer factory. We re-use a single transform function
+  // bound to current `knownPaths` + `onPathClick` and reuse it across
+  // p/li/td/em/strong, keeping these as simple render callbacks (not nested
+  // components — see eslint react/no-nested-component-definitions).
+  const renderInlineTag = useMemo(() => {
+    if (!chipsEnabled) return null
+    const transform = (children: React.ReactNode) =>
+      transformChildrenWithPathChips(children, knownPaths!, onPathClick!)
+    return (tag: 'p' | 'li' | 'td' | 'em' | 'strong') =>
+      ({ children, ...rest }: React.HTMLAttributes<HTMLElement>) =>
+        React.createElement(tag, rest, transform(children))
+  }, [chipsEnabled, knownPaths, onPathClick])
+
   const components = useMemo(
-    () => ({
-      pre: renderPre,
-      code: renderCode,
-      a: renderAnchor,
-    }),
-    [renderPre, renderCode, renderAnchor],
+    () => {
+      const base: Record<string, unknown> = {
+        pre: renderPre,
+        code: renderCode,
+        a: renderAnchor,
+      }
+      if (renderInlineTag) {
+        base.p = renderInlineTag('p')
+        base.li = renderInlineTag('li')
+        base.td = renderInlineTag('td')
+        base.em = renderInlineTag('em')
+        base.strong = renderInlineTag('strong')
+      }
+      return base
+    },
+    [renderPre, renderCode, renderAnchor, renderInlineTag],
   )
 
   return (

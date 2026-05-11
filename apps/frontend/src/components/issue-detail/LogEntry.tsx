@@ -25,6 +25,7 @@ import {
 import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
+import { useFilePreview } from '@/hooks/use-file-preview'
 import { splitAssistantPreamble } from '@/lib/assistant-preamble'
 import { getCommandPreview } from '@/lib/command-preview'
 import { formatFileSize } from '@/lib/format'
@@ -560,6 +561,10 @@ function AssistantMessage({
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const [preambleOpen, setPreambleOpen] = useState(false)
+  // Wire inline file-path chips into the assistant reply. The hook returns
+  // an empty path list outside an issue route, so the chip-aware branch in
+  // MarkdownContent is a no-op for non-chat contexts.
+  const { knownPaths, openPreview, hasPreview } = useFilePreview()
 
   // opencode/ACP engines emit a structured task-tracking preamble (Goal,
   // Constraints, Progress, ...) before the actual reply, all in one assistant
@@ -641,6 +646,8 @@ function AssistantMessage({
                     <MarkdownContent
                       content={reply}
                       className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65]"
+                      knownPaths={hasPreview ? knownPaths : undefined}
+                      onPathClick={hasPreview ? openPreview : undefined}
                     />
                   )
             )

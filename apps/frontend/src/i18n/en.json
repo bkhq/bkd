@@ -545,7 +545,18 @@
     "save": "Save",
     "saving": "Saving...",
     "cancel": "Cancel",
-    "editNotSupported": "Binary files cannot be edited"
+    "editNotSupported": "Binary files cannot be edited",
+    "previewFile": "Preview {{path}}",
+    "gotoLine": "Go to line",
+    "gotoLinePlaceholder": "Line #",
+    "tableSheet": "Sheet",
+    "tableSheets": "Sheets",
+    "tableRows": "{{count}} rows",
+    "tableCols": "{{count}} cols",
+    "tableTruncated": "Showing first {{shown}} of {{total}} rows",
+    "tableParseError": "Failed to parse table file",
+    "tableLoading": "Loading table…",
+    "tableDownloadFull": "Download full file"
   },
   "processManager": {
     "title": "Processes",

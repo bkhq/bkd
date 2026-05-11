@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useFilePreview } from '@/hooks/use-file-preview'
 import { getCommandPreview } from '@/lib/command-preview'
 import {
   CodeBlock,
@@ -125,10 +126,33 @@ function ToolLabel({ label, icon: Icon }: { label: string, icon: React.Component
   )
 }
 
-/** Badge component for file path */
-function PathBadge({ path }: { path: string }) {
+/**
+ * Badge component for file path. When the surrounding route is an issue
+ * (so we know which file browser context to open), renders as a clickable
+ * button that pops the FileBrowserDrawer to a preview of `path`. Falls back
+ * to a static `<code>` element outside an issue route.
+ */
+function PathBadge({ path, line }: { path: string, line?: number }) {
+  const { t } = useTranslation()
+  const { openPreview, hasPreview } = useFilePreview()
+  if (!hasPreview) {
+    return (
+      <code className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono overflow-x-auto whitespace-nowrap scrollbar-none">{path}</code>
+    )
+  }
   return (
-    <code className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono overflow-x-auto whitespace-nowrap scrollbar-none">{path}</code>
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        openPreview(path, line)
+      }}
+      aria-label={t('fileBrowser.previewFile', { path })}
+      title={t('fileBrowser.previewFile', { path })}
+      className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono overflow-x-auto whitespace-nowrap scrollbar-none hover:bg-muted hover:ring-1 hover:ring-primary/40 transition-colors cursor-pointer text-left"
+    >
+      {path}
+    </button>
   )
 }
 

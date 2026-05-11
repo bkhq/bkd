@@ -1,5 +1,79 @@
 # Changelog
 
+## 2026-05-11 17:55 [progress]
+
+Clickable file path chips in chat + quick file preview drawer (FILE-002 /
+PLAN-011). Users can now click a file path inside an AI reply (whether
+from a tool call summary or free-text mention) and the existing
+`FileBrowserDrawer` slides in pointing at that file, scrolled to the
+optional `:LINE` suffix. The drawer no longer steals focus from the chat
+composer and closes on `Esc`, so review cycles stay fast.
+
+- New `useFilePreview` hook (`apps/frontend/src/hooks/use-file-preview.ts`)
+  composes `useIssueChanges` + `useProject` + the file-browser store into a
+  single `{ knownPaths, openPreview }` API, with worktree-aware root
+  resolution (prefers `/changes.root`, falls back to `project.directory`).
+- `PathBadge` inside tool-call summaries (`ToolItems.tsx`) is now a button.
+- `MarkdownContent` accepts optional `knownPaths` + `onPathClick`; when
+  provided it wires inline path chips into p/li/td/em/strong via a
+  text-node walk that skips `code`/`pre`/`a` subtrees.
+- New `splitByKnownPaths` / `transformChildrenWithPathChips` utility
+  (`apps/frontend/src/lib/path-chips.tsx`) with longest-match priority,
+  `:LINE` / `:LINE-LINE` suffix capture, and strict path-boundary checks
+  so `foo.tsx` does not accidentally match `foo.ts`.
+- `useFileBrowserStore` gains `openAt({ projectId, issueId, rootPath,
+  path, line })` + `targetFile` / `targetLine` state. Auto-enters
+  fullscreen on `(max-width: 767px)` viewports for mobile sheet UX.
+- `FileViewer` scrolls to the target line after Shiki render, tagging
+  `.line` spans with `data-line` and applying a 2-second pulse highlight.
+  A new "Go to line" input in the header lets users jump manually.
+- New `TableViewer` component (`apps/frontend/src/components/files/`)
+  branches on extension: `.csv` / `.tsv` parse via papaparse, `.xlsx` /
+  `.xls` fetch raw bytes + parse via dynamic-imported sheetjs. Sheet tabs
+  for multi-sheet xlsx, `@tanstack/react-virtual` for large tables,
+  1000-row cap with truncation banner.
+- `FileBrowserDrawer` registers a window-level `Esc` listener (scoped to
+  while-open, ignored when the active element is an input / textarea /
+  contenteditable) and restores the previously-focused element on close.
+
+Test invariants added:
+
+- `path-chips.test.tsx` (13 tests): normalization, sort order, dedup,
+  longest-match, `:LINE` capture, range suffix, boundary rejection for
+  both leading and trailing path characters.
+- `file-browser-store-openAt.test.ts` (7 tests): path normalization,
+  zero-line clearing, mobile fullscreen via matchMedia, target cleanup
+  on `close`, per-issue path cache continuity.
+
+Test coverage delta: frontend 117 → 137 tests (all passing).
+
+New deps:
+
+- `papaparse@5.5.2` (csv, eager) + `@types/papaparse` dev type
+- `xlsx@0.20.3` via the SheetJS community tarball
+  (`https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`).
+  Dynamic-imported only when an xlsx file is opened.
+
+Files changed:
+
+- `apps/frontend/src/components/issue-detail/ToolItems.tsx`
+- `apps/frontend/src/components/issue-detail/MarkdownContent.tsx`
+- `apps/frontend/src/components/issue-detail/LogEntry.tsx`
+- `apps/frontend/src/components/files/FileViewer.tsx`
+- `apps/frontend/src/components/files/FileBrowserDrawer.tsx`
+- `apps/frontend/src/components/files/FileBrowserContent.tsx`
+- `apps/frontend/src/components/files/TableViewer.tsx` (new)
+- `apps/frontend/src/stores/file-browser-store.ts`
+- `apps/frontend/src/hooks/use-file-preview.ts` (new)
+- `apps/frontend/src/lib/path-chips.tsx` (new)
+- `apps/frontend/src/i18n/en.json`, `apps/frontend/src/i18n/zh.json`
+- `apps/frontend/src/__tests__/lib/path-chips.test.tsx` (new)
+- `apps/frontend/src/__tests__/lib/file-browser-store-openAt.test.ts` (new)
+- `apps/frontend/src/__tests__/components/AssistantCopy.test.tsx`
+- `apps/frontend/package.json` (papaparse, xlsx, @types/papaparse)
+
+Tracking: FILE-002 / PLAN-011.
+
 ## 2026-05-10 15:25 [progress]
 
 Lift the chat attachment upload ceiling from 10 MB to 100 MB so users can
