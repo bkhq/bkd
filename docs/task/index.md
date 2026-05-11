@@ -44,3 +44,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**FILE-001 Lift attachment upload limit and add upload progress UX**](FILE-001.md) `P1`
 - [x] [**CHAT-003 Eliminate OpenCode double-emit assistant/thinking bubbles**](CHAT-003.md) `P1`
 - [x] [**CHAT-004 Floating current-prompt hint while scrolling chat history**](CHAT-004.md) `P2`
+- [x] [**CHAT-005 Pin TimelineEntry sequence on same-id upsert**](CHAT-005.md) `P1`

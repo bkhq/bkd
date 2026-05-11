@@ -230,6 +230,32 @@ export function useIssueStream({
     return -1
   }
 
+  /**
+   * Pin sequence on same-id upsert.
+   *
+   * Backend's `liveConverter` assigns `buffer.sequence` once at the first
+   * chunk and reuses it for every subsequent emission of the same id
+   * (`timeline-converter.ts:192, 265`). The frontend used to blindly take
+   * whatever sequence the new event carried, so any path that delivered a
+   * same-id update with a different sequence — e.g. a `log-updated` event
+   * (raw NormalizedLogEntry, no sequence; synthesized to `ts*1000` via
+   * `toTimelineEntry`) or a reconnect re-running a cached entry — could
+   * shift the entry's render position relative to entries (like a `tool-use`)
+   * emitted between the two chunks. This is the reorder users reported.
+   *
+   * The pin only applies when the existing AND incoming entry share the
+   * same `id`. Optimistic→canonical replacement is matched by `messageId`
+   * with intentionally different ids (raw vs `turn-N-user-{messageId}`),
+   * and that path MUST take the canonical backend sequence so the
+   * optimistic's temporary bottom-anchor sequence does not stick.
+   */
+  function pinSequence(prev: TimelineEntry, next: TimelineEntry): TimelineEntry {
+    if (prev.id === next.id && prev.sequence !== undefined) {
+      return { ...next, sequence: prev.sequence }
+    }
+    return next
+  }
+
   /** Append or replace */
   const appendEntry = useCallback((entry: TimelineEntry) => {
     setLiveLogs((prev) => {
@@ -237,7 +263,7 @@ export function useIssueStream({
       let next: TimelineEntry[]
       if (idx >= 0) {
         next = [...prev]
-        next[idx] = entry
+        next[idx] = pinSequence(prev[idx], entry)
       } else {
         next = [...prev, entry]
       }
@@ -259,7 +285,7 @@ export function useIssueStream({
       const idx = findExisting(prev, entry)
       if (idx >= 0) {
         const next = [...prev]
-        next[idx] = entry
+        next[idx] = pinSequence(prev[idx], entry)
         liveLogsRef.current = next
         return next
       }
