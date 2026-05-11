@@ -220,6 +220,68 @@ function LegacySessionMessages({
     ? (lastMsg.entry.content?.length ?? 0)
     : 0
 
+  // Scroll anchoring on prepend.
+  //
+  // When older logs are prepended to the top of the list, browsers (and
+  // @tanstack/react-virtual in the virtualized branch) don't reliably
+  // anchor the user's viewport — `scrollTop` stays at the same numeric
+  // value while the content above grew by `delta`, so the user visibly
+  // jumps to the top of the new content. We track `scrollHeight` between
+  // renders and compensate manually before paint.
+  //
+  // useLayoutEffect, not useEffect: runs synchronously after DOM commit
+  // and before paint, so the adjustment is invisible to the user. Runs
+  // before the existing scroll-to-bottom useEffect below, which is fine —
+  // both branches check `wasOlderPrepend` and mutually exclude.
+  const prevScrollHeightRef = useRef(0)
+  useLayoutEffect(() => {
+    const el = scrollRef?.current
+    if (!el) return
+    const wasOlderPrepend =
+      initialScrollDone.current &&
+      messages.length > prevLenRef.current &&
+      prevFirstIdRef.current &&
+      firstMessageId !== prevFirstIdRef.current
+    if (wasOlderPrepend && prevScrollHeightRef.current > 0) {
+      const delta = el.scrollHeight - prevScrollHeightRef.current
+      if (delta > 0) el.scrollTop = el.scrollTop + delta
+    }
+    prevScrollHeightRef.current = el.scrollHeight
+  }, [firstMessageId, messages.length, scrollRef])
+
+  // Auto-load older logs when the top of the message list nears the
+  // viewport. IntersectionObserver fires on the actual intersection event
+  // (not every scroll tick), so it doesn't re-trigger on streaming bottom
+  // updates the way a scrollTop threshold check would. Combined with the
+  // anchoring effect above, after each load the user stays on the same
+  // message and the sentinel slides out of view — no infinite-fetch loop.
+  const hasOlderLogsRef = useRef(hasOlderLogs)
+  const isLoadingOlderRef = useRef(isLoadingOlder)
+  useEffect(() => {
+    hasOlderLogsRef.current = hasOlderLogs
+  }, [hasOlderLogs])
+  useEffect(() => {
+    isLoadingOlderRef.current = isLoadingOlder
+  }, [isLoadingOlder])
+
+  const topSentinelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const sentinel = topSentinelRef.current
+    const root = scrollRef?.current
+    if (!sentinel || !root || !onLoadOlder) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry?.isIntersecting) return
+        if (!hasOlderLogsRef.current || isLoadingOlderRef.current) return
+        onLoadOlder()
+      },
+      { root, rootMargin: '300px 0px 0px 0px' },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [scrollRef, onLoadOlder])
+
   useEffect(() => {
     if (!initialScrollDone.current) return
     const wasOlderPrepend =
@@ -243,17 +305,18 @@ function LegacySessionMessages({
 
   return (
     <div className={`flex flex-col py-3 px-4 max-md:gap-3 md:py-2 md:px-5${fullWidthChat ? '' : ' max-w-4xl'}`}>
-      {hasOlderLogs && onLoadOlder ?
+      {/* IntersectionObserver sentinel — auto-loads older history when
+          the top of the list nears the viewport. Replaces the previous
+          explicit "Load earlier messages" button (universal mobile chat
+          idiom: Slack / Telegram / Discord / iMessage). */}
+      <div ref={topSentinelRef} aria-hidden className="h-0 shrink-0" />
+      {isLoadingOlder ?
           (
             <div className="flex justify-center py-2">
-              <button
-                type="button"
-                onClick={onLoadOlder}
-                disabled={isLoadingOlder}
-                className="rounded-md border border-border/40 bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoadingOlder ? t('common.loading') : t('session.loadMore')}
-              </button>
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {t('common.loading')}
+              </span>
             </div>
           ) :
         null}

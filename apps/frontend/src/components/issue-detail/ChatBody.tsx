@@ -263,6 +263,15 @@ export function ChatBody({
   const setSavedScroll = useScrollPositionStore(s => s.setPosition)
   const savedScroll = useScrollPositionStore(s => s.positions[issueId])
 
+  // Mirror isLoadingOlder into a ref so the scroll handler can read the
+  // current value without forcing this effect to re-attach the listener
+  // on every load tick (which would also re-trigger the initial
+  // handleScroll() call below).
+  const isLoadingOlderRef = useRef(isLoadingOlder)
+  useEffect(() => {
+    isLoadingOlderRef.current = isLoadingOlder
+  }, [isLoadingOlder])
+
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -275,8 +284,15 @@ export function ChatBody({
         const { scrollTop, scrollHeight, clientHeight } = el
         setShowScrollTop(scrollTop > 200)
         setShowScrollBottom(scrollHeight - scrollTop - clientHeight > 200)
-        // Save scroll position (throttled inside the store).
-        setSavedScroll(issueId, scrollTop)
+        // Save scroll position only when there's real content to scroll
+        // and we're not in the middle of prepending older logs. Without
+        // these guards we'd persist the transient scrollTop=0 captured on
+        // initial mount (no content yet) or mid-prepend (before anchoring
+        // restores position) into localStorage, poisoning future visits.
+        const isScrollable = scrollHeight - clientHeight > 0
+        if (isScrollable && !isLoadingOlderRef.current) {
+          setSavedScroll(issueId, scrollTop)
+        }
       })
     }
 
@@ -299,7 +315,11 @@ export function ChatBody({
   useLayoutEffect(() => {
     if (logs.length === 0) return
     if (restoredForIssueRef.current === issueId) return
-    if (savedScroll === undefined) {
+    // Ignore polluted savedScroll≤0 entries from the pre-anchoring era
+    // (when the scroll handler would persist 0 mid-prepend or on mount).
+    // SessionMessages' own snap-to-bottom remains in place — landing on
+    // the latest message is the right default if we have nothing better.
+    if (savedScroll === undefined || savedScroll <= 0) {
       restoredForIssueRef.current = issueId
       return
     }
@@ -359,12 +379,7 @@ export function ChatBody({
             null}
         </div>
         <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden">
-          {/* max-md:pt-[52px]: on mobile the title bar is an absolute
-              overlay (z-20, ~45px tall) — without top padding the "load
-              more" button at the very top of the message list gets hidden
-              behind it when the user scrolls to the start of history.
-              Matches the 52px offset used by the floating overlays above. */}
-          <div className="flex flex-col min-h-full justify-end py-1 max-md:pt-[52px]">
+          <div className="flex flex-col min-h-full justify-end py-1">
             <Suspense
               fallback={
                 <div className="px-5 py-2 text-xs text-muted-foreground">{t('common.loading')}</div>

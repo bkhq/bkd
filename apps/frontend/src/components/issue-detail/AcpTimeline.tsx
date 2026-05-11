@@ -1,6 +1,6 @@
 import type { NormalizedLogEntry, TimelineEntry } from '@bkd/shared'
 import { CheckCircle2, Circle, Lightbulb, ListTodo, Loader2 } from 'lucide-react'
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAcpTimeline } from '@/hooks/use-acp-timeline'
 import { useViewModeStore } from '@/stores/view-mode-store'
@@ -175,38 +175,83 @@ export function AcpTimeline({
 
   const prevLenRef = useRef(items.length)
   const prevFirstIdRef = useRef(items[0]?.id)
+  const firstItemId = items[0]?.id
+
+  // Scroll anchoring on prepend — see SessionMessages for the long form.
+  // Without this, older items added at the top shift the user's viewport
+  // to the new top instead of preserving the message they were reading.
+  const prevScrollHeightRef = useRef(0)
+  useLayoutEffect(() => {
+    const el = scrollRef?.current
+    if (!el) return
+    const wasOlderPrepend =
+      initialScrollDone.current &&
+      items.length > prevLenRef.current &&
+      prevFirstIdRef.current &&
+      firstItemId !== prevFirstIdRef.current
+    if (wasOlderPrepend && prevScrollHeightRef.current > 0) {
+      const delta = el.scrollHeight - prevScrollHeightRef.current
+      if (delta > 0) el.scrollTop = el.scrollTop + delta
+    }
+    prevScrollHeightRef.current = el.scrollHeight
+  }, [firstItemId, items.length, scrollRef])
+
+  // Auto-load older logs via IntersectionObserver on a top sentinel.
+  const hasOlderLogsRef = useRef(hasOlderLogs)
+  const isLoadingOlderRef = useRef(isLoadingOlder)
+  useEffect(() => {
+    hasOlderLogsRef.current = hasOlderLogs
+  }, [hasOlderLogs])
+  useEffect(() => {
+    isLoadingOlderRef.current = isLoadingOlder
+  }, [isLoadingOlder])
+
+  const topSentinelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const sentinel = topSentinelRef.current
+    const root = scrollRef?.current
+    if (!sentinel || !root || !onLoadOlder) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry?.isIntersecting) return
+        if (!hasOlderLogsRef.current || isLoadingOlderRef.current) return
+        onLoadOlder()
+      },
+      { root, rootMargin: '300px 0px 0px 0px' },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [scrollRef, onLoadOlder])
 
   useEffect(() => {
     if (!initialScrollDone.current) return
-    const firstId = items[0]?.id
     const wasOlderPrepend =
       items.length > prevLenRef.current &&
       prevFirstIdRef.current &&
-      firstId !== prevFirstIdRef.current
+      firstItemId !== prevFirstIdRef.current
 
     if (!wasOlderPrepend && nearBottomRef.current && (items.length !== prevLenRef.current || isRunning)) {
       const el = scrollRef?.current
       el?.scrollTo({ top: el.scrollHeight })
     }
     prevLenRef.current = items.length
-    prevFirstIdRef.current = firstId
-  }, [items, isRunning, scrollRef])
+    prevFirstIdRef.current = firstItemId
+  }, [items, isRunning, scrollRef, firstItemId])
 
   if (items.length === 0 && pendingMessages.length === 0 && !isRunning) return null
 
   return (
     <div className={`flex flex-col py-1.5 px-4${fullWidthChat ? '' : ' max-w-3xl'}`}>
-      {hasOlderLogs && onLoadOlder ?
+      {/* Auto-load sentinel — see SessionMessages for context. */}
+      <div ref={topSentinelRef} aria-hidden className="h-0 shrink-0" />
+      {isLoadingOlder ?
           (
             <div className="flex justify-center py-2">
-              <button
-                type="button"
-                onClick={onLoadOlder}
-                disabled={isLoadingOlder}
-                className="rounded-md border border-border/40 bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoadingOlder ? t('common.loading') : t('session.loadMore')}
-              </button>
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {t('common.loading')}
+              </span>
             </div>
           ) :
         null}
