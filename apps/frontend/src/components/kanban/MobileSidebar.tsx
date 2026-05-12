@@ -29,7 +29,15 @@ export function MobileSidebarTrigger({ onOpen }: { onOpen: () => void }) {
   )
 }
 
-export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) {
+export function MobileSidebar({
+  activeProjectId,
+  side = 'left',
+}: {
+  activeProjectId: string
+  /** Which edge the sheet slides in from. Match the trigger button's side
+   *  so the motion feels connected to where the user tapped. */
+  side?: 'left' | 'right'
+}) {
   const [open, setOpen] = useState(false)
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -53,7 +61,7 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
     <>
       <MobileSidebarTrigger onOpen={() => setOpen(true)} />
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="w-72 p-0" aria-describedby={undefined}>
+        <SheetContent side={side} className="w-72 p-0" aria-describedby={undefined}>
           <SheetTitle className="sr-only">{t('sidebar.menu')}</SheetTitle>
 
           <div className="flex flex-col h-full">

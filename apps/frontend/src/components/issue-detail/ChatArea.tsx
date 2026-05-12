@@ -2,6 +2,7 @@ import { ArrowLeft, Check, Link } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import { Button } from '@/components/ui/button'
 import { useIssue, useProject, useUpdateIssue } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -291,6 +292,10 @@ export function ChatArea({
           >
             {copied ? <Check className="h-3.5 w-3.5" /> : <Link className="h-3.5 w-3.5" />}
           </Button>
+          {/* Mobile-only quick access to terminal / settings / notes / project switch.
+              Without this, reaching settings from the chat required two back-navs
+              (chat → list → hamburger). MobileSidebarTrigger is itself md:hidden. */}
+          <MobileSidebar activeProjectId={projectId} side="right" />
         </div>
 
         {/* Shared chat body: messages + metadata bar + input */}
