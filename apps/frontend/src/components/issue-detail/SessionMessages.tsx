@@ -269,17 +269,31 @@ function LegacySessionMessages({
     const sentinel = topSentinelRef.current
     const root = scrollRef?.current
     if (!sentinel || !root || !onLoadOlder) return
+    const trigger = () => {
+      if (!hasOlderLogsRef.current || isLoadingOlderRef.current) return
+      onLoadOlder()
+    }
     const observer = new IntersectionObserver(
       (entries) => {
-        const entry = entries[0]
-        if (!entry?.isIntersecting) return
-        if (!hasOlderLogsRef.current || isLoadingOlderRef.current) return
-        onLoadOlder()
+        if (!entries[0]?.isIntersecting) return
+        trigger()
       },
       { root, rootMargin: '300px 0px 0px 0px' },
     )
     observer.observe(sentinel)
-    return () => observer.disconnect()
+    // Scroll-based fallback: IntersectionObserver occasionally misses fast
+    // inertial scrolls on iOS Safari and on some Android WebViews, so the
+    // sentinel never reports "intersecting" until the user pokes the page
+    // again. Sharing the same guard with the observer makes the two safe
+    // to coexist — whichever fires first wins, the second is suppressed.
+    const onScroll = () => {
+      if (root.scrollTop <= 300) trigger()
+    }
+    root.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      observer.disconnect()
+      root.removeEventListener('scroll', onScroll)
+    }
   }, [scrollRef, onLoadOlder])
 
   useEffect(() => {

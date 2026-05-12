@@ -211,17 +211,29 @@ export function AcpTimeline({
     const sentinel = topSentinelRef.current
     const root = scrollRef?.current
     if (!sentinel || !root || !onLoadOlder) return
+    const trigger = () => {
+      if (!hasOlderLogsRef.current || isLoadingOlderRef.current) return
+      onLoadOlder()
+    }
     const observer = new IntersectionObserver(
       (entries) => {
-        const entry = entries[0]
-        if (!entry?.isIntersecting) return
-        if (!hasOlderLogsRef.current || isLoadingOlderRef.current) return
-        onLoadOlder()
+        if (!entries[0]?.isIntersecting) return
+        trigger()
       },
       { root, rootMargin: '300px 0px 0px 0px' },
     )
     observer.observe(sentinel)
-    return () => observer.disconnect()
+    // Scroll-based fallback for mobile WebKit: IntersectionObserver can
+    // miss the intersection event during fast inertial scrolls. The shared
+    // `trigger` guard makes both paths safe to coexist.
+    const onScroll = () => {
+      if (root.scrollTop <= 300) trigger()
+    }
+    root.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      observer.disconnect()
+      root.removeEventListener('scroll', onScroll)
+    }
   }, [scrollRef, onLoadOlder])
 
   useEffect(() => {
