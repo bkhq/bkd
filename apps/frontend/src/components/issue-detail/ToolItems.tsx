@@ -144,6 +144,11 @@ function PathBadge({ path, line }: { path: string, line?: number }) {
     <button
       type="button"
       onClick={(e) => {
+        // Edit/Write panels live inside a collapsible <details><summary>;
+        // clicking the summary's default action toggles the panel. We
+        // must preventDefault() here, not just stopPropagation(), so the
+        // chip click doesn't also expand/collapse the parent panel.
+        e.preventDefault()
         e.stopPropagation()
         openPreview(path, line)
       }}

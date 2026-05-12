@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-05-11 18:50 [BUG-P1]
+
+Fix file path chips not opening the preview drawer when nested inside a
+collapsible tool panel. `ToolPanel(collapsible)` renders a native
+`<details><summary>` element; clicking anywhere inside the summary
+triggers the browser's default toggle action regardless of React event
+propagation. The chip button used `e.stopPropagation()` (which only
+stops React bubbling) but did not call `e.preventDefault()`, so the
+panel's toggle ran in parallel with the chip handler and the drawer
+never materialized as expected. Added `preventDefault()` on both the
+tool-call PathBadge and the free-text PathChip click handlers.
+
+Files changed:
+- `apps/frontend/src/components/issue-detail/ToolItems.tsx`
+- `apps/frontend/src/lib/path-chips.tsx`
+
+Tracking: FILE-002 / PLAN-011 (follow-up).
+
 ## 2026-05-11 18:10 [progress]
 
 ChatInput toolbar density refactor + design-token primitives (UI-001 /

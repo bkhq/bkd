@@ -161,6 +161,10 @@ export function PathChip({
     <button
       type="button"
       onClick={(e) => {
+        // preventDefault for symmetry with the tool-call PathBadge — if a
+        // chip ends up inside a <summary> or <a>, we don't want the
+        // default action of the host element to fire alongside.
+        e.preventDefault()
         e.stopPropagation()
         onClick(path, line)
       }}
