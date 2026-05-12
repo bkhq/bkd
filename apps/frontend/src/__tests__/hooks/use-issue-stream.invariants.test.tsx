@@ -284,6 +284,97 @@ describe('invariant: user follow-up message appears immediately at the bottom', 
     // Sanity — content survives unchanged.
     expect(result.current.logs[0]!.content).toBe('who wins?')
   })
+
+  it('"我连发了两条 hello 不应该被合并" — different messageIds with identical content stay as two entries', async () => {
+    // Inverse of the dedup invariant: ensure the messageId-keyed second
+    // pass does NOT over-merge. The user case is hammering Send twice
+    // with the same text — backend assigns each a unique messageId, and
+    // both must render. A regression that switched the second pass from
+    // messageId-keyed to content-keyed (someone "simplifying" the
+    // matcher) would be caught here.
+    subscribeMock.mockImplementation(() => () => {})
+    getIssueLogsMock.mockResolvedValue({
+      issue: null,
+      logs: [],
+      nextCursor: null,
+      hasMore: false,
+    })
+
+    const { result } = renderHook(
+      () => useIssueStream({ projectId: 'p', issueId: 'i', sessionStatus: 'running' }),
+      { wrapper: createWrapper() },
+    )
+    await waitFor(() => expect(getIssueLogsMock).toHaveBeenCalled())
+
+    act(() => {
+      result.current.appendServerMessage('msg_a', 'hello')
+    })
+    expect(result.current.logs).toHaveLength(1)
+
+    act(() => {
+      result.current.appendServerMessage('msg_b', 'hello')
+    })
+    expect(result.current.logs).toHaveLength(2)
+
+    // Both ids preserved — no false-positive merge by content.
+    const ids = result.current.logs.map(l => l.id).sort()
+    expect(ids).toEqual(['msg_a', 'msg_b'])
+    // Both still have the original content (sanity).
+    expect(result.current.logs.every(l => l.content === 'hello')).toBe(true)
+  })
+
+  it('canonical replacing cross-array optimistic does NOT inherit the optimistic\'s bottom-anchor sequence', async () => {
+    // Position-correctness invariant. The optimistic carries a
+    // deliberately huge `sequence` (Date.now()*1000) so it lands at the
+    // bottom of the timeline immediately on send. After dedup, the
+    // surviving canonical must keep its OWN (server-issued, much
+    // smaller) sequence — otherwise scroll anchoring, CurrentPromptHover,
+    // and any consumer that trusts sequence-as-position would lock onto
+    // a stale bottom-anchor for a historical message.
+    subscribeMock.mockImplementation(() => () => {})
+    getIssueLogsMock.mockResolvedValueOnce({
+      issue: null,
+      logs: [],
+      nextCursor: 'older-cursor',
+      hasMore: true,
+    })
+
+    const { result } = renderHook(
+      () => useIssueStream({ projectId: 'p', issueId: 'i', sessionStatus: 'running' }),
+      { wrapper: createWrapper() },
+    )
+    await waitFor(() => expect(getIssueLogsMock).toHaveBeenCalled())
+
+    const messageId = 'u_pos'
+    act(() => {
+      result.current.appendServerMessage(messageId, 'content')
+    })
+    const optimisticSeq = result.current.logs[0]!.sequence
+    // Sanity: the optimistic placeholder really is huge (Date.now()*1000
+    // for any time after 2001-09-09 is >= 1e15).
+    expect(optimisticSeq).toBeGreaterThan(1e15)
+
+    // Older fetch returns the canonical with a small, historical sequence.
+    const canonicalTs = '2020-01-01T00:00:00Z'
+    getIssueLogsMock.mockResolvedValueOnce({
+      issue: null,
+      logs: [backendUserEntry(messageId, 1, canonicalTs, 'content')],
+      nextCursor: null,
+      hasMore: false,
+    })
+    await act(async () => {
+      result.current.loadOlderLogs()
+      await new Promise(r => setTimeout(r, 0))
+    })
+
+    expect(result.current.logs).toHaveLength(1)
+    const survivingSeq = result.current.logs[0]!.sequence
+    // Canonical's own sequence (~1.5e15) — much smaller than the
+    // optimistic's bottom-anchor (~current Date.now()*1000).
+    expect(survivingSeq).toBeLessThan(optimisticSeq!)
+    // And it matches the canonical's timestamp-derived sequence exactly.
+    expect(survivingSeq).toBe(new Date(canonicalTs).getTime() * 1000)
+  })
 })
 
 describe('invariant: no entry has stale streaming=true after a new turn starts', () => {
