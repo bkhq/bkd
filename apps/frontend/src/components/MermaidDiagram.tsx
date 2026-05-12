@@ -1,5 +1,6 @@
 import { Maximize2, Minus, Plus, RefreshCw, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '@/hooks/use-theme'
 
@@ -151,6 +152,7 @@ function MermaidZoomViewer({ svg, onClose }: { svg: string, onClose: () => void 
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const dragRef = useRef<{ startX: number, startY: number, baseX: number, baseY: number } | null>(null)
   const prevFocusRef = useRef<HTMLElement | null>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
 
   // Esc + focus preservation
   useEffect(() => {
@@ -177,13 +179,24 @@ function MermaidZoomViewer({ svg, onClose }: { svg: string, onClose: () => void 
     }
   }, [onClose])
 
-  const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    // Trackpad-pinch and ctrl+wheel report large deltaY values; clamp them
-    // to a steady per-event step so a single pinch gesture doesn't blow
-    // past the zoom range.
-    const direction = e.deltaY < 0 ? 1 : -1
-    setScale(s => clamp(direction > 0 ? s * ZOOM_STEP : s / ZOOM_STEP, ZOOM_MIN, ZOOM_MAX))
+  // React's synthetic `onWheel` is registered as a passive listener, so
+  // `e.preventDefault()` is silently ignored and the chat behind us still
+  // scrolls. Attach a native non-passive listener so the wheel can be
+  // properly captured for zoom without leaking to ancestors.
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      // Trackpad-pinch and ctrl+wheel report large deltaY values; clamp
+      // them to a steady per-event step so a single pinch gesture doesn't
+      // blow past the zoom range.
+      const direction = e.deltaY < 0 ? 1 : -1
+      setScale(s => clamp(direction > 0 ? s * ZOOM_STEP : s / ZOOM_STEP, ZOOM_MIN, ZOOM_MAX))
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
   }, [])
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -214,7 +227,19 @@ function MermaidZoomViewer({ svg, onClose }: { svg: string, onClose: () => void 
     setOffset({ x: 0, y: 0 })
   }, [])
 
-  return (
+  // Portal to document.body so the overlay isn't clipped by the chat
+  // scroll container (`overflow-y-auto` in ChatBody establishes a
+  // containing block that `fixed` cannot escape). Lock background scroll
+  // for good measure while the lightbox is open.
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [])
+
+  const node = (
     <div
       className="fixed inset-0 z-[60] flex flex-col bg-black/80 backdrop-blur-sm"
       role="dialog"
@@ -268,10 +293,11 @@ function MermaidZoomViewer({ svg, onClose }: { svg: string, onClose: () => void 
       </div>
 
       {/* Viewport — wheel zoom + click-drag pan. Backdrop click closes when
-       * the click lands on the viewport itself (not on the SVG). */}
+       * the click lands on the viewport itself (not on the SVG).
+       * Wheel handler is attached natively (non-passive) via useEffect. */}
       <div
-        className="relative flex-1 overflow-hidden cursor-grab active:cursor-grabbing select-none"
-        onWheel={onWheel}
+        ref={viewportRef}
+        className="relative flex-1 overflow-hidden cursor-grab active:cursor-grabbing select-none touch-none"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -291,6 +317,8 @@ function MermaidZoomViewer({ svg, onClose }: { svg: string, onClose: () => void 
       </div>
     </div>
   )
+
+  return createPortal(node, document.body)
 }
 
 function clamp(n: number, min: number, max: number) {
