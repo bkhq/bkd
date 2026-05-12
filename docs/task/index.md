@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-05-12 (CHAT-006)
+> Updated: 2026-05-12 (CHAT-007, CHAT-008)
 
 ## Usage
 
@@ -49,3 +49,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**UI-001 ChatInput toolbar density refactor**](UI-001.md) `P1`
 - [x] [**UI-002 Design token primitives: IconButton, Chip, chip-surface**](UI-002.md) `P1`
 - [x] [**CHAT-006 Mermaid diagram zoom viewer**](CHAT-006.md) `P2`
+- [x] [**CHAT-007 Mobile auto-load older history reliability fixes**](CHAT-007.md) `P1`
+- [x] [**CHAT-008 Kill duplicate user-message renders + raise bubble contrast**](CHAT-008.md) `P1`
