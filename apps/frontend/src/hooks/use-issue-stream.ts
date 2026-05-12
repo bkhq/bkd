@@ -189,11 +189,52 @@ export function useIssueStream({
   }
 
   // ---- Core: merge older + live by stable id ----
+  //
+  // Dedup happens in two passes:
+  //   1. Map keyed by `id` removes exact-same-entry duplicates between
+  //      olderLogs and liveLogs (the common case).
+  //   2. A second pass keyed by `messageId` collapses entries that share
+  //      the same logical message but carry different ids — this happens
+  //      when an optimistic user entry (`id = raw messageId`) survives
+  //      next to its canonical counterpart (`id = turn-N-user-{messageId}`)
+  //      because they live in different source arrays (older vs live) and
+  //      pass 1 cannot match them. Without this second pass the same user
+  //      message renders twice — symptom users reported as "重复渲染".
+  //
+  // Within a messageId conflict, the entry with the canonical-form id wins
+  // (the one with a turn-prefixed id, distinguished by having a hyphen),
+  // since the optimistic entry's sequence is temporary and its position is
+  // not authoritative.
   const logs = useMemo(() => {
-    const map = new Map<string, TimelineEntry>()
-    for (const entry of olderLogs) map.set(entry.id, entry)
-    for (const entry of liveLogs) map.set(entry.id, entry)
-    return Array.from(map.values()).sort(compareTimeline)
+    const byId = new Map<string, TimelineEntry>()
+    for (const entry of olderLogs) byId.set(entry.id, entry)
+    for (const entry of liveLogs) byId.set(entry.id, entry)
+    const byMessageId = new Map<string, TimelineEntry>()
+    const result: TimelineEntry[] = []
+    for (const entry of byId.values()) {
+      if (!entry.messageId) {
+        result.push(entry)
+        continue
+      }
+      const prev = byMessageId.get(entry.messageId)
+      if (!prev) {
+        byMessageId.set(entry.messageId, entry)
+        result.push(entry)
+        continue
+      }
+      // Prefer the canonical-form id (turn-prefixed). Optimistic ids are
+      // bare messageIds and contain no `-` (ULIDs are 26 alphanumerics).
+      const entryIsCanonical = entry.id.includes('-')
+      const prevIsCanonical = prev.id.includes('-')
+      if (entryIsCanonical && !prevIsCanonical) {
+        // Replace the optimistic with the canonical
+        byMessageId.set(entry.messageId, entry)
+        const idx = result.indexOf(prev)
+        if (idx >= 0) result[idx] = entry
+      }
+      // else: keep the existing canonical, drop the new optimistic
+    }
+    return result.sort(compareTimeline)
   }, [olderLogs, liveLogs])
 
   const clearLogs = useCallback(() => {

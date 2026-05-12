@@ -282,11 +282,16 @@ function LogEntryImpl({
       // Skip empty user messages (no text, no attachments, not pending/done)
       if (!displayContent && messageAttachments.length === 0 && !isPending && !isDone)
         return null
+      // User messages need a clearly distinct surface against the
+      // background-only assistant reply — earlier `bg-muted/40` was nearly
+      // invisible on light themes and users couldn't tell the speakers
+      // apart. We use the higher-contrast `bg-muted` (full opacity) plus a
+      // primary-tinted left bar so the bubble reads as a quoted prompt.
       const barColor = isPending ?
-        'border-amber-400/60 bg-amber-500/[0.04]' :
+        'border-amber-400/80 bg-amber-500/10' :
         isDone ?
-          'border-emerald-400/60 bg-emerald-500/[0.04]' :
-          'border-foreground/40 bg-muted/40'
+          'border-emerald-400/80 bg-emerald-500/10' :
+          'border-primary/70 bg-muted'
       // data-user-turn: stable DOM anchor for CurrentPromptHover. Skip
       // pending/done bubbles (they bypass the message list — see ChatBody)
       // so the hover only tracks landed turns.
@@ -299,7 +304,7 @@ function LogEntryImpl({
           className="group py-1.5 animate-message-enter"
           data-user-turn={anchorTurn}
         >
-          <div className={`px-3 py-2 border-l-[2px] ${barColor}`}>
+          <div className={`px-3 py-2 border-l-[3px] rounded-r-md ${barColor}`}>
             {displayContent ?
                 (
                   <div className="text-[15px] whitespace-pre-wrap break-words text-foreground leading-[1.7]">
