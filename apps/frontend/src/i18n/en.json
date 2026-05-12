@@ -8,7 +8,12 @@
     "copy": "Copy",
     "save": "Save",
     "expand": "Expand",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "close": "Close",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "resetZoom": "Reset zoom",
+    "enlarge": "Enlarge"
   },
   "search": {
     "title": "Search",
