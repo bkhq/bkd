@@ -379,7 +379,13 @@ export function ChatBody({
             null}
         </div>
         <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden">
-          <div className="flex flex-col min-h-full justify-end py-1">
+          {/* max-md:pt-[60px]: mobile title bar is absolute-positioned and
+              overlays the top ~52px of the scroll container. Without this
+              padding, the auto-load spinner (and the very first message)
+              render BEHIND the title bar, so users can't see the loading
+              feedback when scrolling up. 60px = 52px title + 8px breathing
+              room. Desktop keeps the original tight `py-1` only. */}
+          <div className="flex flex-col min-h-full justify-end py-1 max-md:pt-[60px]">
             <Suspense
               fallback={
                 <div className="px-5 py-2 text-xs text-muted-foreground">{t('common.loading')}</div>
