@@ -189,6 +189,101 @@ describe('invariant: user follow-up message appears immediately at the bottom', 
     // Still 1 entry — dedup matched by messageId.
     expect(result.current.logs).toHaveLength(1)
   })
+
+  it('"我的消息渲染了两次" — same messageId across olderLogs (canonical) + liveLogs (optimistic) renders only once', async () => {
+    // CHAT-008 regression. Reproduces the screenshot from 2026-05-12 where
+    // the same user message appeared as two adjacent identical bubbles.
+    //
+    // Setup: optimistic entry survives in liveLogs (id = raw messageId)
+    // while the canonical (id = turn-N-user-{messageId}) lands in
+    // olderLogs via loadOlderLogs. The `logs` merge used to dedup by id
+    // ONLY, missing this cross-array case. With the fix, a second pass
+    // keyed by messageId collapses the pair and keeps the canonical.
+    subscribeMock.mockImplementation(() => () => {})
+
+    // Initial /logs returns empty + hasMore so loadOlderLogs is enabled.
+    getIssueLogsMock.mockResolvedValueOnce({
+      issue: null,
+      logs: [],
+      nextCursor: 'older-cursor',
+      hasMore: true,
+    })
+
+    const { result } = renderHook(
+      () => useIssueStream({ projectId: 'p', issueId: 'i', sessionStatus: 'running' }),
+      { wrapper: createWrapper() },
+    )
+    await waitFor(() => expect(getIssueLogsMock).toHaveBeenCalled())
+
+    // 1. Add optimistic to liveLogs (id = raw messageId, no hyphen).
+    const messageId = 'u_dup'
+    act(() => {
+      result.current.appendServerMessage(messageId, '重复内容')
+    })
+    expect(result.current.logs).toHaveLength(1)
+    expect(result.current.logs[0]!.id).toBe(messageId)
+
+    // 2. Load older — backend returns the canonical (id has turn- prefix,
+    //    contains hyphens), same messageId.
+    getIssueLogsMock.mockResolvedValueOnce({
+      issue: null,
+      logs: [backendUserEntry(messageId, 1, '2026-01-01T00:00:00Z', '重复内容')],
+      nextCursor: null,
+      hasMore: false,
+    })
+    await act(async () => {
+      result.current.loadOlderLogs()
+      // Flush the kanbanApi promise chain.
+      await new Promise(r => setTimeout(r, 0))
+    })
+
+    // Invariant 1: still exactly 1 entry, not 2.
+    expect(result.current.logs).toHaveLength(1)
+  })
+
+  it('canonical-vs-optimistic conflict prefers the canonical (turn-prefixed) id', async () => {
+    // Same scenario as above, but the assertion is on which entry SURVIVES
+    // the dedup. The canonical has a stable, server-assigned sequence and
+    // its id is the one downstream code (delete, scroll-anchor, message
+    // pairing) reasons about. Dropping the optimistic in favour of the
+    // canonical is the documented contract in use-issue-stream.ts.
+    subscribeMock.mockImplementation(() => () => {})
+
+    getIssueLogsMock.mockResolvedValueOnce({
+      issue: null,
+      logs: [],
+      nextCursor: 'older-cursor',
+      hasMore: true,
+    })
+
+    const { result } = renderHook(
+      () => useIssueStream({ projectId: 'p', issueId: 'i', sessionStatus: 'running' }),
+      { wrapper: createWrapper() },
+    )
+    await waitFor(() => expect(getIssueLogsMock).toHaveBeenCalled())
+
+    const messageId = 'u_winner'
+    act(() => {
+      result.current.appendServerMessage(messageId, 'who wins?')
+    })
+
+    getIssueLogsMock.mockResolvedValueOnce({
+      issue: null,
+      logs: [backendUserEntry(messageId, 3, '2026-01-01T00:00:00Z', 'who wins?')],
+      nextCursor: null,
+      hasMore: false,
+    })
+    await act(async () => {
+      result.current.loadOlderLogs()
+      await new Promise(r => setTimeout(r, 0))
+    })
+
+    expect(result.current.logs).toHaveLength(1)
+    // Invariant 2: the canonical id wins, optimistic dropped.
+    expect(result.current.logs[0]!.id).toBe(`turn-3-user-${messageId}`)
+    // Sanity — content survives unchanged.
+    expect(result.current.logs[0]!.content).toBe('who wins?')
+  })
 })
 
 describe('invariant: no entry has stale streaming=true after a new turn starts', () => {
