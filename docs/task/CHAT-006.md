@@ -51,3 +51,22 @@ investigate → proposal cycle was skipped in agreement with the user.
 
 See PLAN-013 for the implementation sketch and a list of deliberate
 non-goals (rubber-band drag-zoom, native mobile pinch, share-as-image).
+
+### Follow-up (2026-05-12) — button discoverability
+
+User reported "怎么mermaid没看到放大按钮呀" right after the initial ship.
+Root cause: the zoom button used `opacity-0` with
+`group-hover/mermaid:opacity-100`, so it only appeared while the user
+was hovering the diagram. On touch devices (no hover) it was
+effectively undiscoverable, and on desktop users had to know it was
+there to find it.
+
+Fix:
+
+- Raised baseline opacity to 70 so the button is always visible.
+- Hover / focus / parent-hover still lifts to 100 for feedback.
+- Added an "Enlarge" / "放大查看" text label visible at `sm`+ so the
+  icon isn't the sole signal.
+
+Shipped as commit `1d7ee10 fix(chat): make mermaid zoom button
+discoverable without hover`. Single-file change, no test impact.

@@ -103,14 +103,14 @@ export function MermaidDiagram({ code }: MermaidDiagramProps) {
             e.stopPropagation()
             setZoomOpen(true)
           }}
-          // Always visible at a low opacity so users discover the zoom
-          // affordance without hovering — touch devices have no hover, and
-          // on desktop the hover-only state was reported as invisible.
-          className="absolute right-1.5 top-1.5 z-10 inline-flex items-center gap-1 rounded bg-background/90 px-2 py-1 text-[11px] text-muted-foreground/80 opacity-70 ring-1 ring-border/50 backdrop-blur-sm transition-all hover:bg-background hover:text-foreground hover:opacity-100 focus:opacity-100 group-hover/mermaid:opacity-100"
+          // Always-visible, solid-contrast button. Earlier iterations used
+          // hover-only or low-opacity treatments which were reported as
+          // invisible on light backgrounds and touch devices.
+          className="absolute right-2 top-2 z-10 inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
           aria-label={t('common.enlarge')}
           title={t('common.enlarge')}
         >
-          <Maximize2 className="h-3 w-3" />
+          <Maximize2 className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{t('common.enlarge')}</span>
         </button>
         <div
