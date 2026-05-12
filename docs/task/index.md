@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-05-11 (UI-001, UI-002)
+> Updated: 2026-05-12 (CHAT-006)
 
 ## Usage
 
@@ -48,3 +48,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**FILE-002 Clickable file path chips in chat with quick file preview drawer**](FILE-002.md) `P1`
 - [x] [**UI-001 ChatInput toolbar density refactor**](UI-001.md) `P1`
 - [x] [**UI-002 Design token primitives: IconButton, Chip, chip-surface**](UI-002.md) `P1`
+- [x] [**CHAT-006 Mermaid diagram zoom viewer**](CHAT-006.md) `P2`

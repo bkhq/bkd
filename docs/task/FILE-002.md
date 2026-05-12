@@ -70,3 +70,19 @@ See PLAN-011 for investigation findings and proposed implementation.
   Both MIT-licensed.
 - Lint clean on every touched file; pre-existing repo-wide lint debt
   (~69 errors in unrelated files) left untouched per scope.
+
+### Follow-up (2026-05-12) — click-default-action bug
+
+User reported "点不开" — chips not opening the preview drawer when
+nested inside a collapsible tool panel. Root cause: `ToolPanel`
+(`collapsible`) renders a native `<details><summary>` element; clicking
+anywhere in the summary triggers the browser's default toggle action,
+which is independent of React event propagation. The chip handler used
+only `e.stopPropagation()` and so could not suppress the toggle —
+panel collapse + drawer open ran in parallel and the perceived UX was
+"chip click does nothing".
+
+Fix: added `e.preventDefault()` to both the tool-call `PathBadge`
+(`ToolItems.tsx`) and the free-text `PathChip` (`path-chips.tsx`) click
+handlers. Shipped as commit `03cb39e fix(chat): preventDefault on path
+chip clicks so <details> panels don't toggle`.
