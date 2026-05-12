@@ -103,11 +103,15 @@ export function MermaidDiagram({ code }: MermaidDiagramProps) {
             e.stopPropagation()
             setZoomOpen(true)
           }}
-          className="absolute right-1.5 top-1.5 z-10 inline-flex items-center gap-1 rounded bg-background/80 px-1.5 py-1 text-[11px] text-muted-foreground opacity-0 ring-1 ring-border/40 backdrop-blur-sm transition-opacity hover:bg-background hover:text-foreground group-hover/mermaid:opacity-100 focus:opacity-100"
+          // Always visible at a low opacity so users discover the zoom
+          // affordance without hovering — touch devices have no hover, and
+          // on desktop the hover-only state was reported as invisible.
+          className="absolute right-1.5 top-1.5 z-10 inline-flex items-center gap-1 rounded bg-background/90 px-2 py-1 text-[11px] text-muted-foreground/80 opacity-70 ring-1 ring-border/50 backdrop-blur-sm transition-all hover:bg-background hover:text-foreground hover:opacity-100 focus:opacity-100 group-hover/mermaid:opacity-100"
           aria-label={t('common.enlarge')}
           title={t('common.enlarge')}
         >
           <Maximize2 className="h-3 w-3" />
+          <span className="hidden sm:inline">{t('common.enlarge')}</span>
         </button>
         <div
           role="button"
