@@ -17,8 +17,19 @@ export function handleStreamEntry(
   const streaming = entry.metadata?.streaming === true
   // Normalize content before it enters the pipeline so every subscriber
   // (DB persistence, SSE broadcast, ring buffer, etc.) sees the same value.
-  const trimmed = entry.content.trim()
-  const effectiveEntry = trimmed === entry.content ? entry : { ...entry, content: trimmed }
+  //
+  // CRITICAL: only trim non-streaming (final/complete) entries. Streaming
+  // chunks from delta-style protocols (codex `item/agentMessage/delta`,
+  // acp text deltas) carry their own boundary whitespace — `\n\n` between
+  // paragraphs, leading `\n- ` for list items, surrounding newlines around
+  // fenced code blocks. `mergeChunk` in timeline-converter concatenates
+  // these chunks via `+=`; trimming each chunk first glues paragraphs and
+  // list items together and breaks markdown rendering downstream.
+  let effectiveEntry = entry
+  if (!streaming) {
+    const trimmed = entry.content.trim()
+    if (trimmed !== entry.content) effectiveEntry = { ...entry, content: trimmed }
+  }
   appEvents.emit('log', {
     issueId,
     executionId,
