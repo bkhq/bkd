@@ -34,7 +34,7 @@ export function isTableFile(path: string): boolean {
   return inferKind(path) !== null
 }
 
-function rowsToTable(rows: string[][], originalCount: number, merges?: Array<{ s: { r: number, c: number }, e: { r: number, c: number } }>): ParsedTable {
+export function rowsToTable(rows: string[][], originalCount: number, merges?: Array<{ s: { r: number, c: number }, e: { r: number, c: number } }>): ParsedTable {
   if (rows.length === 0) {
     return { headers: [], rows: [], totalRows: originalCount, truncated: false }
   }
