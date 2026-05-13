@@ -176,11 +176,16 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
         = typeof window !== 'undefined'
           && typeof window.matchMedia === 'function'
           && window.matchMedia('(max-width: 767px)').matches
+      // Tables (csv / tsv / xlsx / xls) need horizontal room — the default
+      // 35%-of-viewport drawer crushes them. Auto-enter fullscreen on
+      // open for table extensions; user can manually shrink with the
+      // existing minimize/back button.
+      const isTable = /\.(xlsx?|csv|tsv)$/i.test(normalized)
       return {
         isOpen: true,
         isMinimized: false,
         isDrawer: true,
-        isFullscreen: isMobile,
+        isFullscreen: isMobile || isTable,
         projectId,
         issueId: issueId ?? null,
         rootPath: root,

@@ -68,6 +68,28 @@ describe('useFileBrowserStore.openAt', () => {
     expect(useFileBrowserStore.getState().isFullscreen).toBe(true)
   })
 
+  it.each(['data/report.xlsx', 'data/report.xls', 'data/log.csv', 'data/log.tsv'])(
+    'auto-enters fullscreen for table file %s even on desktop',
+    (path) => {
+      // Desktop matchMedia (matches:false), but the file is a table → drawer
+      // would crush the columns at 35% width. openAt should still enter
+      // fullscreen for csv / tsv / xlsx / xls.
+      vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }))
+      useFileBrowserStore.getState().openAt({ projectId: 'p', path })
+      expect(useFileBrowserStore.getState().isFullscreen).toBe(true)
+    },
+  )
+
+  it('keeps non-table desktop opens in side-drawer mode', () => {
+    // Sanity for the inverse: a regular text file on desktop must NOT
+    // jump into fullscreen — the side drawer is the preferred layout
+    // there. Without this guard, a future "always fullscreen" refactor
+    // would silently break the chat-side-by-side preview UX.
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }))
+    useFileBrowserStore.getState().openAt({ projectId: 'p', path: 'src/foo.ts' })
+    expect(useFileBrowserStore.getState().isFullscreen).toBe(false)
+  })
+
   it('clearTarget clears both file and line', () => {
     useFileBrowserStore.getState().openAt({
       projectId: 'p',

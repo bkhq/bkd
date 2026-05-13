@@ -1,7 +1,7 @@
 import * as React from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { transformChildrenWithPathChips } from '@/lib/path-chips'
+import { PathChip, splitByKnownPaths, transformChildrenWithPathChips } from '@/lib/path-chips'
 
 const { lazy, Suspense, useCallback, useMemo } = React
 
@@ -60,6 +60,7 @@ export function MarkdownContent({
     [],
   )
 
+  const chipsEnabled = !!onPathClick && !!knownPaths && knownPaths.length > 0
   const renderCode = useCallback(
     ({
       className,
@@ -98,6 +99,26 @@ export function MarkdownContent({
         )
       }
 
+      // Inline `<code>`: AI almost always wraps file paths in backticks, so
+      // an `<code>` whose entire content is a known path should render as a
+      // clickable PathChip instead of plain inline-code styling. We require
+      // EXACT match (after trim + the suffix capture in splitByKnownPaths)
+      // so we never accidentally chip-ify a partial-path-shaped string.
+      if (chipsEnabled) {
+        const segments = splitByKnownPaths(text.trim(), knownPaths!)
+        const onlySegment = segments.length === 1 ? segments[0] : null
+        if (onlySegment && onlySegment.type === 'path') {
+          return (
+            <PathChip
+              path={onlySegment.path}
+              line={onlySegment.line}
+              matched={onlySegment.matched}
+              onClick={onPathClick!}
+            />
+          )
+        }
+      }
+
       return (
         <code
           className="rounded bg-muted/70 px-1.5 py-0.5 text-[0.9em] font-mono"
@@ -107,7 +128,7 @@ export function MarkdownContent({
         </code>
       )
     },
-    [],
+    [chipsEnabled, knownPaths, onPathClick],
   )
 
   // Open links from chat messages in a new tab — they're typically docs
@@ -123,13 +144,6 @@ export function MarkdownContent({
     ),
     [],
   )
-
-  // Build an inline-text component override that swaps known file paths for
-  // PathChip buttons. We only wire it into common inline-text containers
-  // (p, li, td, em, strong) — code/pre/a subtrees are skipped inside
-  // `transformChildrenWithPathChips`. The override is opt-in: without
-  // `knownPaths` + `onPathClick` we use the default react-markdown render.
-  const chipsEnabled = !!onPathClick && !!knownPaths && knownPaths.length > 0
 
   // Inline-text renderer factory. We re-use a single transform function
   // bound to current `knownPaths` + `onPathClick` and reuse it across
