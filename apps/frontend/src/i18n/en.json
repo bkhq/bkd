@@ -319,7 +319,9 @@
     "home": "Home",
     "menu": "Menu",
     "createProject": "Create project",
-    "settings": "Settings"
+    "settings": "Settings",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar"
   },
   "language": {
     "switchLanguage": "Switch language"

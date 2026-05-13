@@ -1,4 +1,4 @@
-import { Eye, Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight, Eye, Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -15,6 +15,9 @@ import { useNotesStore } from '@/stores/notes-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import type { Project } from '@/types/kanban'
+
+const SIDEBAR_EXPANDED_WIDTH = 56
+const SIDEBAR_COLLAPSED_WIDTH = 8
 
 function ProjectButton({
   project,
@@ -89,6 +92,8 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
   const isTerminalMinimized = useTerminalStore(s => s.isMinimized)
   const toggleNotes = useNotesStore(s => s.toggle)
   const isNotesMinimized = useNotesStore(s => s.isMinimized)
+  const collapsed = useViewModeStore(s => s.sidebarCollapsed)
+  const toggleSidebar = useViewModeStore(s => s.toggleSidebar)
 
   const handleProjectCreated = useCallback(
     (project: Project) => {
@@ -98,8 +103,27 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
     [navigate, projectPath],
   )
 
+  if (collapsed) {
+    return (
+      <div
+        className="relative h-full shrink-0 bg-sidebar border-r border-sidebar-border group"
+        style={{ width: SIDEBAR_COLLAPSED_WIDTH }}
+      >
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          className="absolute top-1/2 left-0 -translate-y-1/2 flex items-center justify-center w-6 h-12 rounded-r-md bg-sidebar border border-l-0 border-sidebar-border text-sidebar-foreground opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-sm hover:bg-sidebar-accent"
+          aria-label={t('sidebar.expand')}
+          title={t('sidebar.expand')}
+        >
+          <ChevronsRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex flex-col items-center h-full w-14 py-3 gap-1 bg-sidebar border-r border-sidebar-border shrink-0">
+    <div className="flex flex-col items-center h-full py-3 gap-1 bg-sidebar border-r border-sidebar-border shrink-0" style={{ width: SIDEBAR_EXPANDED_WIDTH }}>
       {/* Home */}
       <button
         type="button"
@@ -203,6 +227,18 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
           <Settings className="h-4 w-4" />
         </Button>
         <AppSettingsDialog open={showSettings} onOpenChange={setShowSettings} />
+
+        {/* Collapse sidebar */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 text-muted-foreground"
+          aria-label={t('sidebar.collapse')}
+          title={t('sidebar.collapse')}
+          onClick={toggleSidebar}
+        >
+          <ChevronsLeft className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   )

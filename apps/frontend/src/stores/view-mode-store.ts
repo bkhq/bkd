@@ -8,10 +8,13 @@ interface ViewModeStore {
   projectPath: (projectId: string) => string
   fullWidthChat: boolean
   setFullWidthChat: (value: boolean) => void
+  sidebarCollapsed: boolean
+  toggleSidebar: () => void
 }
 
 const STORAGE_KEY = 'bkd-view-mode'
 const FULL_WIDTH_KEY = 'bkd-full-width-chat'
+const SIDEBAR_COLLAPSED_KEY = 'bkd-sidebar-collapsed'
 
 function loadMode(): ViewMode {
   if (typeof window === 'undefined') return 'list'
@@ -23,6 +26,11 @@ function loadMode(): ViewMode {
 function loadFullWidth(): boolean {
   if (typeof window === 'undefined') return false
   return localStorage.getItem(FULL_WIDTH_KEY) === 'true'
+}
+
+function loadSidebarCollapsed(): boolean {
+  if (typeof window === 'undefined') return false
+  return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true'
 }
 
 export const useViewModeStore = create<ViewModeStore>((set, get) => ({
@@ -44,5 +52,13 @@ export const useViewModeStore = create<ViewModeStore>((set, get) => ({
   setFullWidthChat: (value) => {
     localStorage.setItem(FULL_WIDTH_KEY, String(value))
     set({ fullWidthChat: value })
+  },
+
+  sidebarCollapsed: loadSidebarCollapsed(),
+
+  toggleSidebar: () => {
+    const next = !get().sidebarCollapsed
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next))
+    set({ sidebarCollapsed: next })
   },
 }))

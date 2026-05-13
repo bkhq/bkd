@@ -316,7 +316,9 @@
     "home": "主页",
     "menu": "菜单",
     "createProject": "创建项目",
-    "settings": "设置"
+    "settings": "设置",
+    "collapse": "收起侧边栏",
+    "expand": "展开侧边栏"
   },
   "language": {
     "switchLanguage": "切换语言"

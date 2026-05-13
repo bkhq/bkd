@@ -9,9 +9,11 @@ import { CreateIssueDialog } from '@/components/kanban/CreateIssueDialog'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import { useProject } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useViewModeStore } from '@/stores/view-mode-store'
 import { FILE_BROWSER_MIN_WIDTH, useFileBrowserStore } from '@/stores/file-browser-store'
 
-const SIDEBAR_WIDTH = 56
+const SIDEBAR_EXPANDED_WIDTH = 56
+const SIDEBAR_COLLAPSED_WIDTH = 8
 const MIN_CHAT_WIDTH = 300
 const DEFAULT_DIFF_WIDTH = 360
 const DEFAULT_FILE_BROWSER_WIDTH = 360
@@ -35,6 +37,8 @@ export default function IssueDetailPage() {
   const [listWidth, setListWidth] = useState(DEFAULT_LIST_WIDTH)
   const isResizingList = useRef(false)
   const isMobile = useIsMobile()
+  const sidebarCollapsed = useViewModeStore(s => s.sidebarCollapsed)
+  const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
 
   const handleListResizeStart = useCallback(
     (e: React.MouseEvent) => {
@@ -51,7 +55,7 @@ export default function IssueDetailPage() {
         const diffSpace = showDiff ? diffWidth : 0
         const dynamicMax = Math.min(
           MAX_LIST_WIDTH,
-          viewport - SIDEBAR_WIDTH - diffSpace - MIN_CHAT_WIDTH,
+          viewport - sidebarWidth - diffSpace - MIN_CHAT_WIDTH,
         )
         const newWidth = Math.min(dynamicMax, Math.max(MIN_LIST_WIDTH, startWidth + delta))
         setListWidth(newWidth)
@@ -70,12 +74,12 @@ export default function IssueDetailPage() {
       document.addEventListener('mousemove', onMouseMove)
       document.addEventListener('mouseup', onMouseUp)
     },
-    [listWidth, showDiff, diffWidth],
+    [listWidth, showDiff, diffWidth, sidebarWidth],
   )
 
   // On mobile: show list when no issue selected, show chat when issue selected
   // On desktop: hide list panel when diff panel needs more than 50% of available space
-  const availableWidth = typeof window !== 'undefined' ? window.innerWidth - SIDEBAR_WIDTH : 1200
+  const availableWidth = typeof window !== 'undefined' ? window.innerWidth - sidebarWidth : 1200
   const hideListPanel = (isMobile && !!issueId) || (showDiff && diffWidth > availableWidth * 0.5)
 
   const handleDiffWidthChange = useCallback(
@@ -83,10 +87,10 @@ export default function IssueDetailPage() {
       const viewport = typeof window !== 'undefined' ? window.innerWidth : 1600
       const listSpace = hideListPanel ? 0 : listWidth
       const fbSpace = showFileBrowser ? fileBrowserWidth : 0
-      const maxWidth = viewport - SIDEBAR_WIDTH - listSpace - fbSpace - MIN_CHAT_WIDTH
+      const maxWidth = viewport - sidebarWidth - listSpace - fbSpace - MIN_CHAT_WIDTH
       setDiffWidth(Math.min(Math.max(DIFF_MIN_WIDTH, w), maxWidth))
     },
-    [hideListPanel, listWidth, showFileBrowser, fileBrowserWidth],
+    [hideListPanel, listWidth, showFileBrowser, fileBrowserWidth, sidebarWidth],
   )
 
   const handleFileBrowserWidthChange = useCallback(
@@ -94,19 +98,19 @@ export default function IssueDetailPage() {
       const viewport = typeof window !== 'undefined' ? window.innerWidth : 1600
       const listSpace = hideListPanel ? 0 : listWidth
       const diffSpace = showDiff ? diffWidth : 0
-      const maxWidth = viewport - SIDEBAR_WIDTH - listSpace - diffSpace - MIN_CHAT_WIDTH
+      const maxWidth = viewport - sidebarWidth - listSpace - diffSpace - MIN_CHAT_WIDTH
       setFileBrowserWidth(Math.min(Math.max(FILE_BROWSER_MIN_WIDTH, w), maxWidth))
     },
-    [hideListPanel, listWidth, showDiff, diffWidth],
+    [hideListPanel, listWidth, showDiff, diffWidth, sidebarWidth],
   )
 
   // Clamp listWidth when diff panel opens or grows to preserve MIN_CHAT_WIDTH
   useEffect(() => {
     if (!showDiff) return
     const viewport = typeof window !== 'undefined' ? window.innerWidth : 1600
-    const maxList = Math.min(MAX_LIST_WIDTH, viewport - SIDEBAR_WIDTH - diffWidth - MIN_CHAT_WIDTH)
+    const maxList = Math.min(MAX_LIST_WIDTH, viewport - sidebarWidth - diffWidth - MIN_CHAT_WIDTH)
     setListWidth(prev => Math.max(MIN_LIST_WIDTH, Math.min(prev, maxList)))
-  }, [showDiff, diffWidth])
+  }, [showDiff, diffWidth, sidebarWidth])
 
   useEffect(() => {
     if (!isLoading && (isError || !project)) {
