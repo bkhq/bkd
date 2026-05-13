@@ -239,15 +239,20 @@ function MermaidZoomViewer({ svg, onClose }: { svg: string, onClose: () => void 
     }
   }, [])
 
+  // Backdrop uses the theme background, NOT pure black. Mermaid generates
+  // the SVG against its own theme (light = dark-on-white, dark = light-on-
+  // gray); a hard black backdrop drowned the dark-theme strokes and looked
+  // wrong in light mode. `bg-background` follows the same theme switch
+  // mermaid uses, so node fills and connecting lines stay legible.
   const node = (
     <div
-      className="fixed inset-0 z-[60] flex flex-col bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] flex flex-col bg-background"
       role="dialog"
       aria-modal="true"
       aria-label={t('common.enlarge')}
     >
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-2 border-b border-white/10 bg-background/80 px-3 py-2 shrink-0">
+      <div className="flex items-center justify-between gap-2 border-b border-border bg-background px-3 py-2 shrink-0">
         <div className="flex items-center gap-1">
           <button
             type="button"
