@@ -140,7 +140,10 @@ describe('TableViewer CSV rendering', () => {
     const file: FileContent = {
       path: 'data.csv',
       content: 'Name,Age\nAlice,30\nBob,25',
-      type: 'text/csv',
+      type: 'file',
+      size: 100,
+      isTruncated: false,
+      isBinary: false,
     }
 
     render(<TableViewer file={file} />)
@@ -160,7 +163,10 @@ describe('TableViewer error states', () => {
     const file: FileContent = {
       path: 'data.csv',
       content: '',
-      type: 'text/csv',
+      type: 'file',
+      size: 0,
+      isTruncated: false,
+      isBinary: false,
     }
 
     render(<TableViewer file={file} />)
@@ -171,7 +177,10 @@ describe('TableViewer error states', () => {
     const file: FileContent = {
       path: 'data.xlsx',
       content: '',
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      type: 'file',
+      size: 0,
+      isTruncated: false,
+      isBinary: false,
     }
 
     render(<TableViewer file={file} />)

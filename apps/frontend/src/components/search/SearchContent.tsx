@@ -1,6 +1,5 @@
 import {
   Activity,
-  ArrowLeft,
   Clock,
   Eye,
   Home,
@@ -25,10 +24,9 @@ import {
   useProjects,
   useReviewIssues,
 } from '@/hooks/use-kanban'
-import { useRecentIssues } from '@/hooks/use-recent-issues'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
-import type { RecentIssue } from '@/hooks/use-recent-issues'
+import { formatRelativeTime } from '@/lib/format'
 import type { ProcessInfo } from '@/types/kanban'
 
 interface QuickAction {
@@ -51,7 +49,6 @@ export function SearchContent({
   const { data: projects } = useProjects()
   const { data: processesData } = useAllProcesses()
   const { data: reviewIssues } = useReviewIssues()
-  const recentIssues = useRecentIssues()
   const projectPath = useViewModeStore(s => s.projectPath)
   const [query, setQuery] = useState('')
 
@@ -115,15 +112,6 @@ export function SearchContent({
     )
   }, [reviewIssues, normalizedQuery])
 
-  const filteredRecent = useMemo(() => {
-    if (!normalizedQuery) return recentIssues
-    return recentIssues.filter(
-      r =>
-        r.title.toLowerCase().includes(normalizedQuery) ||
-        r.projectName.toLowerCase().includes(normalizedQuery),
-    )
-  }, [recentIssues, normalizedQuery])
-
   const filteredProjects = useMemo(() => {
     if (!normalizedQuery) return []
     return (projects ?? []).filter(
@@ -141,13 +129,11 @@ export function SearchContent({
   const hasResults =
     filteredProcesses.length > 0 ||
     filteredReview.length > 0 ||
-    filteredRecent.length > 0 ||
     filteredProjects.length > 0 ||
     filteredActions.length > 0
 
   const showRunning = filteredProcesses.length > 0
   const showReview = filteredReview.length > 0
-  const showRecent = filteredRecent.length > 0 && !normalizedQuery
   const showActions = filteredActions.length > 0 && !normalizedQuery
   const showProjects = filteredProjects.length > 0
 
@@ -196,9 +182,9 @@ export function SearchContent({
 
         {showRunning && showReview && <CommandSeparator />}
 
-        {/* Review issues */}
+        {/* Review issues — sorted by statusUpdatedAt DESC (backend) */}
         {showReview && (
-          <CommandGroup heading={t('search.review', '待 Review')}>
+          <CommandGroup heading={`${t('search.review', '待 Review')} (${filteredReview.length})`}>
             {filteredReview.map(issue => (
               <CommandItem
                 key={issue.id}
@@ -208,53 +194,22 @@ export function SearchContent({
                     navigate(`/review/${issue.projectAlias}/${issue.id}`),
                   )}
               >
-                <Eye className="h-4 w-4 text-amber-500" />
+                <Eye className="h-4 w-4 text-amber-500 shrink-0" />
                 <span className="truncate">{issue.title}</span>
                 <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                  #
-                  {issue.issueNumber}
+                  {issue.projectName}
                   {' '}
                   ·
                   {' '}
-                  {issue.projectName}
+                  {formatRelativeTime(issue.statusUpdatedAt)}
                 </span>
               </CommandItem>
             ))}
           </CommandGroup>
         )}
 
-        {showReview && showRecent && <CommandSeparator />}
-        {!showReview && showRunning && showRecent && <CommandSeparator />}
-
-        {/* Recent Issues */}
-        {showRecent && (
-          <CommandGroup heading={t('search.recent', '最近访问')}>
-            {filteredRecent.map((issue: RecentIssue) => (
-              <CommandItem
-                key={issue.id}
-                value={`recent-${issue.id}`}
-                onSelect={() =>
-                  handleSelect(() =>
-                    navigate(`/projects/${issue.projectAlias}/issues/${issue.id}`),
-                  )}
-              >
-                <ArrowLeft className="h-4 w-4 text-muted-foreground" />
-                <span className="truncate">{issue.title}</span>
-                <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                  #
-                  {issue.issueNumber}
-                  {' '}
-                  ·
-                  {' '}
-                  {issue.projectName}
-                </span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        )}
-
-        {showRecent && showActions && <CommandSeparator />}
-        {!showRecent && (showRunning || showReview) && showActions && <CommandSeparator />}
+        {showReview && showActions && <CommandSeparator />}
+        {!showReview && showRunning && showActions && <CommandSeparator />}
 
         {/* Quick Actions */}
         {showActions && (
@@ -280,7 +235,7 @@ export function SearchContent({
         {/* Projects — only when filtering */}
         {showProjects && (
           <>
-            {(showRunning || showReview || showRecent || showActions) && <CommandSeparator />}
+            {(showRunning || showReview || showActions) && <CommandSeparator />}
             <CommandGroup heading={t('search.projects', '项目')}>
               {filteredProjects.map(project => (
                 <CommandItem
