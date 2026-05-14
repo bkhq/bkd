@@ -134,7 +134,8 @@ update.openapi(R.bulkUpdateIssues, async (c) => {
     }
     if (u.sortOrder !== undefined) changes.sortOrder = u.sortOrder
     if (Object.keys(changes).length > 0) {
-      emitIssueUpdated(u.id, changes)
+      const existing = existingMap.get(u.id)
+      emitIssueUpdated(u.id, changes, existing?.title, existing?.projectAlias, 'user')
     }
   }
 
@@ -246,7 +247,7 @@ update.openapi(R.updateIssue, async (c) => {
   await cacheDel(`issue:${project.id}:${issueId}`)
 
   // Emit issue-updated for all changes (triggers SSE + webhook dispatch)
-  emitIssueUpdated(issueId, updates)
+  emitIssueUpdated(issueId, updates, row.title, row.projectAlias, 'user')
 
   if (shouldExecute) {
     triggerIssueExecution(

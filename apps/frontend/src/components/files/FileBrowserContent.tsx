@@ -212,7 +212,6 @@ export function FileBrowserContent({
                       onCancelEdit={() => setIsEditing(false)}
                       onSave={handleSave}
                       isSaving={saveFileMutation.isPending}
-                      rawFileUrl={effectiveRoot ? kanbanApi.rawFileUrl(effectiveRoot, currentPath) : undefined}
                     />
                   )
                 : listing?.type === 'directory'

@@ -413,6 +413,7 @@ export function ChatBody({
                 hasOlderLogs={hasOlderLogs}
                 isLoadingOlder={isLoadingOlder}
                 onLoadOlder={loadOlderLogs}
+                savedScroll={savedScroll}
               />
             </Suspense>
             {/* Inline thinking ticker — anchored to the bottom of the
@@ -586,6 +587,13 @@ export function ChatBody({
         sessionStatus={issue.sessionStatus}
         statusId={issue.statusId}
         isThinking={isThinking}
+        onCancel={() => {
+          setIsCancelling(true)
+          cancelIssue.mutate(issueId, {
+            onError: () => setIsCancelling(false),
+          })
+        }}
+        isCancelling={isCancelling}
         slashCommands={slashCommands}
         pluginCommands={pluginCommands}
         onRefreshLogs={refreshLogs}

@@ -36,7 +36,7 @@ registerAction('issue-close', {
       .run()
 
     await cacheDel(`issue:${project.id}:${issue.id}`)
-    emitIssueUpdated(issue.id, { statusId: targetStatus })
+    emitIssueUpdated(issue.id, { statusId: targetStatus }, undefined, undefined, 'cron')
 
     return `issue ${issue.id} moved to ${targetStatus}`
   },

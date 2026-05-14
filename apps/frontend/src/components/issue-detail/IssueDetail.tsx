@@ -56,9 +56,9 @@ export function IssueDetail({
       {/* Status — editable */}
       <StatusSelect status={status} onChange={id => onUpdate?.({ statusId: id })} />
 
-      {/* Keep Alive — power-user toggle, hidden on phones to keep header tidy */}
+      {/* Keep Alive — power-user toggle */}
       <label
-        className={`${badgeBase} cursor-pointer transition-colors max-md:hidden ${
+        className={`${badgeBase} cursor-pointer transition-colors ${
           issue.keepAlive
             ? 'border-amber-400/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
             : 'border-border/50 bg-muted/20 text-muted-foreground/40'

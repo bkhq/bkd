@@ -12,7 +12,7 @@ export interface IssueEventHandler {
 
 export type ChangesSummaryData = ChangesSummary
 
-type IssueUpdatedListener = (data: { issueId: string, changes: Record<string, unknown> }) => void
+type IssueUpdatedListener = (data: { issueId: string, changes: Record<string, unknown>, title?: string, projectAlias?: string, source?: string }) => void
 type ChangesSummaryListener = (data: ChangesSummaryData) => void
 type IssueActivityListener = (issueId: string) => void
 type ConnectionListener = (connected: boolean) => void
@@ -148,6 +148,8 @@ class EventBus {
         const data = JSON.parse(e.data) as {
           issueId: string
           changes: Record<string, unknown>
+          title?: string
+          projectAlias?: string
         }
         for (const cb of this.issueUpdatedListeners) {
           try {

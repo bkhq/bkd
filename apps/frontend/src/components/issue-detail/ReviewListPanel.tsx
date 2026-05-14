@@ -1,8 +1,9 @@
-import { Search } from 'lucide-react'
+import { ChevronDown, ChevronUp, Search } from 'lucide-react'
 import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useReviewIssues } from '@/hooks/use-kanban'
+import { useReviewReadStatus } from '@/hooks/use-review-read-status'
 import type { Issue } from '@/types/kanban'
 
 type ReviewIssue = Issue & { projectName: string, projectAlias: string }
@@ -21,6 +22,7 @@ export function ReviewListPanel({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { data: issues, isLoading } = useReviewIssues()
+  const { markAsRead, isRead } = useReviewReadStatus()
   const [search, setSearch] = useState('')
   const searchTerm = search.trim().toLowerCase()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -66,6 +68,18 @@ export function ReviewListPanel({
     setCollapsed(prev => ({ ...prev, [projectId]: !prev[projectId] }))
   }
 
+  const allExpanded = grouped.length > 0 && grouped.every(g => !collapsed[g.projectId])
+
+  const toggleAll = () => {
+    if (allExpanded) {
+      const next: Record<string, boolean> = {}
+      for (const g of grouped) next[g.projectId] = true
+      setCollapsed(next)
+    } else {
+      setCollapsed({})
+    }
+  }
+
   return (
     <div
       className="relative flex flex-col h-full w-full border-r border-border bg-secondary shrink-0"
@@ -77,13 +91,26 @@ export function ReviewListPanel({
           {mobileNav}
           <span className="text-sm font-semibold truncate tracking-tight">{t('review.title')}</span>
         </div>
-        {issues ?
-            (
-              <span className="text-[10px] font-medium text-muted-foreground/50 shrink-0 tabular-nums">
-                {issues.length}
-              </span>
-            ) :
-          null}
+        <div className="flex items-center gap-1.5">
+          {grouped.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+              title={allExpanded ? t('review.collapseAll', '折叠全部') : t('review.expandAll', '展开全部')}
+              aria-label={allExpanded ? t('review.collapseAll', '折叠全部') : t('review.expandAll', '展开全部')}
+            >
+              {allExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
+          )}
+          {issues ?
+              (
+                <span className="text-[10px] font-medium text-muted-foreground/50 shrink-0 tabular-nums">
+                  {issues.length}
+                </span>
+              ) :
+            null}
+        </div>
       </div>
 
       {/* Search */}
@@ -124,6 +151,8 @@ export function ReviewListPanel({
                     isCollapsed={!!collapsed[group.projectId]}
                     onToggle={() => toggleCollapse(group.projectId)}
                     activeIssueId={activeIssueId}
+                    isRead={isRead}
+                    markAsRead={markAsRead}
                     onNavigate={(projectAlias, issueId) => navigate(`/review/${projectAlias}/${issueId}`)}
                   />
                 ))
@@ -151,6 +180,8 @@ function ProjectGroup({
   isCollapsed,
   onToggle,
   activeIssueId,
+  isRead,
+  markAsRead,
   onNavigate,
 }: {
   projectName: string
@@ -159,6 +190,8 @@ function ProjectGroup({
   isCollapsed: boolean
   onToggle: () => void
   activeIssueId: string
+  isRead: (issueId: string) => boolean
+  markAsRead: (issueId: string) => void
   onNavigate: (projectAlias: string, issueId: string) => void
 }) {
   const reviewColor = '#f59e0b' // amber — matches review status color
@@ -190,12 +223,16 @@ function ProjectGroup({
           (
             <div>
               {issues.map(issue => (
-                <ReviewIssueRow
-                  key={issue.id}
-                  issue={issue}
-                  isActive={issue.id === activeIssueId}
-                  onNavigate={() => onNavigate(projectAlias, issue.id)}
-                />
+                  <ReviewIssueRow
+                    key={issue.id}
+                    issue={issue}
+                    isActive={issue.id === activeIssueId}
+                    isRead={isRead(issue.id)}
+                    onNavigate={() => {
+                      markAsRead(issue.id)
+                      onNavigate(projectAlias, issue.id)
+                    }}
+                  />
               ))}
             </div>
           ) :
@@ -207,10 +244,12 @@ function ProjectGroup({
 const ReviewIssueRow = memo(({
   issue,
   isActive,
+  isRead,
   onNavigate,
 }: {
   issue: ReviewIssue
   isActive: boolean
+  isRead: boolean
   onNavigate: () => void
 }) => {
   return (
@@ -245,6 +284,9 @@ const ReviewIssueRow = memo(({
       >
         {issue.title}
       </span>
+      {!isRead && (
+        <span className="ml-auto h-2 w-2 rounded-full bg-destructive shrink-0" />
+      )}
     </div>
   )
 })

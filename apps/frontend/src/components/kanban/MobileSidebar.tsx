@@ -8,7 +8,8 @@ import { CreateProjectDialog } from '@/components/CreateProjectDialog'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
-import { useProjects, useReviewIssues } from '@/hooks/use-kanban'
+import { useProjects } from '@/hooks/use-kanban'
+import { useReviewReadStatus } from '@/hooks/use-review-read-status'
 import { getProjectInitials } from '@/lib/format'
 import { useNotesStore } from '@/stores/notes-store'
 import { useTerminalStore } from '@/stores/terminal-store'
@@ -45,8 +46,7 @@ export function MobileSidebar({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { data: projects } = useProjects()
-  const { data: reviewIssues } = useReviewIssues()
-  const reviewCount = reviewIssues?.length ?? 0
+  const { unreadCount } = useReviewReadStatus()
   const [showCreate, setShowCreate] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
 
@@ -64,7 +64,7 @@ export function MobileSidebar({
 
   return (
     <>
-      <MobileSidebarTrigger onOpen={() => setOpen(true)} badge={reviewCount > 0} />
+      <MobileSidebarTrigger onOpen={() => setOpen(true)} badge={unreadCount > 0} />
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side={side} className="w-72 p-0" aria-describedby={undefined}>
           <SheetTitle className="sr-only">{t('sidebar.menu')}</SheetTitle>
@@ -188,9 +188,9 @@ export function MobileSidebar({
               >
                 <Eye className="h-4 w-4 text-muted-foreground" />
                 {t('viewMode.review')}
-                {reviewCount > 0 && (
+                {unreadCount > 0 && (
                   <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
-                    {reviewCount > 99 ? '99+' : reviewCount}
+                    {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
               </button>

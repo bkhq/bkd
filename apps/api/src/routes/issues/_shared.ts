@@ -192,7 +192,7 @@ export function flushPendingAsFollowUp(issueId: string, issue: { model: string |
       relocated = await relocatePendingForProcessing(issueId)
       if (!relocated) return
       // Emit SSE so frontend shows "AI thinking" indicator
-      emitIssueUpdated(issueId, { sessionStatus: 'pending' })
+      emitIssueUpdated(issueId, { sessionStatus: 'pending' }, undefined, undefined, 'engine')
       await issueEngine.followUpIssue(
         issueId,
         relocated.prompt,
@@ -246,7 +246,7 @@ export async function ensureWorking(issue: IssueRow): Promise<{ ok: boolean, rea
       .set({ statusId: 'working', statusUpdatedAt: new Date() })
       .where(eq(issuesTable.id, issue.id))
     await cacheDel(`issue:${issue.projectId}:${issue.id}`)
-    emitIssueUpdated(issue.id, { statusId: 'working' })
+    emitIssueUpdated(issue.id, { statusId: 'working' }, undefined, undefined, 'engine')
     logger.info({ issueId: issue.id, from: issue.statusId }, 'moved_to_working')
   }
   return { ok: true }
@@ -330,7 +330,7 @@ export function triggerIssueExecution(
           .set({ sessionStatus: 'failed' })
           .where(eq(issuesTable.id, issueId))
         // Notify frontend so it doesn't stay stuck in "working" state
-        emitIssueUpdated(issueId, { sessionStatus: 'failed' })
+        emitIssueUpdated(issueId, { sessionStatus: 'failed' }, undefined, undefined, 'engine')
       } catch (dbErr) {
         logger.error({ issueId, err: dbErr }, 'auto_execute_status_update_failed')
       }

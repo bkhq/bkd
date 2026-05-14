@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { ViewModeSelect } from '@/components/ViewModeSelect'
 import { useEventConnection } from '@/hooks/use-event-connection'
-import { useProjects, useReviewIssues } from '@/hooks/use-kanban'
+import { useProjects } from '@/hooks/use-kanban'
+import { useReviewReadStatus } from '@/hooks/use-review-read-status'
 import { getProjectInitials } from '@/lib/format'
 import { useNotesStore } from '@/stores/notes-store'
 import { useTerminalStore } from '@/stores/terminal-store'
@@ -17,7 +18,7 @@ import { useViewModeStore } from '@/stores/view-mode-store'
 import type { Project } from '@/types/kanban'
 
 const SIDEBAR_EXPANDED_WIDTH = 56
-const SIDEBAR_COLLAPSED_WIDTH = 8
+const SIDEBAR_COLLAPSED_WIDTH = 28
 
 function ProjectButton({
   project,
@@ -94,8 +95,7 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
   const isNotesMinimized = useNotesStore(s => s.isMinimized)
   const collapsed = useViewModeStore(s => s.sidebarCollapsed)
   const toggleSidebar = useViewModeStore(s => s.toggleSidebar)
-  const { data: reviewIssues } = useReviewIssues()
-  const reviewCount = reviewIssues?.length ?? 0
+  const { unreadCount } = useReviewReadStatus()
 
   const handleProjectCreated = useCallback(
     (project: Project) => {
@@ -108,13 +108,13 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
   if (collapsed) {
     return (
       <div
-        className="relative h-full shrink-0 bg-sidebar border-r border-sidebar-border group"
+        className="flex flex-col items-center h-full py-3 bg-sidebar border-r border-sidebar-border shrink-0"
         style={{ width: SIDEBAR_COLLAPSED_WIDTH }}
       >
         <button
           type="button"
           onClick={toggleSidebar}
-          className="absolute top-1/2 left-0 -translate-y-1/2 flex items-center justify-center w-6 h-12 rounded-r-md bg-sidebar border border-l-0 border-sidebar-border text-sidebar-foreground opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-sm hover:bg-sidebar-accent"
+          className="flex items-center justify-center w-6 h-8 rounded-md bg-sidebar-accent/50 text-sidebar-foreground cursor-pointer hover:bg-sidebar-accent transition-colors"
           aria-label={t('sidebar.expand')}
           title={t('sidebar.expand')}
         >
@@ -217,9 +217,9 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
           onClick={() => navigate('/review')}
         >
           <Eye className="h-4 w-4" />
-          {reviewCount > 0 && (
+          {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
-              {reviewCount > 9 ? '9+' : reviewCount}
+              {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </Button>

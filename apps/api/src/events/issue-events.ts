@@ -1,8 +1,14 @@
 import type { NormalizedLogEntry } from '@bkd/shared'
 import { appEvents } from './index'
 
-export function emitIssueUpdated(issueId: string, changes: Record<string, unknown>): void {
-  appEvents.emit('issue-updated', { issueId, changes })
+export function emitIssueUpdated(
+  issueId: string,
+  changes: Record<string, unknown>,
+  title?: string,
+  projectAlias?: string,
+  source?: string,
+): void {
+  appEvents.emit('issue-updated', { issueId, changes, title, projectAlias, source })
 }
 
 export function emitIssueLogUpdated(issueId: string, entry: NormalizedLogEntry): void {

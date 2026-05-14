@@ -7,7 +7,7 @@ import {
   ensureServerInfoDefaults,
   ensureWorktreeAutoCleanupDefault,
 } from '@/db/helpers'
-import { issues as issuesTable } from '@/db/schema'
+import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
 import { appEvents } from '@/events'
 import { emitIssueUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
@@ -33,6 +33,7 @@ export async function reconcileStaleWorkingIssues(): Promise<number> {
     .select({
       id: issuesTable.id,
       projectId: issuesTable.projectId,
+      title: issuesTable.title,
       sessionStatus: issuesTable.sessionStatus,
       updatedAt: issuesTable.updatedAt,
     })
@@ -115,10 +116,21 @@ export async function reconcileStaleWorkingIssues(): Promise<number> {
     }
   })
 
+  // Post-commit: bulk-fetch project aliases to avoid N+1
+  const projectIds = [...new Set(stillReconciledIssues.map(i => i.projectId))]
+  const projectRows = projectIds.length > 0
+    ? await db
+        .select({ id: projectsTable.id, alias: projectsTable.alias })
+        .from(projectsTable)
+        .where(inArray(projectsTable.id, projectIds))
+    : []
+  const projectAliasMap = new Map(projectRows.map(p => [p.id, p.alias]))
+
   // Post-commit: invalidate caches and emit events
   for (const issue of stillReconciledIssues) {
     await cacheDel(`issue:${issue.projectId}:${issue.id}`)
-    emitIssueUpdated(issue.id, { statusId: 'review' })
+    const projectAlias = projectAliasMap.get(issue.projectId) ?? ''
+    emitIssueUpdated(issue.id, { statusId: 'review' }, issue.title, projectAlias, 'engine')
     logger.info(
       { issueId: issue.id, previousSessionStatus: issue.sessionStatus },
       'reconciler_moved_to_review',

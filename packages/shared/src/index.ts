@@ -389,7 +389,7 @@ export interface SSEEventMap {
   'tool-group': ToolGroupEvent
   'state': { issueId: string, executionId: string, state: string }
   'done': { issueId: string, finalStatus: string }
-  'issue-updated': { issueId: string, changes: Record<string, unknown> }
+  'issue-updated': { issueId: string, changes: Record<string, unknown>, title?: string, projectAlias?: string, source?: string }
   'changes-summary': ChangesSummary
   'heartbeat': { ts: string }
 }
@@ -413,7 +413,7 @@ export interface AppEventMap {
   'timeline-entry': { issueId: string, entry: TimelineEntry }
   'state': { issueId: string, executionId: string, state: string }
   'done': { issueId: string, executionId: string, finalStatus: string }
-  'issue-updated': { issueId: string, changes: Record<string, unknown> }
+  'issue-updated': { issueId: string, changes: Record<string, unknown>, title?: string, projectAlias?: string, source?: string }
   'changes-summary': ChangesSummary
   'heartbeat': { ts: string }
 }

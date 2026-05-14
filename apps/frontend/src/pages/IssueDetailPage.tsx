@@ -153,6 +153,7 @@ export default function IssueDetailPage() {
       {issueId ?
           (
             <ChatArea
+              key={issueId}
               projectId={projectId}
               issueId={issueId}
               showDiff={showDiff}

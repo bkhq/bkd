@@ -25,6 +25,11 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 30,
       retry: 1,
+      // Disable window-focus refetch: on mobile, locking/unlocking the screen
+      // triggers focus, which causes every active query to reload and produces
+      // a jarring "flash" in the message stream. SSE already pushes updates
+      // in real time, so this default behaviour is unnecessary.
+      refetchOnWindowFocus: false,
       // Required for query persistence: persist-client only persists queries
       // whose `gcTime` is longer than the persistence write interval, otherwise
       // they get garbage-collected before the dehydrate snapshot is taken.

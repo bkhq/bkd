@@ -1,7 +1,7 @@
 import { and, eq, notInArray } from 'drizzle-orm'
 import { cacheDel } from '@/cache'
 import { db } from '@/db'
-import { issues as issuesTable } from '@/db/schema'
+import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
 import { emitIssueUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
 import type { EngineType, SessionStatus } from './types'
@@ -103,7 +103,12 @@ export async function autoMoveToReview(issueId: string): Promise<void> {
 
   if (!updated) return
 
+  const [project] = await db
+    .select({ alias: projectsTable.alias })
+    .from(projectsTable)
+    .where(eq(projectsTable.id, updated.projectId))
+
   await cacheDel(`issue:${updated.projectId}:${issueId}`)
-  emitIssueUpdated(issueId, { statusId: 'review' })
+  emitIssueUpdated(issueId, { statusId: 'review' }, updated.title, project?.alias ?? '', 'engine')
   logger.info({ issueId }, 'auto_moved_to_review')
 }

@@ -12,7 +12,7 @@ import { useViewModeStore } from '@/stores/view-mode-store'
 import { FILE_BROWSER_MIN_WIDTH, useFileBrowserStore } from '@/stores/file-browser-store'
 
 const SIDEBAR_EXPANDED_WIDTH = 56
-const SIDEBAR_COLLAPSED_WIDTH = 8
+const SIDEBAR_COLLAPSED_WIDTH = 28
 const MIN_CHAT_WIDTH = 300
 const DEFAULT_DIFF_WIDTH = 360
 const DEFAULT_FILE_BROWSER_WIDTH = 360
@@ -129,6 +129,7 @@ export default function ReviewPage() {
       {issueId && projectId ?
           (
             <ChatArea
+              key={issueId}
               projectId={projectId}
               issueId={issueId}
               showDiff={showDiff}

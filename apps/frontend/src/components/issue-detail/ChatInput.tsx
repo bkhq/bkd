@@ -10,6 +10,7 @@ import {
   Play,
   RefreshCw,
   SlashSquare,
+  Square,
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -80,6 +81,8 @@ export function ChatInput({
   sessionStatus,
   statusId,
   isThinking = false,
+  onCancel,
+  isCancelling = false,
   onMessageSent,
   slashCommands = [],
   pluginCommands = [],
@@ -97,6 +100,8 @@ export function ChatInput({
   sessionStatus?: SessionStatus | null
   statusId?: string
   isThinking?: boolean
+  onCancel?: () => void
+  isCancelling?: boolean
   onMessageSent?: (messageId: string, prompt: string, metadata?: Record<string, unknown>) => void
   slashCommands?: string[]
   pluginCommands?: Array<{ name: string, path: string }>
@@ -902,18 +907,35 @@ export function ChatInput({
                 </Button>
               ) :
             null}
-          <Button
-            type="button"
-            size="icon"
-            disabled={!canSend || followUp.isPending}
-            onClick={handleSend}
-            title={t('chat.send')}
-            className="rounded-full size-7 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"
-          >
-            {followUp.isPending ?
-                <Loader2 className="size-3.5 animate-spin" /> :
-                <ArrowUp className="size-3.5" strokeWidth={2.5} />}
-          </Button>
+          {isThinking && onCancel ?
+              (
+                <Button
+                  type="button"
+                  size="icon"
+                  disabled={isCancelling}
+                  onClick={onCancel}
+                  title={isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
+                  className="rounded-full size-7 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isCancelling ?
+                      <Loader2 className="size-3.5 animate-spin" /> :
+                      <Square className="size-3.5" strokeWidth={2.5} />}
+                </Button>
+              ) :
+              (
+                <Button
+                  type="button"
+                  size="icon"
+                  disabled={!canSend || followUp.isPending}
+                  onClick={handleSend}
+                  title={t('chat.send')}
+                  className="rounded-full size-7 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"
+                >
+                  {followUp.isPending ?
+                      <Loader2 className="size-3.5 animate-spin" /> :
+                      <ArrowUp className="size-3.5" strokeWidth={2.5} />}
+                </Button>
+              )}
         </div>
       </div>
 

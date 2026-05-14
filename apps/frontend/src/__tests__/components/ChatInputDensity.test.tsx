@@ -179,3 +179,42 @@ describe('chatInput density refactor (PLAN-012)', () => {
     expect(badge.textContent).toContain('-4')
   })
 })
+
+describe('ChatInput send-to-cancel behaviour', () => {
+  it('shows the send button by default', () => {
+    renderChat()
+    expect(screen.getByTitle('chat.send')).toBeInTheDocument()
+    expect(screen.queryByTitle('common.cancel')).not.toBeInTheDocument()
+  })
+
+  it('replaces the send button with a cancel button while thinking', () => {
+    const onCancel = vi.fn()
+    renderChat({ isThinking: true, onCancel })
+    expect(screen.queryByTitle('chat.send')).not.toBeInTheDocument()
+    expect(screen.getByTitle('common.cancel')).toBeInTheDocument()
+  })
+
+  it('calls onCancel when the cancel button is clicked', () => {
+    const onCancel = vi.fn()
+    renderChat({ isThinking: true, onCancel })
+    const cancelBtn = screen.getByTitle('common.cancel')
+    fireEvent.click(cancelBtn)
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a spinner and disables the cancel button while isCancelling', () => {
+    const onCancel = vi.fn()
+    renderChat({ isThinking: true, onCancel, isCancelling: true })
+    const cancelBtn = screen.getByTitle('session.cancellingBtn')
+    expect(cancelBtn).toBeInTheDocument()
+    expect(cancelBtn).toBeDisabled()
+  })
+
+  it('falls back to the send button when onCancel is omitted even if thinking', () => {
+    renderChat({ isThinking: true })
+    // Without an onCancel handler the send button should still render
+    // (though it will be disabled because !canSend when empty).
+    expect(screen.getByTitle('chat.send')).toBeInTheDocument()
+    expect(screen.queryByTitle('common.cancel')).not.toBeInTheDocument()
+  })
+})

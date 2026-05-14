@@ -10,7 +10,6 @@ import {
 } from '@/stores/file-browser-store'
 import type { FileContent } from '@/types/kanban'
 import { MarkdownRenderer } from './MarkdownRenderer'
-import { isTableFile, TableViewer } from './TableViewer'
 
 const CodeEditor = lazy(() => import('./CodeEditor').then(m => ({ default: m.CodeEditor })))
 
@@ -69,8 +68,6 @@ interface FileViewerProps {
   onCancelEdit?: () => void
   onSave?: (content: string) => void
   isSaving?: boolean
-  /** Raw download URL — required by TableViewer for xlsx fetching. */
-  rawFileUrl?: string
 }
 
 export function FileViewer({
@@ -81,13 +78,11 @@ export function FileViewer({
   onCancelEdit,
   onSave,
   isSaving,
-  rawFileUrl,
 }: FileViewerProps) {
   const { t } = useTranslation()
   const [html, setHtml] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const isMd = isMarkdownFile(file.path)
-  const isTable = isTableFile(file.path)
   const [showRendered, setShowRendered] = useState(isMd)
   const prevPath = useRef(file.path)
   const [editContent, setEditContent] = useState(file.content)
@@ -118,7 +113,7 @@ export function FileViewer({
   const fileName = file.path.split('/').pop() ?? file.path
 
   useEffect(() => {
-    if (file.isBinary || isTable) {
+    if (file.isBinary) {
       setLoading(false)
       return
     }
@@ -141,7 +136,7 @@ export function FileViewer({
     return () => {
       cancelled = true
     }
-  }, [file.content, file.path, file.isBinary, isMd, isTable, showRendered, isEditing])
+  }, [file.content, file.path, file.isBinary, isMd, showRendered, isEditing])
 
   /**
    * Scroll to a 1-based line number and pulse-highlight it for ~2 seconds.
@@ -185,25 +180,6 @@ export function FileViewer({
     const n = Number.parseInt(gotoInput, 10)
     if (Number.isFinite(n) && n > 0) scrollToLine(n)
   }, [gotoInput, scrollToLine])
-
-  if (isTable) {
-    return (
-      <div className="flex flex-col h-full overflow-hidden">
-        {breadcrumb && (
-          <div className="bg-muted/50 border-b border-border px-4 py-1.5 shrink-0">
-            {breadcrumb}
-          </div>
-        )}
-        <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border shrink-0">
-          <span className="font-medium text-sm truncate">{fileName}</span>
-          <span className="text-xs text-muted-foreground shrink-0">{formatSize(file.size)}</span>
-        </div>
-        <div className="flex-1 min-h-0">
-          <TableViewer file={file} rawFileUrl={rawFileUrl} />
-        </div>
-      </div>
-    )
-  }
 
   if (file.isBinary) {
     return (

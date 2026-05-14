@@ -145,14 +145,15 @@ export function SessionMessages(props: {
   hasOlderLogs?: boolean
   isLoadingOlder?: boolean
   onLoadOlder?: () => void
+  savedScroll?: number
 }) {
-  const { engineType, ...rest } = props
+  const { engineType, savedScroll, ...rest } = props
 
   if (engineType?.startsWith('acp')) {
     return <AcpTimeline {...rest} />
   }
 
-  return <LegacySessionMessages {...rest} />
+  return <LegacySessionMessages {...rest} savedScroll={savedScroll} />
 }
 
 /** Threshold: below this count, render without virtualization for simpler layout. */
@@ -165,6 +166,7 @@ function LegacySessionMessages({
   hasOlderLogs = false,
   isLoadingOlder = false,
   onLoadOlder,
+  savedScroll,
 }: {
   logs: NormalizedLogEntry[]
   scrollRef?: React.RefObject<HTMLDivElement | null>
@@ -172,6 +174,7 @@ function LegacySessionMessages({
   hasOlderLogs?: boolean
   isLoadingOlder?: boolean
   onLoadOlder?: () => void
+  savedScroll?: number
 }) {
   const { t } = useTranslation()
   const fullWidthChat = useViewModeStore(s => s.fullWidthChat)
@@ -203,13 +206,20 @@ function LegacySessionMessages({
   // Falls back to a layout pass triggered by messages.length changing, so that
   // even if logs arrive after the first paint (cache miss), we still snap to
   // bottom on the very next render rather than animating.
+  //
+  // If savedScroll is provided (user has a saved position from a previous visit),
+  // skip the auto-scroll — ChatBody's own restore effect handles it.
   useLayoutEffect(() => {
+    if (savedScroll !== undefined && savedScroll > 0) {
+      initialScrollDone.current = true
+      return
+    }
     if (initialScrollDone.current || (messages.length === 0 && pendingMessages.length === 0)) return
     const el = scrollRef?.current
     if (!el) return
     el.scrollTop = el.scrollHeight
     initialScrollDone.current = true
-  }, [messages.length, pendingMessages.length, scrollRef])
+  }, [messages.length, pendingMessages.length, scrollRef, savedScroll])
 
   const prevLenRef = useRef(messages.length)
   const prevFirstIdRef = useRef(messages[0]?.id)
