@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { ViewModeSelect } from '@/components/ViewModeSelect'
 import { useEventConnection } from '@/hooks/use-event-connection'
-import { useProjects } from '@/hooks/use-kanban'
+import { useProjects, useReviewIssues } from '@/hooks/use-kanban'
 import { getProjectInitials } from '@/lib/format'
 import { useNotesStore } from '@/stores/notes-store'
 import { useTerminalStore } from '@/stores/terminal-store'
@@ -94,6 +94,8 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
   const isNotesMinimized = useNotesStore(s => s.isMinimized)
   const collapsed = useViewModeStore(s => s.sidebarCollapsed)
   const toggleSidebar = useViewModeStore(s => s.toggleSidebar)
+  const { data: reviewIssues } = useReviewIssues()
+  const reviewCount = reviewIssues?.length ?? 0
 
   const handleProjectCreated = useCallback(
     (project: Project) => {
@@ -209,12 +211,17 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 text-muted-foreground"
+          className="relative h-9 w-9 text-muted-foreground"
           aria-label={t('viewMode.review')}
           title={t('viewMode.review')}
           onClick={() => navigate('/review')}
         >
           <Eye className="h-4 w-4" />
+          {reviewCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
+              {reviewCount > 9 ? '9+' : reviewCount}
+            </span>
+          )}
         </Button>
         <Button
           variant="ghost"

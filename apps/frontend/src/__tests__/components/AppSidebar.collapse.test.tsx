@@ -19,6 +19,7 @@ vi.mock('../../hooks/use-event-connection', () => ({
 
 vi.mock('../../hooks/use-kanban', () => ({
   useProjects: () => ({ data: [] }),
+  useReviewIssues: () => ({ data: [] }),
 }))
 
 vi.mock('../../components/CreateProjectDialog', () => ({

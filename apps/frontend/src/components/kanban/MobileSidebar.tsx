@@ -1,4 +1,4 @@
-import { ChevronRight, Menu, Plus, Search, Settings, StickyNote, TerminalSquare } from 'lucide-react'
+import { ChevronRight, Eye, Menu, Plus, Search, Settings, StickyNote, TerminalSquare } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -8,23 +8,26 @@ import { CreateProjectDialog } from '@/components/CreateProjectDialog'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
-import { useProjects } from '@/hooks/use-kanban'
+import { useProjects, useReviewIssues } from '@/hooks/use-kanban'
 import { getProjectInitials } from '@/lib/format'
 import { useNotesStore } from '@/stores/notes-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import type { Project } from '@/types/kanban'
 
-export function MobileSidebarTrigger({ onOpen }: { onOpen: () => void }) {
+export function MobileSidebarTrigger({ onOpen, badge }: { onOpen: () => void, badge?: boolean }) {
   const { t } = useTranslation()
   return (
     <Button
       variant="ghost"
       size="icon"
-      className="h-9 w-9 text-muted-foreground md:hidden"
+      className="relative h-9 w-9 text-muted-foreground md:hidden"
       aria-label={t('sidebar.menu')}
       onClick={onOpen}
     >
       <Menu className="h-5 w-5" />
+      {badge && (
+        <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
+      )}
     </Button>
   )
 }
@@ -42,6 +45,8 @@ export function MobileSidebar({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { data: projects } = useProjects()
+  const { data: reviewIssues } = useReviewIssues()
+  const reviewCount = reviewIssues?.length ?? 0
   const [showCreate, setShowCreate] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
 
@@ -59,7 +64,7 @@ export function MobileSidebar({
 
   return (
     <>
-      <MobileSidebarTrigger onOpen={() => setOpen(true)} />
+      <MobileSidebarTrigger onOpen={() => setOpen(true)} badge={reviewCount > 0} />
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side={side} className="w-72 p-0" aria-describedby={undefined}>
           <SheetTitle className="sr-only">{t('sidebar.menu')}</SheetTitle>
@@ -172,6 +177,22 @@ export function MobileSidebar({
               >
                 <StickyNote className="h-4 w-4 text-muted-foreground" />
                 {t('notes.title')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false)
+                  void navigate('/review')
+                }}
+                className="flex items-center gap-3 w-full px-4 min-h-[44px] text-sm text-foreground/80 hover:bg-accent/50 active:bg-accent transition-colors"
+              >
+                <Eye className="h-4 w-4 text-muted-foreground" />
+                {t('viewMode.review')}
+                {reviewCount > 0 && (
+                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
+                    {reviewCount > 99 ? '99+' : reviewCount}
+                  </span>
+                )}
               </button>
               <button
                 type="button"

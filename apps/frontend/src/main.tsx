@@ -9,6 +9,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { GlobalCommandPalette } from './components/GlobalCommandPalette'
 import { Toaster } from './components/ui/sonner'
 import { useAuth } from './hooks/use-auth'
+import { useReviewNotifications } from './hooks/use-review-notifications'
 import { useSystemInfo } from './hooks/use-kanban'
 import { eventBus } from './lib/event-bus'
 import { useFileBrowserStore } from './stores/file-browser-store'
@@ -102,8 +103,14 @@ function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="w-full" style={{ height: '100dvh' }}>
       {children}
+      <ReviewNotificationsMount />
     </div>
   )
+}
+
+function ReviewNotificationsMount() {
+  useReviewNotifications()
+  return null
 }
 
 function TerminalDrawerMount() {
