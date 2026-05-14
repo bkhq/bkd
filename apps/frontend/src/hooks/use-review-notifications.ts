@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { eventBus } from '@/lib/event-bus'
 
@@ -7,14 +8,12 @@ import { eventBus } from '@/lib/event-bus'
  * Global review notification hook.
  *
  * Listens to SSE 'issue-updated' events. When an issue's status changes to
- * 'review', shows a toast notification. Deduplicates within the session so
- * the same issue doesn't spam the user.
- *
- * This hook is intentionally passive — it does NOT auto-navigate. The user
- * sees the toast, then uses Cmd+K or the sidebar to go to the Review page.
+ * 'review', shows a persistent toast notification that stays until the user
+ * dismisses it or navigates to review. Deduplicates within the session.
  */
 export function useReviewNotifications() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const notifiedRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
@@ -23,12 +22,28 @@ export function useReviewNotifications() {
       if (notifiedRef.current.has(data.issueId)) return
 
       notifiedRef.current.add(data.issueId)
-      toast.info(t('review.newIssue', '有 issue 已完成，待审核'), {
-        description: `#${data.issueId.slice(0, 8)}`,
-        duration: 5000,
-      })
+      const toastId = toast.info(
+        t('review.newIssue', '有 issue 已完成，待审核'),
+        {
+          description: `#${data.issueId.slice(0, 8)}`,
+          duration: Infinity,
+          action: {
+            label: t('review.view', '查看'),
+            onClick: () => {
+              toast.dismiss(toastId)
+              void navigate('/review')
+            },
+          },
+          cancel: {
+            label: t('review.ignore', '忽略'),
+            onClick: () => {
+              toast.dismiss(toastId)
+            },
+          },
+        },
+      )
     })
 
     return unsubscribe
-  }, [t])
+  }, [t, navigate])
 }
