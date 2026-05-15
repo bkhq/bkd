@@ -1,4 +1,5 @@
-import { beforeAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { getDefaultEngine, setDefaultEngine } from '@/db/helpers'
 import { createTestProject, del, expectSuccess, get, patch, post } from './helpers'
 /**
  * Issues CRUD API tests.
@@ -342,5 +343,30 @@ describe('DELETE /api/projects/:projectId/issues/:id', () => {
   test('returns 404 for nonexistent issue', async () => {
     const result = await del<{ id: string }>(`/api/projects/${projectId}/issues/nonexistent`)
     expect(result.status).toBe(404)
+  })
+})
+
+describe('stale persisted default engine', () => {
+  let original: string | null
+
+  beforeAll(async () => {
+    original = await getDefaultEngine()
+    // Simulate an upgrade: a removed engine type still saved as the global
+    // default (bypasses the PATCH route's validation, like pre-upgrade data).
+    await setDefaultEngine('claude-code-sdk')
+  })
+
+  afterAll(async () => {
+    await setDefaultEngine(original ?? 'claude-code')
+  })
+
+  test('coerces unsupported default engine to claude-code on create', async () => {
+    const result = await post<Issue>(`/api/projects/${projectId}/issues`, {
+      title: 'Stale default engine',
+      statusId: 'todo',
+    })
+    expect(result.status).toBe(201)
+    const data = expectSuccess(result)
+    expect(data.engineType).toBe('claude-code')
   })
 })
