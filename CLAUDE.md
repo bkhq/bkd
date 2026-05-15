@@ -128,7 +128,6 @@ The most complex subsystem — bridges API routes and CLI-based AI agents.
 **Engine types and protocols:**
 
 - `claude-code` — `stream-json` protocol (streaming JSON over stdout, process exits after each turn)
-- `claude-code-sdk` — `stream-json` protocol via `@anthropic-ai/claude-agent-sdk` (in-process)
 - `codex` — `json-rpc` protocol (JSONL JSON-RPC over stdio, process **stays alive** between turns)
 
 Each engine has an executor in `executors/<name>/executor.ts` implementing `EngineExecutor` interface: `spawn`, `spawnFollowUp`, `cancel`, `getAvailability`, `getModels`, `normalizeLog`.

@@ -1,6 +1,6 @@
 # PLAN-004 Enable AskUserQuestion in claude-code-sdk executor (web UI answer flow)
 
-- **status**: draft — awaiting approval
+- **status**: closed — won't do (superseded by ENG-007: claude-code-sdk removed, SDK route abandoned)
 - **createdAt**: 2026-04-18
 - **approvedAt**:
 - **relatedTask**: ENG-002

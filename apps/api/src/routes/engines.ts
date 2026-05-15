@@ -13,7 +13,7 @@ import { BUILT_IN_PROFILES } from '@/engines/types'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 
-const ENGINE_TYPES = ['claude-code', 'claude-code-sdk', 'codex'] as const
+const ENGINE_TYPES = ['claude-code', 'codex'] as const
 
 const engineTypeEnum = z.enum(ENGINE_TYPES)
 

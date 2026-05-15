@@ -62,7 +62,7 @@ Get all engine settings: default engine, per-engine default models, and hidden m
 
 ## PATCH /api/engines/default-engine
 
-Set the global default engine. Accepts base types (`claude-code`, `claude-code-sdk`, `codex`).
+Set the global default engine. Accepts base types (`claude-code`, `codex`).
 
 **Request Body:** `{ defaultEngine: string }`
 

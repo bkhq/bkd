@@ -184,10 +184,9 @@ GET/POST/DEL   /api/worktrees/*         ← Git worktree management
 
 The engine layer is the most complex part of the backend:
 
-- **`types.ts`** — Central types: `EngineType` (`claude-code` | `claude-code-sdk` | `codex`), `EngineExecutor` interface
-- **`executors/`** — One per engine (`claude/`, `claude-sdk/`, `codex/`), each implementing `EngineExecutor`
+- **`types.ts`** — Central types: `EngineType` (`claude-code` | `codex`), `EngineExecutor` interface
+- **`executors/`** — One per engine (`claude/`, `codex/`), each implementing `EngineExecutor`
   - Claude Code: `stream-json` protocol (process exits after each turn)
-  - Claude Code SDK: `stream-json` via `@anthropic-ai/claude-agent-sdk` (in-process)
   - Codex: `json-rpc` protocol (subprocess stays alive between turns)
 - **`process-manager.ts`** — Process lifecycle, concurrency limits, auto-cleanup
 - **`issue/`** — Issue-scoped orchestration (bridge between routes and executors)

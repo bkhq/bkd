@@ -88,7 +88,7 @@ Get cached slash commands. If cache is cold, refreshes from DB before responding
 
 | Query Param | Type | Description |
 |---|---|---|
-| `engine` | `string` | Engine type (e.g. `claude-code`, `claude-code-sdk`, `codex`) |
+| `engine` | `string` | Engine type (e.g. `claude-code`, `codex`) |
 
 ## System Info
 
