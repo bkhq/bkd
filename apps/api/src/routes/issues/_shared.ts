@@ -25,7 +25,7 @@ export const createIssueSchema = z.object({
   statusId: z.enum(STATUS_IDS),
   useWorktree: z.boolean().optional(),
   keepAlive: z.boolean().optional(),
-  engineType: z.enum(['claude-code', 'claude-code-sdk', 'codex']).optional(),
+  engineType: z.enum(['claude-code', 'codex']).optional(),
   model: z
     .string()
     .regex(/^[\w./:\-[\]]{1,160}$/)
@@ -69,7 +69,7 @@ export const updateIssueSchema = z.object({
 })
 
 export const executeIssueSchema = z.object({
-  engineType: z.enum(['claude-code', 'claude-code-sdk', 'codex']),
+  engineType: z.enum(['claude-code', 'codex']),
   prompt: z.string().min(1).max(32768),
   model: z
     .string()

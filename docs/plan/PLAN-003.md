@@ -1,6 +1,6 @@
 # PLAN-003 Migrate claude executor to @anthropic-ai/claude-agent-sdk
 
-- **status**: steps 1-3 complete; awaiting production soak before step 4
+- **status**: closed — won't do (superseded by ENG-007: claude-code-sdk removed, SDK route abandoned)
 - **createdAt**: 2026-04-17
 - **approvedAt**: 2026-04-17
 - **relatedTask**: ENG-001

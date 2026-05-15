@@ -4,6 +4,7 @@ import { cacheDel } from '@/cache'
 import { db } from '@/db'
 import { findProject, getDefaultEngine, getEngineDefaultModel, getServerUrl } from '@/db/helpers'
 import { issues as issuesTable } from '@/db/schema'
+import { engineRegistry } from '@/engines/executors'
 import type { EngineType } from '@/engines/types'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
@@ -35,6 +36,12 @@ create.openapi(R.createIssue, async (c) => {
   if (!resolvedEngine) {
     const defaultEng = (await getDefaultEngine()) || 'claude-code'
     resolvedEngine = defaultEng as EngineType
+  }
+  // Coerce a stale/unsupported persisted engine (e.g. a removed engine type
+  // still saved as the global default) to a supported one. The registry is
+  // the source of truth for which engines are actually installed.
+  if (!engineRegistry.get(resolvedEngine)) {
+    resolvedEngine = 'claude-code'
   }
   if (!resolvedModel) {
     // Leave model unset — let the engine CLI use its own default.

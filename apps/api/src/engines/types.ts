@@ -3,7 +3,7 @@ import type { Subprocess } from '@/engines/spawn'
 // ---------- Enums / Literal Unions ----------
 
 // Supported AI engine types
-export type EngineType = 'claude-code' | 'claude-code-sdk' | 'codex'
+export type EngineType = 'claude-code' | 'codex'
 
 // Communication protocols
 export type EngineProtocol = 'stream-json' | 'json-rpc'
@@ -254,14 +254,6 @@ export const BUILT_IN_PROFILES: Record<EngineType, EngineProfile> = {
     engineType: 'claude-code',
     name: 'Claude Code',
     baseCommand: 'npx -y @anthropic-ai/claude-code@latest',
-    protocol: 'stream-json',
-    capabilities: ['session-fork', 'context-usage', 'plan-mode'],
-    permissionPolicy: 'auto',
-  },
-  'claude-code-sdk': {
-    engineType: 'claude-code-sdk',
-    name: 'Claude Code (SDK)',
-    baseCommand: '@anthropic-ai/claude-agent-sdk',
     protocol: 'stream-json',
     capabilities: ['session-fork', 'context-usage', 'plan-mode'],
     permissionPolicy: 'auto',

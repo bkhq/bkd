@@ -36,8 +36,8 @@ Each task is a single line linking to its detail file. All detailed information 
 - [~] [**WB-002 Improve whiteboard node UI, edges, and markdown rendering**](WB-002.md) `P1`
 - [~] [**WB-003 Refactor whiteboard AI: hidden sessions + MCP tools**](WB-003.md) `P1`
 - [~] [**WB-004 Whiteboard manual editing UX fixes**](WB-004.md) `P1`
-- [-] [**ENG-001 Migrate claude executor to @anthropic-ai/claude-agent-sdk**](ENG-001.md) `P2`
-- [ ] [**ENG-002 Enable AskUserQuestion in claude-code-sdk executor**](ENG-002.md) `P2`
+- [~] [**ENG-001 Migrate claude executor to @anthropic-ai/claude-agent-sdk**](ENG-001.md) `P2`
+- [~] [**ENG-002 Enable AskUserQuestion in claude-code-sdk executor**](ENG-002.md) `P2`
 - [x] [**ENG-003 Remove ACP engine**](ENG-003.md) `P2`
 - [x] [**AUTH-001 Remove OIDC authentication**](AUTH-001.md) `P2`
 - [x] [**WB-005 Remove whiteboard / mindmap feature**](WB-005.md) `P1`
@@ -45,3 +45,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-004 Extend idle engine timeout**](ENG-004.md) `P2`
 - [x] [**ENG-005 Preserve Codex tool actions for grouping**](ENG-005.md) `P1`
 - [x] [**ENG-006 Allow unresolved webhook hostnames on save**](ENG-006.md) `P1`
+- [x] [**ENG-007 Remove claude-code-sdk engine**](ENG-007.md) `P2`
