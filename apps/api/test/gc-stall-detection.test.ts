@@ -478,4 +478,68 @@ describe('gcSweep — stream stall detection', () => {
     expect(managed.stallProbeAt).toBeUndefined()
     expect(mockEmitDiagnosticLog).not.toHaveBeenCalled()
   })
+
+  test('ACP engine gets extended 10-minute stall timeout (not 3-minute)', () => {
+    // ACP engines (opencode, gemini, etc.) may have long thinking phases.
+    // They should NOT be stalled at the 3-minute threshold used for claude-code.
+    const silenceMs = 5 * 60 * 1000 // 5 minutes of silence
+    const managed = makeManagedProcess({
+      issueId: 'issue-acp',
+      executionId: 'exec-acp',
+      engineType: 'acp',
+      turnInFlight: true,
+      lastActivityAt: new Date(Date.now() - silenceMs),
+    })
+    const { ctx, forceKillCalls } = makeContext([{ id: 'exec-acp', meta: managed }])
+
+    gcSweep(ctx)
+
+    // 5 minutes < 10-minute ACP threshold → should NOT be detected
+    expect(forceKillCalls).not.toContain('exec-acp')
+    expect(managed.stallDetectedAt).toBeUndefined()
+    expect(managed.stallProbeAt).toBeUndefined()
+    expect(mockEmitDiagnosticLog).not.toHaveBeenCalled()
+  })
+
+  test('ACP engine IS stalled after extended 10-minute threshold', () => {
+    const silenceMs = 11 * 60 * 1000 // 11 minutes of silence
+    const managed = makeManagedProcess({
+      issueId: 'issue-acp-stalled',
+      executionId: 'exec-acp-stalled',
+      engineType: 'acp',
+      turnInFlight: true,
+      lastActivityAt: new Date(Date.now() - silenceMs),
+    })
+    const { ctx, forceKillCalls } = makeContext([{ id: 'exec-acp-stalled', meta: managed }])
+
+    gcSweep(ctx)
+
+    // 11 minutes > 10-minute ACP threshold → should be detected (Tier 1)
+    expect(forceKillCalls).not.toContain('exec-acp-stalled')
+    expect(managed.stallDetectedAt).toBeDefined()
+    expect(managed.stallProbeAt).toBeUndefined()
+    expect(mockEmitDiagnosticLog).toHaveBeenCalledWith(
+      'issue-acp-stalled',
+      'exec-acp-stalled',
+      expect.stringContaining('stall detected'),
+      expect.objectContaining({ event: 'stall_detected' }),
+    )
+  })
+
+  test('acp:opencode variant also gets extended timeout', () => {
+    const silenceMs = 5 * 60 * 1000 // 5 minutes
+    const managed = makeManagedProcess({
+      issueId: 'issue-opencode',
+      executionId: 'exec-opencode',
+      engineType: 'acp:opencode',
+      turnInFlight: true,
+      lastActivityAt: new Date(Date.now() - silenceMs),
+    })
+    const { ctx, forceKillCalls } = makeContext([{ id: 'exec-opencode', meta: managed }])
+
+    gcSweep(ctx)
+
+    expect(forceKillCalls).not.toContain('exec-opencode')
+    expect(managed.stallDetectedAt).toBeUndefined()
+  })
 })

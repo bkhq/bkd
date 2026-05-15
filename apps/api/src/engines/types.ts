@@ -24,7 +24,8 @@ export type EngineCapability =
   'context-usage' |
   'plan-mode' |
   'sandbox' |
-  'reasoning'
+  'reasoning' |
+  'extended-timeout'
 
 // Permission policies
 export type PermissionPolicy = 'auto' | 'supervised' | 'plan'
@@ -321,7 +322,7 @@ export const BUILT_IN_PROFILES: Partial<Record<EngineType, EngineProfile>> & Rec
     name: 'ACP Agents',
     baseCommand: 'dynamic (selected by model prefix)',
     protocol: 'acp',
-    capabilities: ['session-fork'],
+    capabilities: ['session-fork', 'extended-timeout'],
     permissionPolicy: 'auto',
   },
 }

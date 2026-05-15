@@ -105,6 +105,8 @@ function sanitizeModes(
   }
 }
 
+const HEARTBEAT_INTERVAL_MS = 30_000
+
 export class AcpProtocolHandler {
   private readonly sink = createEventSink()
   private readonly stream: ReturnType<typeof ndJsonStream>
@@ -113,6 +115,7 @@ export class AcpProtocolHandler {
   private sessionId: string | undefined
   private ignoreSessionUpdates = false
   private currentPrompt: Promise<void> = Promise.resolve()
+  private heartbeatTimer?: ReturnType<typeof setInterval>
 
   onActivity?: () => void
 
@@ -142,6 +145,13 @@ export class AcpProtocolHandler {
     void this.connection.closed.finally(() => {
       this.sink.close()
     })
+
+    // Soft heartbeat: opencode's ACP adapter does not emit thinking chunks
+    // during deep reasoning, so lastActivityAt stalls. We tick every 30s
+    // while the connection is alive to prevent false GC kills.
+    this.heartbeatTimer = setInterval(() => {
+      this.onActivity?.()
+    }, HEARTBEAT_INTERVAL_MS)
   }
 
   get stdout(): ReadableStream<Uint8Array> {
@@ -227,6 +237,10 @@ export class AcpProtocolHandler {
   }
 
   close(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer)
+      this.heartbeatTimer = undefined
+    }
     this.sink.close()
   }
 

@@ -48,7 +48,9 @@ export async function spawnAcpProcess(options: {
       sendUserMessage: (content: string, attachments?: EngineAttachment[]) => {
         void handler.sendUserMessage(content, attachments)
       },
-      onActivity: undefined,
+      // onActivity is wired by register.ts (issue/process/register) which
+      // binds it to the managed process's lastActivityAt heartbeat. This
+      // prevents false stall detection during long-thinking ACP sessions.
     },
     externalSessionId: handler.currentSessionId,
     spawnCommand: options.cmd.join(' '),

@@ -9,10 +9,11 @@ import type { ProcessStatus } from '@/engines/types'
 import { emitIssueLogRemoved } from '@/events/issue-events'
 import { logger } from '@/logger'
 
-// Grace period before moving a conversational issue to 'review' after a turn
-// completes. If the user sends a follow-up within this window, the
-// START_TURN dispatch clears the settle timer and the issue stays in 'working'.
-const SETTLE_GRACE_MS = 3_000
+// Settlement is now process-exit or idle-timeout driven instead of a fixed
+// grace period after turn completion. This prevents premature "review"
+// transitions while the engine process is still alive (e.g. opencode deep
+// thinking that may continue producing output or accept follow-ups).
+// See handleTurnCompleted Phase 2 and gcSweep idle timeout.
 
 // ---------- Turn completion ----------
 
@@ -119,22 +120,23 @@ export function handleTurnCompleted(
       }
 
       // Phase 2: Move to review.
-      // If the process already exited (non-conversational engines like echo
-      // or claude-code one-shot), settle immediately — the grace period is
-      // only useful while the process is still alive and can accept follow-ups.
+      // ONLY settle immediately if the process already exited.
+      // For conversational engines where the process stays alive between turns,
+      // do NOT auto-settle — let monitorCompletion (process exit) or idle
+      // timeout (gcSweep IDLE_TIMEOUT_MS) handle settlement. This prevents
+      // premature "review" transitions while the engine may still be producing
+      // output or the user may send a follow-up (opencode / ACP engines).
       if (managed.exitCode !== undefined) {
         await settleAfterGrace(ctx, issueId, executionId, managed, finalStatus)
       } else {
-        // Process still alive — schedule delayed settle. If the user sends a
-        // follow-up within SETTLE_GRACE_MS, the START_TURN dispatch clears
-        // this timer and the issue stays in 'working'.
-        if (managed.settleTimer) clearTimeout(managed.settleTimer)
-        managed.settleTimerStatus = finalStatus
-        managed.settleTimer = setTimeout(() => {
-          managed.settleTimer = undefined
-          managed.settleTimerStatus = undefined
-          void settleAfterGrace(ctx, issueId, executionId, managed, finalStatus)
-        }, SETTLE_GRACE_MS)
+        // Process still alive — skip auto-settle. Settlement triggers:
+        //   1. Process exits → monitorCompletion → flushSettleTimer
+        //   2. Idle timeout (IDLE_TIMEOUT_MS) → gcSweep → terminateAndSettle
+        //   3. User follow-up → START_TURN clears idle state, new turn begins
+        logger.debug(
+          { issueId, executionId, engineType: managed.engineType },
+          'issue_turn_completed_process_alive_skip_auto_settle',
+        )
       }
     } catch (error) {
       // Cancel any pending delayed settle — the fallback below will handle it.
@@ -234,19 +236,22 @@ async function settleAfterGrace(
 }
 
 /**
- * Flush a pending settle timer immediately (e.g. when the process exits).
- * This avoids waiting the full SETTLE_GRACE_MS for engines where the process
- * exits after each turn — the grace period is only useful while the process
- * is still alive and can receive follow-up input.
+ * Settle immediately (called when the process exits).
+ *
+ * Since we no longer auto-settle on a fixed grace period after turn
+ * completion, this is the primary settlement path for conversational
+ * engines: the process exits → monitorCompletion calls this →
+ * autoMoveToReview + emitIssueSettled.
  */
 export function flushSettleTimer(
   ctx: EngineContext,
   managed: ManagedProcess,
 ): void {
-  if (!managed.settleTimer) return
-  clearTimeout(managed.settleTimer)
+  if (managed.settleTimer) {
+    clearTimeout(managed.settleTimer)
+    managed.settleTimer = undefined
+  }
   const finalStatus = managed.settleTimerStatus ?? (managed.logicalFailure ? 'failed' : 'completed')
-  managed.settleTimer = undefined
   managed.settleTimerStatus = undefined
   void settleAfterGrace(ctx, managed.issueId, managed.executionId, managed, finalStatus)
 }

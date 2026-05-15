@@ -16,7 +16,7 @@ export const STALL_INTERRUPT_GRACE_MS = 2 * 60 * 1000 // 2 minutes — kill proc
 export const CANCEL_RESPONSE_TIMEOUT_MS = 5_000 // 5s — wait for turn completion after each interrupt retry
 export const CANCEL_MAX_RETRIES = 3 // send interrupt up to 3 times before hard kill (worst case: 3 × 5s = 15s)
 export const KEEPALIVE_STALL_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes — stall detection for keepAlive processes
-export const ACP_PROMPT_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes — max time for ACP prompt() before forced timeout
+export const ACP_PROMPT_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes — max time for ACP prompt() before forced timeout
 export const WORKTREE_DIR = process.env.WORKTREE_DIR || 'worktrees'
 
 // Patterns in stderr that indicate a fatal engine error (quota, auth, network).

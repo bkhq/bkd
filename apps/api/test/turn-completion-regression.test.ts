@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from 'bun:test'
+import { beforeAll, describe, expect, mock, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { getPendingMessages } from '@/db/pending-messages'
@@ -8,7 +8,7 @@ import {
   projects as projectsTable,
 } from '@/db/schema'
 import type { EngineContext } from '@/engines/issue/context'
-import { handleTurnCompleted } from '@/engines/issue/lifecycle/turn-completion'
+import { flushSettleTimer, handleTurnCompleted } from '@/engines/issue/lifecycle/turn-completion'
 import { ExecutionStore } from '@/engines/issue/store/execution-store'
 import type { ManagedProcess } from '@/engines/issue/types'
 import { waitFor } from './helpers'
@@ -60,6 +60,144 @@ async function insertPendingMessage(issueId: string, content: string) {
   })
 }
 
+describe('turn completion — process-alive skip auto-settle regression', () => {
+  test(
+    'process alive → turn completion does NOT auto-settle within 3s',
+    async () => {
+      const issue = await createWorkingIssue(`turn-completion-alive-${Date.now()}`)
+      const executionId = `exec-alive-${Date.now()}`
+      const managed: ManagedProcess = {
+        executionId,
+        issueId: issue.id,
+        engineType: 'acp',
+        process: {
+          subprocess: { exited: new Promise(() => {}) }, // never exits
+        } as any,
+        state: 'running',
+        startedAt: new Date(),
+        logs: new ExecutionStore(executionId),
+        retryCount: 0,
+        turnInFlight: true,
+        queueCancelRequested: false,
+        logicalFailure: false,
+        turnSettled: false,
+        slashCommands: [],
+        agents: [],
+        plugins: [],
+        keepAlive: false,
+        lastActivityAt: new Date(),
+        pendingInputs: [],
+      }
+
+      const ctx: EngineContext = {
+        pm: {
+          get: (id: string) => (id === executionId ? ({ meta: managed } as any) : undefined),
+          getActive: () => [],
+        } as any,
+        issueOpLocks: new Map(),
+        entryCounters: new Map(),
+        turnIndexes: new Map(),
+        userMessageIds: new Map(),
+        lastErrors: new Map(),
+        lockDepth: new Map(),
+        followUpIssue: null,
+      }
+
+      handleTurnCompleted(ctx, issue.id, executionId)
+
+      // Wait for the async Phase 1 (updateIssueSession) to complete
+      await waitFor(async () => {
+        const [row] = await db
+          .select({ sessionStatus: issuesTable.sessionStatus })
+          .from(issuesTable)
+          .where(eq(issuesTable.id, issue.id))
+        return row?.sessionStatus === 'completed'
+      }, 3000)
+
+      // Previously: 3-second SETTLE_GRACE_MS timer would fire here and move
+      // the issue to review. Now: no auto-settle while process is alive.
+      await new Promise(r => setTimeout(r, 1000))
+
+      const [row] = await db
+        .select({ statusId: issuesTable.statusId, sessionStatus: issuesTable.sessionStatus })
+        .from(issuesTable)
+        .where(eq(issuesTable.id, issue.id))
+
+      // Issue should stay in working while the process is alive
+      expect(row?.statusId).toBe('working')
+      expect(row?.sessionStatus).toBe('completed')
+    },
+    { timeout: 10000 },
+  )
+
+  test(
+    'process exit → flushSettleTimer settles immediately',
+    async () => {
+      const issue = await createWorkingIssue(`turn-completion-exit-${Date.now()}`)
+      // Pre-set sessionStatus so settleAfterGrace guard passes
+      await db
+        .update(issuesTable)
+        .set({ sessionStatus: 'completed' })
+        .where(eq(issuesTable.id, issue.id))
+
+      const executionId = `exec-exit-${Date.now()}`
+      const managed: ManagedProcess = {
+        executionId,
+        issueId: issue.id,
+        engineType: 'acp',
+        process: {
+          subprocess: { exited: Promise.resolve(0) },
+        } as any,
+        state: 'running',
+        startedAt: new Date(),
+        logs: new ExecutionStore(executionId),
+        retryCount: 0,
+        turnInFlight: true,
+        queueCancelRequested: false,
+        logicalFailure: false,
+        turnSettled: true,
+        slashCommands: [],
+        agents: [],
+        plugins: [],
+        keepAlive: false,
+        lastActivityAt: new Date(),
+        pendingInputs: [],
+      }
+
+      const ctx: EngineContext = {
+        pm: {
+          get: (id: string) => (id === executionId ? ({ meta: managed } as any) : undefined),
+          getActive: () => [],
+        } as any,
+        issueOpLocks: new Map(),
+        entryCounters: new Map(),
+        turnIndexes: new Map(),
+        userMessageIds: new Map(),
+        lastErrors: new Map(),
+        lockDepth: new Map(),
+        followUpIssue: null,
+      }
+
+      flushSettleTimer(ctx, managed)
+
+      await waitFor(async () => {
+        const [row] = await db
+          .select({ statusId: issuesTable.statusId })
+          .from(issuesTable)
+          .where(eq(issuesTable.id, issue.id))
+        return row?.statusId === 'review'
+      }, 3000)
+
+      const [row] = await db
+        .select({ statusId: issuesTable.statusId })
+        .from(issuesTable)
+        .where(eq(issuesTable.id, issue.id))
+      expect(row?.statusId).toBe('review')
+    },
+    { timeout: 10000 },
+  )
+})
+
 describe('turn completion pending-flush regression', () => {
   test('failed auto-flush keeps DB pending rows for retry', async () => {
     const issue = await createWorkingIssue(`turn-completion-pending-${Date.now()}`)
@@ -108,16 +246,29 @@ describe('turn completion pending-flush regression', () => {
 
     handleTurnCompleted(ctx, issue.id, executionId)
 
+    // With the old 3-second SETTLE_GRACE_MS, this would auto-settle.
+    // Now: process alive → no auto-settle. We simulate process exit
+    // by calling flushSettleTimer directly (what monitorCompletion does).
+    await waitFor(async () => {
+      const [row] = await db
+        .select({ sessionStatus: issuesTable.sessionStatus })
+        .from(issuesTable)
+        .where(eq(issuesTable.id, issue.id))
+      return row?.sessionStatus === 'completed'
+    }, 3000)
+
+    flushSettleTimer(ctx, managed)
+
     await waitFor(async () => {
       const [row] = await db
         .select({ statusId: issuesTable.statusId })
         .from(issuesTable)
         .where(eq(issuesTable.id, issue.id))
       return row?.statusId === 'review'
-    }, 5000)
+    }, 3000)
 
     const pending = await getPendingMessages(issue.id)
     expect(pending.length).toBeGreaterThanOrEqual(1)
     expect(pending.some(p => p.content === pendingPrompt)).toBe(true)
-  })
+  }, { timeout: 10000 })
 })

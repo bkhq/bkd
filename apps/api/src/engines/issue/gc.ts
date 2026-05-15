@@ -1,5 +1,5 @@
 import { autoMoveToReview, getIssueWithSession, updateIssueSession } from '@/engines/engine-store'
-import type { ProcessStatus } from '@/engines/types'
+import type { EngineType, ProcessStatus } from '@/engines/types'
 import { logger } from '@/logger'
 import {
   IDLE_TIMEOUT_MS,
@@ -93,6 +93,16 @@ function isProcessAlive(
   } catch {
     return false
   }
+}
+
+/**
+ * Per-engine stall timeout. ACP agents (opencode, gemini, etc.) may have
+ * long thinking/tool-execution phases with sparse output, so they get a
+ * longer leash before stall detection kicks in.
+ */
+function getStreamStallTimeoutMs(engineType: EngineType): number {
+  if (engineType.startsWith('acp')) return 10 * 60 * 1000 // 10 minutes
+  return STREAM_STALL_TIMEOUT_MS // 3 minutes for everyone else
 }
 
 // ---------- Domain GC sweep ----------
@@ -287,11 +297,12 @@ export function gcSweep(ctx: EngineContext): void {
           continue
         }
 
-        // Tier 1: no output for STREAM_STALL_TIMEOUT_MS — non-destructive liveness check
+        // Tier 1: no output for engine-specific stall timeout — non-destructive liveness check
+        const stallTimeout = getStreamStallTimeoutMs(managed.engineType)
         if (
           !managed.stallDetectedAt &&
           !managed.stallProbeAt &&
-          silenceMs > STREAM_STALL_TIMEOUT_MS
+          silenceMs > stallTimeout
         ) {
           const alive = isProcessAlive(pid, sp)
           const stallMinutes = Math.round(silenceMs / 60000)
