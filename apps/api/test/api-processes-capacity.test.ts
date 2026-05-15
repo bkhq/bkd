@@ -1,8 +1,16 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
+import { issueEngine } from '@/engines/issue'
 import { expectSuccess, get } from './helpers'
 import './setup'
 
 describe('GET /api/processes/capacity', () => {
+  // The ProcessManager singleton is shared across the whole `bun test` run.
+  // This test asserts the zero-load path, so it must establish that
+  // precondition itself rather than rely on test-file ordering.
+  beforeEach(async () => {
+    await issueEngine.cancelAll()
+  })
+
   test('returns active summary and available execution slots', async () => {
     const result = await get<{
       summary: {
