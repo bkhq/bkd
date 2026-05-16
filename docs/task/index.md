@@ -47,3 +47,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-006 Allow unresolved webhook hostnames on save**](ENG-006.md) `P1`
 - [x] [**ENG-007 Remove claude-code-sdk engine**](ENG-007.md) `P2`
 - [x] [**ENG-008 Add per-project default engine and model**](ENG-008.md) `P2`
+- [x] [**ENG-009 Guard drizzle migration/snapshot consistency**](ENG-009.md) `P3`

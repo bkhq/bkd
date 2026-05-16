@@ -68,7 +68,7 @@ bun scripts/package.ts --version 0.0.6 --skip-frontend
 - **Database**: SQLite via `bun:sqlite` + Drizzle ORM (WAL mode, 64 MB cache, 256 MB mmap)
   - Schema in `db/schema.ts`. All tables share `commonFields` (`createdAt`, `updatedAt`, `isDeleted` soft delete)
   - Projects/issues use `shortId()` (nanoid 8-char), logs use `id()` (ULID)
-  - Migrations in `apps/api/drizzle/`, auto-applied on startup
+  - Migrations in `apps/api/drizzle/`, auto-applied on startup. Runtime applies them in `meta/_journal.json` order, tracked per-DB in `__drizzle_migrations` (snapshots are never read at runtime). Rules: never edit or reorder a shipped migration (drizzle keys applied state by file hash); only append new ones via `bun run db:generate`; always commit the schema change, generated `.sql`, `meta/<n>_snapshot.json`, and `_journal.json` together. CI (`Migrations` job) fails if `db:generate` yields uncommitted changes. Intermediate snapshots `0001,0005,0012,0014–0019` are missing — accepted (archival-only; the diff base re-aligned at `0020`, see ENG-009)
 - **Logging**: pino (`logger.ts`)
 - **Caching**: in-process LRU+TTL Map-based cache (`cache.ts`, max 500 entries)
 - **Static serving**: three modes — embedded (compiled binary), `APP_DIR/public/` (package mode), `apps/frontend/dist/` (dev)

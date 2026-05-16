@@ -28,6 +28,8 @@ jobs:
             command: bun run lint
           - name: Typecheck
             command: bunx tsc --noEmit -p apps/api/tsconfig.json && bunx tsc --noEmit -p apps/frontend/tsconfig.json
+          - name: Migrations
+            command: bun run db:generate && test -z "$(git status --porcelain -- apps/api/drizzle)" || { echo 'Drizzle schema/migration/snapshot out of sync — run "bun run db:generate" and commit the generated migration + snapshot'; git status --porcelain -- apps/api/drizzle; exit 1; }
           - name: Test
             command: bun run test:api && cd apps/frontend && bunx vitest run --reporter=verbose
     steps:
