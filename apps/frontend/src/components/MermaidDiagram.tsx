@@ -151,6 +151,7 @@ function MermaidZoomViewer({ svg, onClose }: { svg: string, onClose: () => void 
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const dragRef = useRef<{ startX: number, startY: number, baseX: number, baseY: number } | null>(null)
+  const hasDraggedRef = useRef(false)
   const prevFocusRef = useRef<HTMLElement | null>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
 
@@ -201,6 +202,7 @@ function MermaidZoomViewer({ svg, onClose }: { svg: string, onClose: () => void 
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
+    hasDraggedRef.current = false
     e.currentTarget.setPointerCapture(e.pointerId)
     dragRef.current = {
       startX: e.clientX,
@@ -212,6 +214,11 @@ function MermaidZoomViewer({ svg, onClose }: { svg: string, onClose: () => void 
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragRef.current) return
+    const dx = Math.abs(e.clientX - dragRef.current.startX)
+    const dy = Math.abs(e.clientY - dragRef.current.startY)
+    if (dx > 3 || dy > 3) {
+      hasDraggedRef.current = true
+    }
     setOffset({
       x: dragRef.current.baseX + (e.clientX - dragRef.current.startX),
       y: dragRef.current.baseY + (e.clientY - dragRef.current.startY),
@@ -308,6 +315,7 @@ function MermaidZoomViewer({ svg, onClose }: { svg: string, onClose: () => void 
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onClick={(e) => {
+          if (hasDraggedRef.current) return
           if (e.target === e.currentTarget) onClose()
         }}
       >

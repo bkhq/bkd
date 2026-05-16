@@ -150,6 +150,7 @@ class EventBus {
           changes: Record<string, unknown>
           title?: string
           projectAlias?: string
+          source?: string
         }
         for (const cb of this.issueUpdatedListeners) {
           try {

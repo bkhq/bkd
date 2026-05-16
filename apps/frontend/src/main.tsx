@@ -2,7 +2,7 @@ import { QueryClient } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -104,11 +104,26 @@ const LazyNotesDrawer = lazy(() =>
   })),
 )
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false,
+  )
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 768px)')
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [])
+  return isMobile
+}
+
 function AppShell({ children }: { children: React.ReactNode }) {
+  const isMobile = useIsMobile()
   return (
     <div className="w-full" style={{ height: '100dvh' }}>
       {children}
       <ReviewNotificationsMount />
+      <Toaster position={isMobile ? 'top-center' : 'top-right'} />
     </div>
   )
 }
@@ -400,7 +415,6 @@ if (!rootElement.innerHTML) {
           <FileBrowserDrawerMount />
           <ProcessManagerDrawerMount />
           <NotesDrawerMount />
-          <Toaster position="top-center" />
           <EventBusManager />
           <ServerConfigLoader />
           <GlobalCommandPalette />

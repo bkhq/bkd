@@ -26,7 +26,9 @@ export function useReviewNotifications() {
       notifiedRef.current.add(data.issueId)
       const title = data.title || `#${data.issueId.slice(0, 8)}`
       const project = data.projectAlias || ''
-      const issueUrl = data.projectAlias
+      // Only build a per-issue URL when projectAlias is present and non-empty.
+      const hasAlias = !!data.projectAlias
+      const issueUrl = hasAlias
         ? `/review/${data.projectAlias}/${data.issueId}`
         : '/review'
 
@@ -46,16 +48,20 @@ export function useReviewNotifications() {
                 {project ? `${project} / ${title}` : title}
               </div>
               <div className="flex gap-2 mt-2 sm:mt-3">
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center rounded-md sm:rounded-lg bg-primary px-2.5 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-[11px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
-                  onClick={() => {
+                {/* Use <a> so the browser always navigates even if navigate()
+                    fails inside the toast portal. navigate() provides SPA
+                    routing when it works; the href is a hard fallback. */}
+                <a
+                  href={issueUrl}
+                  onClick={(e) => {
+                    e.stopPropagation()
                     toast.dismiss(toastId)
                     navigate(issueUrl)
                   }}
+                  className="inline-flex items-center justify-center rounded-md sm:rounded-lg bg-primary px-2.5 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-[11px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer no-underline"
                 >
                   {t('review.view', '查看')}
-                </button>
+                </a>
                 <button
                   type="button"
                   className="inline-flex items-center justify-center rounded-md sm:rounded-lg px-2.5 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-[11px] font-medium text-muted-foreground hover:bg-accent transition-colors cursor-pointer"

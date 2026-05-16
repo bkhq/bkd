@@ -75,11 +75,11 @@ export function FileBrowserPanel({
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
+              className="p-2 rounded text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
               aria-label={t('fileBrowser.close')}
               title={t('fileBrowser.close')}
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-5 w-5" />
             </button>
           )}
         />

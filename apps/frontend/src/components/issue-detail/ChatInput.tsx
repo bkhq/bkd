@@ -788,9 +788,9 @@ export function ChatInput({
             // `chat.attachHint` and renders as a multi-line tooltip.
             title={`${t('chat.attach')} — ${t('chat.attachHint')}`}
             onClick={() => fileInputRef.current?.click()}
-            className="size-7"
+            className="size-8"
           >
-            <Paperclip className="size-3.5" />
+            <Paperclip className="size-4" />
           </Button>
           {normalizedSlashCommands.length > 0 ?
               (
@@ -1167,11 +1167,11 @@ function MobileMoreMenu({
         render={(
           <button
             type="button"
-            className="inline-flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+            className="inline-flex items-center justify-center size-8 rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
           />
         )}
       >
-        <MoreHorizontal className="size-3.5" />
+        <MoreHorizontal className="size-4" />
       </PopoverTrigger>
       <PopoverContent align="start" side="top" className="w-56 p-2 space-y-1">
         {/* Engine info — labeled so users know what their session is bound to.
