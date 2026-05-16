@@ -64,6 +64,10 @@ export const issueIdParam = {
 
 const envVarsSchema = z.record(z.string(), z.string().max(10000)).optional()
 
+// Per-project default engine/model overrides. null/'' clears -> inherit global.
+const projectDefaultEngineSchema = z.enum(['claude-code', 'codex']).nullable().optional()
+const projectDefaultModelSchema = z.string().max(200).nullable().optional()
+
 export const ProjectSchema = z.object({
   id: z.string(),
   alias: z.string(),
@@ -73,6 +77,8 @@ export const ProjectSchema = z.object({
   repositoryUrl: z.string().optional(),
   systemPrompt: z.string().optional(),
   envVars: z.record(z.string(), z.string()).optional(),
+  defaultEngine: z.enum(['claude-code', 'codex']).optional(),
+  defaultModel: z.string().optional(),
   sortOrder: z.string(),
   isArchived: z.boolean(),
   isGitRepo: z.boolean().optional(),
@@ -88,6 +94,8 @@ export const CreateProjectSchema = z.object({
   repositoryUrl: z.string().url().optional().or(z.literal('')),
   systemPrompt: z.string().max(32768).optional(),
   envVars: envVarsSchema,
+  defaultEngine: projectDefaultEngineSchema,
+  defaultModel: projectDefaultModelSchema,
 }).openapi('CreateProject')
 
 export const UpdateProjectSchema = z.object({
@@ -98,6 +106,8 @@ export const UpdateProjectSchema = z.object({
   repositoryUrl: z.string().url().optional().or(z.literal('')),
   systemPrompt: z.string().max(32768).optional(),
   envVars: envVarsSchema,
+  defaultEngine: projectDefaultEngineSchema,
+  defaultModel: projectDefaultModelSchema,
   sortOrder: z.string().min(1).max(50).regex(/^[a-z0-9]+$/i).optional(),
 }).openapi('UpdateProject')
 

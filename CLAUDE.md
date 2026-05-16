@@ -87,6 +87,8 @@ Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`,
 
 Statuses are hardcoded constants in `config.ts` (`todo`, `working`, `review`, `done`) — no DB table.
 
+Issue create resolves engine/model by precedence: explicit request value → per-project default (`projects.defaultEngine`/`defaultModel`) → global default (`appSettings`) → `claude-code` fallback. An engine with no registered executor is coerced to `claude-code`.
+
 API response envelope: `{ success: true, data: T } | { success: false, error: string }`
 
 #### API Routes

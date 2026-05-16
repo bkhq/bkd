@@ -102,6 +102,8 @@ export function useUpdateProject() {
       repositoryUrl?: string
       systemPrompt?: string
       envVars?: Record<string, string>
+      defaultEngine?: string | null
+      defaultModel?: string | null
       sortOrder?: number
     }) => {
       const { id, ...rest } = data

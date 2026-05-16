@@ -25,12 +25,12 @@ export function resolveWorktreePath(projectId: string, issueId: string): string 
 
 /**
  * Resolve the main branch start point for worktree creation.
- * Priority: origin/main > origin/master > local main > local master.
+ * Priority: local main > local master > origin/main > origin/master.
  * Throws if no main branch is found — refuses to use HEAD which may
  * point to an arbitrary feature branch with uncommitted state.
  */
 async function resolveMainBranch(baseDir: string): Promise<string> {
-  const candidates = ['origin/main', 'origin/master', 'main', 'master']
+  const candidates = ['main', 'master', 'origin/main', 'origin/master']
   for (const ref of candidates) {
     const { code } = await runCommand(
       ['git', 'rev-parse', '--verify', '--quiet', ref],
