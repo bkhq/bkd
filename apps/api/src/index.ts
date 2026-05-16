@@ -1,214 +1,30 @@
-import { existsSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { serveStatic, websocket } from 'hono/bun'
-import app from './app'
-import { embeddedStatic } from './embedded-static'
-import { issueEngine } from './engines/issue'
-import { migrateSlashCommandsKey, refreshSlashCommandsCache } from './engines/issue/queries'
-import {
-  registerSettledReconciliation,
-  startPeriodicReconciliation,
-  startupReconciliation,
-  stopPeriodicReconciliation,
-} from './engines/reconciler'
-import { refreshGlobalEnvCache } from './engines/safe-env'
-import { startChangesSummaryWatcher, stopChangesSummaryWatcher } from './events/changes-summary'
-import { startCron } from './cron'
-import { logger } from './logger'
-import { acquirePidLock, releasePidLock } from './pid-lock'
-import { APP_DIR, ROOT_DIR } from './root'
-import { printStartupBanner } from './startup-banner'
-import { staticAssets } from './static-assets'
-import { initUpgradeSystem, registerShutdownForUpgrade, stopPeriodicCheck } from './upgrade/service'
-import { initWebhookDispatcher, startDeliveryCleanup } from './webhooks/dispatcher'
+/**
+ * Process entry point.
+ *
+ * `bkd fix-db` / `bkd --fix-db` repairs the database and exits WITHOUT loading
+ * the server, so it works even when normal startup `verifySchema()` would
+ * `process.exit(1)`. Any other invocation boots the server.
+ *
+ * The server bootstrap lives in `./server-main` and is loaded via dynamic
+ * import so its db migrate+verify startup side-effect never runs on the
+ * fix-db path.
+ */
+const argv = process.argv.slice(2)
 
-// ---------- Global error handlers ----------
-// Catch unhandled promise rejections so they are always logged.
-// This prevents silent failures in fire-and-forget async operations
-// (monitorCompletion, turn settlement, GC sweep, etc.).
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error({ reason, promise: String(promise) }, 'unhandled_rejection')
-})
-
-// Catch truly uncaught exceptions. Log and exit — the process state is
-// unreliable after an uncaught exception.
-process.on('uncaughtException', (err, origin) => {
-  logger.fatal({ err, origin }, 'uncaught_exception')
-  // Give pino time to flush the log entry before exiting
-  setTimeout(() => process.exit(1), 200)
-})
-
-// ---------- PID lock ----------
-// Prevent multiple BKD instances from running simultaneously against the
-// same data directory. Must run before any DB writes or Bun.serve().
-acquirePidLock()
-
-// Safety net: release the PID lock on any exit path (uncaughtException,
-// process.exit, SIGKILL is not catchable but stale-lock detection handles it).
-// `process.on('exit')` only allows synchronous work — releasePidLock is sync.
-process.on('exit', () => {
-  releasePidLock()
-})
-
-// Migrate legacy global slash commands key to per-engine format, then load cache
-void migrateSlashCommandsKey()
-  .then(() => refreshSlashCommandsCache())
-  .catch((err) => {
-    logger.error({ err }, 'slash_commands_cache_load_failed')
-  })
-
-// Pre-warm global env vars cache from DB
-void refreshGlobalEnvCache().catch((err) => {
-  logger.error({ err }, 'global_env_cache_load_failed')
-})
-
-// Load max concurrent executions setting from DB
-void issueEngine.initMaxConcurrent().catch((err) => {
-  logger.error({ err }, 'init_max_concurrent_failed')
-})
-
-// Run startup reconciliation: mark stale sessions as failed and move
-// orphaned working issues to review.
-void startupReconciliation().catch((err) => {
-  logger.error({ err }, 'startup_reconciliation_failed')
-})
-
-// Register event-driven reconciliation (fires after each process settles)
-const stopSettledReconciliation = registerSettledReconciliation()
-
-// Start periodic reconciliation (fallback safety net)
-startPeriodicReconciliation()
-
-// Start watching for file changes to push summaries via SSE
-startChangesSummaryWatcher()
-
-// Initialize webhook dispatcher (subscribes to event bus)
-initWebhookDispatcher()
-
-// Start periodic webhook delivery cleanup (keeps last 100 per webhook)
-const stopDeliveryCleanup = startDeliveryCleanup()
-
-const listenHost = process.env.HOST ?? '0.0.0.0'
-const listenPort = Number(process.env.PORT ?? 3000)
-
-// --- Static file serving ---
-// In compiled mode, static-assets.ts is replaced at build time with
-// generated imports that embed all frontend/dist files.
-// In dev mode, the file exports an empty Map and we fall back to disk.
-if (staticAssets.size > 0) {
-  app.use('*', embeddedStatic(staticAssets))
-  logger.info({ assets: staticAssets.size }, 'embedded_static_loaded')
-} else {
-  // In package mode, static files live in APP_DIR/public/.
-  // In dev mode, they live in apps/frontend/dist/.
-  const staticRoot = APP_DIR ? resolve(APP_DIR, 'public') : resolve(ROOT_DIR, 'apps/frontend/dist')
-  if (existsSync(staticRoot)) {
-    app.use(
-      '/assets/*',
-      serveStatic({
-        root: staticRoot,
-        onFound: (_path, c) => {
-          c.header('Cache-Control', 'public, max-age=31536000, immutable')
-        },
-      }),
+if (argv.includes('fix-db') || argv.includes('--fix-db')) {
+  // eslint-disable-next-line antfu/no-top-level-await
+  const { repairDatabase } = await import('./db/repair')
+  try {
+    const result = repairDatabase()
+    console.log(
+      `[fix-db] database repair complete — applied ${result.applied}, skipped ${result.skipped}`,
     )
-
-    app.use(
-      '*',
-      serveStatic({
-        root: staticRoot,
-        onFound: (_path, c) => {
-          c.header('Cache-Control', 'public, max-age=3600, must-revalidate')
-        },
-      }),
-    )
-
-    app.get(
-      '*',
-      serveStatic({
-        root: staticRoot,
-        path: 'index.html',
-        onFound: (_path, c) => {
-          c.header('Cache-Control', 'no-cache')
-        },
-      }),
-    )
-  }
-}
-
-const http = Bun.serve({
-  port: listenPort,
-  hostname: listenHost,
-  idleTimeout: 60,
-  fetch: app.fetch,
-  websocket,
-})
-
-printStartupBanner(listenHost, listenPort)
-
-// Start cron scheduler (replaces individual setInterval jobs)
-const stopCron = startCron()
-
-// Register shutdown callback for upgrade restarts (stops server + cancels engines)
-registerShutdownForUpgrade(async () => {
-  stopChangesSummaryWatcher()
-  stopSettledReconciliation()
-  stopPeriodicReconciliation()
-  stopCron()
-  stopPeriodicCheck()
-  stopDeliveryCleanup()
-  await issueEngine.cancelAll()
-  http.stop()
-  releasePidLock()
-  logger.info('server_stopped_for_upgrade')
-})
-
-// Initialize upgrade system (check for updates on startup + periodic check)
-void initUpgradeSystem().catch((err) => {
-  logger.error({ err }, 'upgrade_system_init_failed')
-})
-
-let isShuttingDown = false
-
-async function shutdown(signal: string) {
-  if (isShuttingDown) {
-    // Second signal → force-exit immediately (e.g. double Ctrl+C)
-    logger.warn({ signal }, 'server_shutdown_forced')
+    process.exit(0)
+  } catch (err) {
+    console.error(`[fix-db] ${err instanceof Error ? err.message : String(err)}`)
     process.exit(1)
   }
-  isShuttingDown = true
-
-  const activeProcesses = issueEngine.getActiveProcesses()
-  logger.warn(
-    {
-      signal,
-      activeProcessCount: activeProcesses.length,
-      activeIssues: activeProcesses.map(p => p.issueId),
-      uptimeSeconds: Math.round(process.uptime()),
-    },
-    'server_shutdown',
-  )
-
-  // Stop SSE subscriptions and periodic jobs before cancelling processes
-  stopChangesSummaryWatcher()
-  stopSettledReconciliation()
-  stopPeriodicReconciliation()
-  stopCron()
-  stopPeriodicCheck()
-  stopDeliveryCleanup()
-
-  // Cancel all active engine processes before shutting down
-  await issueEngine.cancelAll()
-
-  http.stop()
-  releasePidLock()
-  logger.info('server_stopped')
-  process.exit(0)
+} else {
+  // eslint-disable-next-line antfu/no-top-level-await
+  await import('./server-main')
 }
-
-process.on('SIGINT', () => {
-  void shutdown('SIGINT')
-})
-process.on('SIGTERM', () => {
-  void shutdown('SIGTERM')
-})

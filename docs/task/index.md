@@ -48,3 +48,6 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-007 Remove claude-code-sdk engine**](ENG-007.md) `P2`
 - [x] [**ENG-008 Add per-project default engine and model**](ENG-008.md) `P2`
 - [x] [**ENG-009 Guard drizzle migration/snapshot consistency**](ENG-009.md) `P3`
+- [x] [**UI-001 Enable session pin in the issue list panel**](UI-001.md) `P2`
+- [x] [**CLI-001 Add a `fix-db` CLI command to the main bkd entry**](CLI-001.md) `P1`
+- [x] [**CLI-002 Make launcher --fix-db reuse the shared repair implementation**](CLI-002.md) `P2`
