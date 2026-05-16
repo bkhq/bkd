@@ -55,11 +55,11 @@ export function handleTurnCompleted(
   const finalStatus = managed.logicalFailure ? 'failed' : 'completed'
   emitStateChange(issueId, executionId, finalStatus as ProcessStatus)
 
-  // Phase 1: Immediately update sessionStatus + handle session errors + pending
-  // DB messages. The statusId change (working → review) and the frontend
-  // settlement event are deferred to Phase 2 so that follow-ups sent within
-  // SETTLE_GRACE_MS keep the issue in 'working'.
-  void (async () => {
+      // Phase 1: Immediately update sessionStatus + handle session errors + pending
+      // DB messages. The statusId change (working → review) and the frontend
+      // settlement event are deferred to Phase 2 so that follow-ups sent within
+      // the grace period keep the issue in 'working'.
+      void (async () => {
     try {
       // Detect session ID error: the CLI couldn't find the session
       // (e.g. "No conversation found with session ID: xxx" after project
@@ -126,14 +126,13 @@ export function handleTurnCompleted(
       // premature "review" transitions. Settlement happens on process exit
       // or idle timeout.
       //
-      // Non-ACP conversational engines (Claude Code) retain the old auto-settle
-      // behavior so issues move to review promptly after a turn completes.
+      // Non-ACP conversational engines (Claude Code) get a 1-second grace
+      // period so follow-ups sent immediately after a turn completes can
+      // cancel the settlement and keep the issue in 'working'.
       const isAcpEngine = managed.engineType.startsWith('acp')
-      const shouldAutoSettle = managed.exitCode !== undefined || !isAcpEngine
+      const processAlive = managed.exitCode === undefined
 
-      if (shouldAutoSettle) {
-        await settleAfterGrace(ctx, issueId, executionId, managed, finalStatus)
-      } else {
+      if (processAlive && isAcpEngine) {
         // ACP + process still alive — skip auto-settle. Settlement triggers:
         //   1. Process exits → monitorCompletion → flushSettleTimer
         //   2. Idle timeout (IDLE_TIMEOUT_MS) → gcSweep → terminateAndSettle
@@ -142,6 +141,19 @@ export function handleTurnCompleted(
           { issueId, executionId, engineType: managed.engineType },
           'issue_turn_completed_process_alive_skip_auto_settle',
         )
+      } else {
+        // Non-ACP + alive → 1s grace; any engine + exited → immediate settle
+        const delayMs = processAlive && !isAcpEngine ? 1000 : 0
+        if (delayMs > 0) {
+          managed.settleTimerStatus = finalStatus
+          managed.settleTimer = setTimeout(() => {
+            managed.settleTimer = undefined
+            managed.settleTimerStatus = undefined
+            void settleAfterGrace(ctx, issueId, executionId, managed, finalStatus)
+          }, delayMs)
+        } else {
+          await settleAfterGrace(ctx, issueId, executionId, managed, finalStatus)
+        }
       }
     } catch (error) {
       // Cancel any pending delayed settle — the fallback below will handle it.
@@ -194,9 +206,11 @@ export function handleTurnCompleted(
 }
 
 /**
- * Phase 2 of turn settlement: runs after SETTLE_GRACE_MS.
- * Moves the issue to 'review' and emits the settled event, unless a new
- * turn started during the grace period (turnSettled would be false).
+ * Move the issue to 'review' and emit the settled event.
+ *
+ * Guards:
+ *   - If a new turn started (turnSettled === false), skip.
+ *   - If sessionStatus diverged from finalStatus, skip (reactivated).
  */
 async function settleAfterGrace(
   ctx: EngineContext,
@@ -243,10 +257,10 @@ async function settleAfterGrace(
 /**
  * Settle immediately (called when the process exits).
  *
- * Since we no longer auto-settle on a fixed grace period after turn
- * completion, this is the primary settlement path for conversational
- * engines: the process exits → monitorCompletion calls this →
- * autoMoveToReview + emitIssueSettled.
+ * For ACP engines this is the primary settlement path — they skip
+ * auto-settle while alive, so process exit triggers settlement.
+ * For non-ACP engines this is a fallback when the process exits
+ * before the 1-second grace period timer fires.
  */
 export function flushSettleTimer(
   ctx: EngineContext,

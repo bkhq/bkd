@@ -788,9 +788,9 @@ export function ChatInput({
             // `chat.attachHint` and renders as a multi-line tooltip.
             title={`${t('chat.attach')} — ${t('chat.attachHint')}`}
             onClick={() => fileInputRef.current?.click()}
-            className="size-8"
+            className="size-11"
           >
-            <Paperclip className="size-4" />
+            <Paperclip className="size-5" />
           </Button>
           {normalizedSlashCommands.length > 0 ?
               (
@@ -899,11 +899,12 @@ export function ChatInput({
                     restartIssue.mutate(issueId)
                   }}
                   title={t('chat.restart')}
-                  className="rounded-full size-7 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-primary text-primary-foreground hover:bg-primary/90"
+                  className="rounded-full size-11 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={isSending || !input.trim()}
                 >
-                  {restartIssue.isPending ?
-                      <Loader2 className="size-3.5 animate-spin" /> :
-                      <Play className="size-3.5" strokeWidth={2.5} />}
+                  {isSending ?
+                      <Loader2 className="size-5 animate-spin" /> :
+                      <Play className="size-5" strokeWidth={2.5} />}
                 </Button>
               ) :
             null}
@@ -915,11 +916,12 @@ export function ChatInput({
                   disabled={isCancelling}
                   onClick={onCancel}
                   title={isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
-                  className="rounded-full size-7 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  className="rounded-full size-11 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={isCancelling}
                 >
                   {isCancelling ?
-                      <Loader2 className="size-3.5 animate-spin" /> :
-                      <Square className="size-3.5" strokeWidth={2.5} />}
+                      <Loader2 className="size-5 animate-spin" /> :
+                      <Square className="size-5" strokeWidth={2.5} />}
                 </Button>
               ) :
               (
@@ -1089,8 +1091,8 @@ function CommandPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant="ghost" size="icon" title={t('chat.commands')} className="size-7" />}>
-        <SlashSquare className="size-3.5" />
+              <PopoverTrigger render={<Button variant="ghost" size="icon" title={t('chat.commands')} className="size-11" />}>
+        <SlashSquare className="size-5" />
       </PopoverTrigger>
       <PopoverContent side="top" align="start" className="w-[260px] p-0">
         <Command>
@@ -1167,11 +1169,9 @@ function MobileMoreMenu({
         render={(
           <button
             type="button"
-            className="inline-flex items-center justify-center size-8 rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
-          />
-        )}
-      >
-        <MoreHorizontal className="size-4" />
+            className="inline-flex items-center justify-center size-11 rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+          >
+        <MoreHorizontal className="size-5" />
       </PopoverTrigger>
       <PopoverContent align="start" side="top" className="w-56 p-2 space-y-1">
         {/* Engine info — labeled so users know what their session is bound to.
