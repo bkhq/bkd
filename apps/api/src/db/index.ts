@@ -6,6 +6,7 @@ import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
 import { logger } from '@/logger'
 import { embeddedMigrations } from './embedded-migrations'
+import { ensureSchema } from './ensure-schema'
 import { resolveDbPath, resolveMigrationsDir } from './migrations-source'
 import * as schema from './schema'
 
@@ -56,7 +57,7 @@ if (migrations.embedded) {
 // This catches partial migrations, stale binaries, or DB/code version mismatches.
 // On failure the process exits with a clear message so a process manager can restart it.
 
-function verifySchema() {
+function computeMissing(): string[] {
   // Build expected columns from Drizzle schema definitions.
   // Each entry: [tableName, [...columnNames]]
   const expectedTables: Array<[string, string[]]> = []
@@ -91,10 +92,33 @@ function verifySchema() {
       }
     }
   }
+  return missing
+}
 
-  if (missing.length > 0) {
+function verifySchema() {
+  if (computeMissing().length === 0) {
+    logger.info('schema_verification_passed')
+    return
+  }
+
+  // Safety net: converge to the latest snapshot, then re-verify. Strictly
+  // better than an unconditional exit — additive-only and fully logged.
+  sqlite.run('PRAGMA foreign_keys = OFF')
+  const fix = ensureSchema(sqlite, migrations.dir)
+  sqlite.run('PRAGMA foreign_keys = ON')
+  if (
+    fix.tablesCreated.length
+    || fix.columnsAdded.length
+    || fix.indexesCreated.length
+    || fix.divergent.length
+  ) {
+    logger.warn({ fix }, 'schema_safety_net_applied')
+  }
+
+  const stillMissing = computeMissing()
+  if (stillMissing.length > 0) {
     logger.fatal(
-      { missing },
+      { missing: stillMissing },
       'schema_verification_failed: database schema does not match code. '
       + 'This usually means migrations did not complete. '
       + 'Run `bun run db:migrate` manually or restart the service.',

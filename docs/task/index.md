@@ -52,3 +52,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**CLI-001 Add a `fix-db` CLI command to the main bkd entry**](CLI-001.md) `P1`
 - [x] [**CLI-002 Make launcher --fix-db reuse the shared repair implementation**](CLI-002.md) `P2`
 - [x] [**ENG-010 Fix non-monotonic migration journal (0020) + harden fix-db**](ENG-010.md) `P0`
+- [x] [**ENG-011 Generic schema safety-net (snapshot-driven self-heal)**](ENG-011.md) `P1`
+- [x] [**ENG-012 Create dialog ignores project-level default engine**](ENG-012.md) `P1`

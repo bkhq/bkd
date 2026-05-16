@@ -11,6 +11,14 @@ import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { repairDatabase } from '@/db/repair'
 
+/** Fixtures have no snapshot, so the safety net is always a no-op here. */
+const NO_SCHEMA_FIX = {
+  tablesCreated: [],
+  columnsAdded: [],
+  indexesCreated: [],
+  divergent: [],
+}
+
 const workDirs: string[] = []
 
 function makeFixture() {
@@ -85,7 +93,7 @@ describe('repairDatabase', () => {
       dbPath: resolve(fixture.migrationsDir, 'does-not-exist.db'),
       migrationsDir: fixture.migrationsDir,
     })
-    expect(result).toEqual({ applied: 0, skipped: 0 })
+    expect(result).toEqual({ applied: 0, skipped: 0, schema: NO_SCHEMA_FIX })
   })
 
   test('applies all pending migrations on an empty database', () => {
@@ -93,7 +101,7 @@ describe('repairDatabase', () => {
     new Database(fixture.dbPath).close()
 
     const result = repairDatabase(fixture)
-    expect(result).toEqual({ applied: 2, skipped: 0 })
+    expect(result).toEqual({ applied: 2, skipped: 0, schema: NO_SCHEMA_FIX })
     expect(columns(fixture.dbPath, 't').sort()).toEqual(['c', 'id'])
     expect(migrationCount(fixture.dbPath)).toBe(2)
   })
@@ -103,7 +111,7 @@ describe('repairDatabase', () => {
     repairDatabase(fixture)
 
     const second = repairDatabase(fixture)
-    expect(second).toEqual({ applied: 0, skipped: 2 })
+    expect(second).toEqual({ applied: 0, skipped: 2, schema: NO_SCHEMA_FIX })
     expect(migrationCount(fixture.dbPath)).toBe(2)
   })
 
@@ -119,12 +127,12 @@ describe('repairDatabase', () => {
     const result = repairDatabase(fixture)
     // 0001's CREATE TABLE is tolerated (already exists) but still recorded;
     // 0002 adds the missing column.
-    expect(result).toEqual({ applied: 2, skipped: 0 })
+    expect(result).toEqual({ applied: 2, skipped: 0, schema: NO_SCHEMA_FIX })
     expect(columns(fixture.dbPath, 't').sort()).toEqual(['c', 'id'])
     expect(migrationCount(fixture.dbPath)).toBe(2)
 
     // And a follow-up run is a clean no-op.
-    expect(repairDatabase(fixture)).toEqual({ applied: 0, skipped: 2 })
+    expect(repairDatabase(fixture)).toEqual({ applied: 0, skipped: 2, schema: NO_SCHEMA_FIX })
   })
 
   test('aborts loudly on a genuinely broken migration', () => {
@@ -193,11 +201,11 @@ describe('repairDatabase', () => {
     const result = repairDatabase({ dbPath, migrationsDir })
 
     // 0001+0002 reconciled (not re-run); only 0003 applied.
-    expect(result).toEqual({ applied: 1, skipped: 2 })
+    expect(result).toEqual({ applied: 1, skipped: 2, schema: NO_SCHEMA_FIX })
     expect(columns(dbPath, 'issues').sort()).toEqual(['extra', 'id', 'tag'])
     expect(migrationCount(dbPath)).toBe(3)
 
     // Follow-up run is a clean no-op.
-    expect(repairDatabase({ dbPath, migrationsDir })).toEqual({ applied: 0, skipped: 3 })
+    expect(repairDatabase({ dbPath, migrationsDir })).toEqual({ applied: 0, skipped: 3, schema: NO_SCHEMA_FIX })
   })
 })

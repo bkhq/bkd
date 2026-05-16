@@ -28,6 +28,8 @@ import { Database } from 'bun:sqlite'
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import type { SchemaFixResult } from './ensure-schema'
+import { emptySchemaFix, ensureSchema } from './ensure-schema'
 import { resolveDbPath, resolveMigrationsDir } from './migrations-source'
 
 /** Errors safe to skip per-statement: the schema change is already present. */
@@ -38,6 +40,8 @@ export interface RepairResult {
   applied: number
   /** Already-applied prefix migrations reconciled (not re-executed). */
   skipped: number
+  /** Snapshot-driven safety-net result (additive schema convergence). */
+  schema: SchemaFixResult
 }
 
 interface Journal {
@@ -50,7 +54,7 @@ export function repairDatabase(
   const dbPath = opts.dbPath ?? resolveDbPath()
   if (!existsSync(dbPath)) {
     // No database yet — normal startup will create and migrate it.
-    return { applied: 0, skipped: 0 }
+    return { applied: 0, skipped: 0, schema: emptySchemaFix() }
   }
 
   const migrationsDir = opts.migrationsDir ?? resolveMigrationsDir().dir
@@ -151,8 +155,12 @@ export function repairDatabase(
       }
     }
 
+    // Safety net: converge to the latest snapshot regardless of how
+    // consistent __drizzle_migrations is.
+    const schema = ensureSchema(sqlite, migrationsDir)
+
     sqlite.run('PRAGMA foreign_keys = ON')
-    return { applied, skipped: prefixLen }
+    return { applied, skipped: prefixLen, schema }
   } finally {
     sqlite.close()
   }
