@@ -37,6 +37,8 @@ export const projects = sqliteTable('projects', {
   repositoryUrl: text('repository_url'),
   systemPrompt: text('system_prompt'),
   envVars: text('env_vars'), // JSON: Record<string, string>
+  defaultEngine: text('default_engine'), // null = inherit global default
+  defaultModel: text('default_model'), // null = inherit global default
   sortOrder: text('sort_order').notNull().default('a0'),
   isArchived: integer('is_archived').notNull().default(0),
   ...commonFields,

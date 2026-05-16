@@ -10,6 +10,10 @@ export interface Project {
   repositoryUrl?: string
   systemPrompt?: string
   envVars?: Record<string, string>
+  /** Per-project default engine; undefined = inherit global default */
+  defaultEngine?: EngineType
+  /** Per-project default model; undefined = inherit global default */
+  defaultModel?: string
   sortOrder: string
   isArchived: boolean
   isGitRepo: boolean

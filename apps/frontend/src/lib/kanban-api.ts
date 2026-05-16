@@ -209,6 +209,8 @@ export const kanbanApi = {
       repositoryUrl?: string
       systemPrompt?: string
       envVars?: Record<string, string>
+      defaultEngine?: string | null
+      defaultModel?: string | null
       sortOrder?: number
     },
   ) => patch<Project>(`/api/projects/${id}`, data),

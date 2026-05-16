@@ -47,7 +47,7 @@ SQLite via `bun:sqlite` + Drizzle ORM. WAL mode, foreign keys, 64 MB cache, 256 
 
 | Table | Key Fields | Notes |
 |-------|-----------|-------|
-| `projects` | `id`, `name`, `alias` (unique), `directory`, `repositoryUrl`, `systemPrompt`, `envVars` | Top-level container; supports archive |
+| `projects` | `id`, `name`, `alias` (unique), `directory`, `repositoryUrl`, `systemPrompt`, `envVars`, `defaultEngine`, `defaultModel` | Top-level container; supports archive; per-project engine/model defaults inherit global when null |
 | `issues` | `id`, `projectId`, `statusId`, `issueNumber`, `title`, `tags`, `parentIssueId`, `useWorktree`, `isPinned`, `keepAlive`, `engineType`, `sessionStatus`, `model`, `externalSessionId`, `totalInputTokens`, `totalOutputTokens`, `totalCostUsd` | Core entity; CHECK constraint on status |
 | `issueLogs` | `id` (ULID), `issueId`, `turnIndex`, `entryIndex`, `entryType`, `content`, `metadata`, `visible` | Conversation log entries |
 | `issuesLogsToolsCall` | `id` (ULID), `logId`, `issueId`, `toolName`, `toolCallId`, `kind`, `isResult`, `raw` | Tool action detail records |

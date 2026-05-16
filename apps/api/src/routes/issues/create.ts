@@ -34,21 +34,28 @@ create.openapi(R.createIssue, async (c) => {
   let resolvedModel = body.model ?? null
 
   if (!resolvedEngine) {
-    const defaultEng = (await getDefaultEngine()) || 'claude-code'
+    // Precedence: explicit body > project default > global default > fallback.
+    const defaultEng = project.defaultEngine
+      || (await getDefaultEngine())
+      || 'claude-code'
     resolvedEngine = defaultEng as EngineType
   }
   // Coerce a stale/unsupported persisted engine (e.g. a removed engine type
-  // still saved as the global default) to a supported one. The registry is
-  // the source of truth for which engines are actually installed.
+  // still saved as a project/global default) to a supported one. The registry
+  // is the source of truth for which engines are actually installed.
   if (!engineRegistry.get(resolvedEngine)) {
     resolvedEngine = 'claude-code'
   }
   if (!resolvedModel) {
-    // Leave model unset — let the engine CLI use its own default.
-    // Only fill from saved settings if the user explicitly configured one.
-    const savedModel = await getEngineDefaultModel(resolvedEngine!)
-    if (savedModel && savedModel !== 'auto') {
-      resolvedModel = savedModel
+    // Precedence: explicit body > project default > global engine default.
+    // Leave unset (let the engine CLI pick) only if none configured.
+    if (project.defaultModel && project.defaultModel !== 'auto') {
+      resolvedModel = project.defaultModel
+    } else {
+      const savedModel = await getEngineDefaultModel(resolvedEngine!)
+      if (savedModel && savedModel !== 'auto') {
+        resolvedModel = savedModel
+      }
     }
   }
 

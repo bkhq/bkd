@@ -370,3 +370,76 @@ describe('stale persisted default engine', () => {
     expect(data.engineType).toBe('claude-code')
   })
 })
+
+describe('per-project default engine and model', () => {
+  let pid: string
+  let globalOriginal: string | null
+
+  interface ProjectShape {
+    id: string
+    defaultEngine?: string
+    defaultModel?: string
+  }
+
+  beforeAll(async () => {
+    pid = await createTestProject('Per-Project Defaults')
+    globalOriginal = await getDefaultEngine()
+    // Global default differs from the project default so precedence is unambiguous.
+    await setDefaultEngine('claude-code')
+  })
+
+  afterAll(async () => {
+    await setDefaultEngine(globalOriginal ?? 'claude-code')
+  })
+
+  test('persists and serializes project defaults round-trip', async () => {
+    const res = await patch<ProjectShape>(`/api/projects/${pid}`, {
+      defaultEngine: 'codex',
+      defaultModel: 'gpt-5.4-codex',
+    })
+    expect(res.status).toBe(200)
+    const data = expectSuccess(res)
+    expect(data.defaultEngine).toBe('codex')
+    expect(data.defaultModel).toBe('gpt-5.4-codex')
+  })
+
+  test('uses project default engine + model over global when body omits them', async () => {
+    const result = await post<Issue>(`/api/projects/${pid}/issues`, {
+      title: 'Project default',
+      statusId: 'todo',
+    })
+    expect(result.status).toBe(201)
+    const data = expectSuccess(result)
+    expect(data.engineType).toBe('codex')
+    expect(data.model).toBe('gpt-5.4-codex')
+  })
+
+  test('explicit body engine overrides project default', async () => {
+    const result = await post<Issue>(`/api/projects/${pid}/issues`, {
+      title: 'Explicit engine',
+      statusId: 'todo',
+      engineType: 'claude-code',
+    })
+    expect(result.status).toBe(201)
+    const data = expectSuccess(result)
+    expect(data.engineType).toBe('claude-code')
+  })
+
+  test('clearing project defaults falls back to global', async () => {
+    const cleared = await patch<ProjectShape>(`/api/projects/${pid}`, {
+      defaultEngine: null,
+      defaultModel: null,
+    })
+    expect(cleared.status).toBe(200)
+    const clearedData = expectSuccess(cleared)
+    expect(clearedData.defaultEngine).toBeUndefined()
+    expect(clearedData.defaultModel).toBeUndefined()
+
+    const result = await post<Issue>(`/api/projects/${pid}/issues`, {
+      title: 'Back to global',
+      statusId: 'todo',
+    })
+    expect(result.status).toBe(201)
+    expect(expectSuccess(result).engineType).toBe('claude-code')
+  })
+})

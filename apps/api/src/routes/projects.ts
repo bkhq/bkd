@@ -8,6 +8,7 @@ import { db } from '@/db'
 import { findProject, invalidateProjectCache } from '@/db/helpers'
 import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
+import type { EngineType } from '@/engines/types'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
@@ -28,6 +29,8 @@ function serializeProject(row: ProjectRow) {
     repositoryUrl: row.repositoryUrl ?? undefined,
     systemPrompt: row.systemPrompt ?? undefined,
     envVars: row.envVars ? (JSON.parse(row.envVars) as Record<string, string>) : undefined,
+    defaultEngine: (row.defaultEngine ?? undefined) as EngineType | undefined,
+    defaultModel: row.defaultModel ?? undefined,
     sortOrder: row.sortOrder,
     isArchived: row.isArchived === 1,
     createdAt: toISO(row.createdAt),
@@ -135,6 +138,8 @@ projects.openapi(R.createProject, async (c) => {
       repositoryUrl: body.repositoryUrl || null,
       systemPrompt: body.systemPrompt ?? null,
       envVars: body.envVars ? JSON.stringify(body.envVars) : null,
+      defaultEngine: body.defaultEngine || null,
+      defaultModel: body.defaultModel || null,
       sortOrder,
     })
     .returning()
@@ -194,6 +199,12 @@ projects.openapi(R.updateProject, async (c) => {
   }
   if (body.envVars !== undefined) {
     updates.envVars = Object.keys(body.envVars).length > 0 ? JSON.stringify(body.envVars) : null
+  }
+  if (body.defaultEngine !== undefined) {
+    updates.defaultEngine = body.defaultEngine || null
+  }
+  if (body.defaultModel !== undefined) {
+    updates.defaultModel = body.defaultModel || null
   }
   if (body.sortOrder !== undefined) updates.sortOrder = body.sortOrder
 

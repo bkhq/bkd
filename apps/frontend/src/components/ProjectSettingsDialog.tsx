@@ -1,7 +1,9 @@
 import {
   Archive,
   Check,
+  ChevronDown,
   Copy,
+  Cpu,
   FileText,
   FolderOpen,
   GitBranch,
@@ -15,6 +17,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { DirectoryPicker } from '@/components/DirectoryPicker'
+import { EngineIcon } from '@/components/EngineIcons'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +37,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Field, FieldGroup } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,9 +53,13 @@ import {
   useArchiveProject,
   useDeleteProject,
   useDeleteWorktree,
+  useEngineAvailability,
+  useEngineProfiles,
+  useEngineSettings,
   useProjectWorktrees,
   useUpdateProject,
 } from '@/hooks/use-kanban'
+import { formatModelName } from '@/lib/format'
 import { kanbanApi } from '@/lib/kanban-api'
 import type { Project } from '@/types/kanban'
 
@@ -252,6 +265,8 @@ export function ProjectSettingsDialog({
   const [repositoryUrl, setRepositoryUrl] = useState(project.repositoryUrl ?? '')
   const [systemPrompt, setSystemPrompt] = useState(project.systemPrompt ?? '')
   const [envVarsText, setEnvVarsText] = useState(envVarsToText(project.envVars ?? {}))
+  const [defaultEngine, setDefaultEngine] = useState(project.defaultEngine ?? '')
+  const [defaultModel, setDefaultModel] = useState(project.defaultModel ?? '')
   const [dirPickerOpen, setDirPickerOpen] = useState(false)
   const [detectingRemote, setDetectingRemote] = useState(false)
   const [error, setError] = useState('')
@@ -268,6 +283,8 @@ export function ProjectSettingsDialog({
       setRepositoryUrl(project.repositoryUrl ?? '')
       setSystemPrompt(project.systemPrompt ?? '')
       setEnvVarsText(envVarsToText(project.envVars ?? {}))
+      setDefaultEngine(project.defaultEngine ?? '')
+      setDefaultModel(project.defaultModel ?? '')
       setError('')
     }
   }, [open, project])
@@ -278,7 +295,9 @@ export function ProjectSettingsDialog({
     directory.trim() !== (project.directory ?? '') ||
     repositoryUrl.trim() !== (project.repositoryUrl ?? '') ||
     systemPrompt !== (project.systemPrompt ?? '') ||
-    envVarsText !== envVarsToText(project.envVars ?? {})
+    envVarsText !== envVarsToText(project.envVars ?? {}) ||
+    defaultEngine !== (project.defaultEngine ?? '') ||
+    defaultModel !== (project.defaultModel ?? '')
 
   const handleSave = () => {
     const trimmedName = name.trim()
@@ -294,6 +313,8 @@ export function ProjectSettingsDialog({
         repositoryUrl: repositoryUrl.trim() || undefined,
         systemPrompt,
         envVars: cleanedEnvVars,
+        defaultEngine: defaultEngine || null,
+        defaultModel: defaultModel || null,
       },
       {
         onSuccess: () => onOpenChange(false),
@@ -311,6 +332,7 @@ export function ProjectSettingsDialog({
   const navItems: SettingsNavItem[] = useMemo(
     () => [
       { id: 'general', label: t('project.tabGeneral'), icon: Settings },
+      { id: 'engine', label: t('project.tabEngine'), icon: Cpu },
       { id: 'prompt', label: t('project.tabPrompt'), icon: FileText },
       { id: 'envvars', label: t('project.tabEnvVars'), icon: Terminal },
       { id: 'worktrees', label: t('project.tabWorktrees'), icon: GitFork },
@@ -392,6 +414,14 @@ export function ProjectSettingsDialog({
                 detectingRemote={detectingRemote}
                 setDetectingRemote={setDetectingRemote}
                 error={error}
+              />
+            )}
+            {active === 'engine' && (
+              <EngineModelSection
+                defaultEngine={defaultEngine}
+                setDefaultEngine={setDefaultEngine}
+                defaultModel={defaultModel}
+                setDefaultModel={setDefaultModel}
               />
             )}
             {active === 'prompt' && (
@@ -570,6 +600,131 @@ function GeneralSection({
       </Field>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
+    </FieldGroup>
+  )
+}
+
+function EngineModelSection({
+  defaultEngine,
+  setDefaultEngine,
+  defaultModel,
+  setDefaultModel,
+}: {
+  defaultEngine: string
+  setDefaultEngine: (v: string) => void
+  defaultModel: string
+  setDefaultModel: (v: string) => void
+}) {
+  const { t } = useTranslation()
+  const { data: discovery } = useEngineAvailability(true)
+  const { data: profiles } = useEngineProfiles(true)
+  const { data: engineSettings } = useEngineSettings(true)
+
+  const installedEngines = useMemo(
+    () => discovery?.engines.filter(a => a.installed && a.executable !== false) ?? [],
+    [discovery],
+  )
+
+  const models = useMemo(() => {
+    const all = defaultEngine ? (discovery?.models?.[defaultEngine] ?? []) : []
+    const hidden = new Set(engineSettings?.engines[defaultEngine]?.hiddenModels ?? [])
+    return hidden.size > 0 ? all.filter(m => !hidden.has(m.id)) : all
+  }, [defaultEngine, discovery?.models, engineSettings])
+
+  const engineProfile = profiles?.find(p => p.engineType === defaultEngine)
+  const currentModel = defaultModel ? models.find(m => m.id === defaultModel) : null
+
+  return (
+    <FieldGroup className="h-full">
+      <Field>
+        <Label>{t('project.defaultEngine')}</Label>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={(
+              <button
+                type="button"
+                className="flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm hover:bg-accent/50 transition-colors w-full"
+              />
+            )}
+          >
+            {defaultEngine ?
+                <EngineIcon engineType={defaultEngine} className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> :
+              null}
+            <span className="truncate">
+              {defaultEngine ? (engineProfile?.name ?? defaultEngine) : t('project.inheritGlobal')}
+            </span>
+            <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[220px]">
+            <DropdownMenuItem
+              onSelect={() => {
+                setDefaultEngine('')
+                setDefaultModel('')
+              }}
+              className={!defaultEngine ? 'bg-accent/50' : ''}
+            >
+              <span className="font-medium">{t('project.inheritGlobal')}</span>
+            </DropdownMenuItem>
+            {installedEngines.map((a) => {
+              const profile = profiles?.find(p => p.engineType === a.engineType)
+              return (
+                <DropdownMenuItem
+                  key={a.engineType}
+                  onSelect={() => {
+                    setDefaultEngine(a.engineType)
+                    setDefaultModel('')
+                  }}
+                  className={a.engineType === defaultEngine ? 'bg-accent/50' : ''}
+                >
+                  <EngineIcon engineType={a.engineType} className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="font-medium">{profile?.name ?? a.engineType}</span>
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <p className="text-xs text-muted-foreground">{t('project.defaultEngineHint')}</p>
+      </Field>
+
+      <Field>
+        <Label>{t('project.defaultModel')}</Label>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={(
+              <button
+                type="button"
+                disabled={!defaultEngine}
+                className="flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm hover:bg-accent/50 transition-colors w-full disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+            )}
+          >
+            <span className="truncate">
+              {defaultModel ?
+                  (currentModel ? formatModelName(currentModel.name || currentModel.id) : defaultModel) :
+                  t('project.inheritGlobal')}
+            </span>
+            <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[220px] max-h-[320px] overflow-y-auto">
+            <DropdownMenuItem
+              onSelect={() => setDefaultModel('')}
+              className={!defaultModel ? 'bg-accent/50' : ''}
+            >
+              <span className="font-medium">{t('project.inheritGlobal')}</span>
+            </DropdownMenuItem>
+            {models.map(m => (
+              <DropdownMenuItem
+                key={m.id}
+                onSelect={() => setDefaultModel(m.id)}
+                className={m.id === defaultModel ? 'bg-accent/50' : ''}
+              >
+                <span className="font-medium">{formatModelName(m.name || m.id)}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <p className="text-xs text-muted-foreground">{t('project.defaultModelHint')}</p>
+      </Field>
     </FieldGroup>
   )
 }

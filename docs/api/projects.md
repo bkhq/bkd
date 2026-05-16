@@ -25,6 +25,8 @@ Create a new project. Auto-generates alias from name if not provided. Alias is d
 | `repositoryUrl` | `string` (URL or empty) | No | Git repository URL |
 | `systemPrompt` | `string` (0-32768) | No | Default system prompt for agents |
 | `envVars` | `Record<string, string>` | No | Environment variables (max 10000 chars per value) |
+| `defaultEngine` | `'claude-code' \| 'codex' \| null` | No | Per-project default engine; `null`/omitted = inherit global default |
+| `defaultModel` | `string` (0-200) `\| null` | No | Per-project default model; `null`/omitted = inherit global default |
 
 **Response:** `201` with `Project`
 
