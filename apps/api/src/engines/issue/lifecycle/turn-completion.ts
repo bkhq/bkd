@@ -220,15 +220,24 @@ async function settleAfterGrace(
   finalStatus: string,
 ): Promise<void> {
   try {
-    // Guard: if a new turn started during the grace period, skip
+    // Guard 1: if a new turn started during the grace period, skip
     if (!managed.turnSettled) {
       logger.debug({ issueId, executionId }, 'issue_turn_settle_cancelled_new_turn')
       return
     }
 
-    // Guard: if a follow-up reactivated the issue while we waited, the DB
+    // Guard 2: if a follow-up reactivated the issue while we waited, the DB
     // sessionStatus will no longer match finalStatus.
     const freshIssue = await getIssueWithSession(issueId)
+
+    // Re-check turnSettled after the async DB round-trip — START_TURN may
+    // have fired during the await window (race: timer triggers, user sends
+    // follow-up before getIssueWithSession returns).
+    if (!managed.turnSettled) {
+      logger.debug({ issueId, executionId }, 'issue_turn_settle_cancelled_new_turn_race')
+      return
+    }
+
     if (freshIssue && freshIssue.sessionFields.sessionStatus !== finalStatus) {
       logger.debug(
         {
@@ -239,6 +248,13 @@ async function settleAfterGrace(
         },
         'issue_turn_settle_skipped_reactivated',
       )
+      return
+    }
+
+    // Guard 3: one last check before the mutating DB call — START_TURN
+    // could have fired during the await above.
+    if (!managed.turnSettled) {
+      logger.debug({ issueId, executionId }, 'issue_turn_settle_cancelled_new_turn_final')
       return
     }
 
