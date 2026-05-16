@@ -414,7 +414,9 @@ describe('per-project default engine and model', () => {
     expect(data.model).toBe('gpt-5.4-codex')
   })
 
-  test('explicit body engine overrides project default', async () => {
+  test('explicit body engine overrides project default and does not borrow its model', async () => {
+    // Project default is codex/gpt-5.4-codex; an explicit claude-code engine
+    // must not inherit the codex model (invalid engine/model pairing).
     const result = await post<Issue>(`/api/projects/${pid}/issues`, {
       title: 'Explicit engine',
       statusId: 'todo',
@@ -423,6 +425,7 @@ describe('per-project default engine and model', () => {
     expect(result.status).toBe(201)
     const data = expectSuccess(result)
     expect(data.engineType).toBe('claude-code')
+    expect(data.model).not.toBe('gpt-5.4-codex')
   })
 
   test('clearing project defaults falls back to global', async () => {

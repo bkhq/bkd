@@ -48,8 +48,15 @@ create.openapi(R.createIssue, async (c) => {
   }
   if (!resolvedModel) {
     // Precedence: explicit body > project default > global engine default.
-    // Leave unset (let the engine CLI pick) only if none configured.
-    if (project.defaultModel && project.defaultModel !== 'auto') {
+    // The project default model only applies when the resolved engine is the
+    // project's default engine — otherwise an explicit engine override would
+    // be paired with a model meant for a different engine.
+    if (
+      project.defaultModel
+      && project.defaultModel !== 'auto'
+      && project.defaultEngine
+      && resolvedEngine === project.defaultEngine
+    ) {
       resolvedModel = project.defaultModel
     } else {
       const savedModel = await getEngineDefaultModel(resolvedEngine!)
