@@ -272,3 +272,69 @@ describe('turn completion pending-flush regression', () => {
     expect(pending.some(p => p.content === pendingPrompt)).toBe(true)
   }, { timeout: 10000 })
 })
+
+describe('turn completion — non-ACP engines still auto-settle', () => {
+  test(
+    'claude-code alive → turn completion DOES auto-settle',
+    async () => {
+      const issue = await createWorkingIssue(`turn-completion-claude-${Date.now()}`)
+      const executionId = `exec-claude-${Date.now()}`
+      const managed: ManagedProcess = {
+        executionId,
+        issueId: issue.id,
+        engineType: 'claude-code',
+        process: {
+          subprocess: { exited: new Promise(() => {}) }, // never exits
+        } as any,
+        state: 'running',
+        startedAt: new Date(),
+        logs: new ExecutionStore(executionId),
+        retryCount: 0,
+        turnInFlight: true,
+        queueCancelRequested: false,
+        logicalFailure: false,
+        turnSettled: false,
+        slashCommands: [],
+        agents: [],
+        plugins: [],
+        keepAlive: false,
+        lastActivityAt: new Date(),
+        pendingInputs: [],
+      }
+
+      const ctx: EngineContext = {
+        pm: {
+          get: (id: string) => (id === executionId ? ({ meta: managed } as any) : undefined),
+          getActive: () => [],
+        } as any,
+        issueOpLocks: new Map(),
+        entryCounters: new Map(),
+        turnIndexes: new Map(),
+        userMessageIds: new Map(),
+        lastErrors: new Map(),
+        lockDepth: new Map(),
+        followUpIssue: null,
+      }
+
+      handleTurnCompleted(ctx, issue.id, executionId)
+
+      // Claude Code should auto-settle (move to review) even though process is alive
+      await waitFor(async () => {
+        const [row] = await db
+          .select({ statusId: issuesTable.statusId })
+          .from(issuesTable)
+          .where(eq(issuesTable.id, issue.id))
+        return row?.statusId === 'review'
+      }, 3000)
+
+      const [row] = await db
+        .select({ statusId: issuesTable.statusId, sessionStatus: issuesTable.sessionStatus })
+        .from(issuesTable)
+        .where(eq(issuesTable.id, issue.id))
+
+      expect(row?.statusId).toBe('review')
+      expect(row?.sessionStatus).toBe('completed')
+    },
+    { timeout: 10000 },
+  )
+})

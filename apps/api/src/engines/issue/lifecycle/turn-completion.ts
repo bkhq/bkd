@@ -120,16 +120,21 @@ export function handleTurnCompleted(
       }
 
       // Phase 2: Move to review.
-      // ONLY settle immediately if the process already exited.
-      // For conversational engines where the process stays alive between turns,
-      // do NOT auto-settle — let monitorCompletion (process exit) or idle
-      // timeout (gcSweep IDLE_TIMEOUT_MS) handle settlement. This prevents
-      // premature "review" transitions while the engine may still be producing
-      // output or the user may send a follow-up (opencode / ACP engines).
-      if (managed.exitCode !== undefined) {
+      // ACP engines (opencode, gemini, etc.) get the extended-leash behavior:
+      // do NOT auto-settle while the process is alive, because their ACP
+      // adapters may have long thinking/tool phases and we don't want
+      // premature "review" transitions. Settlement happens on process exit
+      // or idle timeout.
+      //
+      // Non-ACP conversational engines (Claude Code) retain the old auto-settle
+      // behavior so issues move to review promptly after a turn completes.
+      const isAcpEngine = managed.engineType.startsWith('acp')
+      const shouldAutoSettle = managed.exitCode !== undefined || !isAcpEngine
+
+      if (shouldAutoSettle) {
         await settleAfterGrace(ctx, issueId, executionId, managed, finalStatus)
       } else {
-        // Process still alive — skip auto-settle. Settlement triggers:
+        // ACP + process still alive — skip auto-settle. Settlement triggers:
         //   1. Process exits → monitorCompletion → flushSettleTimer
         //   2. Idle timeout (IDLE_TIMEOUT_MS) → gcSweep → terminateAndSettle
         //   3. User follow-up → START_TURN clears idle state, new turn begins

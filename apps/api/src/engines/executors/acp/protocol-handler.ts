@@ -144,6 +144,9 @@ export class AcpProtocolHandler {
     }), this.stream)
     void this.connection.closed.finally(() => {
       this.sink.close()
+      // Ensure heartbeat timer is cleared when the connection drops.
+      // Without this, every ACP process leaks a 30s interval on exit.
+      this.close()
     })
 
     // Soft heartbeat: opencode's ACP adapter does not emit thinking chunks
