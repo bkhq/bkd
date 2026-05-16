@@ -51,3 +51,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**UI-001 Enable session pin in the issue list panel**](UI-001.md) `P2`
 - [x] [**CLI-001 Add a `fix-db` CLI command to the main bkd entry**](CLI-001.md) `P1`
 - [x] [**CLI-002 Make launcher --fix-db reuse the shared repair implementation**](CLI-002.md) `P2`
+- [x] [**ENG-010 Fix non-monotonic migration journal (0020) + harden fix-db**](ENG-010.md) `P0`

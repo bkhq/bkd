@@ -1,18 +1,28 @@
 /**
  * Idempotent database repair.
  *
- * Re-applies pending Drizzle migrations using only `bun:sqlite` +
- * `node:crypto` (no `drizzle-orm`), so it works in dev, full compiled
- * binaries, and package mode. Unlike the normal startup migrator
- * (`db/index.ts` `runMigrations`), repair is tolerant per-statement of
- * "table/index already exists" and "duplicate column name", and records each
- * migration's hash in `__drizzle_migrations` so subsequent normal startups
- * are consistent.
+ * Brings a database fully up to date using only `bun:sqlite` + `node:crypto`
+ * (no `drizzle-orm`), so it works in dev, full compiled binaries, and package
+ * mode.
  *
- * This recovers databases whose `__drizzle_migrations` is hash-inconsistent
- * with the (re-aligned) migration history, where the normal migrator silently
- * aborts the chain on the first "already exists" and leaves later migrations
- * (e.g. column additions) unapplied.
+ * Applied state is resolved **by journal position**, not by per-file hash.
+ * Drizzle applies migrations strictly in `_journal.json` order and inserts
+ * exactly one `__drizzle_migrations` row per success, so `K` recorded rows
+ * means the first `K` journal entries already ran (clean-prefix invariant).
+ * Repair therefore:
+ *
+ *  - treats journal entries `[0, K)` as already applied — it never re-executes
+ *    their SQL (so a re-aligned or destructive historical migration, e.g.
+ *    `0006` dropping `priority`, is never replayed) and only normalizes their
+ *    recorded hash to the current file content;
+ *  - applies entries `[K, N)` with per-statement tolerance of
+ *    "table/index already exists" and "duplicate column name", so a database
+ *    whose schema is ahead of its `__drizzle_migrations` watermark (the
+ *    real-world "stuck chain" case) still converges.
+ *
+ * This is robust to both the ENG-009 migration-history re-alignment (file
+ * content changed) and a non-monotonic journal `when` (ENG-010), neither of
+ * which can be handled by hash- or timestamp-watermark matching.
  */
 import { Database } from 'bun:sqlite'
 import { createHash } from 'node:crypto'
@@ -24,9 +34,9 @@ import { resolveDbPath, resolveMigrationsDir } from './migrations-source'
 const TOLERATED = /already exists|duplicate column name/i
 
 export interface RepairResult {
-  /** Migrations whose hash was newly recorded this run. */
+  /** Migrations newly executed and recorded this run. */
   applied: number
-  /** Migrations already recorded (hash match) and skipped. */
+  /** Already-applied prefix migrations reconciled (not re-executed). */
   skipped: number
 }
 
@@ -49,6 +59,7 @@ export function repairDatabase(
     throw new Error(`Migrations journal not found: ${journalFile}`)
   }
   const journal = JSON.parse(readFileSync(journalFile, 'utf8')) as Journal
+  const entries = [...journal.entries].sort((a, b) => a.idx - b.idx)
 
   const sqlite = new Database(dbPath)
   try {
@@ -59,28 +70,56 @@ export function repairDatabase(
       created_at numeric
     )`)
 
-    const appliedHashes = new Set(
-      (sqlite.query('SELECT hash FROM __drizzle_migrations').all() as Array<{ hash: string }>)
-        .map(r => r.hash),
-    )
+    const recorded = (
+      sqlite.query('SELECT count(*) AS n FROM __drizzle_migrations').get() as { n: number }
+    ).n
 
-    let applied = 0
-    let skipped = 0
+    // Clean-prefix invariant: K recorded rows ⇒ first K journal entries ran.
+    const prefixLen = Math.min(recorded, entries.length)
+
+    const hashOf = (entry: { tag: string }): string => {
+      const sqlFile = resolve(migrationsDir, `${entry.tag}.sql`)
+      if (!existsSync(sqlFile)) {
+        throw new Error(`Migration file not found: ${sqlFile}`)
+      }
+      return createHash('sha256').update(readFileSync(sqlFile, 'utf8')).digest('hex')
+    }
 
     // foreign_keys must be toggled outside any transaction.
     sqlite.run('PRAGMA foreign_keys = OFF')
 
-    for (const entry of [...journal.entries].sort((a, b) => a.idx - b.idx)) {
+    // Reconcile the already-applied prefix: rewrite __drizzle_migrations to
+    // exactly the first `prefixLen` entries with current file hashes. Their
+    // SQL is NEVER re-executed.
+    sqlite.run('BEGIN')
+    try {
+      sqlite.run('DELETE FROM __drizzle_migrations')
+      for (let i = 0; i < prefixLen; i++) {
+        const entry = entries[i]!
+        sqlite.run(
+          'INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)',
+          [hashOf(entry), entry.when],
+        )
+      }
+      sqlite.run('COMMIT')
+    } catch (err) {
+      sqlite.run('ROLLBACK')
+      throw new Error(
+        `Repair failed reconciling applied prefix: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+
+    let applied = 0
+
+    // Apply the remaining entries with per-statement tolerance.
+    for (let i = prefixLen; i < entries.length; i++) {
+      const entry = entries[i]!
       const sqlFile = resolve(migrationsDir, `${entry.tag}.sql`)
       if (!existsSync(sqlFile)) {
         throw new Error(`Migration file not found: ${sqlFile}`)
       }
       const sql = readFileSync(sqlFile, 'utf8')
       const hash = createHash('sha256').update(sql).digest('hex')
-      if (appliedHashes.has(hash)) {
-        skipped++
-        continue
-      }
 
       const statements = sql
         .split('--> statement-breakpoint')
@@ -113,7 +152,7 @@ export function repairDatabase(
     }
 
     sqlite.run('PRAGMA foreign_keys = ON')
-    return { applied, skipped }
+    return { applied, skipped: prefixLen }
   } finally {
     sqlite.close()
   }

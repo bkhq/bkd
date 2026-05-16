@@ -36,11 +36,12 @@ function runMigrations(folder: string) {
     sqlite.run('PRAGMA foreign_keys = ON')
     const errObj = err as { message?: string, cause?: { message?: string } }
     const msg = String(errObj?.message ?? '') + String(errObj?.cause?.message ?? '')
-    const alreadyExists = /^(table|index) .+ already exists$/im.test(msg)
-    if (!alreadyExists) {
+    const tolerated = /^(table|index) .+ already exists$/im.test(msg)
+      || /duplicate column name/i.test(msg)
+    if (!tolerated) {
       throw err
     }
-    logger.warn({ error: msg }, 'migration_silenced_already_exists')
+    logger.warn({ error: msg }, 'migration_silenced_tolerated')
   }
 }
 
