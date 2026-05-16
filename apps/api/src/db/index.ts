@@ -1,17 +1,15 @@
 import { Database } from 'bun:sqlite'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, resolve } from 'node:path'
+import { existsSync, mkdirSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
 import { logger } from '@/logger'
-import { APP_DIR, ROOT_DIR } from '@/root'
 import { embeddedMigrations } from './embedded-migrations'
+import { resolveDbPath, resolveMigrationsDir } from './migrations-source'
 import * as schema from './schema'
 
-const rawDbPath = process.env.DB_PATH || 'data/db/bkd.db'
-const dbPath = rawDbPath.startsWith('/') ? rawDbPath : resolve(ROOT_DIR, rawDbPath)
+const dbPath = resolveDbPath()
 
 const dir = dirname(dbPath)
 if (!existsSync(dir)) {
@@ -28,13 +26,6 @@ sqlite.run('PRAGMA mmap_size = 268435456')
 
 export const db = drizzle({ client: sqlite, schema })
 export { dbPath, sqlite }
-
-// In package mode, migrations live inside APP_DIR/migrations/.
-// In dev mode, they live in apps/api/drizzle/.
-const migrationsFolder = APP_DIR ?
-    resolve(APP_DIR, 'migrations') :
-    resolve(ROOT_DIR, 'apps/api/drizzle')
-const journalPath = resolve(migrationsFolder, 'meta/_journal.json')
 
 function runMigrations(folder: string) {
   try {
@@ -53,21 +44,10 @@ function runMigrations(folder: string) {
   }
 }
 
-if (existsSync(journalPath)) {
-  // Filesystem migrations available (dev / package mode / non-compiled mode)
-  runMigrations(migrationsFolder)
-} else if (embeddedMigrations.size > 0) {
-  // Compiled binary — write embedded migrations to a temp directory
-  // and let drizzle's standard migrator process them.
-  const tmpMigrations = resolve(tmpdir(), 'bkd-migrations')
-  mkdirSync(resolve(tmpMigrations, 'meta'), { recursive: true })
-  for (const [name, content] of embeddedMigrations) {
-    writeFileSync(resolve(tmpMigrations, name), content)
-  }
-  runMigrations(tmpMigrations)
+const migrations = resolveMigrationsDir()
+runMigrations(migrations.dir)
+if (migrations.embedded) {
   logger.info({ count: embeddedMigrations.size }, 'embedded_migrations_applied')
-} else {
-  throw new Error('No migrations available (missing drizzle/ folder and no embedded migrations)')
 }
 
 // --- Post-migration schema verification ---

@@ -41,6 +41,10 @@ BKD is a Kanban application for managing autonomous AI coding agents. Issues on 
 
 SQLite via `bun:sqlite` + Drizzle ORM. WAL mode, foreign keys, 64 MB cache, 256 MB mmap, `busy_timeout=15000`. Migrations auto-apply on startup.
 
+**Migration source resolution** (`db/migrations-source.ts`, side-effect free, shared by startup and repair): package mode → `APP_DIR/migrations`; dev → `apps/api/drizzle`; compiled binary → embedded map materialized to a temp dir.
+
+**Database repair (`bkd fix-db` / `bkd --fix-db`):** the main entry (`index.ts`) checks argv first and, on the fix-db path, dynamically imports `db/repair.ts` only — the server bootstrap (`server-main.ts`) and its migrate+`verifySchema()` side-effect never load, so repair works even when normal startup would `process.exit(1)`. `db/repair.ts` re-applies pending migrations idempotently (hash-tracked via `__drizzle_migrations`), tolerant per-statement of "already exists" / "duplicate column name", recovering DBs whose migration history is hash-inconsistent (the cause of unapplied late migrations such as the `default_engine`/`default_model` columns). Stop the server before running it.
+
 **ID conventions:** `shortId()` (8-char nanoid) for projects/issues; `id()` (ULID) for logs/attachments/tool calls.
 
 **Tables:**
