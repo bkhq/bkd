@@ -20,6 +20,7 @@ import {
   useEngineSettings,
   useProject,
 } from '@/hooks/use-kanban'
+import { resolveDefaultEngine } from '@/lib/engine-defaults'
 import { formatModelName } from '@/lib/format'
 import { tStatus } from '@/lib/i18n-utils'
 import type { StatusDefinition } from '@/lib/statuses'
@@ -82,13 +83,18 @@ export function CreateIssueForm({
     }
   }, [projectIsGitRepo])
 
-  // Resolve the effective engine type ('' means use system default)
-  const resolvedEngineType = useMemo(() => {
-    if (engineType) return engineType
-    const defaultEng = engineSettings?.defaultEngine
-    if (defaultEng && installedEngines.some(e => e.engineType === defaultEng)) return defaultEng
-    return installedEngines[0]?.engineType ?? ''
-  }, [engineType, engineSettings, installedEngines])
+  // Effective engine for display/model-list only (project default included).
+  // The request still sends the raw user selection so the server stays the
+  // single authority for default resolution.
+  const resolvedEngineType = useMemo(
+    () => resolveDefaultEngine(
+      engineType,
+      project?.defaultEngine,
+      engineSettings?.defaultEngine,
+      installedEngines,
+    ),
+    [engineType, project?.defaultEngine, engineSettings, installedEngines],
+  )
 
   // Models for the resolved engine, filtering out hidden ones
   const currentModels = useMemo(() => {
@@ -133,7 +139,7 @@ export function CreateIssueForm({
         })(),
         statusId,
         useWorktree,
-        engineType: resolvedEngineType || undefined,
+        engineType: engineType || undefined,
         model: modelId || undefined,
         permissionMode: permissionMap[permission],
       },
@@ -155,7 +161,7 @@ export function CreateIssueForm({
     statusId,
     permission,
     useWorktree,
-    resolvedEngineType,
+    engineType,
     modelId,
     createIssue,
     onCreated,
