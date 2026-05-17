@@ -239,6 +239,7 @@ export const kanbanApi = {
       tags?: string[]
       statusId: string
       useWorktree?: boolean
+      keepAlive?: boolean
       engineType?: string
       model?: string
       permissionMode?: string
@@ -252,6 +253,7 @@ export const kanbanApi = {
       fd.append('statusId', rest.statusId)
       if (rest.tags) fd.append('tags', JSON.stringify(rest.tags))
       if (rest.useWorktree !== undefined) fd.append('useWorktree', String(rest.useWorktree))
+      if (rest.keepAlive !== undefined) fd.append('keepAlive', String(rest.keepAlive))
       if (rest.engineType) fd.append('engineType', rest.engineType)
       if (rest.model) fd.append('model', rest.model)
       if (rest.permissionMode) fd.append('permissionMode', rest.permissionMode)

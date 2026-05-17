@@ -241,6 +241,7 @@ export function useCreateIssue(projectId: string) {
       tags?: string[]
       statusId: string
       useWorktree?: boolean
+      keepAlive?: boolean
       engineType?: string
       model?: string
       permissionMode?: string

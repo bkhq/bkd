@@ -1,4 +1,5 @@
 import { createOpenAPIRouter } from '@/openapi/hono'
+import * as R from '@/openapi/routes'
 import attachments from './attachments'
 import changes from './changes'
 import command from './command'
@@ -23,5 +24,12 @@ issues.route('/', message)
 issues.route('/', attachments)
 issues.route('/', logs)
 issues.route('/', changes)
+
+// createIssue and followUpIssue use plain .post() because their handlers parse
+// both JSON and multipart/form-data manually (auto-validation can't span dual
+// content types). Register their route definitions with the OpenAPI registry
+// so the generated spec still documents them.
+issues.openAPIRegistry.registerPath(R.createIssue)
+issues.openAPIRegistry.registerPath(R.followUpIssue)
 
 export default issues
