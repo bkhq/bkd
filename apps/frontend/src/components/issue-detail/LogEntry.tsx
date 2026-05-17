@@ -314,7 +314,7 @@ function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
           null}
         {messageAttachments.length > 0 ?
             (
-              <div className={`flex flex-wrap gap-1.5${entry.content.trim() ? ' mt-2' : ''}`}>
+              <div className={`flex flex-wrap gap-1.5${displayContent ? ' mt-2' : ''}`}>
                 {messageAttachments.map((att) => {
                   const previewItem = buildPreview(att)
                   const chipClass = 'inline-flex items-center gap-1 rounded bg-muted/60 border border-border/40 px-1.5 py-0.5 text-[11px] text-muted-foreground'

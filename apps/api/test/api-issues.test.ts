@@ -178,6 +178,22 @@ describe('POST /api/projects/:projectId/issues', () => {
     })
     expect(res.status).toBe(400)
   })
+
+  test('rejects multipart with invalid boolean string', async () => {
+    const { default: app } = await import('@/app')
+    const fd = new FormData()
+    fd.append('title', 'Bad Bool')
+    fd.append('statusId', 'todo')
+    fd.append('useWorktree', 'tru') // typo — must not silently coerce to false
+    const res = await app.request(`http://localhost/api/projects/${projectId}/issues`, {
+      method: 'POST',
+      body: fd,
+    })
+    expect(res.status).toBe(400)
+    const json = (await res.json()) as { success: boolean, error?: string }
+    expect(json.success).toBe(false)
+    expect(json.error ?? '').toContain('useWorktree')
+  })
 })
 
 describe('GET /api/projects/:projectId/issues/:issueId/changes', () => {
