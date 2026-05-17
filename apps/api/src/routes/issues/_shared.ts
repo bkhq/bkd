@@ -1,16 +1,17 @@
 import { mkdir, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import * as z from 'zod'
 import { cacheDel, cacheGetOrSet } from '@/cache'
 import { STATUS_IDS } from '@/config'
 import { db } from '@/db'
 import { getAppSetting } from '@/db/helpers'
 import {
+  buildFileContextFromRows,
   relocatePendingForProcessing,
   restorePendingVisibility,
 } from '@/db/pending-messages'
-import { issues as issuesTable } from '@/db/schema'
+import { attachments as attachmentsTable, issues as issuesTable } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
 import type { EngineType } from '@/engines/types'
 import { emitIssueLogRemoved, emitIssueUpdated } from '@/events/issue-events'
@@ -291,27 +292,86 @@ export function triggerIssueExecution(
 
       // Relocate any pending messages: hide old pending row, include content in prompt
       relocated = await relocatePendingForProcessing(issueId)
+
+      // Attachments uploaded at create-time (or before the first execute) carry
+      // logId = null. Fold them into the engine prompt and message metadata so
+      // they appear as chips on the first user-message and are reachable by the
+      // engine via the standard file context.
+      const unlinkedAttachments = await db
+        .select()
+        .from(attachmentsTable)
+        .where(
+          and(
+            eq(attachmentsTable.issueId, issueId),
+            isNull(attachmentsTable.logId),
+            eq(attachmentsTable.isDeleted, 0),
+          ),
+        )
+      const attachmentFileContext = buildFileContextFromRows(unlinkedAttachments)
+      const attachmentsMetaList = unlinkedAttachments.map(a => ({
+        id: a.id,
+        name: a.originalName,
+        mimeType: a.mimeType,
+        size: a.size,
+      }))
+
       const basePrompt = systemPrompt ?
         `${systemPrompt}\n\n${issue.prompt ?? ''}` :
           (issue.prompt ?? '')
+      const baseWithFiles = basePrompt + attachmentFileContext
       const effectivePrompt = relocated ?
-          [basePrompt, relocated.prompt].filter(Boolean).join('\n\n') :
-        basePrompt
+          [baseWithFiles, relocated.prompt].filter(Boolean).join('\n\n') :
+        baseWithFiles
 
-      await issueEngine.executeIssue(issueId, {
+      // Merge metadata: relocated metadata wins for scalar keys, attachments
+      // arrays from both sources are concatenated.
+      const mergedAttachments = [
+        ...attachmentsMetaList,
+        ...((relocated?.metadata.attachments as unknown[] | undefined) ?? []),
+      ]
+      const baseMeta: Record<string, unknown> = { ...(relocated?.metadata ?? {}) }
+      if (mergedAttachments.length > 0) baseMeta.attachments = mergedAttachments
+      const hasMeta = Object.keys(baseMeta).length > 0
+
+      // displayPrompt rules:
+      // - relocated already supplies one when pending messages exist
+      // - otherwise, if we appended file context, surface only issue.prompt to
+      //   the chat (avoid leaking the "[Attached file: …]" lines)
+      const effectiveDisplayPrompt = relocated ?
+        relocated.displayPrompt :
+        unlinkedAttachments.length > 0 ?
+            (issue.prompt ?? '') :
+          undefined
+
+      const execResult = await issueEngine.executeIssue(issueId, {
         engineType: (issue.engineType ?? 'claude-code') as EngineType,
         prompt: effectivePrompt,
         workingDir: effectiveWorkingDir,
         model: issue.model ?? undefined,
         permissionMode: issue.permissionMode as 'plan' | 'auto' | undefined,
         envVars: envVars ?? undefined,
-        ...(relocated ? { displayPrompt: relocated.displayPrompt, metadata: relocated.metadata } : {}),
+        ...(effectiveDisplayPrompt !== undefined ? { displayPrompt: effectiveDisplayPrompt } : {}),
+        ...(hasMeta ? { metadata: baseMeta } : {}),
       })
+      // Link the create-time attachments to the freshly persisted user-message
+      if (unlinkedAttachments.length > 0 && execResult.messageId) {
+        await db
+          .update(attachmentsTable)
+          .set({ logId: execResult.messageId })
+          .where(inArray(attachmentsTable.id, unlinkedAttachments.map(a => a.id)))
+      }
       // Notify frontend to remove old pending entry after successful execution
       if (relocated) {
         emitIssueLogRemoved(issueId, relocated.oldIds)
       }
-      logger.debug({ issueId, hadPending: !!relocated }, 'auto_execute_started')
+      logger.debug(
+        {
+          issueId,
+          hadPending: !!relocated,
+          createTimeAttachments: unlinkedAttachments.length,
+        },
+        'auto_execute_started',
+      )
     } catch (err) {
       logger.error({ issueId, err }, 'auto_execute_failed')
       if (relocated) restorePendingVisibility(relocated.oldIds)

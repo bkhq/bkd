@@ -2,6 +2,8 @@ import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronRight, Clock, FileT
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import type { PreviewItem } from '@/components/FilePreviewModal'
+import { FilePreviewModal } from '@/components/FilePreviewModal'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -163,6 +165,7 @@ export function ChatBody({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [pendingEditContent, setPendingEditContent] = useState<string | null>(null)
+  const [previewAttachment, setPreviewAttachment] = useState<PreviewItem | null>(null)
 
   const handleDelete = useCallback(() => {
     setDeleteDialogOpen(true)
@@ -378,18 +381,39 @@ export function ChatBody({
                   {attachments.length > 0
                     ? (
                         <div className={`flex flex-wrap gap-1.5${displayContent ? ' mt-2' : ''}`}>
-                          {attachments.map(att => (
-                            <span
-                              key={att.id}
-                              className="inline-flex items-center gap-1 rounded bg-muted/60 border border-border/40 px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                            >
-                              {att.mimeType.startsWith('image/')
-                                ? <Image className="h-3 w-3 shrink-0 text-blue-500" />
-                                : <FileText className="h-3 w-3 shrink-0" />}
-                              <span className="truncate max-w-[120px]">{att.name}</span>
-                              <span className="text-muted-foreground/50">{formatFileSize(att.size)}</span>
-                            </span>
-                          ))}
+                          {attachments.map((att) => {
+                            const chipClass = 'inline-flex items-center gap-1 rounded bg-muted/60 border border-border/40 px-1.5 py-0.5 text-[11px] text-muted-foreground'
+                            const inner = (
+                              <>
+                                {att.mimeType.startsWith('image/')
+                                  ? <Image className="h-3 w-3 shrink-0 text-blue-500" />
+                                  : <FileText className="h-3 w-3 shrink-0" />}
+                                <span className="truncate max-w-[120px]">{att.name}</span>
+                                <span className="text-muted-foreground/50">{formatFileSize(att.size)}</span>
+                              </>
+                            )
+                            // Optimistic entries with empty id are not yet reachable
+                            if (!att.id) {
+                              return <span key={att.id} className={chipClass}>{inner}</span>
+                            }
+                            const url = `/api/projects/${projectId}/issues/${issueId}/attachments/${att.id}`
+                            return (
+                              <button
+                                key={att.id}
+                                type="button"
+                                onClick={() => setPreviewAttachment({
+                                  kind: 'remote',
+                                  name: att.name,
+                                  mimeType: att.mimeType,
+                                  size: att.size,
+                                  url,
+                                })}
+                                className={`${chipClass} cursor-pointer hover:bg-muted/80 transition-colors`}
+                              >
+                                {inner}
+                              </button>
+                            )
+                          })}
                         </div>
                       )
                     : null}
@@ -467,6 +491,12 @@ export function ChatBody({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {previewAttachment ?
+          (
+            <FilePreviewModal item={previewAttachment} onClose={() => setPreviewAttachment(null)} />
+          ) :
+        null}
     </>
   )
 }

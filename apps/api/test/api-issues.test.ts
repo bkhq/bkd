@@ -133,6 +133,92 @@ describe('POST /api/projects/:projectId/issues', () => {
     })
     expect(result.status).toBe(404)
   })
+
+  test('accepts multipart/form-data with files', async () => {
+    const { default: app } = await import('@/app')
+    const { db } = await import('@/db')
+    const { attachments } = await import('@/db/schema')
+    const { eq } = await import('drizzle-orm')
+
+    const fd = new FormData()
+    fd.append('title', 'Multipart Issue')
+    fd.append('statusId', 'todo')
+    fd.append('tags', JSON.stringify(['a', 'b']))
+    fd.append('useWorktree', 'false')
+    fd.append('files', new File(['hello world'], 'note.txt', { type: 'text/plain' }))
+    fd.append('files', new File(['data'], 'data.bin', { type: 'application/octet-stream' }))
+
+    const res = await app.request(`http://localhost/api/projects/${projectId}/issues`, {
+      method: 'POST',
+      body: fd,
+    })
+    expect(res.status).toBe(201)
+    const json = (await res.json()) as { success: boolean, data: Issue }
+    expect(json.success).toBe(true)
+    expect(json.data.title).toBe('Multipart Issue')
+    expect(json.data.tags).toEqual(['a', 'b'])
+
+    const rows = await db.select().from(attachments).where(eq(attachments.issueId, json.data.id))
+    expect(rows.length).toBe(2)
+    expect(rows.every(r => r.logId === null)).toBe(true)
+    expect(rows.map(r => r.originalName).sort()).toEqual(['data.bin', 'note.txt'])
+  })
+
+  test('rejects multipart with oversized file', async () => {
+    const { default: app } = await import('@/app')
+    const fd = new FormData()
+    fd.append('title', 'Too Big')
+    fd.append('statusId', 'todo')
+    // 11 MB > 10 MB limit
+    fd.append('files', new File([new Uint8Array(11 * 1024 * 1024)], 'big.bin'))
+
+    const res = await app.request(`http://localhost/api/projects/${projectId}/issues`, {
+      method: 'POST',
+      body: fd,
+    })
+    expect(res.status).toBe(400)
+  })
+})
+
+describe('GET /api/projects/:projectId/issues/:issueId/changes', () => {
+  test('returns empty success when project has no directory', async () => {
+    const issue = expectSuccess(
+      await post<Issue>(`/api/projects/${projectId}/issues`, {
+        title: 'Changes No Dir',
+        statusId: 'todo',
+      }),
+    )
+    const result = await get<{
+      gitRepo: boolean
+      root?: string
+      files: unknown[]
+      additions: number
+      deletions: number
+    }>(`/api/projects/${projectId}/issues/${issue.id}/changes`)
+    expect(result.status).toBe(200)
+    const data = expectSuccess(result)
+    expect(data.gitRepo).toBe(false)
+    expect(data.files).toEqual([])
+    expect(data.additions).toBe(0)
+    expect(data.deletions).toBe(0)
+    expect(data.root).toBeUndefined()
+  })
+
+  test('changes/file returns empty patch when project has no directory', async () => {
+    const issue = expectSuccess(
+      await post<Issue>(`/api/projects/${projectId}/issues`, {
+        title: 'Changes File No Dir',
+        statusId: 'todo',
+      }),
+    )
+    const result = await get<{ path: string, patch: string, truncated: boolean }>(
+      `/api/projects/${projectId}/issues/${issue.id}/changes/file?path=README.md`,
+    )
+    expect(result.status).toBe(200)
+    const data = expectSuccess(result)
+    expect(data.patch).toBe('')
+    expect(data.truncated).toBe(false)
+  })
 })
 
 describe('GET /api/projects/:projectId/issues', () => {

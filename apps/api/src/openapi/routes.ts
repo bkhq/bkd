@@ -231,11 +231,15 @@ export const listIssues = createRoute({
   },
 })
 
+// Note: createIssue accepts both JSON and multipart/form-data (file uploads).
+// It uses a plain .post() handler with manual content-type parsing — same
+// pattern as followUpIssue. This definition exists for documentation; the
+// handler validates manually.
 export const createIssue = createRoute({
   method: 'post',
   path: '/',
   tags: ['Issues'],
-  summary: 'Create issue',
+  summary: 'Create issue (JSON or multipart/form-data with file attachments)',
   operationId: 'createIssue',
   request: {
     params: projectParam,

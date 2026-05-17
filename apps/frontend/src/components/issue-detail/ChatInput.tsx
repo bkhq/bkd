@@ -1,17 +1,16 @@
 import {
   Eraser,
-  FileText,
   FolderOpen,
-  Image as ImageIcon,
   Loader2,
   Paperclip,
   RefreshCw,
   SlashSquare,
-  X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AttachmentChips } from '@/components/AttachmentChips'
 import { EngineIcon } from '@/components/EngineIcons'
+import { FilePreviewModal } from '@/components/FilePreviewModal'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +29,6 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,13 +38,11 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
+import { useFileAttachments } from '@/hooks/use-file-attachments'
 import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue } from '@/hooks/use-kanban'
-import { formatFileSize, formatModelName } from '@/lib/format'
+import { formatModelName } from '@/lib/format'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { BusyAction, EngineModel, SessionStatus } from '@/types/kanban'
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
-const MAX_FILES = 10
 
 const MODE_OPTIONS = ['auto', 'ask'] as const
 type ModeOption = (typeof MODE_OPTIONS)[number]
@@ -158,11 +154,23 @@ export function ChatInput({
   }, [pendingEditContent, onPendingEditConsumed])
 
   const [sendError, setSendError] = useState<string | null>(null)
-  const [attachedFiles, setAttachedFiles] = useState<File[]>([])
-  const [isDragOver, setIsDragOver] = useState(false)
-  const [previewFile, setPreviewFile] = useState<File | null>(null)
+  const attach = useFileAttachments()
+  const {
+    attachedFiles,
+    attachError,
+    isDragOver,
+    previewFile,
+    setPreviewFile,
+    fileInputRef,
+    handlePaste,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleFileSelect,
+    openPicker,
+    reset: resetAttachments,
+  } = attach
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const isSendingRef = useRef(false)
   const [textareaH, setTextareaH] = useState(36)
   const dragRef = useRef({ active: false, startY: 0, startH: 0 })
@@ -260,48 +268,6 @@ export function ChatInput({
   const canSend =
     (normalizedPrompt.length > 0 || attachedFiles.length > 0) && !!issueId && !!projectId
 
-  const addFiles = useCallback(
-    (incoming: File[]) => {
-      setAttachedFiles((prev) => {
-        const combined = [...prev]
-        for (const file of incoming) {
-          if (file.size > MAX_FILE_SIZE) {
-            setSendError(
-              t('chat.fileTooBig', {
-                name: file.name,
-                limit: MAX_FILE_SIZE / 1024 / 1024,
-              }),
-            )
-            setTimeout(setSendError, 5000, null)
-            continue
-          }
-          if (combined.length >= MAX_FILES) {
-            setSendError(t('chat.tooManyFiles', { max: MAX_FILES }))
-            setTimeout(setSendError, 5000, null)
-            break
-          }
-          // Deduplicate by name+size
-          if (!combined.some(f => f.name === file.name && f.size === file.size)) {
-            combined.push(file)
-          }
-        }
-        return combined
-      })
-    },
-    [t],
-  )
-
-  const removeFile = useCallback((index: number) => {
-    setAttachedFiles((prev) => {
-      const removed = prev[index]
-      // Clear preview if the removed file is currently being previewed
-      setPreviewFile(current =>
-        current && current.name === removed.name && current.size === removed.size ? null : current,
-      )
-      return prev.filter((_, i) => i !== index)
-    })
-  }, [])
-
   const handleClearSession = async () => {
     if (!issueId) return
     try {
@@ -327,7 +293,7 @@ export function ChatInput({
         /* ignore */
       }
     }
-    setAttachedFiles([])
+    resetAttachments()
     setSendError(null)
     try {
       const isTodo = statusId === 'todo'
@@ -386,7 +352,7 @@ export function ChatInput({
       // issueId, which is always the same value as draftKey's source.
       if (issueIdRef.current === issueId) {
         setInput(prompt)
-        setAttachedFiles(filesToSend)
+        attach.setAttachedFiles(filesToSend)
       }
       setTimeout(setSendError, 5000, null)
     } finally {
@@ -441,54 +407,6 @@ export function ChatInput({
   const handleInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
   }, [])
-
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const items = e.clipboardData.items
-      const files: File[] = []
-      for (const item of items) {
-        if (item.kind === 'file') {
-          const file = item.getAsFile()
-          if (file) files.push(file)
-        }
-      }
-      if (files.length > 0) {
-        e.preventDefault()
-        addFiles(files)
-      }
-    },
-    [addFiles],
-  )
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(true)
-  }, [])
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(false)
-  }, [])
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      setIsDragOver(false)
-      const files = [...e.dataTransfer.files]
-      if (files.length > 0) addFiles(files)
-    },
-    [addFiles],
-  )
-
-  const handleFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = [...e.target.files ?? []]
-      if (files.length > 0) addFiles(files)
-      // Reset input so same file can be re-selected
-      e.target.value = ''
-    },
-    [addFiles],
-  )
 
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {
@@ -604,11 +522,11 @@ export function ChatInput({
           </div>
         </div>
 
-        {/* Error banner */}
-        {sendError ?
+        {/* Error banner — combines send + attach errors */}
+        {(sendError ?? attachError) ?
             (
               <div className="mx-2 mt-2 rounded-lg bg-destructive/10 border border-destructive/20 px-2 py-2 text-xs text-destructive">
-                {sendError}
+                {sendError ?? attachError}
               </div>
             ) :
           null}
@@ -663,40 +581,7 @@ export function ChatInput({
         </div>
 
         {/* File preview bar — below textarea */}
-        {attachedFiles.length > 0 ?
-            (
-              <div className="flex flex-wrap gap-1.5 px-2 pb-1.5">
-                {attachedFiles.map((file, idx) => (
-                  <div
-                    key={`${file.name}-${file.size}`}
-                    className="group/file flex items-center gap-1.5 rounded-lg bg-muted/50 border border-border/40 px-2 py-1 text-xs cursor-pointer hover:bg-muted/70 transition-colors"
-                    onClick={() => setPreviewFile(file)}
-                  >
-                    {file.type.startsWith('image/') ?
-                        (
-                          <ImageIcon className="h-3 w-3 shrink-0 text-blue-500" />
-                        ) :
-                        (
-                          <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
-                        )}
-                    <span className="truncate max-w-[120px]">{file.name}</span>
-                    <span className="text-muted-foreground/60">{formatFileSize(file.size)}</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        removeFile(idx)
-                      }}
-                      className="ml-0.5 rounded p-0.5 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      title={t('chat.removeFile')}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) :
-          null}
+        <AttachmentChips files={attachedFiles} onPreview={setPreviewFile} onRemove={attach.removeFile} />
 
         {/* Hidden file input */}
         <input
@@ -715,7 +600,7 @@ export function ChatInput({
               variant="ghost"
               size="icon"
               title={t('chat.attach')}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={openPicker}
             >
               <Paperclip className="size-4" />
             </Button>
@@ -790,71 +675,10 @@ export function ChatInput({
       {/* File preview modal — shadcn Dialog */}
       {previewFile ?
           (
-            <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
+            <FilePreviewModal item={{ kind: 'file', file: previewFile }} onClose={() => setPreviewFile(null)} />
           ) :
         null}
     </div>
-  )
-}
-
-// ─── FilePreviewModal ────────────────────────────────────────────────────────
-// Replaced custom modal with shadcn Dialog
-
-function FilePreviewModal({ file, onClose }: { file: File, onClose: () => void }) {
-  const { t } = useTranslation()
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (file.type.startsWith('image/')) {
-      const url = URL.createObjectURL(file)
-      setImageUrl(url)
-      return () => URL.revokeObjectURL(url)
-    }
-    setImageUrl(null)
-  }, [file])
-
-  return (
-    <Dialog open onOpenChange={open => !open && onClose()}>
-      <DialogContent className="max-w-[600px] max-h-[80vh] overflow-hidden p-0">
-        <DialogHeader className="flex flex-row items-center gap-2 px-4 py-3 border-b border-border/30 space-y-0">
-          {file.type.startsWith('image/') ?
-              (
-                <ImageIcon className="h-4 w-4 shrink-0 text-blue-500" />
-              ) :
-              (
-                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-              )}
-          <DialogTitle className="text-sm font-medium truncate">{file.name}</DialogTitle>
-        </DialogHeader>
-
-        <div className="p-4 overflow-auto max-h-[calc(80vh-56px)]">
-          {imageUrl ?
-              (
-                <img
-                  src={imageUrl}
-                  alt={file.name}
-                  className="max-w-full max-h-[60vh] rounded-lg object-contain mx-auto"
-                />
-              ) :
-              (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-center w-16 h-16 rounded-xl bg-muted/60 mx-auto">
-                    <FileText className="h-8 w-8 text-muted-foreground/60" />
-                  </div>
-                  <div className="text-center space-y-1">
-                    <p className="text-sm font-medium truncate">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {file.type || t('chat.unknownType')}
-                      {' '}
-                      &middot;
-                      {formatFileSize(file.size)}
-                    </p>
-                  </div>
-                </div>
-              )}
-        </div>
-      </DialogContent>
-    </Dialog>
   )
 }
 

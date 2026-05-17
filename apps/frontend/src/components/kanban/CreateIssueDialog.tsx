@@ -1,8 +1,10 @@
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Paperclip } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
+import { AttachmentChips } from '@/components/AttachmentChips'
 import { EngineIcon } from '@/components/EngineIcons'
+import { FilePreviewModal } from '@/components/FilePreviewModal'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -13,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { useFileAttachments } from '@/hooks/use-file-attachments'
 import {
   useCreateIssue,
   useEngineAvailability,
@@ -75,6 +78,22 @@ export function CreateIssueForm({
   const [modelId, setModelId] = useState('')
   const [permission, setPermission] = useState<PermissionId>('auto')
   const [useWorktree, setUseWorktree] = useState(false)
+  const {
+    attachedFiles,
+    attachError,
+    isDragOver,
+    previewFile,
+    setPreviewFile,
+    fileInputRef,
+    removeFile,
+    openPicker,
+    reset: resetAttachments,
+    handlePaste,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleFileSelect,
+  } = useFileAttachments()
 
   // Keep worktree disabled for non-git projects, but do not auto-enable it.
   useEffect(() => {
@@ -142,6 +161,7 @@ export function CreateIssueForm({
         engineType: engineType || undefined,
         model: modelId || undefined,
         permissionMode: permissionMap[permission],
+        files: attachedFiles.length > 0 ? attachedFiles : undefined,
       },
       {
         onSuccess: () => {
@@ -151,6 +171,7 @@ export function CreateIssueForm({
           setModelId('')
           setPermission('auto')
           setUseWorktree(false)
+          resetAttachments()
           onCreated?.()
         },
       },
@@ -163,8 +184,10 @@ export function CreateIssueForm({
     useWorktree,
     engineType,
     modelId,
+    attachedFiles,
     createIssue,
     onCreated,
+    resetAttachments,
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -184,18 +207,75 @@ export function CreateIssueForm({
   return (
     <div onKeyDown={handleKeyDown}>
       {/* ─── Input area ─────────────────────────── */}
-      <div className="rounded-lg border bg-muted/30 focus-within:ring-1 focus-within:ring-ring transition-shadow">
+      <div
+        className={`rounded-lg border bg-muted/30 focus-within:ring-1 focus-within:ring-ring transition-shadow ${
+          isDragOver ? 'border-primary/50 ring-2 ring-primary/20' : ''
+        }`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <Textarea
           ref={textareaRef}
           value={input}
           onChange={handleTextarea}
+          onPaste={handlePaste}
           placeholder={t('issue.describeWork')}
           rows={4}
           className="w-full bg-transparent text-sm resize-none border-none shadow-none outline-none placeholder:text-muted-foreground/50 px-3 pt-3 pb-2 min-h-25 focus-visible:ring-0 rounded-b-none!"
           disabled={createIssue.isPending}
         />
+
+        {isDragOver ?
+            (
+              <div className="px-3 py-1.5 text-[11px] text-primary font-medium">
+                {t('chat.attachDragHint')}
+              </div>
+            ) :
+          null}
+
+        {attachError ?
+            (
+              <div className="mx-3 mb-1.5 rounded bg-destructive/10 border border-destructive/20 px-2 py-1.5 text-[11px] text-destructive">
+                {attachError}
+              </div>
+            ) :
+          null}
+
+        <AttachmentChips
+          files={attachedFiles}
+          onPreview={setPreviewFile}
+          onRemove={removeFile}
+        />
+
+        {previewFile ?
+            (
+              <FilePreviewModal item={{ kind: 'file', file: previewFile }} onClose={() => setPreviewFile(null)} />
+            ) :
+          null}
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+
         <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-[11px] text-muted-foreground/50">{t('issue.cmdEnterSubmit')}</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={openPicker}
+              title={t('chat.attach')}
+              className="inline-flex items-center justify-center rounded p-1 text-muted-foreground/60 hover:text-foreground hover:bg-muted/60 transition-colors"
+              disabled={createIssue.isPending}
+            >
+              <Paperclip className="h-3.5 w-3.5" />
+            </button>
+            <span className="text-[11px] text-muted-foreground/50">{t('issue.cmdEnterSubmit')}</span>
+          </div>
           <span className="text-[11px] text-muted-foreground/50 tabular-nums">
             {input.length}
             {' '}

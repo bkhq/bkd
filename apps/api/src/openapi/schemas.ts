@@ -247,7 +247,8 @@ export const IssueChangedFileSchema = z.object({
 }).openapi('IssueChangedFile')
 
 export const IssueChangesResponseSchema = z.object({
-  root: z.string(),
+  // Absent when the project has no directory configured.
+  root: z.string().optional(),
   gitRepo: z.boolean(),
   files: z.array(IssueChangedFileSchema),
   additions: z.number().int(),
