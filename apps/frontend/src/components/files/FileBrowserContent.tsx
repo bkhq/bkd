@@ -123,7 +123,7 @@ export function FileBrowserContent({
     <>
       {/* Header + Breadcrumb */}
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border shrink-0">
+      <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] bg-background/80 backdrop-blur-sm">
         <div className="flex items-center gap-1.5 min-w-0">
           <FolderOpen className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
           <span className="text-xs font-medium text-muted-foreground truncate font-mono" title={effectiveRoot ?? undefined}>
