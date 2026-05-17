@@ -244,6 +244,7 @@ export function useCreateIssue(projectId: string) {
       engineType?: string
       model?: string
       permissionMode?: string
+      files?: File[]
     }) => kanbanApi.createIssue(projectId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.issues(projectId) })

@@ -242,8 +242,24 @@ export const kanbanApi = {
       engineType?: string
       model?: string
       permissionMode?: string
+      files?: File[]
     },
-  ) => post<Issue>(`/api/projects/${projectId}/issues`, data),
+  ) => {
+    const { files, ...rest } = data
+    if (files && files.length > 0) {
+      const fd = new FormData()
+      fd.append('title', rest.title)
+      fd.append('statusId', rest.statusId)
+      if (rest.tags) fd.append('tags', JSON.stringify(rest.tags))
+      if (rest.useWorktree !== undefined) fd.append('useWorktree', String(rest.useWorktree))
+      if (rest.engineType) fd.append('engineType', rest.engineType)
+      if (rest.model) fd.append('model', rest.model)
+      if (rest.permissionMode) fd.append('permissionMode', rest.permissionMode)
+      for (const file of files) fd.append('files', file)
+      return postFormData<Issue>(`/api/projects/${projectId}/issues`, fd)
+    }
+    return post<Issue>(`/api/projects/${projectId}/issues`, rest)
+  },
   updateIssue: (projectId: string, id: string, data: Partial<Issue>) =>
     patch<Issue>(`/api/projects/${projectId}/issues/${id}`, data),
   bulkUpdateIssues: (

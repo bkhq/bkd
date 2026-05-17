@@ -24,6 +24,9 @@ import {
 } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useParams } from 'react-router-dom'
+import type { PreviewItem } from '@/components/FilePreviewModal'
+import { FilePreviewModal } from '@/components/FilePreviewModal'
 import {
   Dialog,
   DialogContent,
@@ -266,6 +269,120 @@ function TaskPlanEntry({ entry }: { entry: NormalizedLogEntry }) {
   )
 }
 
+function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
+  const { t } = useTranslation()
+  const { projectId, issueId } = useParams<{ projectId: string, issueId: string }>()
+  const [preview, setPreview] = useState<PreviewItem | null>(null)
+
+  const isPending = entry.metadata?.type === 'pending'
+  const isDone = entry.metadata?.type === 'done'
+  const messageAttachments = (entry.metadata?.attachments ?? []) as AttachmentMeta[]
+  // Strip "--- Attached files ---" block from display (already shown as chips)
+  const displayContent = entry.content.replace(/\n*--- Attached files ---\n(?:\[Attached file:.*\]\n?)*/g, '').trim()
+  // Skip empty user messages (no text, no attachments, not pending/done)
+  if (!displayContent && messageAttachments.length === 0 && !isPending && !isDone)
+    return null
+
+  const barColor = isPending ?
+    'border-amber-400 bg-amber-500/[0.06]' :
+    isDone ?
+      'border-emerald-400 bg-emerald-500/[0.06]' :
+      'border-foreground/70'
+
+  // Optimistic attachments (created locally before the server assigns an id)
+  // carry id === '' and aren't yet reachable; render them as static chips.
+  const buildPreview = (att: AttachmentMeta): PreviewItem | null => {
+    if (!projectId || !issueId || !att.id) return null
+    return {
+      kind: 'remote',
+      name: att.name,
+      mimeType: att.mimeType,
+      size: att.size,
+      url: `/api/projects/${projectId}/issues/${issueId}/attachments/${att.id}`,
+    }
+  }
+
+  return (
+    <div className="group py-2 animate-message-enter">
+      <div className={`bg-muted/70 px-3 py-2.5 border border-l-[3px] ${barColor}`}>
+        {displayContent ?
+            (
+              <div className="text-[15px] whitespace-pre-wrap break-words text-foreground leading-[1.75]">
+                {displayContent}
+              </div>
+            ) :
+          null}
+        {messageAttachments.length > 0 ?
+            (
+              <div className={`flex flex-wrap gap-1.5${entry.content.trim() ? ' mt-2' : ''}`}>
+                {messageAttachments.map((att) => {
+                  const previewItem = buildPreview(att)
+                  const chipClass = 'inline-flex items-center gap-1 rounded bg-muted/60 border border-border/40 px-1.5 py-0.5 text-[11px] text-muted-foreground'
+                  const inner = (
+                    <>
+                      {att.mimeType.startsWith('image/') ?
+                          (
+                            <Image className="h-3 w-3 shrink-0 text-blue-500" />
+                          ) :
+                          (
+                            <FileText className="h-3 w-3 shrink-0" />
+                          )}
+                      <span className="truncate max-w-[120px]">{att.name}</span>
+                      <span className="text-muted-foreground/50">{formatFileSize(att.size)}</span>
+                    </>
+                  )
+                  if (!previewItem) {
+                    return (
+                      <span key={att.id} className={chipClass}>
+                        {inner}
+                      </span>
+                    )
+                  }
+                  return (
+                    <button
+                      key={att.id}
+                      type="button"
+                      onClick={() => setPreview(previewItem)}
+                      className={`${chipClass} cursor-pointer hover:bg-muted/80 transition-colors`}
+                    >
+                      {inner}
+                    </button>
+                  )
+                })}
+              </div>
+            ) :
+          null}
+        {isPending || isDone ?
+            (
+              <div className="flex items-center gap-2 mt-1">
+                {isPending ?
+                    (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-amber-500/70">
+                        <Clock className="h-2.5 w-2.5" />
+                        {t('chat.pendingMessage')}
+                      </span>
+                    ) :
+                  null}
+                {isDone ?
+                    (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-500/70">
+                        {t('chat.doneMessage')}
+                      </span>
+                    ) :
+                  null}
+              </div>
+            ) :
+          null}
+      </div>
+      {preview ?
+          (
+            <FilePreviewModal item={preview} onClose={() => setPreview(null)} />
+          ) :
+        null}
+    </div>
+  )
+}
+
 export function LogEntry({
   entry,
   durationMs,
@@ -278,77 +395,8 @@ export function LogEntry({
   const { t } = useTranslation()
 
   switch (entry.entryType) {
-    case 'user-message': {
-      const isPending = entry.metadata?.type === 'pending'
-      const isDone = entry.metadata?.type === 'done'
-      const messageAttachments = (entry.metadata?.attachments ?? []) as AttachmentMeta[]
-      // Strip "--- Attached files ---" block from display (already shown as chips)
-      const displayContent = entry.content.replace(/\n*--- Attached files ---\n(?:\[Attached file:.*\]\n?)*/g, '').trim()
-      // Skip empty user messages (no text, no attachments, not pending/done)
-      if (!displayContent && messageAttachments.length === 0 && !isPending && !isDone)
-        return null
-      const barColor = isPending ?
-        'border-amber-400 bg-amber-500/[0.06]' :
-        isDone ?
-          'border-emerald-400 bg-emerald-500/[0.06]' :
-          'border-foreground/70'
-      return (
-        <div className="group py-2 animate-message-enter">
-          <div className={`bg-muted/70 px-3 py-2.5 border border-l-[3px] ${barColor}`}>
-            {displayContent ?
-                (
-                  <div className="text-[15px] whitespace-pre-wrap break-words text-foreground leading-[1.75]">
-                    {displayContent}
-                  </div>
-                ) :
-              null}
-            {messageAttachments.length > 0 ?
-                (
-                  <div className={`flex flex-wrap gap-1.5${entry.content.trim() ? ' mt-2' : ''}`}>
-                    {messageAttachments.map(att => (
-                      <span
-                        key={att.id}
-                        className="inline-flex items-center gap-1 rounded bg-muted/60 border border-border/40 px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                      >
-                        {att.mimeType.startsWith('image/') ?
-                            (
-                              <Image className="h-3 w-3 shrink-0 text-blue-500" />
-                            ) :
-                            (
-                              <FileText className="h-3 w-3 shrink-0" />
-                            )}
-                        <span className="truncate max-w-[120px]">{att.name}</span>
-                        <span className="text-muted-foreground/50">{formatFileSize(att.size)}</span>
-                      </span>
-                    ))}
-                  </div>
-                ) :
-              null}
-            {isPending || isDone ?
-                (
-                  <div className="flex items-center gap-2 mt-1">
-                    {isPending ?
-                        (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-amber-500/70">
-                            <Clock className="h-2.5 w-2.5" />
-                            {t('chat.pendingMessage')}
-                          </span>
-                        ) :
-                      null}
-                    {isDone ?
-                        (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-500/70">
-                            {t('chat.doneMessage')}
-                          </span>
-                        ) :
-                      null}
-                  </div>
-                ) :
-              null}
-          </div>
-        </div>
-      )
-    }
+    case 'user-message':
+      return <UserMessageEntry entry={entry} />
 
     case 'assistant-message':
       if (!entry.content.trim()) return null

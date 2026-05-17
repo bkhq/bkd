@@ -152,7 +152,13 @@ changes.openapi(R.getIssueChanges, async (c) => {
 
   const projectRoot = await resolveProjectDir(project.id)
   if (!projectRoot) {
-    return c.json({ success: false, error: 'Project directory is not configured' }, 400 as const)
+    // Project has no working directory configured (or it no longer exists).
+    // Treat as "no changes to report" rather than an error so callers (chat
+    // input file-count badge, etc.) can render cleanly without a 400.
+    return c.json({
+      success: true,
+      data: { gitRepo: false, files: [], additions: 0, deletions: 0 },
+    }, 200 as const)
   }
   const root = await resolveIssueDir(project.id, issueId, issue.useWorktree, projectRoot)
   const gitRepo = await isGitRepo(root)
@@ -210,7 +216,12 @@ changes.get('/:id/changes/file', async (c) => {
 
   const projectRoot = await resolveProjectDir(project.id)
   if (!projectRoot) {
-    return c.json({ success: false, error: 'Project directory is not configured' }, 400)
+    // No working dir → nothing to diff. Return empty patch payload instead
+    // of 400 so the diff panel renders cleanly.
+    return c.json({
+      success: true,
+      data: { path, patch: '', truncated: false },
+    })
   }
   const root = await resolveIssueDir(project.id, issueId, issue.useWorktree, projectRoot)
 

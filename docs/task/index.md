@@ -54,3 +54,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-010 Fix non-monotonic migration journal (0020) + harden fix-db**](ENG-010.md) `P0`
 - [x] [**ENG-011 Generic schema safety-net (snapshot-driven self-heal)**](ENG-011.md) `P1`
 - [x] [**ENG-012 Create dialog ignores project-level default engine**](ENG-012.md) `P1`
+- [x] [**UI-002 Support attachments and image paste in create-issue dialog**](UI-002.md) `P1`
