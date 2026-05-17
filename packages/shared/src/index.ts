@@ -290,7 +290,8 @@ export interface IssueChangedFile {
 }
 
 export interface IssueChangesResponse {
-  root: string
+  /** Absent when the project has no directory configured. */
+  root?: string
   gitRepo: boolean
   files: IssueChangedFile[]
   additions: number

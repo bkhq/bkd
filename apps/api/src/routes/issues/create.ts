@@ -1,3 +1,4 @@
+import { unlink } from 'node:fs/promises'
 import { and, desc, eq, max } from 'drizzle-orm'
 import { generateKeyBetween } from 'jittered-fractional-indexing'
 import * as z from 'zod'
@@ -61,6 +62,10 @@ async function parseCreateBody(c: {
           raw.tags = value.split(',').map(s => s.trim()).filter(Boolean)
         }
       } else if (key === 'useWorktree' || key === 'keepAlive') {
+        // Strict: silently coercing typos like "tru" to false hides client bugs.
+        if (value !== 'true' && value !== 'false' && value !== '1' && value !== '0') {
+          return { ok: false, error: `${key} must be "true", "false", "1", or "0"` }
+        }
         raw[key] = value === 'true' || value === '1'
       } else {
         raw[key] = value
@@ -148,6 +153,24 @@ create.post('/', async (c) => {
     }
   }
 
+  // Save files to disk BEFORE opening the issue transaction so a disk failure
+  // surfaces as a clean 400 with no issue row created. The transaction inserts
+  // the issue and its attachment rows together; on rollback we unlink the
+  // disk files so the API response and persisted state stay in lockstep
+  // (no orphaned issue rows, no orphaned files driving client-side retries).
+  let savedFiles: SavedFile[] = []
+  if (files.length > 0) {
+    try {
+      savedFiles = await Promise.all(files.map(saveUploadedFile))
+    } catch (saveError) {
+      logger.warn(
+        { projectId: project.id, error: saveError },
+        'issue_create_attachment_save_failed',
+      )
+      return c.json({ success: false, error: 'Failed to save uploaded files' }, 400 as const)
+    }
+  }
+
   try {
     const issuePrompt = body.title
     const shouldExecute = body.statusId === 'working' || body.statusId === 'review'
@@ -177,7 +200,7 @@ create.post('/', async (c) => {
         .limit(1)
       const sortOrder = generateKeyBetween(lastItem?.sortOrder ?? null, null)
 
-      return tx
+      const inserted = await tx
         .insert(issuesTable)
         .values({
           projectId: project.id,
@@ -194,26 +217,27 @@ create.post('/', async (c) => {
           prompt: issuePrompt,
         })
         .returning()
-    })
 
-    // Persist uploaded files and attach them to the new issue. logId stays null;
-    // triggerIssueExecution links each row to the user-message it generates.
-    let savedFiles: SavedFile[] = []
-    if (files.length > 0) {
-      savedFiles = await Promise.all(files.map(saveUploadedFile))
-      await db.insert(attachmentsTable).values(
-        savedFiles.map(f => ({
-          id: f.id,
-          issueId: newIssue!.id,
-          logId: null,
-          originalName: f.originalName,
-          storedName: f.storedName,
-          mimeType: f.mimeType,
-          size: f.size,
-          storagePath: f.storagePath,
-        })),
-      )
-    }
+      // Attachment rows share the transaction with the issue insert so a
+      // failure here rolls back the issue too — kept in lockstep with the
+      // unlink-on-failure logic in the outer catch.
+      if (savedFiles.length > 0) {
+        await tx.insert(attachmentsTable).values(
+          savedFiles.map(f => ({
+            id: f.id,
+            issueId: inserted[0]!.id,
+            logId: null,
+            originalName: f.originalName,
+            storedName: f.storedName,
+            mimeType: f.mimeType,
+            size: f.size,
+            storagePath: f.storagePath,
+          })),
+        )
+      }
+
+      return inserted
+    })
 
     // After successful creation, invalidate relevant caches
     await cacheDel(`projectIssueIds:${project.id}`)
@@ -257,6 +281,20 @@ create.post('/', async (c) => {
       (shouldExecute ? 202 : 201) as 201 | 202,
     )
   } catch (error) {
+    // Transaction rolled back — unlink the disk files we saved up-front so we
+    // don't accumulate orphans alongside the rollback.
+    if (savedFiles.length > 0) {
+      await Promise.all(
+        savedFiles.map(f =>
+          unlink(f.absolutePath).catch(unlinkError =>
+            logger.warn(
+              { projectId: project.id, path: f.absolutePath, error: unlinkError },
+              'issue_create_attachment_cleanup_failed',
+            ),
+          ),
+        ),
+      )
+    }
     logger.warn(
       {
         projectId: project.id,

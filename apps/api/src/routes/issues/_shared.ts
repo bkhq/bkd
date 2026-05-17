@@ -353,12 +353,22 @@ export function triggerIssueExecution(
         ...(effectiveDisplayPrompt !== undefined ? { displayPrompt: effectiveDisplayPrompt } : {}),
         ...(hasMeta ? { metadata: baseMeta } : {}),
       })
-      // Link the create-time attachments to the freshly persisted user-message
-      if (unlinkedAttachments.length > 0 && execResult.messageId) {
-        await db
-          .update(attachmentsTable)
-          .set({ logId: execResult.messageId })
-          .where(inArray(attachmentsTable.id, unlinkedAttachments.map(a => a.id)))
+      // Link the create-time attachments to the freshly persisted user-message.
+      // If messageId is missing (persist pipeline failed silently), leave the
+      // rows unlinked and warn — they'll be re-tried on the next execute via
+      // the isNull(logId) query rather than being silently double-attached.
+      if (unlinkedAttachments.length > 0) {
+        if (execResult.messageId) {
+          await db
+            .update(attachmentsTable)
+            .set({ logId: execResult.messageId })
+            .where(inArray(attachmentsTable.id, unlinkedAttachments.map(a => a.id)))
+        } else {
+          logger.warn(
+            { issueId, count: unlinkedAttachments.length },
+            'auto_execute_no_message_id_attachments_left_unlinked',
+          )
+        }
       }
       // Notify frontend to remove old pending entry after successful execution
       if (relocated) {
