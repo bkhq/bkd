@@ -52,7 +52,7 @@ async function parseCreateBody(c: {
     const fd = await c.req.formData()
     const raw: Record<string, unknown> = {}
     for (const [key, value] of fd.entries()) {
-      if (key === 'files' || value instanceof File) continue
+      // Skip File entries (key === 'files'); only string scalars feed the body
       if (typeof value !== 'string') continue
       if (key === 'tags') {
         try {
