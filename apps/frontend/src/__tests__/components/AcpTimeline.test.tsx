@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { type ReactNode, useRef } from 'react'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AcpTimeline } from '@/components/issue-detail/AcpTimeline'
 import type { NormalizedLogEntry, TimelineEntry } from '@/types/kanban'
 
@@ -174,5 +174,122 @@ describe('acpTimeline', () => {
 
     // Should show streaming thinking content (i18n label not loaded in tests)
     expect(screen.getByText(/Analyzing the codebase/)).toBeInTheDocument()
+  })
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// Auto-load older history — IntersectionObserver wiring.
+// Mirror of the SessionMessages regression test. AcpTimeline is the path
+// opencode / gemini issues take, so without this guard the scroll-up-to-
+// load bug would have stayed alive for ACP engines even after the legacy
+// (Claude / codex) path was fixed.
+// ────────────────────────────────────────────────────────────────────────────
+
+let observerCallback: IntersectionObserverCallback | null = null
+const observeMock = vi.fn()
+const disconnectMock = vi.fn()
+
+class MockIntersectionObserver implements IntersectionObserver {
+  root: Element | Document | null = null
+  rootMargin = ''
+  thresholds: ReadonlyArray<number> = []
+
+  constructor(cb: IntersectionObserverCallback, opts?: IntersectionObserverInit) {
+    observerCallback = cb
+    this.root = (opts?.root as Element | Document | null) ?? null
+  }
+
+  observe = observeMock
+  disconnect = disconnectMock
+  unobserve = vi.fn()
+  takeRecords = (): IntersectionObserverEntry[] => []
+}
+
+describe('acpTimeline — auto-load older history', () => {
+  beforeEach(() => {
+    observerCallback = null
+    observeMock.mockClear()
+    disconnectMock.mockClear()
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
+    // jsdom doesn't implement Element.scrollTo; AcpTimeline calls it after
+    // messages arrive. Stub so the auto-bottom effect doesn't throw mid-rerender.
+    Element.prototype.scrollTo = vi.fn() as unknown as Element['scrollTo']
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  interface HarnessProps {
+    logs: TimelineEntry[]
+    hasOlderLogs?: boolean
+    isLoadingOlder?: boolean
+    onLoadOlder?: () => void
+  }
+
+  function Harness({ logs, hasOlderLogs, isLoadingOlder, onLoadOlder }: HarnessProps) {
+    const scrollRef = useRef<HTMLDivElement>(null)
+    return (
+      <div ref={scrollRef} data-testid="scroll" style={{ height: 500, overflow: 'auto' }}>
+        <AcpTimeline
+          logs={logs}
+          scrollRef={scrollRef}
+          hasOlderLogs={hasOlderLogs}
+          isLoadingOlder={isLoadingOlder}
+          onLoadOlder={onLoadOlder}
+        />
+      </div>
+    )
+  }
+
+  function userEntry(messageId: string, content: string): TimelineEntry {
+    return {
+      id: `turn-0-user-${messageId}`,
+      messageId,
+      turnIndex: 0,
+      type: 'user',
+      entryType: 'user-message',
+      content,
+      timestamp: new Date().toISOString(),
+      sequence: 1000,
+      metadata: {},
+    } as TimelineEntry
+  }
+
+  it('attaches the observer when items arrive after an empty initial render', () => {
+    // Regression (companion to SessionMessages test of the same name):
+    // ACP-engine issues take the AcpTimeline path. On switching to a
+    // review/done ACP issue, the initial render has items=[] + !isRunning,
+    // so `if (items=0 && pending=0 && !isRunning) return null` hides the
+    // top sentinel. The IntersectionObserver useEffect runs with sentinel
+    // = null and bails out. When logs arrive later, the deps
+    // [scrollRef, onLoadOlder] are unchanged → effect doesn't re-run →
+    // observer never attaches → scroll-up loads nothing.
+    //
+    // Fix added `items.length` to the deps so the second render re-runs
+    // the effect and attaches the observer.
+    const onLoadOlder = vi.fn()
+    const { rerender } = render(
+      <Harness logs={[]} hasOlderLogs onLoadOlder={onLoadOlder} />,
+      { wrapper: createWrapper() },
+    )
+
+    // Empty initial: component returned null, sentinel was never mounted,
+    // observer.observe must not have been called.
+    expect(observeMock).not.toHaveBeenCalled()
+
+    // Logs arrive: parent re-renders with a populated array. The fixed
+    // effect must re-run and bind the observer to the now-mounted sentinel.
+    rerender(<Harness logs={[userEntry('a', 'hello')]} hasOlderLogs onLoadOlder={onLoadOlder} />)
+
+    expect(observeMock).toHaveBeenCalledTimes(1)
+
+    // And the end-to-end wiring still fires onLoadOlder on intersection.
+    if (!observerCallback) throw new Error('IntersectionObserver was never constructed')
+    observerCallback(
+      [{ isIntersecting: true } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    )
+    expect(onLoadOlder).toHaveBeenCalledTimes(1)
   })
 })

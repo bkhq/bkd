@@ -234,7 +234,11 @@ export function AcpTimeline({
       observer.disconnect()
       root.removeEventListener('scroll', onScroll)
     }
-  }, [scrollRef, onLoadOlder])
+    // items.length: sentinel div is gated by a `return null` early-exit
+    // (see below) when items=[] && pending=[] && !isRunning. Without
+    // re-running on items.length transition 0→N the observer never gets
+    // attached after a cold mount — same bug class as SessionMessages.
+  }, [scrollRef, onLoadOlder, items.length])
 
   useEffect(() => {
     if (!initialScrollDone.current) return
