@@ -304,7 +304,12 @@ function LegacySessionMessages({
       observer.disconnect()
       root.removeEventListener('scroll', onScroll)
     }
-  }, [scrollRef, onLoadOlder])
+    // messages.length: sentinel div is gated by the `return null` early-exit
+    // below. On a cold mount (logs not yet fetched) the first render produces
+    // no DOM, so topSentinelRef.current is null and this effect bails out.
+    // Without re-running when messages first appear, the observer + scroll
+    // fallback are never attached and scroll-up-to-load never fires.
+  }, [scrollRef, onLoadOlder, messages.length])
 
   useEffect(() => {
     if (!initialScrollDone.current) return

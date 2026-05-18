@@ -125,22 +125,35 @@ if (staticAssets.size > 0) {
       '*',
       serveStatic({
         root: staticRoot,
-        onFound: (_path, c) => {
-          c.header('Cache-Control', 'public, max-age=3600, must-revalidate')
+        onFound: (path, c) => {
+          if (path === 'index.html') {
+            c.header('Cache-Control', 'no-cache')
+          }
+          else {
+            c.header('Cache-Control', 'public, max-age=3600, must-revalidate')
+          }
         },
       }),
     )
 
-    app.get(
-      '*',
-      serveStatic({
-        root: staticRoot,
-        path: 'index.html',
-        onFound: (_path, c) => {
-          c.header('Cache-Control', 'no-cache')
-        },
-      }),
-    )
+    // SPA fallback: serve index.html for any unmatched non-API path so the
+    // client-side router (react-router) can handle deep links like
+    // /projects/:projectId/issues/:issueId. Without this, package mode
+    // returns the global 404 JSON for direct deep-link visits and reloads.
+    // Embedded mode already handles this in embedded-static.ts.
+    const indexHtml = resolve(staticRoot, 'index.html')
+    if (existsSync(indexHtml)) {
+      app.use('*', async (c, next) => {
+        if (c.req.path.startsWith('/api/')) return next()
+        if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return next()
+        return new Response(Bun.file(indexHtml), {
+          headers: {
+            'Content-Type': 'text/html;charset=utf-8',
+            'Cache-Control': 'no-cache',
+          },
+        })
+      })
+    }
   }
 }
 

@@ -254,6 +254,56 @@ describe('SessionMessages — auto-load older history', () => {
     unmount()
     expect(disconnectMock).toHaveBeenCalledTimes(1)
   })
+
+  it('attaches the observer when logs arrive after an empty initial render', () => {
+    // jsdom doesn't implement Element.scrollTo; SessionMessages' auto-bottom
+    // useEffect calls it after messages arrive. Stub it globally so the
+    // effect doesn't throw during the rerender we're exercising.
+    Element.prototype.scrollTo = vi.fn() as unknown as Element['scrollTo']
+
+    // Regression: user-reported "switch to a completed issue and scroll-up
+    // stops loading history." Reproduction:
+    //   1. First render: logs=[], isRunning=false → component hits the
+    //      `return null` early-exit, so the sentinel <div> is never mounted.
+    //   2. The IntersectionObserver useEffect runs once with sentinel=null
+    //      and bails out.
+    //   3. Logs fetched asynchronously → component re-renders, sentinel
+    //      mounts.
+    //   4. Effect's deps [scrollRef, onLoadOlder] are unchanged across
+    //      renders, so it does NOT re-run. Observer is never attached.
+    //   5. Scrolling up triggers no callback. The user sees a frozen list.
+    //
+    // The fix adds `messages.length` to the effect's deps so the second
+    // render re-runs the effect and attaches the observer to the now-mounted
+    // sentinel. This test asserts observe() is called after logs arrive.
+    const onLoadOlder = vi.fn()
+    const { rerender } = render(
+      <Harness logs={[]} hasOlderLogs onLoadOlder={onLoadOlder} />,
+      { wrapper: createWrapper() },
+    )
+
+    // With logs=[] and isRunning=false the component returns null — no
+    // sentinel exists yet, so observe() should not have been called.
+    expect(observeMock).not.toHaveBeenCalled()
+
+    // Logs arrive: parent re-renders with a populated array.
+    rerender(
+      <Harness
+        logs={[userEntry('a', 0, 'hello')]}
+        hasOlderLogs
+        onLoadOlder={onLoadOlder}
+      />,
+    )
+
+    // Now the sentinel is in the DOM; the effect must have re-run to attach
+    // the observer. Without the `messages.length` dep this fails — the
+    // effect doesn't re-run and observe() stays at 0 calls.
+    expect(observeMock).toHaveBeenCalledTimes(1)
+
+    // And the wiring still works end-to-end: intersection fires onLoadOlder.
+    fireIntersection(true)
+    expect(onLoadOlder).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('SessionMessages — loading affordance', () => {

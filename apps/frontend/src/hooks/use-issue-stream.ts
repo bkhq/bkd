@@ -312,7 +312,8 @@ export function useIssueStream({
         next = next.slice(next.length - MAX_LIVE_LOGS)
         setHasOlderLogs(true)
         const oldest = next[0]
-        if (oldest?.id) olderCursorRef.current = oldest.id
+        if (oldest?.messageId) olderCursorRef.current = oldest.messageId
+        else if (oldest?.id) olderCursorRef.current = oldest.id
         trimCursorSetRef.current = true
       }
       liveLogsRef.current = next
@@ -416,16 +417,8 @@ export function useIssueStream({
         }
         olderCursorRef.current = data.nextCursor
         setHasOlderLogs(data.hasMore)
-        // Normalize through toTimelineEntry so any entry missing `sequence`
-        // (legacy DB rows from before TimelineConverter, or test fixtures)
-        // gets a synthesized one. Without this, sequence-less entries collapse
-        // to sequence=0 on sort and the lexicographic id tiebreaker reorders
-        // them — see compareTimeline.
         const incoming = data.logs.map(e => toTimelineEntry(e))
         setOlderLogs((prev) => {
-          // Dedup by id — repeated loads (rare but possible on cursor edges)
-          // would otherwise stack duplicates in the array even though the
-          // outer logs useMemo dedupes for render.
           const map = new Map<string, TimelineEntry>()
           for (const e of prev) map.set(e.id, e)
           for (const e of incoming) map.set(e.id, e)

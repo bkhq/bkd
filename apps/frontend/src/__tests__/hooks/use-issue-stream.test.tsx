@@ -667,4 +667,84 @@ describe('useIssueStream', () => {
     )
     expect(concatenatedFound).toBe(false)
   })
+
+  it('uses messageId (ULID) as older cursor after trimming live logs', async () => {
+    // Regression: TimelineEntry.id uses 'turn-{N}-{type}' format which is NOT
+    // a valid ULID. Backend getLogsFromDb uses 'id < before' against ULID
+    // columns, so a non-ULID cursor causes the query to match ALL entries
+    // (dictionary order: 'turn-' > all ULIDs). When trimCursorSetRef is true,
+    // the cursor is never updated from the backend response, causing an
+    // infinite loop that appears as "no history loaded on scroll up".
+    const MAX_LIVE_LOGS = 500
+    let handler: IssueEventHandler | null = null
+    subscribeMock.mockImplementation((_issueId: string, nextHandler: IssueEventHandler) => {
+      handler = nextHandler
+      return () => {}
+    })
+
+    getIssueLogsMock.mockResolvedValueOnce({
+      issue: null,
+      logs: [],
+      nextCursor: null,
+      hasMore: false,
+    })
+
+    const { result } = renderHook(
+      () =>
+        useIssueStream({
+          projectId: 'proj-1',
+          issueId: 'issue-1',
+          sessionStatus: 'running',
+        }),
+      { wrapper: createWrapper() },
+    )
+
+    await waitFor(() => {
+      expect(handler).not.toBeNull()
+    })
+
+    // Push MAX_LIVE_LOGS + 1 entries with non-ULID ids but valid ULID messageIds
+    const totalEntries = MAX_LIVE_LOGS + 1
+    for (let i = 0; i < totalEntries; i++) {
+      const entry: TimelineEntry = {
+        id: `turn-${i}-assistant`,
+        messageId: `01ARZ${String(i).padStart(20, '0')}`,
+        entryType: 'assistant-message',
+        content: `msg-${i}`,
+        timestamp: new Date(Date.now() + i * 100).toISOString(),
+        turnIndex: i,
+        type: 'assistant',
+      }
+      act(() => handler?.onLog(entry))
+    }
+
+    await waitFor(() => {
+      expect(result.current.logs).toHaveLength(MAX_LIVE_LOGS)
+      expect(result.current.hasOlderLogs).toBe(true)
+    })
+
+    // Capture the cursor used in the next loadOlderLogs call
+    getIssueLogsMock.mockClear()
+    getIssueLogsMock.mockResolvedValueOnce({
+      issue: null,
+      logs: [],
+      nextCursor: null,
+      hasMore: false,
+    })
+
+    act(() => {
+      result.current.loadOlderLogs()
+    })
+
+    await waitFor(() => {
+      expect(result.current.isLoadingOlder).toBe(false)
+    })
+
+    // The cursor passed to getIssueLogs must be a ULID (messageId), not 'turn-...'
+    expect(getIssueLogsMock).toHaveBeenCalledTimes(1)
+    const [_projectId, _issueId, params] = getIssueLogsMock.mock.calls[0]!
+    const beforeCursor: string = params.before
+    expect(beforeCursor).toMatch(/^01ARZ/)
+    expect(beforeCursor).not.toMatch(/^turn-/)
+  })
 })
