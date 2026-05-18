@@ -893,16 +893,15 @@ export function ChatInput({
                 <Button
                   type="button"
                   size="icon"
-                  disabled={!issueId || restartIssue.isPending}
+                  disabled={!issueId || restartIssue.isPending || isSendingRef.current || !input.trim()}
                   onClick={() => {
                     if (!issueId) return
                     restartIssue.mutate(issueId)
                   }}
                   title={t('chat.restart')}
                   className="rounded-full size-11 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-primary text-primary-foreground hover:bg-primary/90"
-                  disabled={isSending || !input.trim()}
                 >
-                  {isSending ?
+                  {isSendingRef.current ?
                       <Loader2 className="size-5 animate-spin" /> :
                       <Play className="size-5" strokeWidth={2.5} />}
                 </Button>
@@ -917,7 +916,6 @@ export function ChatInput({
                   onClick={onCancel}
                   title={isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
                   className="rounded-full size-11 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  disabled={isCancelling}
                 >
                   {isCancelling ?
                       <Loader2 className="size-5 animate-spin" /> :
@@ -1091,7 +1089,7 @@ function CommandPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-              <PopoverTrigger render={<Button variant="ghost" size="icon" title={t('chat.commands')} className="size-11" />}>
+      <PopoverTrigger render={<Button variant="ghost" size="icon" title={t('chat.commands')} className="size-11" />}>
         <SlashSquare className="size-5" />
       </PopoverTrigger>
       <PopoverContent side="top" align="start" className="w-[260px] p-0">
@@ -1171,8 +1169,10 @@ function MobileMoreMenu({
             type="button"
             className="inline-flex items-center justify-center size-11 rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
           >
-        <MoreHorizontal className="size-5" />
-      </PopoverTrigger>
+            <MoreHorizontal className="size-5" />
+          </button>
+        )}
+      />
       <PopoverContent align="start" side="top" className="w-56 p-2 space-y-1">
         {/* Engine info — labeled so users know what their session is bound to.
             Desktop has the equivalent in EngineConfigChip's popover header; on
