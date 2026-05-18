@@ -12,6 +12,7 @@ import {
 import { register } from '@/engines/issue/process/register'
 import { persistUserMessage } from '@/engines/issue/user-message'
 import {
+  formatSpawnError,
   getPermissionOptions,
   getProjectExecContext,
   isMissingExternalSessionError,
@@ -352,7 +353,7 @@ export async function spawnFollowUpProcess(
     // message.  Revert the session status so the issue doesn't get stuck in
     // 'running' forever with no process to settle it.
     logger.error({ issueId, executionId, err: spawnError }, 'spawn_failed_reverting_session')
-    const errorMsg = spawnError instanceof Error ? spawnError.message : String(spawnError)
+    const errorMsg = formatSpawnError(spawnError)
     emitDiagnosticLog(
       issueId,
       executionId,

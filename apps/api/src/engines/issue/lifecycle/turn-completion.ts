@@ -9,11 +9,20 @@ import type { ProcessStatus } from '@/engines/types'
 import { emitIssueLogRemoved } from '@/events/issue-events'
 import { logger } from '@/logger'
 
-// Settlement is now process-exit or idle-timeout driven instead of a fixed
-// grace period after turn completion. This prevents premature "review"
-// transitions while the engine process is still alive (e.g. opencode deep
-// thinking that may continue producing output or accept follow-ups).
-// See handleTurnCompleted Phase 2 and gcSweep idle timeout.
+// Settlement after a turn completes is driven by a per-engine grace timer:
+//   - ACP engines (opencode, gemini) — 5s grace so trailing thinking/tool
+//     output emitted after acp-prompt-result doesn't trigger a premature
+//     "review" transition, and the user has a wider window to send a
+//     follow-up that cancels settlement.
+//   - Non-ACP conversational engines (Claude Code, codex) — 1s grace.
+//   - Any engine + process already exited — settle immediately (the
+//     conversation cannot continue).
+//
+// Process exit and idle timeout remain backup paths:
+//   - monitorCompletion → flushSettleTimer on subprocess exit.
+//   - gcSweep idle timeout terminates and settles long-orphaned processes.
+//
+// See handleTurnCompleted Phase 2.
 
 // ---------- Turn completion ----------
 
@@ -55,11 +64,11 @@ export function handleTurnCompleted(
   const finalStatus = managed.logicalFailure ? 'failed' : 'completed'
   emitStateChange(issueId, executionId, finalStatus as ProcessStatus)
 
-      // Phase 1: Immediately update sessionStatus + handle session errors + pending
-      // DB messages. The statusId change (working → review) and the frontend
-      // settlement event are deferred to Phase 2 so that follow-ups sent within
-      // the grace period keep the issue in 'working'.
-      void (async () => {
+  // Phase 1: Immediately update sessionStatus + handle session errors + pending
+  // DB messages. The statusId change (working → review) and the frontend
+  // settlement event are deferred to Phase 2 so that follow-ups sent within
+  // the grace period keep the issue in 'working'.
+  void (async () => {
     try {
       // Detect session ID error: the CLI couldn't find the session
       // (e.g. "No conversation found with session ID: xxx" after project
@@ -120,40 +129,26 @@ export function handleTurnCompleted(
       }
 
       // Phase 2: Move to review.
-      // ACP engines (opencode, gemini, etc.) get the extended-leash behavior:
-      // do NOT auto-settle while the process is alive, because their ACP
-      // adapters may have long thinking/tool phases and we don't want
-      // premature "review" transitions. Settlement happens on process exit
-      // or idle timeout.
-      //
-      // Non-ACP conversational engines (Claude Code) get a 1-second grace
-      // period so follow-ups sent immediately after a turn completes can
-      // cancel the settlement and keep the issue in 'working'.
+      // All engines get a grace period before auto-settle so follow-ups sent
+      // immediately after a turn completes can cancel the settlement and keep
+      // the issue in 'working'.
+      //   - ACP engines: longer delay (5s) to accommodate adapters that may
+      //     have trailing output after acp-prompt-result.
+      //   - Non-ACP engines: 1s delay for quick follow-up cancellation.
+      //   - Any engine + process exited: immediate settle.
       const isAcpEngine = managed.engineType.startsWith('acp')
       const processAlive = managed.exitCode === undefined
+      const delayMs = processAlive ? (isAcpEngine ? 5000 : 1000) : 0
 
-      if (processAlive && isAcpEngine) {
-        // ACP + process still alive — skip auto-settle. Settlement triggers:
-        //   1. Process exits → monitorCompletion → flushSettleTimer
-        //   2. Idle timeout (IDLE_TIMEOUT_MS) → gcSweep → terminateAndSettle
-        //   3. User follow-up → START_TURN clears idle state, new turn begins
-        logger.debug(
-          { issueId, executionId, engineType: managed.engineType },
-          'issue_turn_completed_process_alive_skip_auto_settle',
-        )
+      if (delayMs > 0) {
+        managed.settleTimerStatus = finalStatus
+        managed.settleTimer = setTimeout(() => {
+          managed.settleTimer = undefined
+          managed.settleTimerStatus = undefined
+          void settleAfterGrace(ctx, issueId, executionId, managed, finalStatus)
+        }, delayMs)
       } else {
-        // Non-ACP + alive → 1s grace; any engine + exited → immediate settle
-        const delayMs = processAlive && !isAcpEngine ? 1000 : 0
-        if (delayMs > 0) {
-          managed.settleTimerStatus = finalStatus
-          managed.settleTimer = setTimeout(() => {
-            managed.settleTimer = undefined
-            managed.settleTimerStatus = undefined
-            void settleAfterGrace(ctx, issueId, executionId, managed, finalStatus)
-          }, delayMs)
-        } else {
-          await settleAfterGrace(ctx, issueId, executionId, managed, finalStatus)
-        }
+        await settleAfterGrace(ctx, issueId, executionId, managed, finalStatus)
       }
     } catch (error) {
       // Cancel any pending delayed settle — the fallback below will handle it.
@@ -273,10 +268,10 @@ async function settleAfterGrace(
 /**
  * Settle immediately (called when the process exits).
  *
- * For ACP engines this is the primary settlement path — they skip
- * auto-settle while alive, so process exit triggers settlement.
- * For non-ACP engines this is a fallback when the process exits
- * before the 1-second grace period timer fires.
+ * Backup path for all engines: if the subprocess dies before its
+ * post-turn grace timer fires (1s non-ACP / 5s ACP), clear the timer
+ * and settle now. The conversation cannot continue without the process,
+ * so there is no value in waiting out the remaining grace window.
  */
 export function flushSettleTimer(
   ctx: EngineContext,

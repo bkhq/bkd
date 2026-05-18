@@ -8,6 +8,41 @@ import { BUILT_IN_PROFILES } from '@/engines/types'
 import { logger } from '@/logger'
 import { ROOT_DIR } from '@/root'
 
+// ---------- Error formatting ----------
+
+/**
+ * Format a spawn error into a human-readable string.
+ * Handles JSON-RPC error objects from ACP SDK (which are plain objects, not Error instances),
+ * as well as standard Error instances and other unknown values.
+ */
+export function formatSpawnError(spawnError: unknown): string {
+  if (spawnError instanceof Error) {
+    return spawnError.message
+  }
+  if (spawnError && typeof spawnError === 'object') {
+    const err = spawnError as Record<string, unknown>
+    // JSON-RPC error object shape: { code, message, data }
+    if (typeof err.message === 'string') {
+      const parts = [err.message]
+      if (typeof err.code === 'number') {
+        parts.unshift(`[code:${err.code}]`)
+      }
+      if (err.data && typeof err.data === 'object') {
+        const dataStr = JSON.stringify(err.data).slice(0, 500)
+        parts.push(`(data: ${dataStr})`)
+      }
+      return parts.join(' ')
+    }
+    // Fallback: stringify the whole object
+    try {
+      return JSON.stringify(spawnError)
+    } catch {
+      return String(spawnError)
+    }
+  }
+  return String(spawnError)
+}
+
 // ---------- Error classification ----------
 
 export function isMissingExternalSessionError(error: unknown): boolean {

@@ -9,7 +9,7 @@ import { ensureNoActiveProcess } from '@/engines/issue/process/guards'
 import { withIssueLock } from '@/engines/issue/process/lock'
 import { register } from '@/engines/issue/process/register'
 import { persistUserMessage } from '@/engines/issue/user-message'
-import { getPermissionOptions } from '@/engines/issue/utils/helpers'
+import { formatSpawnError, getPermissionOptions } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
 import { createWorktree } from '@/engines/issue/utils/worktree'
@@ -110,7 +110,7 @@ export async function executeIssue(
         { issueId, executionId, err: spawnError },
         'execute_spawn_failed_reverting_session',
       )
-      const errorMsg = spawnError instanceof Error ? spawnError.message : String(spawnError)
+      const errorMsg = formatSpawnError(spawnError)
       emitDiagnosticLog(
         issueId,
         executionId,

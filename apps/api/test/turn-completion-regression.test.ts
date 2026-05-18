@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, mock, test } from 'bun:test'
+import { beforeAll, describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { getPendingMessages } from '@/db/pending-messages'
@@ -60,9 +60,9 @@ async function insertPendingMessage(issueId: string, content: string) {
   })
 }
 
-describe('turn completion — process-alive skip auto-settle regression', () => {
+describe('turn completion — ACP engine delayed auto-settle', () => {
   test(
-    'process alive → turn completion does NOT auto-settle within 3s',
+    'ACP process alive → turn completion auto-settles after 5s grace',
     async () => {
       const issue = await createWorkingIssue(`turn-completion-alive-${Date.now()}`)
       const executionId = `exec-alive-${Date.now()}`
@@ -114,20 +114,29 @@ describe('turn completion — process-alive skip auto-settle regression', () => 
         return row?.sessionStatus === 'completed'
       }, 3000)
 
-      // Previously: 3-second SETTLE_GRACE_MS timer would fire here and move
-      // the issue to review. Now: no auto-settle while process is alive.
+      // Within the 5-second grace period, issue should still be working
       await new Promise(r => setTimeout(r, 1000))
 
-      const [row] = await db
+      const [rowMid] = await db
         .select({ statusId: issuesTable.statusId, sessionStatus: issuesTable.sessionStatus })
         .from(issuesTable)
         .where(eq(issuesTable.id, issue.id))
 
-      // Issue should stay in working while the process is alive
-      expect(row?.statusId).toBe('working')
-      expect(row?.sessionStatus).toBe('completed')
+      expect(rowMid?.statusId).toBe('working')
+      expect(rowMid?.sessionStatus).toBe('completed')
+
+      // After the 5-second grace period, issue should auto-settle to review
+      await new Promise(r => setTimeout(r, 4500))
+
+      const [rowFinal] = await db
+        .select({ statusId: issuesTable.statusId, sessionStatus: issuesTable.sessionStatus })
+        .from(issuesTable)
+        .where(eq(issuesTable.id, issue.id))
+
+      expect(rowFinal?.statusId).toBe('review')
+      expect(rowFinal?.sessionStatus).toBe('completed')
     },
-    { timeout: 10000 },
+    { timeout: 15000 },
   )
 
   test(

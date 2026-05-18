@@ -12,6 +12,7 @@ import { ensureNoActiveProcess } from '@/engines/issue/process/guards'
 import { withIssueLock } from '@/engines/issue/process/lock'
 import { register } from '@/engines/issue/process/register'
 import {
+  formatSpawnError,
   getPermissionOptions,
   getProjectExecContext,
   resolveWorkingDir,
@@ -107,11 +108,12 @@ export async function restartIssue(
           ) :
           await spawnFresh(executor, issueId, spawnOpts)
     } catch (spawnError) {
+      const errorMsg = formatSpawnError(spawnError)
       logger.error(
-        { issueId, executionId, error: spawnError },
+        { issueId, executionId, error: errorMsg, rawError: spawnError },
         'restart_spawn_failed_reverting_session',
       )
-      emitErrorLog(issueId, executionId, spawnError instanceof Error ? spawnError.message : String(spawnError))
+      emitErrorLog(issueId, executionId, errorMsg)
       await updateIssueSession(issueId, { sessionStatus: 'failed' }).catch(e =>
         logger.error({ issueId, error: e }, 'restart_spawn_failed_revert_session_error'),
       )
