@@ -218,3 +218,61 @@ describe('ChatInput send-to-cancel behaviour', () => {
     expect(screen.queryByTitle('common.cancel')).not.toBeInTheDocument()
   })
 })
+
+describe('ChatInput — restart button gating regression', () => {
+  // Regression: the restart Button used to have two `disabled={...}` JSX
+  // props. React keeps only the LAST one when an attribute is duplicated,
+  // so `disabled={isSending || !input.trim()}` silently overrode the
+  // intended `disabled={!issueId || restartIssue.isPending}`. The
+  // restart button could be triggered repeatedly while a restart mutation
+  // was already in flight, spawning multiple parallel restarts.
+  //
+  // Fix merges both conditions into a single expression. These tests pin
+  // both legs of the disjunction so the regression cannot return.
+
+  it('disables restart when no input is present (basic gate still works)', () => {
+    renderChat({ sessionStatus: 'failed' })
+    const restart = screen.getByTitle('chat.restart')
+    expect(restart).toBeDisabled()
+  })
+
+  it('disables restart while a restart mutation is already pending', async () => {
+    // Override the useRestartIssue mock for this test only: pretend a
+    // restart is in flight (isPending=true). The legacy bug let this case
+    // through because the second `disabled` prop didn't reference isPending.
+    //
+    // Critical: we must also type into the input. With an empty input the
+    // `!input.trim()` leg of the disjunction disables the button on its
+    // own and masks the bug — that was the bug's exact failure mode in
+    // production, since the user only saw the button while typing.
+    const useKanban = await import('@/hooks/use-kanban')
+    const original = useKanban.useRestartIssue
+    ;(useKanban as { useRestartIssue: unknown }).useRestartIssue = () => ({
+      mutate: vi.fn(),
+      isPending: true,
+    })
+    try {
+      renderChat({ sessionStatus: 'failed' })
+      // Type something so `!input.trim()` is false. Without this the test
+      // passes for the wrong reason.
+      const textarea = screen.getByRole('textbox')
+      fireEvent.change(textarea, { target: { value: 'retry now' } })
+      const restart = screen.getByTitle('chat.restart')
+      expect(restart).toBeDisabled()
+    } finally {
+      ;(useKanban as { useRestartIssue: unknown }).useRestartIssue = original
+    }
+  })
+})
+
+describe('ChatInput — MobileMoreMenu renders without crashing', () => {
+  // Regression: a partial render-prop refactor on MobileMoreMenu's
+  // PopoverTrigger left mismatched JSX (`</button>` missing from inside
+  // `render`, so the closing tag matched the wrong element). Build failed
+  // silently in some tooling configurations and at runtime the trigger
+  // didn't mount. This test just renders the ChatInput once and asserts
+  // it survives a render pass — which it cannot do if the JSX is broken.
+  it('renders ChatInput without throwing (JSX integrity)', () => {
+    expect(() => renderChat()).not.toThrow()
+  })
+})

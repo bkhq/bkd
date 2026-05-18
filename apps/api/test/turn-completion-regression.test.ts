@@ -282,6 +282,87 @@ describe('turn completion pending-flush regression', () => {
   }, { timeout: 10000 })
 })
 
+describe('turn completion — follow-up cancels grace settle', () => {
+  // Companion to "ACP engine delayed auto-settle": that test proves the
+  // grace timer fires; this one proves the timer is correctly *cancelled*
+  // when a follow-up arrives during the grace window. Together they pin
+  // down the user-reported behavior — "executions don't move to review
+  // when alone, but DO stay in working when I follow up immediately."
+  //
+  // We simulate START_TURN by flipping `turnSettled = false` (which is
+  // exactly what the state reducer does when a new turn begins). All three
+  // turnSettled guards inside settleAfterGrace must see the flip and bail.
+  test(
+    'follow-up within ACP grace window keeps issue in working',
+    async () => {
+      const issue = await createWorkingIssue(`turn-completion-followup-${Date.now()}`)
+      const executionId = `exec-followup-${Date.now()}`
+      const managed: ManagedProcess = {
+        executionId,
+        issueId: issue.id,
+        engineType: 'acp',
+        process: {
+          subprocess: { exited: new Promise(() => {}) }, // never exits
+        } as any,
+        state: 'running',
+        startedAt: new Date(),
+        logs: new ExecutionStore(executionId),
+        retryCount: 0,
+        turnInFlight: true,
+        queueCancelRequested: false,
+        logicalFailure: false,
+        turnSettled: false,
+        slashCommands: [],
+        agents: [],
+        plugins: [],
+        keepAlive: false,
+        lastActivityAt: new Date(),
+        pendingInputs: [],
+      }
+
+      const ctx: EngineContext = {
+        pm: {
+          get: (id: string) => (id === executionId ? ({ meta: managed } as any) : undefined),
+          getActive: () => [],
+        } as any,
+        issueOpLocks: new Map(),
+        entryCounters: new Map(),
+        turnIndexes: new Map(),
+        userMessageIds: new Map(),
+        lastErrors: new Map(),
+        lockDepth: new Map(),
+        followUpIssue: null,
+      }
+
+      handleTurnCompleted(ctx, issue.id, executionId)
+
+      // After Phase 1 sets sessionStatus='completed', flip the turn flag —
+      // a follow-up arrived during the grace window. Without giving the
+      // Phase 1 async work a microtask to land first, the await inside
+      // settleAfterGrace would see managed.turnSettled=true at every guard.
+      await new Promise(r => setTimeout(r, 50))
+      managed.turnSettled = false
+      managed.turnInFlight = true
+
+      // Wait past the 5s ACP grace plus settle work; if any guard missed
+      // the flip, autoMoveToReview would have flipped statusId by now.
+      await new Promise(r => setTimeout(r, 5500))
+
+      const [row] = await db
+        .select({ statusId: issuesTable.statusId, sessionStatus: issuesTable.sessionStatus })
+        .from(issuesTable)
+        .where(eq(issuesTable.id, issue.id))
+
+      // Issue must remain in working — Phase 1 updates sessionStatus to
+      // 'completed' synchronously, but Phase 2's autoMoveToReview must
+      // have been skipped by the turnSettled guards.
+      expect(row?.statusId).toBe('working')
+      expect(row?.sessionStatus).toBe('completed')
+    },
+    { timeout: 15000 },
+  )
+})
+
 describe('turn completion — non-ACP engines still auto-settle', () => {
   test(
     'claude-code alive → turn completion DOES auto-settle',
