@@ -93,6 +93,16 @@ events.get('/', async (c) => {
         writeEvent('changes-summary', data)
       })
 
+      // Cockpit proposals: new / approved / rejected / failed
+      const unsubCockpitProposal = appEvents.on('cockpit-proposal', (data) => {
+        writeEvent('cockpit-proposal', data)
+      })
+
+      // Cockpit assistant session reset
+      const unsubCockpitReset = appEvents.on('cockpit-reset', (data) => {
+        writeEvent('cockpit-reset', data)
+      })
+
       // Heartbeat every 15s — keeps connection alive and detects client disconnect
       const heartbeat = setInterval(() => {
         if (done) return
@@ -111,6 +121,8 @@ events.get('/', async (c) => {
         unsubDone()
         unsubIssueUpdated()
         unsubChangesSummary()
+        unsubCockpitProposal()
+        unsubCockpitReset()
         logger.debug('global_sse_closed')
       }
     })

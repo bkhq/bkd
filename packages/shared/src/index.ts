@@ -392,6 +392,8 @@ export interface SSEEventMap {
   'issue-updated': { issueId: string, changes: Record<string, unknown>, title?: string, projectAlias?: string, source?: string }
   'changes-summary': ChangesSummary
   'heartbeat': { ts: string }
+  'cockpit-proposal': { proposalId: string, status: 'pending' | 'approved' | 'rejected' | 'failed' }
+  'cockpit-reset': { issueId: string }
 }
 
 /** Internal bus format — superset of SSEEventMap, carries engine context. */
@@ -416,6 +418,8 @@ export interface AppEventMap {
   'issue-updated': { issueId: string, changes: Record<string, unknown>, title?: string, projectAlias?: string, source?: string }
   'changes-summary': ChangesSummary
   'heartbeat': { ts: string }
+  'cockpit-proposal': { proposalId: string, status: 'pending' | 'approved' | 'rejected' | 'failed' }
+  'cockpit-reset': { issueId: string }
 }
 
 // ── File Browser ──────────────────────────────────────────
