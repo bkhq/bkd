@@ -1,9 +1,10 @@
-import { ChevronRight, Home, LayoutGrid, Plus, Search, Settings } from 'lucide-react'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { Check, ChevronRight, Home, LayoutGrid, Link as LinkIcon, Plus, Search, Settings } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useProjects } from '@/hooks/use-kanban'
+import { useIssue, useProjects, useUpdateIssue } from '@/hooks/use-kanban'
 import { useRecentIssues } from '@/hooks/use-recent-issues'
+import { getIssueUrl } from '@/stores/server-store'
 import { usePanelStore } from '@/stores/panel-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
 
@@ -36,8 +37,64 @@ export function CockpitTopBar() {
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Resolve project + currently-open issue summary for the breadcrumb.
+  // `recent` is a cheap lookup that doesn't require the issue to be the
+  // active one yet; we fall back to a live useIssue() query for the
+  // authoritative title (the recent cache may lag by one keystroke after
+  // an inline edit) and for first-load when the issue isn't in recent yet.
   const project = projectAlias ? projects?.find(p => p.alias === projectAlias) : undefined
-  const issue = issueId ? recent.find(r => r.id === issueId) : undefined
+  const projectId = project?.id
+  const { data: liveIssue } = useIssue(projectId ?? '', issueId ?? '')
+  const recentIssue = issueId ? recent.find(r => r.id === issueId) : undefined
+  const issue = useMemo(
+    () =>
+      liveIssue
+        ? {
+            id: liveIssue.id,
+            title: liveIssue.title,
+            issueNumber: liveIssue.issueNumber,
+            statusId: liveIssue.statusId,
+          }
+        : recentIssue,
+    [liveIssue, recentIssue],
+  )
+
+  // Inline title editing — replaces the click-to-edit affordance that
+  // previously lived in ChatArea's title bar. Same Enter/Escape semantics.
+  const updateIssue = useUpdateIssue(projectId ?? '')
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
+  const titleInputRef = useRef<HTMLInputElement>(null)
+  const startEditingTitle = useCallback(() => {
+    if (!issue || !projectId) return
+    setTitleDraft(issue.title)
+    setEditingTitle(true)
+    requestAnimationFrame(() => titleInputRef.current?.focus())
+  }, [issue, projectId])
+  const saveTitle = useCallback(() => {
+    if (!issue || !projectId) {
+      setEditingTitle(false)
+      return
+    }
+    const trimmed = titleDraft.trim()
+    if (trimmed && trimmed !== issue.title) {
+      updateIssue.mutate({ id: issue.id, title: trimmed })
+    }
+    setEditingTitle(false)
+  }, [titleDraft, issue, projectId, updateIssue])
+
+  // Copy-link affordance — used to live on the ChatArea title bar; moved
+  // here so the cockpit's single header row owns identity + actions.
+  const [copied, setCopied] = useState(false)
+  const copyIssueLink = useCallback(() => {
+    if (!projectId || !issue) return
+    navigator.clipboard
+      .writeText(getIssueUrl(projectId, issue.id))
+      .then(() => {
+        setCopied(true)
+        setTimeout(setCopied, 2000, false)
+      })
+      .catch(() => {})
+  }, [projectId, issue])
 
   // ⌘K opens the command palette (already wired globally by
   // GlobalCommandPalette). We just need a visible button as an entry point;
@@ -124,12 +181,50 @@ export function CockpitTopBar() {
                 #
                 {issue.issueNumber}
               </span>
-              <span
-                className="text-xs text-foreground/90 truncate min-w-0 flex-1"
-                title={issue.title}
+              {editingTitle ?
+                  (
+                    <input
+                      ref={titleInputRef}
+                      data-testid="cockpit-topbar-title-input"
+                      className="text-xs font-medium bg-transparent border-b border-primary outline-none min-w-0 flex-1 text-foreground"
+                      value={titleDraft}
+                      onChange={e => setTitleDraft(e.target.value)}
+                      onBlur={saveTitle}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          saveTitle()
+                        } else if (e.key === 'Escape') {
+                          setEditingTitle(false)
+                        }
+                      }}
+                    />
+                  ) :
+                  (
+                    <button
+                      type="button"
+                      data-testid="cockpit-topbar-title"
+                      onClick={startEditingTitle}
+                      title={t('issue.editTitle', 'Click to edit title')}
+                      className="text-xs text-foreground/90 truncate min-w-0 flex-1 text-left hover:text-primary transition-colors cursor-text"
+                    >
+                      {issue.title}
+                    </button>
+                  )}
+              <button
+                type="button"
+                data-testid="cockpit-topbar-copy-link"
+                onClick={copyIssueLink}
+                aria-label={t('issue.copyLink', 'Copy link')}
+                title={t('issue.copyLink', 'Copy link')}
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded transition-all duration-200 cursor-pointer ${
+                  copied
+                    ? 'text-emerald-500 scale-110'
+                    : 'text-muted-foreground/60 hover:bg-accent hover:text-foreground'
+                }`}
               >
-                {issue.title}
-              </span>
+                {copied ? <Check className="h-3 w-3" /> : <LinkIcon className="h-3 w-3" />}
+              </button>
             </>
           ) :
           (

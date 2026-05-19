@@ -32,6 +32,7 @@ export function ChatArea({
   onFileBrowserWidthChange,
   showBackToList,
   backPath,
+  hideTitleBar = false,
 }: {
   projectId: string
   issueId: string
@@ -44,6 +45,13 @@ export function ChatArea({
   onFileBrowserWidthChange: (w: number) => void
   showBackToList?: boolean
   backPath?: string
+  /**
+   * Suppress the in-chat title bar. Used by cockpit desktop layouts where
+   * CockpitTopBar already owns the breadcrumb + identity + actions, so the
+   * second header row is redundant. Mobile cockpit and the Kanban path
+   * leave this `false` because they have no TopBar.
+   */
+  hideTitleBar?: boolean
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -255,94 +263,98 @@ export function ChatArea({
               than a max-height collapse, eliminating the jank when content
               behind it suddenly grows or shrinks.
             – pointer-events stay enabled so the back button / title /
-              copy-link buttons remain tappable while chat scrolls behind. */}
-        <div
-          className={`flex items-center gap-1.5 px-2.5 py-1 border-b border-border/60 min-h-[36px] md:gap-2.5 md:px-3 md:py-2.5 md:min-h-[45px] bg-background/80 backdrop-blur-sm transition-transform duration-200 ease-out
+              copy-link buttons remain tappable while chat scrolls behind.
+            Suppressed entirely when `hideTitleBar` is set — cockpit desktop
+            uses CockpitTopBar for the same concerns. */}
+        {!hideTitleBar ? (
+          <div
+            className={`flex items-center gap-1.5 px-2.5 py-1 border-b border-border/60 min-h-[36px] md:gap-2.5 md:px-3 md:py-2.5 md:min-h-[45px] bg-background/80 backdrop-blur-sm transition-transform duration-200 ease-out
             md:shrink-0
             max-md:absolute max-md:top-0 max-md:left-0 max-md:right-0 max-md:z-20
             ${titleVisible ? '' : 'max-md:-translate-y-full'}`}
-        >
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 md:h-7 md:w-7 text-muted-foreground hover:text-foreground shrink-0 transition-colors"
-            onClick={() => navigate(resolvedBackPath)}
-            title={
-              backPath ?
-                  t('issue.backToList') :
-                showBackToList ?
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 md:h-7 md:w-7 text-muted-foreground hover:text-foreground shrink-0 transition-colors"
+              onClick={() => navigate(resolvedBackPath)}
+              title={
+                backPath ?
                     t('issue.backToList') :
-                    t('issue.backToBoard')
-            }
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-muted-foreground/70 bg-muted/50 rounded px-1.5 py-0.5 shrink-0 tabular-nums">
-                #
-                {issue.issueNumber}
-              </span>
-              {editingTitle ?
-                  (
-                    <input
-                      className="text-sm font-semibold bg-transparent border-b-2 border-primary outline-none min-w-0 flex-1 tracking-tight"
-                      value={titleDraft}
-                      onChange={e => setTitleDraft(e.target.value)}
-                      onBlur={saveTitle}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          saveTitle()
-                        } else if (e.key === 'Escape') {
-                          setEditingTitle(false)
-                        }
-                      }}
-                      autoFocus
-                    />
-                  ) :
-                  (
-                    <span
-                      className="text-sm font-semibold truncate cursor-pointer hover:text-primary transition-colors duration-200 tracking-tight decoration-primary/30 hover:underline underline-offset-2"
-                      onClick={startEditingTitle}
-                      title={t('issue.editTitle')}
-                    >
-                      {issue.title}
-                    </span>
-                  )}
+                  showBackToList ?
+                      t('issue.backToList') :
+                      t('issue.backToBoard')
+              }
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-mono text-muted-foreground/70 bg-muted/50 rounded px-1.5 py-0.5 shrink-0 tabular-nums">
+                  #
+                  {issue.issueNumber}
+                </span>
+                {editingTitle ?
+                    (
+                      <input
+                        className="text-sm font-semibold bg-transparent border-b-2 border-primary outline-none min-w-0 flex-1 tracking-tight"
+                        value={titleDraft}
+                        onChange={e => setTitleDraft(e.target.value)}
+                        onBlur={saveTitle}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            saveTitle()
+                          } else if (e.key === 'Escape') {
+                            setEditingTitle(false)
+                          }
+                        }}
+                        autoFocus
+                      />
+                    ) :
+                    (
+                      <span
+                        className="text-sm font-semibold truncate cursor-pointer hover:text-primary transition-colors duration-200 tracking-tight decoration-primary/30 hover:underline underline-offset-2"
+                        onClick={startEditingTitle}
+                        title={t('issue.editTitle')}
+                      >
+                        {issue.title}
+                      </span>
+                    )}
+              </div>
             </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 md:h-7 md:w-7 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-            title={t('chat.search.openShortcut', '搜索此对话 (⌘F)')}
-            onClick={() => setSearchOpen(true)}
-          >
-            <Search className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`h-6 w-6 md:h-7 md:w-7 shrink-0 transition-all duration-200 ${copied ? 'text-emerald-500 scale-110' : 'text-muted-foreground hover:text-foreground'}`}
-            title={t('issue.copyLink')}
-            onClick={() => {
-              navigator.clipboard
-                .writeText(getIssueUrl(projectId, issueId))
-                .then(() => {
-                  setCopied(true)
-                  setTimeout(setCopied, 2000, false)
-                })
-                .catch(() => {})
-            }}
-          >
-            {copied ? <Check className="h-3.5 w-3.5" /> : <Link className="h-3.5 w-3.5" />}
-          </Button>
-          {/* Mobile-only quick access to terminal / settings / notes / project switch.
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 md:h-7 md:w-7 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+              title={t('chat.search.openShortcut', '搜索此对话 (⌘F)')}
+              onClick={() => setSearchOpen(true)}
+            >
+              <Search className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-6 w-6 md:h-7 md:w-7 shrink-0 transition-all duration-200 ${copied ? 'text-emerald-500 scale-110' : 'text-muted-foreground hover:text-foreground'}`}
+              title={t('issue.copyLink')}
+              onClick={() => {
+                navigator.clipboard
+                  .writeText(getIssueUrl(projectId, issueId))
+                  .then(() => {
+                    setCopied(true)
+                    setTimeout(setCopied, 2000, false)
+                  })
+                  .catch(() => {})
+              }}
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Link className="h-3.5 w-3.5" />}
+            </Button>
+            {/* Mobile-only quick access to terminal / settings / notes / project switch.
               Without this, reaching settings from the chat required two back-navs
               (chat → list → hamburger). MobileSidebarTrigger is itself md:hidden. */}
-          <MobileSidebar activeProjectId={projectId} side="right" />
-        </div>
+            <MobileSidebar activeProjectId={projectId} side="right" />
+          </div>
+        ) : null}
 
         {/* Cockpit overview that "follows" the user into an issue — they no
             longer lose the global matrix when reading a single chat. Desktop

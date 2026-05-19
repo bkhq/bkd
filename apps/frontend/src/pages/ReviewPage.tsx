@@ -4,7 +4,6 @@ import { CockpitDashboard } from '@/components/cockpit/CockpitDashboard'
 import { CockpitTopBar } from '@/components/cockpit/CockpitTopBar'
 import { MobileCockpitTabs } from '@/components/cockpit/MobileCockpitTabs'
 import type { CockpitMobileMode } from '@/components/cockpit/MobileCockpitTabs'
-import { RecentTabs } from '@/components/cockpit/RecentTabs'
 import { CreateIssueDialog } from '@/components/kanban/CreateIssueDialog'
 import { ChatArea } from '@/components/issue-detail/ChatArea'
 import { DIFF_MIN_WIDTH } from '@/components/issue-detail/diff-constants'
@@ -168,21 +167,16 @@ export default function ReviewPage() {
           ) :
         null}
 
-      {/* Main column: TopBar + RecentTabs (desktop only) + chat/dashboard.
+      {/* Main column: TopBar (desktop only) + chat/dashboard.
           Skipped when the mobile-cockpit branch already owns the main area.
-          TopBar + RecentTabs are desktop-only — mobile relies on segmented
-          control + FAB cluster, adding TopBar would clutter further. */}
+          TopBar is desktop-only — mobile relies on segmented control + FAB
+          cluster, adding TopBar would clutter further. RecentTabs was
+          removed; the left ReviewListPanel already covers in-project
+          navigation, and cross-project jumps go through ⌘K. */}
       {!showMobileCockpit ?
           (
             <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-              {!isMobile ?
-                  (
-                    <>
-                      <CockpitTopBar />
-                      <RecentTabs />
-                    </>
-                  ) :
-                null}
+              {!isMobile ? <CockpitTopBar /> : null}
               {issueId && projectId ?
                   (
                     <ChatArea
@@ -198,6 +192,11 @@ export default function ReviewPage() {
                       onFileBrowserWidthChange={handleFileBrowserWidthChange}
                       showBackToList
                       backPath="/review"
+                      // CockpitTopBar already owns the breadcrumb, title
+                      // editor, copy-link, and back-to-cockpit action on
+                      // desktop. Mobile cockpit has no TopBar, so keep the
+                      // in-chat title bar as the only identity surface.
+                      hideTitleBar={!isMobile}
                     />
                   ) :
                   !isMobile && !hideListPanel ?

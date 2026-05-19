@@ -15,8 +15,11 @@ vi.mock('react-i18next', () => ({
 const useProjectsMock = vi.fn(() => ({
   data: [{ id: 'p1', name: 'Alpha Project', alias: 'alpha' }],
 }))
+const updateIssueMutate = vi.fn()
 vi.mock('@/hooks/use-kanban', () => ({
   useProjects: () => useProjectsMock(),
+  useIssue: () => ({ data: undefined }),
+  useUpdateIssue: () => ({ mutate: updateIssueMutate, isPending: false }),
 }))
 
 const openCreateMock = vi.fn()
@@ -58,6 +61,7 @@ describe('cockpitTopBar', () => {
     clearRecentIssues()
     navigateMock.mockReset()
     openCreateMock.mockReset()
+    updateIssueMutate.mockReset()
   })
   afterEach(() => clearRecentIssues())
 
@@ -109,6 +113,73 @@ describe('cockpitTopBar', () => {
     render(<Wrap><CockpitTopBar /></Wrap>)
     fireEvent.click(screen.getByTestId('cockpit-topbar-new'))
     expect(openCreateMock).toHaveBeenCalled()
+  })
+
+  // ── inline title edit (moved from ChatArea's title bar) ─────────────
+
+  function seedIssue() {
+    addRecentIssue({
+      id: 'i1',
+      title: 'Refactor auth flow',
+      issueNumber: 12,
+      projectAlias: 'alpha',
+      projectName: 'Alpha Project',
+      statusId: 'working',
+    })
+  }
+
+  it('clicking the breadcrumb title swaps it for an input prefilled with the title', () => {
+    seedIssue()
+    render(<Wrap initialPath="/review/alpha/i1"><CockpitTopBar /></Wrap>)
+    fireEvent.click(screen.getByTestId('cockpit-topbar-title'))
+    const input = screen.getByTestId('cockpit-topbar-title-input') as HTMLInputElement
+    expect(input.value).toBe('Refactor auth flow')
+  })
+
+  it('pressing Enter on the title input commits the change via useUpdateIssue', () => {
+    seedIssue()
+    render(<Wrap initialPath="/review/alpha/i1"><CockpitTopBar /></Wrap>)
+    fireEvent.click(screen.getByTestId('cockpit-topbar-title'))
+    const input = screen.getByTestId('cockpit-topbar-title-input') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'New title' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(updateIssueMutate).toHaveBeenCalledWith({ id: 'i1', title: 'New title' })
+    // After save the input is gone; the button is back.
+    expect(screen.queryByTestId('cockpit-topbar-title-input')).toBeNull()
+    expect(screen.getByTestId('cockpit-topbar-title')).toBeDefined()
+  })
+
+  it('pressing Escape cancels editing without calling the mutation', () => {
+    seedIssue()
+    render(<Wrap initialPath="/review/alpha/i1"><CockpitTopBar /></Wrap>)
+    fireEvent.click(screen.getByTestId('cockpit-topbar-title'))
+    const input = screen.getByTestId('cockpit-topbar-title-input') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'never persisted' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(updateIssueMutate).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('cockpit-topbar-title-input')).toBeNull()
+  })
+
+  it('does not call mutate when the title is unchanged', () => {
+    seedIssue()
+    render(<Wrap initialPath="/review/alpha/i1"><CockpitTopBar /></Wrap>)
+    fireEvent.click(screen.getByTestId('cockpit-topbar-title'))
+    const input = screen.getByTestId('cockpit-topbar-title-input') as HTMLInputElement
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(updateIssueMutate).not.toHaveBeenCalled()
+  })
+
+  // ── copy-link button (moved from ChatArea's title bar) ───────────────
+
+  it('renders the copy-link button when an issue is in context', () => {
+    seedIssue()
+    render(<Wrap initialPath="/review/alpha/i1"><CockpitTopBar /></Wrap>)
+    expect(screen.getByTestId('cockpit-topbar-copy-link')).toBeDefined()
+  })
+
+  it('does NOT render the copy-link button without an issue context', () => {
+    render(<Wrap initialPath="/review"><CockpitTopBar /></Wrap>)
+    expect(screen.queryByTestId('cockpit-topbar-copy-link')).toBeNull()
   })
 
   it('⌥← jumps to the previous recent issue when one is open', () => {

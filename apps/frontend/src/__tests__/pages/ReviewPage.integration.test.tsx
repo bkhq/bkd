@@ -45,6 +45,8 @@ vi.mock('@/hooks/use-kanban', () => ({
   }),
   useProjects: () => ({ data: [{ id: 'p1', name: 'Alpha', alias: 'alpha' }] }),
   useReviewReadStatus: () => ({ markAsRead: vi.fn(), isRead: () => true }),
+  useIssue: () => ({ data: undefined }),
+  useUpdateIssue: () => ({ mutate: vi.fn(), isPending: false }),
   queryKeys: { issues: () => ['x'], issueStats: () => ['y'], reviewIssues: () => ['z'] },
 }))
 
@@ -70,6 +72,17 @@ vi.mock('@/components/cockpit/AssistantFab', () => ({
 
 vi.mock('@/components/cockpit/ActivityStream', () => ({
   ActivityStream: () => <div data-testid="activity-stream-stub" />,
+}))
+
+// Capture ChatArea props so we can assert hideTitleBar wiring without
+// dragging the entire chat stack (ChatBody / ChatInput / useIssueStream
+// / file browser store) into the test.
+const chatAreaProps = vi.fn()
+vi.mock('@/components/issue-detail/ChatArea', () => ({
+  ChatArea: (props: Record<string, unknown>) => {
+    chatAreaProps(props)
+    return <div data-testid="chat-area-stub" />
+  },
 }))
 
 vi.mock('@/lib/event-bus', () => ({
@@ -164,5 +177,43 @@ describe('reviewPage integration — mobile, no issue selected', () => {
   it('list panel collapse button is NOT exposed on mobile', () => {
     render(<Wrapper><ReviewPage /></Wrapper>)
     expect(screen.queryByTestId('list-panel-collapse')).toBeNull()
+  })
+})
+
+// ── cockpit cleanup: RecentTabs removed, ChatArea title bar suppressed
+// on desktop, kept on mobile (no TopBar there). Pins both behaviors so a
+// later refactor can't silently bring back the dual-header / tab-strip
+// duplication users complained about.
+
+describe('reviewPage integration — cockpit cleanup', () => {
+  beforeEach(() => {
+    isMobileMock.mockReturnValue(false)
+    chatAreaProps.mockReset()
+    useViewModeStore.setState({ sidebarCollapsed: false, listPanelCollapsed: false })
+  })
+
+  it('does not render RecentTabs on desktop with no issue', () => {
+    render(<Wrapper><ReviewPage /></Wrapper>)
+    expect(screen.queryByTestId('recent-tabs')).toBeNull()
+  })
+
+  it('does not render RecentTabs on desktop with an open issue', () => {
+    render(<Wrapper initialPath="/review/alpha/i1"><ReviewPage /></Wrapper>)
+    expect(screen.queryByTestId('recent-tabs')).toBeNull()
+    expect(screen.getByTestId('chat-area-stub')).toBeDefined()
+  })
+
+  it('passes hideTitleBar=true to ChatArea on desktop cockpit', () => {
+    render(<Wrapper initialPath="/review/alpha/i1"><ReviewPage /></Wrapper>)
+    expect(chatAreaProps).toHaveBeenCalled()
+    const last = chatAreaProps.mock.calls.at(-1)?.[0] as Record<string, unknown>
+    expect(last.hideTitleBar).toBe(true)
+  })
+
+  it('passes hideTitleBar=false to ChatArea on mobile cockpit (no TopBar there)', () => {
+    isMobileMock.mockReturnValue(true)
+    render(<Wrapper initialPath="/review/alpha/i1"><ReviewPage /></Wrapper>)
+    const last = chatAreaProps.mock.calls.at(-1)?.[0] as Record<string, unknown>
+    expect(last.hideTitleBar).toBe(false)
   })
 })
