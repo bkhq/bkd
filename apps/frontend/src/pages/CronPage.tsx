@@ -6,12 +6,15 @@ import {
   ChevronRight,
   Clock,
   Loader2,
+  Pause,
+  Play,
   StickyNote,
   TerminalSquare,
   Timer,
   Trash2,
   XCircle,
 } from 'lucide-react'
+import type { MouseEvent } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -19,7 +22,7 @@ import { AppLogo } from '@/components/AppLogo'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { useCronJobs } from '@/hooks/use-kanban'
+import { useCronJobs, usePauseCronJob, useResumeCronJob } from '@/hooks/use-kanban'
 import type { CronJob, CronJobLog, CronJobLogsResponse } from '@/lib/kanban-api'
 import { kanbanApi } from '@/lib/kanban-api'
 import { useNotesStore } from '@/stores/notes-store'
@@ -74,6 +77,42 @@ function StatusBadge({ status }: { status: string }) {
   }
 }
 
+/* -- Pause / resume toggle -------------------------------- */
+
+function JobActionButton({ job }: { job: CronJob }) {
+  const { t } = useTranslation()
+  const pause = usePauseCronJob()
+  const resume = useResumeCronJob()
+  const pending = pause.isPending || resume.isPending
+
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation()
+    if (pending) return
+    if (job.enabled) pause.mutate(job.id)
+    else resume.mutate(job.id)
+  }
+
+  const label = job.enabled ? t('cron.pause') : t('cron.resume')
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+      disabled={pending}
+      onClick={handleClick}
+      title={label}
+      aria-label={label}
+    >
+      {pending
+        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        : job.enabled
+          ? <Pause className="h-3.5 w-3.5" />
+          : <Play className="h-3.5 w-3.5" />}
+    </Button>
+  )
+}
+
 /* -- Job list view ---------------------------------------- */
 
 function CronJobList({
@@ -125,7 +164,12 @@ function CronJobList({
                         {t('cron.deleted')}
                       </Badge>
                     )
-                  : <StatusBadge status={job.enabled ? job.status : 'disabled'} />}
+                  : (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <StatusBadge status={job.enabled ? job.status : 'disabled'} />
+                        <JobActionButton job={job} />
+                      </div>
+                    )}
               </div>
               <div className="space-y-1 text-[11px] text-muted-foreground">
                 {!isDeletedView && (
@@ -257,6 +301,7 @@ function CronJobLogView({ job, onBack }: { job: CronJob, onBack: () => void }) {
         <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
           <span className="font-mono">{job.cron}</span>
           {!job.isDeleted && <StatusBadge status={job.enabled ? job.status : 'disabled'} />}
+          {!job.isDeleted && <JobActionButton job={job} />}
           {job.nextExecution && !job.isDeleted && (
             <span className="text-[11px]">
               {t('cron.nextExecution')}
@@ -386,6 +431,10 @@ export default function CronPage() {
 
   const activeJobs = jobs?.filter(j => !j.isDeleted) ?? []
   const deletedJobs = jobs?.filter(j => j.isDeleted) ?? []
+  // Keep the detail view in sync with live query data after pause/resume
+  const liveSelectedJob = selectedJob
+    ? (jobs?.find(j => j.id === selectedJob.id) ?? selectedJob)
+    : null
 
   return (
     <main className="min-h-screen text-foreground animate-page-enter">
@@ -442,10 +491,10 @@ export default function CronPage() {
               </div>
             ))}
           </div>
-        ) : selectedJob ? (
+        ) : liveSelectedJob ? (
           <CronJobLogView
-            key={selectedJob.id}
-            job={selectedJob}
+            key={liveSelectedJob.id}
+            job={liveSelectedJob}
             onBack={() => setSelectedJob(null)}
           />
         ) : (

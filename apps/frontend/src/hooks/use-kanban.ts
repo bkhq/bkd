@@ -1038,3 +1038,23 @@ export function useCronJobLogs(jobId: string | null, opts?: { limit?: number }) 
     staleTime: STALE_TIME.STANDARD,
   })
 }
+
+export function usePauseCronJob() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (jobId: string) => kanbanApi.pauseCronJob(jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cronJobs() })
+    },
+  })
+}
+
+export function useResumeCronJob() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (jobId: string) => kanbanApi.resumeCronJob(jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cronJobs() })
+    },
+  })
+}

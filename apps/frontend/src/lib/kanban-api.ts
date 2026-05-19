@@ -645,4 +645,8 @@ export const kanbanApi = {
     const qs = params.toString()
     return get<CronJobLogsResponse>(`/api/cron/${jobId}/logs${qs ? `?${qs}` : ''}`)
   },
+  pauseCronJob: (jobId: string) =>
+    post<{ paused: boolean, name: string }>(`/api/cron/${jobId}/pause`, {}),
+  resumeCronJob: (jobId: string) =>
+    post<{ resumed: boolean, name: string }>(`/api/cron/${jobId}/resume`, {}),
 }
