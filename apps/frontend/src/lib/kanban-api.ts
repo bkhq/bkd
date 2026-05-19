@@ -376,6 +376,8 @@ export const kanbanApi = {
     ),
   cockpitReset: () =>
     post<{ deletedIssueId: string | null }>('/api/cockpit/reset', {}),
+  cockpitSetEngine: (engineType: string) =>
+    post<{ issueId: string, engineType: string }>('/api/cockpit/engine', { engineType }),
   listCockpitProposals: () =>
     get<Array<{
       id: string

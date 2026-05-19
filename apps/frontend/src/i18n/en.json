@@ -550,6 +550,8 @@
       "reset": "Reset session",
       "resetConfirmTitle": "Reset AI session?",
       "resetConfirmBody": "The conversation history will be archived and a fresh session will start on your next message. Pending proposals are unaffected.",
+      "engineTitle": "Change engine (resets session)",
+      "engineNoMcp": "cockpit_* tools require claude-code-sdk; selected engine cannot call them.",
       "suggest": {
         "title": "Try asking",
         "stuck": "What's stuck right now?",

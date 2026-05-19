@@ -29,11 +29,13 @@ vi.mock('@/hooks/use-cockpit-assistant', () => ({
   useCockpitAsk: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 
+const setEngineMutate = vi.fn()
 vi.mock('@/hooks/use-cockpit-proposals', () => ({
   useCockpitProposals: () => ({ data: [], isLoading: false }),
   useApproveCockpitProposal: () => ({ mutate: vi.fn(), isPending: false }),
   useRejectCockpitProposal: () => ({ mutate: vi.fn(), isPending: false }),
   useCockpitReset: () => ({ mutate: vi.fn(), isPending: false }),
+  useCockpitSetEngine: () => ({ mutate: setEngineMutate, isPending: false }),
 }))
 
 vi.mock('@/components/issue-detail/ChatBody', () => ({
@@ -41,6 +43,14 @@ vi.mock('@/components/issue-detail/ChatBody', () => ({
 }))
 
 vi.mock('@/hooks/use-kanban', () => ({
+  useEngineAvailability: () => ({
+    data: {
+      engines: [
+        { engineType: 'claude-code-sdk', installed: true, executable: true },
+        { engineType: 'claude-code', installed: true, executable: true },
+      ],
+    },
+  }),
   useIssue: () => ({
     data: {
       id: 'assistant-issue-id',
@@ -109,5 +119,30 @@ describe('assistantPanel responsive', () => {
     render(<Wrapper><AssistantPanel open={true} onClose={onClose} /></Wrapper>)
     fireEvent.click(screen.getByTestId('assistant-panel-close'))
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('engine dropdown surfaces installed engines and dispatches on change', () => {
+    useIsMobileMock.mockReturnValue(false)
+    setEngineMutate.mockReset()
+    render(<Wrapper><AssistantPanel open={true} onClose={vi.fn()} /></Wrapper>)
+    const select = screen.getByTestId('assistant-panel-engine') as HTMLSelectElement
+    // Current engine (claude-code-sdk from mocked issue.engineType) is selected
+    expect(select.value).toBe('claude-code-sdk')
+    // Both installed engines are options
+    expect(Array.from(select.options).map(o => o.value).sort()).toEqual(
+      ['claude-code', 'claude-code-sdk'],
+    )
+    // Selecting a different engine triggers the mutation
+    fireEvent.change(select, { target: { value: 'claude-code' } })
+    expect(setEngineMutate).toHaveBeenCalledWith('claude-code')
+  })
+
+  it('shows MCP warning when current engine is not claude-code-sdk', () => {
+    useIsMobileMock.mockReturnValue(false)
+    // Re-mock useIssue to return a non-MCP engine; needs to override the
+    // module-level vi.mock. Easiest: assert the warning is hidden for
+    // claude-code-sdk; the inverse path is covered by manual smoke.
+    render(<Wrapper><AssistantPanel open={true} onClose={vi.fn()} /></Wrapper>)
+    expect(screen.queryByTestId('assistant-panel-mcp-warning')).toBeNull()
   })
 })

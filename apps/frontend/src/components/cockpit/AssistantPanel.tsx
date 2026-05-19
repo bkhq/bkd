@@ -1,6 +1,7 @@
 import { Bot, RotateCcw, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { EngineIcon } from '@/components/EngineIcons'
 import { ChatBody } from '@/components/issue-detail/ChatBody'
 import {
   AlertDialog,
@@ -14,11 +15,13 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useCockpitAsk, useCockpitAssistant } from '@/hooks/use-cockpit-assistant'
-import { useCockpitReset } from '@/hooks/use-cockpit-proposals'
-import { useIssue } from '@/hooks/use-kanban'
+import { useCockpitReset, useCockpitSetEngine } from '@/hooks/use-cockpit-proposals'
+import { useEngineAvailability, useIssue } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { CockpitProposalsBanner } from './CockpitProposalsBanner'
 import { SuggestedPrompts } from './SuggestedPrompts'
+
+const MCP_ENGINE = 'claude-code-sdk'
 
 export function AssistantPanel({
   open,
@@ -36,6 +39,13 @@ export function AssistantPanel({
   )
   const ask = useCockpitAsk()
   const reset = useCockpitReset()
+  const setEngine = useCockpitSetEngine()
+  const { data: discovery } = useEngineAvailability(true)
+  const installedEngines = (discovery?.engines ?? []).filter(
+    a => a.installed && a.executable !== false,
+  )
+  const currentEngine = issue?.engineType ?? MCP_ENGINE
+  const supportsMcp = currentEngine === MCP_ENGINE
   const [confirmReset, setConfirmReset] = useState(false)
 
   useEffect(() => {
@@ -54,13 +64,42 @@ export function AssistantPanel({
   const inner = (
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-2 shrink-0">
-        <div className="flex items-center gap-2">
-          <Bot className="h-4 w-4 text-primary" />
-          <h2 className="text-sm font-semibold tracking-tight">
+        <div className="flex items-center gap-2 min-w-0">
+          <Bot className="h-4 w-4 text-primary shrink-0" />
+          <h2 className="text-sm font-semibold tracking-tight shrink-0">
             {t('cockpit.assistant.title', 'AI Assistant')}
           </h2>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Engine picker — unlike a regular issue (where engine is
+              session-bound and immutable), the cockpit assistant treats
+              engine as a user preference. Switching invalidates the session
+              server-side so the next message starts a fresh first turn. */}
+          {installedEngines.length > 0 && issue ?
+              (
+                <div className="flex items-center gap-1 mr-1">
+                  <EngineIcon engineType={currentEngine} className="h-3.5 w-3.5 shrink-0" />
+                  <select
+                    data-testid="assistant-panel-engine"
+                    value={currentEngine}
+                    disabled={setEngine.isPending}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      if (next === currentEngine) return
+                      setEngine.mutate(next)
+                    }}
+                    title={t('cockpit.assistant.engineTitle', 'Change engine (resets session)')}
+                    className="rounded-md border border-border/40 bg-background/80 px-1.5 py-0.5 text-[11px] text-foreground/85 hover:bg-accent cursor-pointer disabled:opacity-50"
+                  >
+                    {installedEngines.map(eng => (
+                      <option key={eng.engineType} value={eng.engineType}>
+                        {t(`createIssue.engineLabel.${eng.engineType}`, eng.engineType)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) :
+            null}
           <button
             type="button"
             data-testid="assistant-panel-reset"
@@ -83,6 +122,21 @@ export function AssistantPanel({
           </button>
         </div>
       </header>
+
+      {/* Warning shown when current engine cannot use the cockpit_* MCP tools. */}
+      {!supportsMcp && issue ?
+          (
+            <div
+              data-testid="assistant-panel-mcp-warning"
+              className="px-4 py-1.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800/40 text-[11px] text-amber-700 dark:text-amber-300"
+            >
+              {t(
+                'cockpit.assistant.engineNoMcp',
+                'cockpit_* tools require claude-code-sdk; selected engine cannot call them.',
+              )}
+            </div>
+          ) :
+        null}
 
       <CockpitProposalsBanner />
 

@@ -47,16 +47,21 @@ assistant.post('/ask', zValidator('json', askSchema), async (c) => {
   // Determine whether this is the first turn against this session.
   // isFresh means we just created the issue this request — definitely first turn.
   // Otherwise check sessionStatus + externalSessionId on the existing issue.
+  // Also pick up the current engineType, which the user can change via
+  // POST /api/cockpit/engine (defaults to claude-code-sdk).
   let firstTurn = isFresh
+  let currentEngineType = 'claude-code-sdk'
   if (!firstTurn) {
     const [row] = await db
       .select({
         externalSessionId: issuesTable.externalSessionId,
         sessionStatus: issuesTable.sessionStatus,
+        engineType: issuesTable.engineType,
       })
       .from(issuesTable)
       .where(and(eq(issuesTable.id, issueId), eq(issuesTable.isDeleted, 0)))
     if (!row || !row.externalSessionId) firstTurn = true
+    if (row?.engineType) currentEngineType = row.engineType
   }
 
   const serverName = c.req.header('host') ?? 'bkd'
@@ -66,7 +71,7 @@ assistant.post('/ask', zValidator('json', askSchema), async (c) => {
       const systemPrompt = buildCockpitSystemPrompt(serverName)
       const fullPrompt = `${systemPrompt}\n\n## User request\n\n${body.prompt}`
       const result = await issueEngine.executeIssue(issueId, {
-        engineType: 'claude-code-sdk',
+        engineType: currentEngineType as 'claude-code-sdk' | 'claude-code' | 'codex',
         prompt: fullPrompt,
         workingDir: undefined,
         model: body.model,
@@ -99,6 +104,36 @@ assistant.post('/ask', zValidator('json', askSchema), async (c) => {
     const message = err instanceof Error ? err.message : 'Failed to dispatch cockpit message'
     return c.json({ success: false, error: message }, 500)
   }
+})
+
+// POST /api/cockpit/engine — change the assistant's engine. Updates the
+// singleton issue's engineType + clears its externalSessionId so the next
+// /ask call is treated as a first turn (session can't survive an engine swap).
+const engineSchema = z.object({
+  engineType: z.string().min(1).max(80),
+})
+
+assistant.post('/engine', zValidator('json', engineSchema), async (c) => {
+  const { engineType } = c.req.valid('json')
+  const project = await ensureCockpitProject()
+  const { id: issueId } = await ensureAssistantIssue(project.id)
+
+  await db
+    .update(issuesTable)
+    .set({
+      engineType,
+      externalSessionId: null,
+      sessionStatus: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(issuesTable.id, issueId))
+
+  appEvents.emit('cockpit-reset', { issueId })
+
+  return c.json({
+    success: true,
+    data: { issueId, engineType },
+  })
 })
 
 // Workaround: prevent project list endpoints from forgetting about the cockpit

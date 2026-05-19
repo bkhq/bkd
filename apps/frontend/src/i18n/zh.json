@@ -547,6 +547,8 @@
       "reset": "重置会话",
       "resetConfirmTitle": "重置 AI 会话？",
       "resetConfirmBody": "对话历史将被归档，下一次提问会开启全新会话。待批准的提案不受影响。",
+      "engineTitle": "切换引擎（会重置会话）",
+      "engineNoMcp": "cockpit_* 工具仅在 claude-code-sdk 可用，当前引擎无法调用。",
       "suggest": {
         "title": "试试问",
         "stuck": "当前有什么卡住的任务？",

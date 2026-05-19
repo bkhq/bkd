@@ -54,3 +54,16 @@ export function useCockpitReset() {
     },
   })
 }
+
+export function useCockpitSetEngine() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (engineType: string) => kanbanApi.cockpitSetEngine(engineType),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.cockpitAssistant() })
+      qc.invalidateQueries({
+        predicate: q => q.queryKey[0] === 'projects' && q.queryKey.includes('issues'),
+      })
+    },
+  })
+}
