@@ -451,6 +451,33 @@ export const kanbanApi = {
   rejectCockpitProposal: (id: string) =>
     post<{ status: string }>(`/api/cockpit/proposals/${id}/reject`, {}),
 
+  // Cockpit timeline (COCKPIT-007)
+  listCockpitTimeline: (opts: { limit?: number, before?: number } = {}) => {
+    const qs = new URLSearchParams()
+    if (opts.limit != null) qs.set('limit', String(opts.limit))
+    if (opts.before != null) qs.set('before', String(opts.before))
+    const tail = qs.toString()
+    return get<{
+      messages: import('@bkd/shared').CockpitTimelineMessage[]
+      counts: Record<import('@bkd/shared').CockpitTimelineMessageKind, number>
+    }>(`/api/cockpit/timeline${tail ? `?${tail}` : ''}`)
+  },
+  ackCockpitTimelineMessage: (id: string) =>
+    post<import('@bkd/shared').CockpitTimelineMessage>(`/api/cockpit/timeline/${id}/ack`, {}),
+  dismissCockpitTimelineMessage: (id: string) =>
+    post<import('@bkd/shared').CockpitTimelineMessage>(`/api/cockpit/timeline/${id}/dismiss`, {}),
+  snoozeCockpitTimelineMessage: (id: string, untilMs: number) =>
+    post<import('@bkd/shared').CockpitTimelineMessage>(`/api/cockpit/timeline/${id}/snooze`, { untilMs }),
+  /**
+   * One-shot proposal: create and approve in a single request. Used by the
+   * always-on bot timeline action buttons where the click *is* the approval.
+   */
+  executeCockpitAction: (type: string, params: Record<string, unknown>) =>
+    post<{ proposalId: string, status: string, result?: unknown }>(
+      '/api/cockpit/proposals/execute',
+      { type, params },
+    ),
+
   // Issue templates
   listIssueTemplates: () =>
     get<Array<{

@@ -1,5 +1,6 @@
 import { streamSSE } from 'hono/streaming'
 import { createOpenAPIRouter } from '@/openapi/hono'
+import { subscribeTimeline } from '@/cockpit/timeline'
 import { isVisible } from '@/engines/issue/utils/visibility'
 import { appEvents } from '@/events'
 import { logger } from '@/logger'
@@ -103,6 +104,11 @@ events.get('/', async (c) => {
         writeEvent('cockpit-reset', data)
       })
 
+      // Cockpit timeline deltas (always-on bot stream)
+      const unsubCockpitTimeline = subscribeTimeline((delta) => {
+        writeEvent('cockpit-timeline', delta)
+      })
+
       // Heartbeat every 15s — keeps connection alive and detects client disconnect
       const heartbeat = setInterval(() => {
         if (done) return
@@ -123,6 +129,7 @@ events.get('/', async (c) => {
         unsubChangesSummary()
         unsubCockpitProposal()
         unsubCockpitReset()
+        unsubCockpitTimeline()
         logger.debug('global_sse_closed')
       }
     })

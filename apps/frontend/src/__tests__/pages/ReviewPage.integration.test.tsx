@@ -47,7 +47,12 @@ vi.mock('@/hooks/use-kanban', () => ({
   useReviewReadStatus: () => ({ markAsRead: vi.fn(), isRead: () => true }),
   useIssue: () => ({ data: undefined }),
   useUpdateIssue: () => ({ mutate: vi.fn(), isPending: false }),
-  queryKeys: { issues: () => ['x'], issueStats: () => ['y'], reviewIssues: () => ['z'] },
+  queryKeys: {
+    issues: () => ['x'],
+    issueStats: () => ['y'],
+    reviewIssues: () => ['z'],
+    cockpitTimeline: () => ['ct'],
+  },
 }))
 
 vi.mock('@/hooks/use-issue-templates', () => ({
@@ -74,6 +79,14 @@ vi.mock('@/components/cockpit/ActivityStream', () => ({
   ActivityStream: () => <div data-testid="activity-stream-stub" />,
 }))
 
+// Stub the always-on bot timeline (COCKPIT-007). The dashboard now puts
+// it ahead of Matrix + ActivityStream as the primary surface; layout
+// tests only care that the dashboard mounts, not that the timeline
+// renders messages.
+vi.mock('@/components/cockpit/BotTimeline', () => ({
+  BotTimeline: () => <div data-testid="bot-timeline-stub" />,
+}))
+
 // Capture ChatArea props so we can assert hideTitleBar wiring without
 // dragging the entire chat stack (ChatBody / ChatInput / useIssueStream
 // / file browser store) into the test.
@@ -89,6 +102,7 @@ vi.mock('@/lib/event-bus', () => ({
   eventBus: {
     onIssueUpdated: () => () => {},
     onCockpitProposal: () => () => {},
+    onCockpitTimeline: () => () => {},
   },
 }))
 
@@ -115,14 +129,16 @@ describe('reviewPage integration — desktop, no issue selected', () => {
     })
   })
 
-  it('renders sidebar + review list + CockpitDashboard (matrix + activity)', () => {
+  it('renders sidebar + review list + CockpitDashboard (bot timeline)', () => {
     render(<Wrapper><ReviewPage /></Wrapper>)
     expect(screen.getByTestId('app-sidebar-stub')).toBeDefined()
-    // Matrix rendered (desktop variant) via project p1
-    expect(screen.getByTestId('cockpit-matrix-row-p1')).toBeDefined()
-    // Activity stream stub mounted
-    expect(screen.getByTestId('activity-stream-stub')).toBeDefined()
-    // AI assistant FAB present
+    // Always-on bot timeline is the primary cockpit surface (COCKPIT-007).
+    expect(screen.getByTestId('bot-timeline-stub')).toBeDefined()
+    // Matrix + ActivityStream sit behind a lazy "Show raw activity"
+    // disclosure and must NOT be mounted on initial render.
+    expect(screen.queryByTestId('cockpit-matrix-row-p1')).toBeNull()
+    expect(screen.queryByTestId('activity-stream-stub')).toBeNull()
+    // AI assistant FAB still present
     expect(screen.getByTestId('assistant-fab-stub')).toBeDefined()
   })
 
@@ -168,8 +184,10 @@ describe('reviewPage integration — mobile, no issue selected', () => {
     fireEvent.click(screen.getByTestId('cockpit-mobile-tab-cockpit'))
     // List panel collapse button should NOT be present (we are in cockpit mode)
     expect(screen.queryByTestId('list-panel-collapse')).toBeNull()
-    // Matrix should be the mobile card variant
-    expect(screen.getByTestId('cockpit-matrix-mobile-card-p1')).toBeDefined()
+    // Always-on bot timeline is the primary mobile cockpit surface.
+    expect(screen.getByTestId('bot-timeline-stub')).toBeDefined()
+    // Matrix lives under the lazy disclosure and is not mounted by default.
+    expect(screen.queryByTestId('cockpit-matrix-mobile-card-p1')).toBeNull()
     // Mobile tabs still present (rendered in the cockpit container header)
     expect(screen.getAllByTestId('cockpit-mobile-tabs').length).toBeGreaterThan(0)
   })

@@ -13,6 +13,7 @@ import {
   stopPeriodicReconciliation,
 } from './engines/reconciler'
 import { refreshGlobalEnvCache } from './engines/safe-env'
+import { startCockpitDigestBridge } from './cockpit/digest-bridge'
 import { startChangesSummaryWatcher, stopChangesSummaryWatcher } from './events/changes-summary'
 import { startCron } from './cron'
 import { logger } from './logger'
@@ -98,6 +99,9 @@ startPeriodicReconciliation()
 
 // Start watching for file changes to push summaries via SSE
 startChangesSummaryWatcher()
+
+// Wire the cockpit always-on bot timeline (COCKPIT-007 / PLAN-020)
+const stopCockpitDigestBridge = startCockpitDigestBridge()
 
 // Initialize webhook dispatcher (subscribes to event bus)
 initWebhookDispatcher()
@@ -190,6 +194,7 @@ registerShutdownForUpgrade(async () => {
   stopCron()
   stopPeriodicCheck()
   stopDeliveryCleanup()
+  stopCockpitDigestBridge()
   await issueEngine.cancelAll()
   http.stop()
   releasePidLock()
@@ -229,6 +234,7 @@ async function shutdown(signal: string) {
   stopCron()
   stopPeriodicCheck()
   stopDeliveryCleanup()
+  stopCockpitDigestBridge()
 
   // Cancel all active engine processes before shutting down
   await issueEngine.cancelAll()

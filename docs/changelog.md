@@ -617,3 +617,168 @@ Fix OpenCode (ACP) hanging indefinitely when quota is exhausted or API calls fai
 Files changed:
 - `apps/api/src/engines/executors/acp/protocol-handler.ts`
 - `apps/api/src/engines/issue/constants.ts`
+
+## 2026-05-19 18:00 [progress]
+
+COCKPIT-007 / PLAN-020 M1 — Always-on bot timeline (replaces cockpit
+Overview).
+
+The cockpit Overview no longer shows ProjectMatrix + ActivityStream as
+the primary surface. Instead, a persistent bot-authored timeline reads
+each issue that settles into `review` and posts:
+- `suggest_merge` — diff looks clean, last assistant turn is conclusive,
+  no pending AskUserQuestion. One-click "Move to done" via a new
+  `merge_issue` proposal type (status-only flip; no git ops).
+- `alert_off_track` — diff touched > 8 files (M1 heuristic). Suggests
+  taking a look or cancelling the run.
+
+Pure event-driven (no polling): the digest bridge listens on
+`issue-updated` (engine-source review transitions) and `changes-summary`
+events; cold-start scans review-status issues on boot.
+
+ProjectMatrix + ActivityStream stay reachable under a lazy-mounted
+"Show raw activity" disclosure — closed state does not subscribe to SSE.
+
+M2 (reply drafts, repeated-failures bucket, bulk-merge with
+overlap detection, snooze presets) and M3 (mobile swipe, telemetry,
+a11y) are not in this slice.
+
+Files changed:
+- `apps/api/drizzle/0022_cockpit_timeline.sql`
+- `apps/api/src/db/schema.ts`
+- `apps/api/src/cockpit/timeline.ts` (new)
+- `apps/api/src/cockpit/classifier.ts` (new)
+- `apps/api/src/cockpit/digest-bridge.ts` (new)
+- `apps/api/src/cockpit/proposals.ts`
+- `apps/api/src/routes/cockpit/timeline.ts` (new)
+- `apps/api/src/routes/cockpit/proposals.ts`
+- `apps/api/src/routes/api.ts`
+- `apps/api/src/routes/events.ts`
+- `apps/api/src/index.ts`
+- `packages/shared/src/index.ts`
+- `apps/frontend/src/components/cockpit/BotTimeline.tsx` (new)
+- `apps/frontend/src/components/cockpit/CockpitDashboard.tsx`
+- `apps/frontend/src/hooks/use-cockpit-timeline.ts` (new)
+- `apps/frontend/src/hooks/use-kanban.ts`
+- `apps/frontend/src/lib/event-bus.ts`
+- `apps/frontend/src/lib/kanban-api.ts`
+- `apps/frontend/src/i18n/{en,zh}.json`
+
+Tracking: COCKPIT-007 / PLAN-020.
+
+## 2026-05-19 18:50 [progress]
+
+COCKPIT-007 / PLAN-020 M2 — Reply input + repeated-failure tracking +
+bulk merge.
+
+Three new bot-timeline kinds + actions:
+- `suggest_reply` — fires when `AskUserQuestion` is detected in the
+  last turn. Row renders an inline `<Textarea>`; submitting calls
+  `send_reply` proposal, which dispatches `issueEngine.followUpIssue()`
+  on the user's behalf. No LLM-drafted reply (deferred to M3); the
+  user types it directly. AskUserQuestion no longer blocks the
+  timeline — it diverts merge → reply.
+- `alert_repeat_fail` — in-process rolling counter of failed /
+  cancelled executions per issueId in a 24h window. Threshold 3
+  triggers the row. Fires regardless of issue status (working /
+  review). Successful completion resets the counter. Takes priority
+  over merge / off-track buckets so noisy issues surface first.
+- `bulk_merge` proposal — bulk-merges up to 5 issues in one shot.
+  Bulk-merge UI on the timeline shows a select-all + per-row
+  checkbox, runs through an `AlertDialog` that lists the affected
+  rows before the user confirms. Cap enforced server-side too.
+
+Removed:
+- Old behavior: AskUserQuestion silently blocked merge with no row.
+  Replaced by the explicit `suggest_reply` bucket above.
+
+Files changed:
+- `apps/api/src/cockpit/classifier.ts` (failure tracker + reply +
+  repeat-fail builders)
+- `apps/api/src/cockpit/digest-bridge.ts` (subscribe to `done`)
+- `apps/api/src/cockpit/proposals.ts` (new types)
+- `apps/api/src/cockpit/timeline.ts` (bucketCounts shape)
+- `apps/api/src/routes/cockpit/proposals.ts` (`bulk_merge`,
+  `send_reply` dispatchers + execute allowlist)
+- `apps/api/test/cockpit-classifier.test.ts` (+3)
+- `apps/api/test/cockpit-bulk-merge.test.ts` (new, 7 tests)
+- `packages/shared/src/index.ts` (kinds + reply-input action)
+- `apps/frontend/src/components/cockpit/BotTimeline.tsx` (bulk
+  toolbar, confirm dialog, inline reply textarea, two new buckets
+  in status strip)
+- `apps/frontend/src/hooks/use-cockpit-timeline.ts` (counts shape)
+- `apps/frontend/src/i18n/{en,zh}.json` (M2 keys)
+- `apps/frontend/src/__tests__/components/BotTimeline.test.tsx`
+  (+3: bulk toolbar visibility, bulk select-all + confirm dispatch,
+  reply input + send dispatch)
+
+Verification:
+- New API tests: 42 pass / 0 fail (3 files, classifier + timeline +
+  merge_issue + bulk_merge/send_reply).
+- New frontend tests: BotTimeline 10/10 pass.
+- Full api suite: 692 pass / 6 fail (pre-existing flakes) / 1 skip.
+- Full frontend suite: 320 pass / 0 fail (51 files).
+- `bun run lint`: clean (3 pre-existing warnings).
+
+Tracking: COCKPIT-007 / PLAN-020.
+
+## 2026-05-19 19:40 [progress]
+
+COCKPIT-007 / PLAN-020 M3 — Stale-in-working + deep-link + snooze
+presets + sound alerts.
+
+Four shipped:
+- **`alert_stale_working` bucket**: a periodic check every 10 minutes
+  (first sweep 60s after boot) finds issues stuck in `working` with
+  no log activity for ≥ 15 minutes and posts a row offering Cancel /
+  Restart / Open. This is the one place PLAN-020 accepts a timer —
+  staleness is time-derived, not event-derived.
+- **Deep-link routing**: the timeline `navigate` action now jumps
+  straight to `/review/<projectAlias>/<issueId>` (via the existing
+  ReviewPage route) instead of bouncing through `/review`.
+- **Snooze presets**: per-row Snooze button became a dropdown with
+  three presets — `1 hour`, `4 hours`, `Until tonight` (= local
+  23:59). The old single-button payload still works as a
+  back-compat fallback.
+- **Sound + browser notification opt-in**: a Bell / BellOff toggle
+  in the status strip. Off by default. When on, urgent kinds
+  (`alert_off_track` / `alert_repeat_fail` / `alert_stale_working` /
+  `suggest_reply`) play a short synthesized ding on each SSE append
+  and (if granted) fire a generic-title browser Notification.
+  Toggle state persists in `localStorage`. The toggle-on action
+  also unlocks AudioContext and requests notification permission in
+  one user gesture.
+
+Files changed:
+- `apps/api/src/cockpit/classifier.ts` (`buildStaleMessage`,
+  `issueIdleMinutes`, `listStaleWorkingIssueIds`, stale trigger)
+- `apps/api/src/cockpit/digest-bridge.ts` (10-min stale interval +
+  initial 60s sweep + teardown)
+- `apps/api/src/cockpit/timeline.ts` (bucketCounts shape)
+- `apps/api/test/cockpit-classifier.test.ts` (+2: stale bucket
+  positive + non-working refusal)
+- `packages/shared/src/index.ts` (new kind)
+- `apps/frontend/src/components/cockpit/BotTimeline.tsx`
+  (`playDing`, `endOfTodayMs`, Bell toggle, SSE-driven alert,
+  snooze DropdownMenu, deep-link, stale row tag + count)
+- `apps/frontend/src/hooks/use-cockpit-timeline.ts` (counts shape)
+- `apps/frontend/src/i18n/{en,zh}.json` (M3 keys)
+- `apps/frontend/src/__tests__/components/BotTimeline.test.tsx`
+  (+3: sound toggle persistence, snooze dropdown presence, 4h
+  preset; updated 1h preset to use dropdown path)
+
+Verification:
+- New cockpit tests: 34 pass / 0 fail (4 backend files).
+- BotTimeline: 13/13 pass.
+- Full api: 694 pass / 6 fail (same pre-existing flakes) / 1 skip.
+- Full frontend: 323 pass / 0 fail (51 files).
+- Lint + typecheck clean.
+
+Pending (still M3+):
+- LLM-drafted reply (lazy, cached).
+- Path-overlap detection on bulk merge.
+- Mobile swipe (reveal-then-tap) + long-press a11y fallback.
+- Telemetry on accept / open-instead / reverse.
+- AskUserQuestion exact tool-call match (waiting on ENG-002).
+
+Tracking: COCKPIT-007 / PLAN-020.

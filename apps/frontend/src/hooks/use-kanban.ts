@@ -52,6 +52,7 @@ export const queryKeys = {
   issueStats: () => ['issues', 'stats'] as const,
   cockpitAssistant: () => ['cockpit', 'assistant'] as const,
   cockpitProposals: () => ['cockpit', 'proposals'] as const,
+  cockpitTimeline: () => ['cockpit', 'timeline'] as const,
   logSearch: (query: string) => ['search', 'logs', query] as const,
   issueTemplates: () => ['issueTemplates'] as const,
   globalEnvVars: () => ['settings', 'globalEnvVars'] as const,

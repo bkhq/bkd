@@ -266,6 +266,27 @@ export const whiteboardNodes = sqliteTable(
   ],
 )
 
+export const cockpitTimelineMessages = sqliteTable(
+  'cockpit_timeline_messages',
+  {
+    id: id(),
+    kind: text('kind').notNull(),
+    projectId: text('project_id').references(() => projects.id),
+    issueId: text('issue_id').references(() => issues.id),
+    body: text('body').notNull(),
+    actions: text('actions').notNull().default('[]'),
+    signalKey: text('signal_key').notNull(),
+    status: text('status').notNull().default('open'),
+    snoozedUntil: integer('snoozed_until'),
+    ...commonFields,
+  },
+  table => [
+    index('cockpit_timeline_created_at_idx').on(table.createdAt),
+    index('cockpit_timeline_status_idx').on(table.status),
+    index('cockpit_timeline_issue_id_idx').on(table.issueId),
+  ],
+)
+
 export const issuesLogsToolsCall = sqliteTable(
   'issues_logs_tools_call',
   {

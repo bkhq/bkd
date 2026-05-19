@@ -1,12 +1,19 @@
-import { Activity, LayoutGrid } from 'lucide-react'
+import { ChevronDown, LayoutGrid } from 'lucide-react'
+import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityStream } from './ActivityStream'
 import { AssistantFab } from './AssistantFab'
-import { CockpitQuickCreate } from './CockpitQuickCreate'
-import { ProjectMatrix } from './ProjectMatrix'
+import { BotTimeline } from './BotTimeline'
+
+const ProjectMatrix = lazy(() =>
+  import('./ProjectMatrix').then(m => ({ default: m.ProjectMatrix })),
+)
+const ActivityStream = lazy(() =>
+  import('./ActivityStream').then(m => ({ default: m.ActivityStream })),
+)
 
 export function CockpitDashboard() {
   const { t } = useTranslation()
+  const [showRaw, setShowRaw] = useState(false)
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto bg-background">
@@ -18,29 +25,52 @@ export function CockpitDashboard() {
             {t('cockpit.title', 'Cockpit')}
           </h1>
         </div>
-        <CockpitQuickCreate />
       </div>
 
-      <div className="flex flex-col gap-5 p-5 max-w-5xl w-full mx-auto">
-        {/* Matrix */}
-        <section className="flex flex-col gap-2">
-          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
-            <LayoutGrid className="h-3 w-3" />
-            {t('cockpit.matrix.title', 'Projects overview')}
-          </h2>
-          <ProjectMatrix />
-        </section>
+      {/* Always-on bot timeline (replaces matrix + stream as primary view) */}
+      <BotTimeline />
 
-        {/* Activity */}
-        <section className="flex flex-col gap-2">
-          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
-            <Activity className="h-3 w-3" />
-            {t('cockpit.activity.title', 'Recent activity')}
-          </h2>
-          <div className="rounded-lg border border-border/60 bg-card/40 overflow-hidden">
-            <ActivityStream />
-          </div>
-        </section>
+      {/* Raw activity stays reachable but does not subscribe to SSE while
+          closed — lazy-mount keeps the always-on screen quiet. */}
+      <div className="px-5 pb-6 max-w-3xl w-full mx-auto">
+        <button
+          type="button"
+          onClick={() => setShowRaw(v => !v)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ChevronDown
+            className={`h-3 w-3 transition-transform ${showRaw ? 'rotate-180' : ''}`}
+          />
+          {showRaw ?
+              t('cockpit.timeline.hideRaw', 'Hide raw activity') :
+              t('cockpit.timeline.showRaw', 'Show raw activity')}
+        </button>
+        {showRaw && (
+          <Suspense
+            fallback={(
+              <div className="mt-4 text-xs text-muted-foreground">
+                {t('common.loading', 'Loading...')}
+              </div>
+            )}
+          >
+            <div className="mt-4 flex flex-col gap-5">
+              <section className="flex flex-col gap-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
+                  {t('cockpit.matrix.title', 'Projects overview')}
+                </h2>
+                <ProjectMatrix />
+              </section>
+              <section className="flex flex-col gap-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
+                  {t('cockpit.activity.title', 'Recent activity')}
+                </h2>
+                <div className="rounded-lg border border-border/60 bg-card/40 overflow-hidden">
+                  <ActivityStream />
+                </div>
+              </section>
+            </div>
+          </Suspense>
+        )}
       </div>
 
       <AssistantFab />

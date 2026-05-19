@@ -61,3 +61,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**COCKPIT-005 Diff hover preview on done cards**](COCKPIT-005.md) `P2`
 - [-] [**COCKPIT-006 Cockpit reachability upgrade (TopBar, RecentTabs, MiniMatrix, ⌘K, QuickCreate)**](COCKPIT-006.md) `P1`
 - [x] [**SEARCH-001 In-chat full-text search with CJK-friendly tokenizer**](SEARCH-001.md) `P1`
+- [-] [**COCKPIT-007 Replace cockpit Overview with always-on bot timeline**](COCKPIT-007.md) `P1`
+- [ ] [**FORK-001 One-click fork current issue into a new spawned issue**](FORK-001.md) `P1`

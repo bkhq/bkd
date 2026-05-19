@@ -18,6 +18,56 @@ proposals.get('/', (c) => {
   return c.json({ success: true, data: pending })
 })
 
+// POST /api/cockpit/proposals/execute — create+approve a proposal in one shot.
+// Used by always-on bot timeline action buttons where the user click IS the
+// approval (no separate review step needed).
+proposals.post('/execute', async (c) => {
+  let body: { type?: string, params?: Record<string, unknown> }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ success: false, error: 'Invalid JSON body' }, 400)
+  }
+  const type = body.type
+  const params = body.params
+  if (typeof type !== 'string') {
+    return c.json({ success: false, error: 'type is required' }, 400)
+  }
+  if (!params || typeof params !== 'object') {
+    return c.json({ success: false, error: 'params object is required' }, 400)
+  }
+  const allowed: ReadonlySet<CockpitProposalType> = new Set([
+    'cancel_issue',
+    'restart_issue',
+    'bulk_update_status',
+    'create_issue',
+    'merge_issue',
+    'bulk_merge',
+    'send_reply',
+  ])
+  if (!allowed.has(type as CockpitProposalType)) {
+    return c.json({ success: false, error: `Unsupported proposal type: ${type}` }, 400)
+  }
+
+  const proposal = proposalStore.propose(
+    type as CockpitProposalType,
+    params as never,
+    `inline:${type}`,
+  )
+  try {
+    const result = await dispatch(type as CockpitProposalType, params)
+    proposalStore.markApproved(proposal.id, result)
+    appEvents.emit('cockpit-proposal', { proposalId: proposal.id, status: 'approved' })
+    return c.json({ success: true, data: { proposalId: proposal.id, status: 'approved', result } })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Dispatch failed'
+    proposalStore.markFailed(proposal.id, message)
+    appEvents.emit('cockpit-proposal', { proposalId: proposal.id, status: 'failed' })
+    logger.warn({ type, err }, 'cockpit_inline_dispatch_failed')
+    return c.json({ success: false, error: message }, 400)
+  }
+})
+
 // POST /api/cockpit/proposals/:id/approve
 proposals.post('/:id/approve', async (c) => {
   const id = c.req.param('id')
@@ -69,6 +119,12 @@ async function dispatch(
       return dispatchBulkUpdate(rawParams as { issueIds: string[], statusId: string })
     case 'create_issue':
       return dispatchCreate(rawParams as { projectId: string, title: string, statusId?: string })
+    case 'merge_issue':
+      return dispatchMerge(rawParams as { issueId: string })
+    case 'bulk_merge':
+      return dispatchBulkMerge(rawParams as { issueIds: string[] })
+    case 'send_reply':
+      return dispatchSendReply(rawParams as { issueId: string, body: string })
   }
 }
 
@@ -78,6 +134,71 @@ async function ensureIssueExists(issueId: string): Promise<void> {
     .from(issuesTable)
     .where(and(eq(issuesTable.id, issueId), eq(issuesTable.isDeleted, 0)))
   if (!row) throw new Error(`Issue not found: ${issueId}`)
+}
+
+async function dispatchBulkMerge(p: { issueIds: string[] }) {
+  if (!Array.isArray(p.issueIds) || p.issueIds.length === 0) {
+    throw new Error('issueIds is required and must be non-empty')
+  }
+  if (p.issueIds.length > 5) {
+    throw new Error('bulk_merge capped at 5 issues per proposal')
+  }
+  const rows = await db
+    .select({ id: issuesTable.id, statusId: issuesTable.statusId })
+    .from(issuesTable)
+    .where(and(inArray(issuesTable.id, p.issueIds), eq(issuesTable.isDeleted, 0)))
+  const found = new Set(rows.map(r => r.id))
+  const missing = p.issueIds.filter(id => !found.has(id))
+  if (missing.length > 0) throw new Error(`Issues not found: ${missing.join(', ')}`)
+  const notReview = rows.filter(r => r.statusId !== 'review').map(r => r.id)
+  if (notReview.length > 0) {
+    throw new Error(`bulk_merge requires all issues in review (offenders: ${notReview.join(', ')})`)
+  }
+
+  await db
+    .update(issuesTable)
+    .set({ statusId: 'done', statusUpdatedAt: new Date(), updatedAt: new Date() })
+    .where(inArray(issuesTable.id, p.issueIds))
+  return { mergedIds: p.issueIds, statusId: 'done' }
+}
+
+async function dispatchSendReply(p: { issueId: string, body: string }) {
+  if (typeof p.body !== 'string' || p.body.trim().length === 0) {
+    throw new Error('body is required and must be non-empty')
+  }
+  if (p.body.length > 8000) {
+    throw new Error('body is too long (max 8000 chars)')
+  }
+  await ensureIssueExists(p.issueId)
+  const result = await issueEngine.followUpIssue(
+    p.issueId,
+    p.body,
+    undefined,
+    undefined,
+    'queue',
+    p.body.slice(0, 200),
+  )
+  return { issueId: p.issueId, executionId: result.executionId, messageId: result.messageId ?? null }
+}
+
+async function dispatchMerge(p: { issueId: string }) {
+  await ensureIssueExists(p.issueId)
+  // Status-only flip. No git ops — the user owns commit/push. Reject if
+  // the issue is not currently in review to avoid surprise transitions
+  // (e.g. user moved it back to working manually).
+  const [row] = await db
+    .select({ statusId: issuesTable.statusId })
+    .from(issuesTable)
+    .where(and(eq(issuesTable.id, p.issueId), eq(issuesTable.isDeleted, 0)))
+  if (!row) throw new Error(`Issue not found: ${p.issueId}`)
+  if (row.statusId !== 'review') {
+    throw new Error(`merge_issue requires review status (current: ${row.statusId})`)
+  }
+  await db
+    .update(issuesTable)
+    .set({ statusId: 'done', statusUpdatedAt: new Date(), updatedAt: new Date() })
+    .where(eq(issuesTable.id, p.issueId))
+  return { issueId: p.issueId, statusId: 'done' }
 }
 
 async function dispatchCancel(p: { issueId: string }) {

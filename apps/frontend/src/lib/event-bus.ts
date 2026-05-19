@@ -1,4 +1,4 @@
-import type { ChangesSummary } from '@bkd/shared'
+import type { ChangesSummary, CockpitTimelineDelta } from '@bkd/shared'
 import type { NormalizedLogEntry, SessionStatus } from '@/types/kanban'
 import { getToken } from './auth'
 
@@ -19,6 +19,7 @@ type ConnectionListener = (connected: boolean) => void
 type ResumeListener = () => void
 type CockpitProposalListener = (data: { proposalId: string, status: 'pending' | 'approved' | 'rejected' | 'failed' }) => void
 type CockpitResetListener = (data: { issueId: string }) => void
+type CockpitTimelineListener = (delta: CockpitTimelineDelta) => void
 
 const MAX_RECONNECT_DELAY = 30_000
 const BASE_RECONNECT_DELAY = 1_000
@@ -42,6 +43,7 @@ class EventBus {
   private resumeListeners = new Set<ResumeListener>()
   private cockpitProposalListeners = new Set<CockpitProposalListener>()
   private cockpitResetListeners = new Set<CockpitResetListener>()
+  private cockpitTimelineListeners = new Set<CockpitTimelineListener>()
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private heartbeatWatchdog: ReturnType<typeof setTimeout> | null = null
   private reconnectDelay = BASE_RECONNECT_DELAY
@@ -199,6 +201,21 @@ class EventBus {
       }
     })
 
+    es.addEventListener('cockpit-timeline', (e) => {
+      try {
+        const data = JSON.parse(e.data) as CockpitTimelineDelta
+        for (const cb of this.cockpitTimelineListeners) {
+          try {
+            cb(data)
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+    })
+
     es.addEventListener('cockpit-reset', (e) => {
       try {
         const data = JSON.parse(e.data) as Parameters<CockpitResetListener>[0]
@@ -341,6 +358,13 @@ class EventBus {
     this.cockpitResetListeners.add(listener)
     return () => {
       this.cockpitResetListeners.delete(listener)
+    }
+  }
+
+  onCockpitTimeline(listener: CockpitTimelineListener): () => void {
+    this.cockpitTimelineListeners.add(listener)
+    return () => {
+      this.cockpitTimelineListeners.delete(listener)
     }
   }
 

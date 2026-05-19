@@ -5,12 +5,18 @@ export type CockpitProposalType =
   | 'restart_issue'
   | 'bulk_update_status'
   | 'create_issue'
+  | 'merge_issue'
+  | 'bulk_merge'
+  | 'send_reply'
 
 export interface CockpitProposalParams {
   cancel_issue: { issueId: string }
   restart_issue: { issueId: string }
   bulk_update_status: { issueIds: string[], statusId: 'todo' | 'working' | 'review' | 'done' }
   create_issue: { projectId: string, title: string, statusId?: 'todo' | 'working' | 'review' | 'done' }
+  merge_issue: { issueId: string }
+  bulk_merge: { issueIds: string[] }
+  send_reply: { issueId: string, body: string }
 }
 
 export interface CockpitProposal<T extends CockpitProposalType = CockpitProposalType> {

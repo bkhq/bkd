@@ -10,6 +10,7 @@ import reviewIssues from './issues/review'
 import issueStats from './issues/stats'
 import cockpitAssistant from './cockpit/assistant'
 import cockpitProposals from './cockpit/proposals'
+import cockpitTimeline from './cockpit/timeline'
 import processes from './processes'
 import search from './search'
 import templates from './templates'
@@ -27,6 +28,7 @@ apiRoutes.route('/issues/review', reviewIssues)
 apiRoutes.route('/issues/stats', issueStats)
 apiRoutes.route('/cockpit', cockpitAssistant)
 apiRoutes.route('/cockpit/proposals', cockpitProposals)
+apiRoutes.route('/cockpit/timeline', cockpitTimeline)
 apiRoutes.route('/search', search)
 apiRoutes.route('/issue-templates', templates)
 apiRoutes.route('/files', files)

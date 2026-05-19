@@ -380,6 +380,63 @@ export interface ChangesSummary {
   deletions: number
 }
 
+/** Cockpit timeline — always-on bot message stream (COCKPIT-007 / PLAN-020). */
+export type CockpitTimelineMessageKind =
+  | 'suggest_merge'
+  | 'alert_off_track'
+  | 'suggest_reply'
+  | 'alert_repeat_fail'
+  | 'alert_stale_working'
+  | 'ack'
+  | 'info'
+
+export type CockpitTimelineMessageStatus =
+  | 'open'
+  | 'acknowledged'
+  | 'snoozed'
+  | 'dismissed'
+  | 'superseded'
+
+export interface CockpitTimelineAction {
+  id: string
+  label: string
+  /**
+   * 'proposal'    — invoke a cockpit proposal type with payload.
+   * 'navigate'    — open an issue in the UI.
+   * 'snooze'      — snooze this message until `untilMs`.
+   * 'dismiss'     — permanently dismiss this message.
+   * 'reply-input' — show an inline textarea; submitting sends a
+   *                 `send_reply` proposal with the typed body.
+   */
+  kind: 'proposal' | 'navigate' | 'snooze' | 'dismiss' | 'reply-input'
+  /** For 'proposal': { type, params }. For 'navigate': { projectAlias, issueNumber }. */
+  payload?: Record<string, unknown>
+  /** Visual tone hint for the button. */
+  tone?: 'primary' | 'default' | 'danger'
+}
+
+export interface CockpitTimelineMessage {
+  id: string
+  kind: CockpitTimelineMessageKind
+  projectId: string | null
+  projectAlias: string | null
+  issueId: string | null
+  issueNumber: number | null
+  issueTitle: string | null
+  body: string
+  actions: CockpitTimelineAction[]
+  signalKey: string
+  status: CockpitTimelineMessageStatus
+  snoozedUntil: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CockpitTimelineDelta {
+  op: 'append' | 'update'
+  message: CockpitTimelineMessage
+}
+
 /** SSE wire format — what the frontend receives via EventSource. */
 export interface SSEEventMap {
   'log': { issueId: string, entry: NormalizedLogEntry }
@@ -394,6 +451,7 @@ export interface SSEEventMap {
   'heartbeat': { ts: string }
   'cockpit-proposal': { proposalId: string, status: 'pending' | 'approved' | 'rejected' | 'failed' }
   'cockpit-reset': { issueId: string }
+  'cockpit-timeline': CockpitTimelineDelta
 }
 
 /** Internal bus format — superset of SSEEventMap, carries engine context. */
@@ -420,6 +478,7 @@ export interface AppEventMap {
   'heartbeat': { ts: string }
   'cockpit-proposal': { proposalId: string, status: 'pending' | 'approved' | 'rejected' | 'failed' }
   'cockpit-reset': { issueId: string }
+  'cockpit-timeline': CockpitTimelineDelta
 }
 
 // ── File Browser ──────────────────────────────────────────
