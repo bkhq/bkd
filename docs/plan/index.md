@@ -46,3 +46,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-015 Cockpit AI assistant (read-only MCP) + responsive cockpit**](PLAN-015.md) `2026-05-19`
 - [x] [**PLAN-016 Cockpit write tools + FTS5 search + reset/suggested prompts**](PLAN-016.md) `2026-05-19`
 - [x] [**PLAN-017 Bulk ops + issue templates + done diff hover**](PLAN-017.md) `2026-05-19`
+- [-] [**PLAN-018 Cockpit reachability upgrade**](PLAN-018.md) `2026-05-19`

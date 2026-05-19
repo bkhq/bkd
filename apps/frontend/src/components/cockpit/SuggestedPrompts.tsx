@@ -7,6 +7,7 @@ export function SuggestedPrompts({ onSelect }: { onSelect: (prompt: string) => v
     t('cockpit.assistant.suggest.failed', 'Show me failed sessions today'),
     t('cockpit.assistant.suggest.progress', 'Summarize progress across all projects'),
     t('cockpit.assistant.suggest.review', 'Which issues are waiting for review?'),
+    t('cockpit.assistant.suggest.create', 'Create a bug-fix issue in <project> to …'),
   ]
   return (
     <div className="flex flex-col gap-2 p-3">

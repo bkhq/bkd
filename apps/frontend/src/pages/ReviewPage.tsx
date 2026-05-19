@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { CockpitDashboard } from '@/components/cockpit/CockpitDashboard'
+import { CockpitTopBar } from '@/components/cockpit/CockpitTopBar'
 import { MobileCockpitTabs } from '@/components/cockpit/MobileCockpitTabs'
 import type { CockpitMobileMode } from '@/components/cockpit/MobileCockpitTabs'
+import { RecentTabs } from '@/components/cockpit/RecentTabs'
+import { CreateIssueDialog } from '@/components/kanban/CreateIssueDialog'
 import { ChatArea } from '@/components/issue-detail/ChatArea'
 import { DIFF_MIN_WIDTH } from '@/components/issue-detail/diff-constants'
 import { ListPanelGhost } from '@/components/issue-detail/ListPanelGhost'
@@ -124,6 +127,12 @@ export default function ReviewPage() {
     <div className="flex h-full text-foreground overflow-hidden animate-page-enter">
       {!isMobile ? <AppSidebar activeProjectId="" /> : null}
 
+      {/* CreateIssueDialog mounted at cockpit root so the panel-store +
+          ⌘N hooks can open it from any cockpit state (TopBar, RecentTabs,
+          AssistantPanel etc.). The dialog itself reads `projectId` from
+          useParams — falls back to "default" when none. */}
+      <CreateIssueDialog />
+
       {!hideListPanel && !showMobileCockpit ?
           (isMobile || !listPanelCollapsed ?
               (
@@ -159,26 +168,44 @@ export default function ReviewPage() {
           ) :
         null}
 
-      {issueId && projectId ?
+      {/* Main column: TopBar + RecentTabs (desktop only) + chat/dashboard.
+          Skipped when the mobile-cockpit branch already owns the main area.
+          TopBar + RecentTabs are desktop-only — mobile relies on segmented
+          control + FAB cluster, adding TopBar would clutter further. */}
+      {!showMobileCockpit ?
           (
-            <ChatArea
-              key={issueId}
-              projectId={projectId}
-              issueId={issueId}
-              showDiff={showDiff}
-              diffWidth={diffWidth}
-              onToggleDiff={() => setShowDiff(v => !v)}
-              onDiffWidthChange={handleDiffWidthChange}
-              onCloseDiff={() => setShowDiff(false)}
-              fileBrowserWidth={fileBrowserWidth}
-              onFileBrowserWidthChange={handleFileBrowserWidthChange}
-              showBackToList
-              backPath="/review"
-            />
+            <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
+              {!isMobile ?
+                  (
+                    <>
+                      <CockpitTopBar />
+                      <RecentTabs />
+                    </>
+                  ) :
+                null}
+              {issueId && projectId ?
+                  (
+                    <ChatArea
+                      key={issueId}
+                      projectId={projectId}
+                      issueId={issueId}
+                      showDiff={showDiff}
+                      diffWidth={diffWidth}
+                      onToggleDiff={() => setShowDiff(v => !v)}
+                      onDiffWidthChange={handleDiffWidthChange}
+                      onCloseDiff={() => setShowDiff(false)}
+                      fileBrowserWidth={fileBrowserWidth}
+                      onFileBrowserWidthChange={handleFileBrowserWidthChange}
+                      showBackToList
+                      backPath="/review"
+                    />
+                  ) :
+                  !isMobile && !hideListPanel ?
+                      <CockpitDashboard /> :
+                    null}
+            </div>
           ) :
-          !isMobile && !hideListPanel ?
-              <CockpitDashboard /> :
-            null}
+        null}
     </div>
   )
 }

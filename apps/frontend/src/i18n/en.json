@@ -577,6 +577,24 @@
     "collapse": "Collapse list",
     "expand": "Expand list"
   },
+  "cockpit.topbar": {
+    "home": "Cockpit home",
+    "label": "Cockpit",
+    "projectSettings": "Project settings",
+    "new": "New issue (⌘N)",
+    "newShort": "New",
+    "search": "Search / jump (⌘K)",
+    "matrix": "Toggle overview matrix"
+  },
+  "cockpit.miniMatrix": {
+    "title": "Overview",
+    "collapse": "Collapse overview",
+    "expand": "Show overview"
+  },
+  "cockpit.recentTabs": {
+    "close": "Close tab",
+    "new": "New issue"
+  },
   "bulk": {
     "selected": "selected",
     "clear": "Clear selection",

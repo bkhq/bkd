@@ -13,12 +13,15 @@ interface ViewModeStore {
   listPanelCollapsed: boolean
   toggleListPanel: () => void
   setListPanelCollapsed: (value: boolean) => void
+  miniMatrixCollapsed: boolean
+  toggleMiniMatrix: () => void
 }
 
 const STORAGE_KEY = 'bkd-view-mode'
 const FULL_WIDTH_KEY = 'bkd-full-width-chat'
 const SIDEBAR_COLLAPSED_KEY = 'bkd-sidebar-collapsed'
 const LIST_PANEL_COLLAPSED_KEY = 'bkd-list-panel-collapsed'
+const MINI_MATRIX_COLLAPSED_KEY = 'bkd-mini-matrix-collapsed'
 
 function loadMode(): ViewMode {
   if (typeof window === 'undefined') return 'list'
@@ -40,6 +43,11 @@ function loadSidebarCollapsed(): boolean {
 function loadListPanelCollapsed(): boolean {
   if (typeof window === 'undefined') return false
   return localStorage.getItem(LIST_PANEL_COLLAPSED_KEY) === 'true'
+}
+
+function loadMiniMatrixCollapsed(): boolean {
+  if (typeof window === 'undefined') return false
+  return localStorage.getItem(MINI_MATRIX_COLLAPSED_KEY) === 'true'
 }
 
 export const useViewModeStore = create<ViewModeStore>((set, get) => ({
@@ -82,5 +90,13 @@ export const useViewModeStore = create<ViewModeStore>((set, get) => ({
   setListPanelCollapsed: (value) => {
     localStorage.setItem(LIST_PANEL_COLLAPSED_KEY, String(value))
     set({ listPanelCollapsed: value })
+  },
+
+  miniMatrixCollapsed: loadMiniMatrixCollapsed(),
+
+  toggleMiniMatrix: () => {
+    const next = !get().miniMatrixCollapsed
+    localStorage.setItem(MINI_MATRIX_COLLAPSED_KEY, String(next))
+    set({ miniMatrixCollapsed: next })
   },
 }))

@@ -91,6 +91,14 @@ export function SearchContent({
 
   const normalizedQuery = query.trim().toLowerCase()
 
+  // #<n> shortcut: jump to a specific issue by issueNumber. We rank exact
+  // matches first when the user typed "#12" so the right issue is at the top
+  // of the Review group instead of being buried in title-matches.
+  const issueNumberQuery = useMemo<number | null>(() => {
+    const m = normalizedQuery.match(/^#(\d+)$/)
+    return m ? Number.parseInt(m[1], 10) : null
+  }, [normalizedQuery])
+
   const filteredProcesses = useMemo(() => {
     const procs = processesData?.processes ?? []
     if (!normalizedQuery) return procs
@@ -104,12 +112,16 @@ export function SearchContent({
   const filteredReview = useMemo(() => {
     if (!reviewIssues) return []
     if (!normalizedQuery) return reviewIssues
+    // #<n> → exact issueNumber match (across all projects in the review set)
+    if (issueNumberQuery !== null) {
+      return reviewIssues.filter(i => i.issueNumber === issueNumberQuery)
+    }
     return reviewIssues.filter(
       i =>
         i.title.toLowerCase().includes(normalizedQuery) ||
         i.projectName.toLowerCase().includes(normalizedQuery),
     )
-  }, [reviewIssues, normalizedQuery])
+  }, [reviewIssues, normalizedQuery, issueNumberQuery])
 
   const filteredProjects = useMemo(() => {
     if (!normalizedQuery) return []

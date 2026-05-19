@@ -574,6 +574,24 @@
     "collapse": "收起列表",
     "expand": "展开列表"
   },
+  "cockpit.topbar": {
+    "home": "驾驶舱首页",
+    "label": "驾驶舱",
+    "projectSettings": "项目设置",
+    "new": "新建任务 (⌘N)",
+    "newShort": "新建",
+    "search": "搜索 / 跳转 (⌘K)",
+    "matrix": "切换概览矩阵"
+  },
+  "cockpit.miniMatrix": {
+    "title": "概览",
+    "collapse": "收起概览",
+    "expand": "显示概览"
+  },
+  "cockpit.recentTabs": {
+    "close": "关闭标签",
+    "new": "新建任务"
+  },
   "bulk": {
     "selected": "已选择",
     "clear": "清空选择",

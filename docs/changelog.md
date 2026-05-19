@@ -1,5 +1,68 @@
 # Changelog
 
+## 2026-05-19 05:30 [progress]
+
+COCKPIT-006 / PLAN-018 — Cockpit reachability upgrade (frontend only).
+Solves the two repeat complaints from daily use:
+  "进 issue 后 dashboard 消失，切换要点好几次"
+  "在驾驶舱下发新任务太麻烦"
+
+Pieces shipped:
+- `CockpitTopBar` (always visible, 34px): breadcrumb `🏠 / alpha ⚙️ /
+  #N title` + action cluster `+ New / ⌘K / ⊞`. Project gear opens
+  the existing `ProjectSettingsDialog` lazily — no need to leave
+  cockpit to tweak env vars or system prompt. ⌥← / ⌥→ jumps
+  through recent-issues history.
+- `RecentTabs` (32px): up to 5 most-recently-visited issues with
+  click-to-jump, × close, and a `+` shortcut to the create dialog.
+  Active tab highlights based on the URL `issueId`.
+- `MiniMatrix` (200px absolute card on chat right edge): per-project
+  (project × status) counts that "follow" the user into an open
+  issue. Click a cell → navigates to that project with status filter.
+  Collapsible via the TopBar ⊞ button or its own ▲ icon; state
+  persisted in `view-mode-store` + localStorage.
+- `useRecentIssues` rewired to `useSyncExternalStore` so every
+  component reacts when `addRecentIssue` / `removeRecentIssue` /
+  `clearRecentIssues` writes. Previously the hook read localStorage
+  exactly once on mount — strip would stay stale.
+- `SearchContent` (⌘K palette): typing `#<N>` filters the Review
+  group to issueNumber=N exact match across all projects in the set,
+  so a Spotlight-style "jump to #12" works.
+- `SuggestedPrompts`: 5th chip nudges the user to ask the assistant
+  to create an issue in natural language ("在 alpha 建个 bug-fix
+  issue 修 …").
+- `CreateIssueDialog` is now mounted at `ReviewPage` root so the
+  panel-store openCreateDialog hook works from any cockpit state
+  (TopBar +, RecentTabs +, AssistantPanel proposal, ⌘N keyboard).
+- Mobile keeps the existing segmented control + FAB; TopBar and
+  RecentTabs are desktop-only to avoid mobile clutter (per the
+  established mobile-first-class rule, but the rule allows desktop-
+  only chrome when mobile equivalent is already present).
+
+Test infrastructure:
+- `test-setup.ts` polyfills `ResizeObserver` and `scrollIntoView`
+  for jsdom — needed by cmdk + base-ui popovers used in
+  SearchContent / Combobox.
+
+TDD coverage:
+- `__tests__/hooks/use-recent-issues.test.tsx` (6)
+- `__tests__/components/MiniMatrix.test.tsx` (6)
+- `__tests__/components/RecentTabs.test.tsx` (6)
+- `__tests__/components/CockpitTopBar.test.tsx` (7)
+- `__tests__/components/SearchContent.hash.test.tsx` (2)
+
+Total: 286/286 frontend tests passing (was 253 → +33 new tests for
+this batch alone). Lint clean (only the same 2 pre-existing
+warnings unrelated to this work).
+
+Known limitations / future work (deferred):
+- ⌘K `#N` shortcut only matches within whatever `useReviewIssues`
+  currently returns (default = review status). To search `#N` across
+  all statuses, a new backend endpoint would be needed.
+- QuickCreate's project picker still uses a native `<select>`. The
+  upgrade to `Combobox` + "立刻执行" switch slipped this batch and
+  becomes COCKPIT-007 follow-up.
+
 ## 2026-05-19 01:40 [progress]
 
 COCKPIT-003 + COCKPIT-004 + COCKPIT-005 / PLAN-017 — Last three audit

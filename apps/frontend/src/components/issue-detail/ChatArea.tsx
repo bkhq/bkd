@@ -9,6 +9,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { addRecentIssue } from '@/hooks/use-recent-issues'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import { getIssueUrl } from '@/stores/server-store'
+import { MiniMatrix } from '@/components/cockpit/MiniMatrix'
 import { ChatBody } from './ChatBody'
 import {
   createAutoHideState,
@@ -282,6 +283,12 @@ export function ChatArea({
               (chat → list → hamburger). MobileSidebarTrigger is itself md:hidden. */}
           <MobileSidebar activeProjectId={projectId} side="right" />
         </div>
+
+        {/* Cockpit overview that "follows" the user into an issue — they no
+            longer lose the global matrix when reading a single chat. Desktop
+            only; mobile has the explicit Cockpit segmented tab. Hidden via
+            the TopBar ⊞ button (toggleMiniMatrix). */}
+        {!isMobile ? <MiniMatrix /> : null}
 
         {/* Shared chat body: messages + metadata bar + input */}
         <ChatBody
