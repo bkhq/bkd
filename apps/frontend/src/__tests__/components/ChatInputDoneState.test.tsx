@@ -127,6 +127,49 @@ describe('chatInput — done state guard', () => {
     }
   })
 
+  it('action buttons (send / cancel) share size-9 to avoid visual "explosion" on state change', () => {
+    isMobileMock.mockReturnValue(false)
+    // 1) Send state — working + not thinking
+    const { container: sendCt, unmount: u1 } = render(
+      <Wrapper>
+        <ChatInput
+          projectId="p1"
+          issueId="i1"
+          statusId="working"
+          sessionStatus={null}
+          isThinking={false}
+          slashCommands={[]}
+          pluginCommands={[]}
+          onCancel={() => {}}
+        />
+      </Wrapper>,
+    )
+    const sendBtn = sendCt.querySelector('button.rounded-full.size-9') as HTMLElement | null
+    expect(sendBtn).toBeTruthy()
+    u1()
+
+    // 2) Cancel state — working + thinking
+    const { container: cancelCt } = render(
+      <Wrapper>
+        <ChatInput
+          projectId="p1"
+          issueId="i1"
+          statusId="working"
+          sessionStatus="running"
+          isThinking={true}
+          slashCommands={[]}
+          pluginCommands={[]}
+          onCancel={() => {}}
+        />
+      </Wrapper>,
+    )
+    const cancelBtn = cancelCt.querySelector('button.bg-destructive.rounded-full') as HTMLElement | null
+    expect(cancelBtn).toBeTruthy()
+    // Must be size-9 (not the OLD size-11 which felt "abnormally large").
+    expect(cancelBtn!.className).toContain('size-9')
+    expect(cancelBtn!.className).not.toContain('size-11')
+  })
+
   it('mobile: bare Enter does NOT call the send mutation (newline preserved)', () => {
     isMobileMock.mockReturnValue(true)
     followUpMutateAsync.mockClear()
