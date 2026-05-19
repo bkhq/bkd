@@ -8,10 +8,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useViewModeStore } from '@/stores/view-mode-store'
+
+import ReviewPage from '@/pages/ReviewPage'
 
 // ── Mocks (hoisted) ──────────────────────────────────────
 
@@ -76,8 +78,6 @@ vi.mock('@/lib/event-bus', () => ({
     onCockpitProposal: () => () => {},
   },
 }))
-
-import ReviewPage from '@/pages/ReviewPage'
 
 function Wrapper({ children, initialPath = '/review' }: { children: ReactNode, initialPath?: string }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })

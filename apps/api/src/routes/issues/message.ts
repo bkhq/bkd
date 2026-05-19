@@ -364,7 +364,10 @@ message.get('/:id/pending', async (c) => {
   return c.json({ success: true, data: entries })
 })
 
-// DELETE /api/projects/:projectId/issues/:id/pending?messageId=... — Recall pending message
+// DELETE /api/projects/:projectId/issues/:id/pending[?messageId=...]
+// - With messageId: recall a single pending message (returns its content so
+//   the frontend can fill the input box).
+// - Without messageId: clear ALL queued pending messages for the issue.
 message.delete('/:id/pending', async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)
@@ -379,7 +382,18 @@ message.delete('/:id/pending', async (c) => {
   }
 
   const messageId = c.req.query('messageId')?.trim()
-  if (!messageId || messageId.length > 26 || !/^[0-9A-Z]{26}$/.test(messageId)) {
+
+  // Bulk-clear path: no messageId provided.
+  if (!messageId) {
+    const { deleteAllPendingMessages } = await import('@/db/pending-messages')
+    const removedIds = await deleteAllPendingMessages(issueId)
+    if (removedIds.length > 0) {
+      emitIssueLogRemoved(issueId, removedIds)
+    }
+    return c.json({ success: true, data: { count: removedIds.length } })
+  }
+
+  if (messageId.length > 26 || !/^[0-9A-Z]{26}$/.test(messageId)) {
     return c.json({ success: false, error: 'messageId must be a valid ULID' }, 400)
   }
 

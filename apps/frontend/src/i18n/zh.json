@@ -186,6 +186,9 @@
     "placeholderTodo": "输入消息（将在执行开始时发送）",
     "pendingMessage": "已排队",
     "pendingCount_other": "{{count}} 条排队消息",
+    "pendingClearAll": "全部清空",
+    "pendingDiscard": "丢弃排队消息",
+    "placeholderDone": "任务已完成 — 移回进行中才能继续对话。",
     "doneMessage": "已完成",
     "busyAction": {
       "label": "运行中策略",

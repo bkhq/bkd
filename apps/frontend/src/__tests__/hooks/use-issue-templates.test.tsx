@@ -1,7 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
-import { type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import { useIssueTemplates } from '@/hooks/use-issue-templates'
+import { kanbanApi } from '@/lib/kanban-api'
 
 vi.mock('@/lib/kanban-api', () => ({
   kanbanApi: {
@@ -10,9 +13,6 @@ vi.mock('@/lib/kanban-api', () => ({
     ]),
   },
 }))
-
-import { useIssueTemplates } from '@/hooks/use-issue-templates'
-import { kanbanApi } from '@/lib/kanban-api'
 
 function Wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })

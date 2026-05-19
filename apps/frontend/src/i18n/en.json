@@ -187,6 +187,9 @@
     "pendingMessage": "Queued",
     "pendingCount_one": "{{count}} queued message",
     "pendingCount_other": "{{count}} queued messages",
+    "pendingClearAll": "Clear all",
+    "pendingDiscard": "Discard pending message",
+    "placeholderDone": "Issue is done — move it back to working to continue.",
     "doneMessage": "Completed",
     "busyAction": {
       "label": "Busy strategy",

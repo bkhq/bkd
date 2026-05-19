@@ -181,6 +181,19 @@ export async function deletePendingMessage(issueId: string, messageId: string): 
  * Caller should use persistUserMessage() to create the new entry, then emit
  * log-removed SSE for the old messageIds.
  */
+/**
+ * Hard-delete ALL queued pending messages for an issue.
+ * Returns the ids that were removed so the caller can notify SSE subscribers.
+ */
+export async function deleteAllPendingMessages(issueId: string): Promise<string[]> {
+  const rows = await getPendingMessages(issueId)
+  if (rows.length === 0) return []
+  const ids = rows.map(r => r.id)
+  await db.delete(attachmentsTable).where(inArray(attachmentsTable.logId, ids))
+  await db.delete(issueLogs).where(inArray(issueLogs.id, ids))
+  return ids
+}
+
 export async function relocatePendingForProcessing(issueId: string): Promise<{
   oldIds: string[]
   prompt: string

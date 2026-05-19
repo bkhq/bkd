@@ -282,8 +282,15 @@ export function ChatInput({
   }
 
   const normalizedPrompt = normalizePrompt(input)
+  // Block sending to a "done" issue — the engine will not pick the message up
+  // and it just sits forever in the pending list cluttering the chat.
+  // User must explicitly move the issue back to working/review first.
+  const isDoneIssue = statusId === 'done'
   const canSend =
-    (normalizedPrompt.length > 0 || attachedFiles.length > 0) && !!issueId && !!projectId
+    (normalizedPrompt.length > 0 || attachedFiles.length > 0)
+    && !!issueId
+    && !!projectId
+    && !isDoneIssue
 
   const addFiles = useCallback(
     (incoming: File[]) => {
@@ -769,7 +776,14 @@ export function ChatInput({
           onChange={handleInput}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          placeholder={statusId === 'todo' ? t('chat.placeholderTodo') : t('chat.placeholder')}
+          placeholder={
+            isDoneIssue ?
+                t('chat.placeholderDone', 'Issue is done. Move it back to working to continue.') :
+              statusId === 'todo' ?
+                  t('chat.placeholderTodo') :
+                  t('chat.placeholder')
+          }
+          disabled={isDoneIssue}
           rows={1}
           className="w-full bg-transparent text-base md:text-sm resize-none outline-none border-none shadow-none placeholder:text-muted-foreground/40 leading-relaxed focus-visible:ring-0 overflow-y-auto min-h-[36px] px-3 py-2 [field-sizing:fixed]"
         />

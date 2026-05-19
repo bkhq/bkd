@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { AssistantFab } from '@/components/cockpit/AssistantFab'
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: string) => fallback ?? key,
@@ -11,11 +13,9 @@ vi.mock('react-i18next', () => ({
 vi.mock('@/components/cockpit/AssistantPanel', () => ({
   AssistantPanel: ({ open, onClose }: { open: boolean, onClose: () => void }) =>
     open ?
-      <div data-testid="assistant-panel-stub" onClick={onClose}>panel-open</div> :
+        <div data-testid="assistant-panel-stub" onClick={onClose}>panel-open</div> :
       null,
 }))
-
-import { AssistantFab } from '@/components/cockpit/AssistantFab'
 
 describe('assistantFab', () => {
   it('renders the FAB closed by default', () => {

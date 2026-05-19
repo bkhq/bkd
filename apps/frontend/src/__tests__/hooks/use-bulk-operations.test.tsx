@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useBulkOperations } from '@/hooks/use-bulk-operations'
 
 // Track in-flight + max concurrent calls to verify the parallelism cap.
 let inFlight = 0
@@ -29,8 +31,6 @@ vi.mock('@/lib/kanban-api', () => ({
     }),
   },
 }))
-
-import { useBulkOperations } from '@/hooks/use-bulk-operations'
 
 function Wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })

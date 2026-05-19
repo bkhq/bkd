@@ -1,14 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { MobileCockpitTabs } from '@/components/cockpit/MobileCockpitTabs'
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: string) => fallback ?? key,
     i18n: { language: 'en' },
   }),
 }))
-
-import { MobileCockpitTabs } from '@/components/cockpit/MobileCockpitTabs'
 
 describe('mobileCockpitTabs', () => {
   it('renders both tabs', () => {

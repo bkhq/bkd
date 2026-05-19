@@ -527,6 +527,9 @@ export const kanbanApi = {
       createdAt: string
     }>>(`/api/projects/${projectId}/issues/${issueId}/pending`),
 
+  clearAllPendingMessages: (projectId: string, issueId: string) =>
+    del<{ count: number }>(`/api/projects/${projectId}/issues/${issueId}/pending`),
+
   getIssueLogs: (
     projectId: string,
     issueId: string,

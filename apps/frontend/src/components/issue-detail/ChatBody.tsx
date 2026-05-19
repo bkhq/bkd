@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronRight, Clock, FileText } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronRight, Clock, FileText, Trash2 } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -223,6 +223,27 @@ export function ChatBody({
       /* ignore — pending may have been consumed already */
     }
   }, [projectId, issueId, removeEntries, invalidatePending])
+
+  const handleDiscardPending = useCallback(async (messageId: string) => {
+    try {
+      const result = await kanbanApi.deletePendingMessage(projectId, issueId, messageId)
+      // Same as edit, but DO NOT restore content to input — pure discard.
+      removeEntries([result.id])
+      invalidatePending(projectId, issueId)
+    } catch {
+      /* ignore — pending may have been consumed already */
+    }
+  }, [projectId, issueId, removeEntries, invalidatePending])
+
+  const handleClearAllPending = useCallback(async () => {
+    try {
+      await kanbanApi.clearAllPendingMessages(projectId, issueId)
+      // SSE log-removed will arrive; also do an immediate invalidate.
+      invalidatePending(projectId, issueId)
+    } catch {
+      /* ignore */
+    }
+  }, [projectId, issueId, invalidatePending])
 
   // Reset cancelling state when the session settles or a new turn starts.
   // Without the sessionStatus check, a follow-up that keeps isThinking=true
@@ -488,6 +509,19 @@ export function ChatBody({
             <Clock className="h-2.5 w-2.5 text-amber-500/70" />
             <span>{t('chat.pendingCount', { count: serverPendingMessages.length })}</span>
           </button>
+          {!pendingCollapsed && serverPendingMessages.length > 0 && (
+            <button
+              type="button"
+              data-testid="pending-clear-all"
+              onClick={handleClearAllPending}
+              className="flex items-center gap-1 shrink-0 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+              title={t('chat.pendingClearAll', 'Clear all pending')}
+              aria-label={t('chat.pendingClearAll', 'Clear all pending')}
+            >
+              <Trash2 className="h-3 w-3" />
+              <span>{t('chat.pendingClearAll', 'Clear all')}</span>
+            </button>
+          )}
         </div>
       )}
       {serverPendingMessages && serverPendingMessages.length > 0 && !pendingCollapsed && (
@@ -554,13 +588,26 @@ export function ChatBody({
                       {!isDone ? <Clock className="h-2.5 w-2.5" /> : null}
                       {isDone ? t('chat.doneMessage') : t('chat.pendingMessage')}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleEditPending(msg.messageId)}
-                      className="ml-auto shrink-0 rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                    >
-                      {t('common.edit')}
-                    </button>
+                    <div className="ml-auto flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        data-testid={`pending-edit-${msg.messageId}`}
+                        onClick={() => handleEditPending(msg.messageId)}
+                        className="rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      >
+                        {t('common.edit')}
+                      </button>
+                      <button
+                        type="button"
+                        data-testid={`pending-discard-${msg.messageId}`}
+                        onClick={() => handleDiscardPending(msg.messageId)}
+                        aria-label={t('chat.pendingDiscard', 'Discard pending message')}
+                        title={t('chat.pendingDiscard', 'Discard pending message')}
+                        className="flex h-6 w-6 items-center justify-center rounded-md border border-border/40 bg-background/90 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
