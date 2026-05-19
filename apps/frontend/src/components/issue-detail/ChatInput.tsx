@@ -177,6 +177,11 @@ export function ChatInput({
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
   const [previewFile, setPreviewFile] = useState<File | null>(null)
+  // Mobile reading mode: textarea + just enough chrome to keep features
+  // reachable (more-menu, send). Tap the textarea or any of the buttons
+  // to expand to the full toolbar. ChatBody's scroll compensator keeps
+  // the visible content stable through the transition.
+  const [isFocused, setIsFocused] = useState(false)
   // Upload progress is whole-batch (XMLHttpRequest emits a single
   // upload.progress event for the entire multipart body, not per file),
   // so a single bar across the chip strip — labelled with file count and
@@ -618,8 +623,26 @@ export function ChatInput({
 
   const hasChanges = changedCount > 0
 
+  const mobileCollapsed =
+    isMobile
+    && !isFocused
+    && input.length === 0
+    && attachedFiles.length === 0
+    && !isSessionActive
+    && !isThinking
+    && !isDoneIssue
+    && !isDragOver
+    && !sendError
+    && !showCommandMenu
+
   return (
-    <div className="shrink-0 w-full min-w-0 px-2 pb-2 relative z-30">
+    <div
+      className="shrink-0 w-full min-w-0 px-2 relative z-30"
+      // Add iOS safe-area inset to the bottom padding so the input clears
+      // the home indicator on notched devices without making desktop look
+      // sparse. Falls back to the previous 0.5rem otherwise.
+      style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+    >
       <div
         className={`rounded-xl border bg-card/60 backdrop-blur-sm transition-all duration-200 focus-within:border-border/70 focus-within:bg-card/80 ${
           isDragOver ?
@@ -781,30 +804,71 @@ export function ChatInput({
           onChange={handleFileSelect}
         />
 
-        {/* Row 1: Full-width textarea */}
-        <Textarea
-          ref={textareaRef}
-          value={input}
-          onChange={handleInput}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          placeholder={
-            isDoneIssue ?
-                t('chat.placeholderDone', 'Issue is done. Move it back to working to continue.') :
-              statusId === 'todo' ?
-                  t('chat.placeholderTodo') :
-                  t('chat.placeholder')
-          }
-          disabled={isDoneIssue}
-          rows={1}
-          className="w-full bg-transparent text-base md:text-sm resize-none outline-none border-none shadow-none placeholder:text-muted-foreground/40 leading-relaxed focus-visible:ring-0 overflow-y-auto min-h-[36px] px-3 py-2 [field-sizing:fixed]"
-        />
+        {/* Row 1: Full-width textarea. In mobile collapsed mode we tuck
+            two compact controls (MobileMoreMenu + send) into the same row
+            so the file browser and other actions remain one tap away even
+            without expanding the full toolbar. */}
+        <div className={mobileCollapsed ? 'flex items-end gap-0.5 pr-1' : ''}>
+          <Textarea
+            ref={textareaRef}
+            value={input}
+            onChange={handleInput}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            placeholder={
+              isDoneIssue ?
+                  t('chat.placeholderDone', 'Issue is done. Move it back to working to continue.') :
+                statusId === 'todo' ?
+                    t('chat.placeholderTodo') :
+                    t('chat.placeholder')
+            }
+            disabled={isDoneIssue}
+            rows={1}
+            className="w-full bg-transparent text-base md:text-sm resize-none outline-none border-none shadow-none placeholder:text-muted-foreground/40 leading-relaxed focus-visible:ring-0 overflow-y-auto min-h-[36px] px-3 py-2 [field-sizing:fixed]"
+          />
+          {mobileCollapsed ? (
+            <div className="flex items-center gap-0.5 shrink-0 mb-1">
+              <MobileMoreMenu
+                engineType={engineType}
+                mode={mode}
+                onModeChange={setMode}
+                models={models}
+                activeModel={activeModel}
+                onModelChange={setSelectedModel}
+                modelLocked={modelLocked}
+                busyAction={busyAction}
+                onBusyActionChange={setBusyAction}
+                showBusyAction={false}
+                isSessionActive={false}
+                onRefreshLogs={onRefreshLogs}
+                onOpenFileBrowser={() => projectId && issueId && openFileBrowser(projectId, issueId, changesRoot)}
+                onClearSession={() => setClearSessionOpen(true)}
+                clearSessionDisabled={!issueId || isSessionActive || clearSession.isPending}
+                slashCommands={normalizedSlashCommands.length > 0 ? normalizedSlashCommands : undefined}
+                onSlashCommand={selectSlashCommand}
+                compact
+              />
+              <Button
+                type="button"
+                size="icon"
+                onClick={() => textareaRef.current?.focus()}
+                title={t('chat.placeholder')}
+                className="rounded-full size-8 opacity-60 hover:opacity-100 bg-muted text-muted-foreground hover:bg-muted/80"
+              >
+                <ArrowUp className="size-3.5" strokeWidth={2.5} />
+              </Button>
+            </div>
+          ) : null}
+        </div>
 
         {/* Row 2: Toolbar — 3 groups, no dividers (whitespace + flex grouping does the work).
             Left:   high-frequency icon buttons (attach / commands / more).
             Center: combined engine·mode·model chip (replaces 3 separate chips).
-            Right:  diff status + restart + send. */}
-        <div className="flex items-center gap-1 px-2 pb-2 pt-0.5">
+            Right:  diff status + restart + send.
+            Hidden in mobile collapsed reading mode (mobileCollapsed). */}
+        <div className={`flex items-center gap-1 px-2 pb-2 pt-0.5 ${mobileCollapsed ? 'hidden' : ''}`}>
           {/* Left group */}
           <Button
             variant="ghost"
@@ -1166,6 +1230,7 @@ function MobileMoreMenu({
   clearSessionDisabled,
   slashCommands,
   onSlashCommand,
+  compact = false,
 }: {
   engineType?: string
   mode: ModeOption
@@ -1184,6 +1249,8 @@ function MobileMoreMenu({
   clearSessionDisabled: boolean
   slashCommands?: string[]
   onSlashCommand?: (cmd: string) => void
+  /** Compact trigger size for the collapsed reading-mode input strip. */
+  compact?: boolean
 }) {
   const { t } = useTranslation()
 
@@ -1193,9 +1260,9 @@ function MobileMoreMenu({
         render={(
           <button
             type="button"
-            className="inline-flex items-center justify-center size-11 rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+            className={`inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors ${compact ? 'size-8' : 'size-11'}`}
           >
-            <MoreHorizontal className="size-5" />
+            <MoreHorizontal className={compact ? 'size-4' : 'size-5'} />
           </button>
         )}
       />

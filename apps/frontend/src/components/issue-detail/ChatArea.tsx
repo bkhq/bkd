@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Link } from 'lucide-react'
+import { ArrowLeft, Check, Link, Search } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -82,12 +82,16 @@ export function ChatArea({
   //   – scroll DOWN toward latest (scrollTop ↑)  →  SHOW  (re-anchor the
   //     reader as they return to the live conversation)
   //   – at the top OR within 80px of the bottom →  always SHOW
+  //   – any scroll motion idle for IDLE_HIDE_MS away from the bottom
+  //     anchor →  HIDE (reader has settled on a passage to read; the bar
+  //     is just chrome at that point)
   //
   // Hysteresis: accumulate per-direction distance and only flip once a
   // minimum continuous scroll is reached. Resets the opposite accumulator
   // on every direction change so a hesitant nudge the other way doesn't
   // flap the bar. Bottom chrome (status bar + chat input) intentionally
   // stays pinned — same pattern as Telegram / WhatsApp / iMessage.
+  const IDLE_HIDE_MS = 1500
   const [titleVisible, setTitleVisible] = useState(true)
   useEffect(() => {
     if (!isMobile) {
@@ -99,6 +103,31 @@ export function ChatArea({
     let lastTop = el?.scrollTop ?? 0
     let state = createAutoHideState()
     let cleanup: (() => void) | undefined
+    let idleTimer: ReturnType<typeof setTimeout> | null = null
+
+    const clearIdle = () => {
+      if (idleTimer !== null) {
+        clearTimeout(idleTimer)
+        idleTimer = null
+      }
+    }
+
+    // After the user stops scrolling away from the live conversation,
+    // collapse the title so the passage they're reading isn't framed by
+    // chrome. Skipped when we're already at the top home anchor or near
+    // the bottom (live anchor) — those positions always show.
+    const armIdle = (sample: { scrollTop: number, scrollHeight: number, clientHeight: number }) => {
+      clearIdle()
+      const distanceFromBottom = sample.scrollHeight - sample.scrollTop - sample.clientHeight
+      const atTop = sample.scrollTop < 8
+      const atBottom = distanceFromBottom < DEFAULT_AUTO_HIDE_THRESHOLDS.bottomAnchor
+      if (atTop || atBottom) return
+      idleTimer = setTimeout(() => {
+        idleTimer = null
+        state = { ...state, visible: false, upAccum: 0, downAccum: 0 }
+        setTitleVisible(false)
+      }, IDLE_HIDE_MS)
+    }
 
     const onScroll = () => {
       if (!el) return
@@ -110,6 +139,7 @@ export function ChatArea({
       state = nextAutoHideState(state, lastTop, sample, DEFAULT_AUTO_HIDE_THRESHOLDS)
       lastTop = sample.scrollTop
       setTitleVisible(state.visible)
+      armIdle(sample)
     }
 
     const attach = () => {
@@ -117,7 +147,10 @@ export function ChatArea({
       if (!el) return false
       lastTop = el.scrollTop
       el.addEventListener('scroll', onScroll, { passive: true })
-      cleanup = () => el?.removeEventListener('scroll', onScroll)
+      cleanup = () => {
+        el?.removeEventListener('scroll', onScroll)
+        clearIdle()
+      }
       return true
     }
 
@@ -127,7 +160,10 @@ export function ChatArea({
         if (!attach()) {
           // still not ready, try once more after a short delay
           const timeoutId = setTimeout(attach, 100)
-          cleanup = () => clearTimeout(timeoutId)
+          cleanup = () => {
+            clearTimeout(timeoutId)
+            clearIdle()
+          }
         }
       })
       return () => {
@@ -162,6 +198,21 @@ export function ChatArea({
   const handleAfterDelete = useCallback(() => {
     void navigate(resolvedBackPath)
   }, [navigate, resolvedBackPath])
+
+  // SEARCH-001: in-chat search panel. Toggled via ⌘F / Ctrl+F or the
+  // header search button.
+  const [searchOpen, setSearchOpen] = useState(false)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isFind = (e.key === 'f' || e.key === 'F') && (e.metaKey || e.ctrlKey)
+      if (isFind && !e.shiftKey && !e.altKey) {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   if (isLoading) {
     return (
@@ -206,7 +257,7 @@ export function ChatArea({
             – pointer-events stay enabled so the back button / title /
               copy-link buttons remain tappable while chat scrolls behind. */}
         <div
-          className={`flex items-center gap-2 px-2.5 py-2.5 border-b border-border/60 min-h-[45px] md:gap-2.5 md:px-3 bg-background/80 backdrop-blur-sm transition-transform duration-200 ease-out
+          className={`flex items-center gap-1.5 px-2.5 py-1 border-b border-border/60 min-h-[36px] md:gap-2.5 md:px-3 md:py-2.5 md:min-h-[45px] bg-background/80 backdrop-blur-sm transition-transform duration-200 ease-out
             md:shrink-0
             max-md:absolute max-md:top-0 max-md:left-0 max-md:right-0 max-md:z-20
             ${titleVisible ? '' : 'max-md:-translate-y-full'}`}
@@ -214,7 +265,7 @@ export function ChatArea({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0 transition-colors"
+            className="h-6 w-6 md:h-7 md:w-7 text-muted-foreground hover:text-foreground shrink-0 transition-colors"
             onClick={() => navigate(resolvedBackPath)}
             title={
               backPath ?
@@ -264,7 +315,16 @@ export function ChatArea({
           <Button
             variant="ghost"
             size="icon"
-            className={`h-7 w-7 shrink-0 transition-all duration-200 ${copied ? 'text-emerald-500 scale-110' : 'text-muted-foreground hover:text-foreground'}`}
+            className="h-6 w-6 md:h-7 md:w-7 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+            title={t('chat.search.openShortcut', '搜索此对话 (⌘F)')}
+            onClick={() => setSearchOpen(true)}
+          >
+            <Search className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`h-6 w-6 md:h-7 md:w-7 shrink-0 transition-all duration-200 ${copied ? 'text-emerald-500 scale-110' : 'text-muted-foreground hover:text-foreground'}`}
             title={t('issue.copyLink')}
             onClick={() => {
               navigator.clipboard
@@ -300,6 +360,8 @@ export function ChatArea({
           scrollRef={scrollRef}
           onAfterDelete={handleAfterDelete}
           titleVisible={titleVisible}
+          searchOpen={searchOpen}
+          onCloseSearch={() => setSearchOpen(false)}
         />
       </div>
 

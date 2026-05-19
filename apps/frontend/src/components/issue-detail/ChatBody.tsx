@@ -28,6 +28,7 @@ import { useChatFilterStore } from '@/stores/chat-filter-store'
 import { useScrollPositionStore } from '@/stores/scroll-position-store'
 import type { Issue, NormalizedLogEntry } from '@/types/kanban'
 import { ChatInput } from './ChatInput'
+import { ChatSearchBar } from './ChatSearchBar'
 import { CurrentPromptHover } from './CurrentPromptHover'
 import { IssueDetail } from './IssueDetail'
 import { ThinkingHover } from './ThinkingHover'
@@ -148,6 +149,8 @@ export function ChatBody({
   scrollRef: externalScrollRef,
   onAfterDelete,
   titleVisible = true,
+  searchOpen = false,
+  onCloseSearch,
 }: {
   projectId: string
   issueId: string
@@ -161,6 +164,9 @@ export function ChatBody({
    *  mobile the ThinkingHover slides up to take the title's place.
    */
   titleVisible?: boolean
+  /** In-chat search panel open state (controlled from ChatArea). */
+  searchOpen?: boolean
+  onCloseSearch?: () => void
 }) {
   const { t } = useTranslation()
   const internalScrollRef = useRef<HTMLDivElement>(null)
@@ -293,6 +299,32 @@ export function ChatBody({
     isLoadingOlderRef.current = isLoadingOlder
   }, [isLoadingOlder])
 
+  // Preserve the user's visible reading position when chrome (title bar /
+  // metadata bar / input toolbar) collapses or expands on mobile. Without
+  // this the chat container's clientHeight grows by ~80px on auto-hide and
+  // the bottom-anchored content slides down by the same amount, which
+  // reads as a jarring re-layout. We watch clientHeight via ResizeObserver
+  // and counter-scroll by the delta so the same row stays under the
+  // user's eye. Skipped while prepending older logs (the existing
+  // anchoring path in SessionMessages handles that case).
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    let prevClientHeight = el.clientHeight
+    const ro = new ResizeObserver(() => {
+      const next = el.clientHeight
+      const delta = next - prevClientHeight
+      if (delta !== 0) {
+        if (!isLoadingOlderRef.current && el.scrollTop > 0) {
+          el.scrollTop = Math.max(0, el.scrollTop - delta)
+        }
+        prevClientHeight = next
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [scrollRef])
+
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -363,43 +395,38 @@ export function ChatBody({
     <>
       {/* Messages */}
       <div className="relative flex-1 overflow-hidden">
-        {/* Floating overlays at the top of chat:
-            • CurrentPromptHover — surfaces the user prompt of the turn
-              the reader is currently viewing once they've scrolled past
-              it. Self-gates internally (hides when only one turn or
-              when the prompt is in view), so it's mounted unconditionally.
-            • ThinkingHover (floating variant) — visible only when the
-              user has scrolled up past ~200px. The inline ticker at the
-              bottom takes over otherwise. Stacked below CurrentPromptHover.
-        */}
+        {/* Floating overlay at the top of chat:
+            CurrentPromptHover — surfaces the user prompt of the turn the
+            reader is currently viewing once they've scrolled past it.
+            Self-gates internally (hides when only one turn or when the
+            prompt is in view), so it's mounted unconditionally.
+
+            The floating ThinkingHover variant used to sit here too, but it
+            duplicated the inline ticker at the bottom (which already shows
+            status next to the latest message) and on mobile it competed
+            with the auto-hidden title bar for the same screen real estate.
+            Inline-only is sufficient. */}
         <div
           className={`pointer-events-none absolute left-2 right-2 z-10 flex flex-col gap-1.5 transition-[top,opacity] duration-200 ease-out ${
-            titleVisible ? 'top-2 max-md:top-[52px]' : 'top-2'
+            titleVisible ? 'top-2 max-md:top-[40px]' : 'top-2'
           }`}
         >
           <div className="pointer-events-auto">
             <CurrentPromptHover logs={logs} scrollRef={scrollRef} />
           </div>
-          {showScrollBottom ?
-              (
-                <div className="pointer-events-auto">
-                  <ThinkingHover
-                    isActive={isThinking}
-                    workingStep={workingStep}
-                    isCancelling={isCancelling}
-                    onCancel={() => {
-                      setIsCancelling(true)
-                      cancelIssue.mutate(issueId, {
-                        onError: () => setIsCancelling(false),
-                      })
-                    }}
-                    variant="floating"
-                  />
-                </div>
-              ) :
-            null}
         </div>
         <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden">
+          {searchOpen
+            ? (
+                <ChatSearchBar
+                  projectId={projectId}
+                  issueId={issueId}
+                  scrollRef={scrollRef}
+                  open={searchOpen}
+                  onClose={() => onCloseSearch?.()}
+                />
+              )
+            : null}
           {/* Mobile top padding tracks titleVisible: when the absolute-positioned
               title bar is visible we reserve ~52px so the load spinner / first
               message aren't hidden behind it; when the bar slides away we drop
@@ -408,7 +435,7 @@ export function ChatBody({
               keeps the tight `py-1` baseline. */}
           <div
             className={`flex flex-col min-h-full justify-end py-1 transition-[padding-top] duration-200 ease-out ${
-              titleVisible ? 'max-md:pt-[60px]' : 'max-md:pt-2'
+              titleVisible ? 'max-md:pt-[44px]' : 'max-md:pt-2'
             }`}
           >
             <Suspense
@@ -616,7 +643,10 @@ export function ChatBody({
         </div>
       )}
 
-      {/* Issue metadata bar — fixed above input */}
+      {/* Issue metadata bar — collapses with the title on mobile.
+          The ChatBody-level ResizeObserver counter-scrolls when this
+          changes height, so the user's visible reading position stays
+          stable through the transition. */}
       <IssueDetail
         issue={issue}
         projectId={projectId}
@@ -624,6 +654,7 @@ export function ChatBody({
         onUpdate={fields => updateIssue.mutate({ id: issueId, ...fields })}
         onDelete={handleDelete}
         isDeleting={deleteIssueMutation.isPending}
+        collapsed={!titleVisible}
       />
 
       {/* Input */}

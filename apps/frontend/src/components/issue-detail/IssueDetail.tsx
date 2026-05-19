@@ -24,6 +24,7 @@ export function IssueDetail({
   onUpdate,
   onDelete,
   isDeleting = false,
+  collapsed = false,
 }: {
   issue: Issue
   projectId?: string
@@ -31,6 +32,12 @@ export function IssueDetail({
   onUpdate?: (fields: Partial<Pick<Issue, 'statusId' | 'tags' | 'keepAlive'>>) => void
   onDelete?: () => void
   isDeleting?: boolean
+  /**
+   * Mobile reading mode: collapse to 0-height (the ChatBody scroll
+   * compensator keeps the visible content stable, so the user just sees
+   * the bar slide away). Desktop ignores this prop.
+   */
+  collapsed?: boolean
 }) {
   const { t } = useTranslation()
   const [editingTag, setEditingTag] = useState(false)
@@ -52,7 +59,13 @@ export function IssueDetail({
   const worktreeBranch = worktreeEntry?.branch ?? (issue.id ? `bkd/${issue.id}` : '')
 
   return (
-    <div className="shrink-0 relative z-20 flex flex-wrap items-center gap-1.5 px-4 py-1.5 border-t border-border/40 bg-muted/20">
+    <div
+      className={`shrink-0 relative z-20 flex flex-wrap items-center gap-1.5 px-4 border-t border-border/40 bg-muted/20 transition-[max-height,padding,opacity,border-top-width] duration-200 ease-out overflow-hidden ${
+        collapsed ?
+          'max-md:max-h-0 max-md:py-0 max-md:opacity-0 max-md:border-t-0 md:py-1.5' :
+          'py-1.5'
+      }`}
+    >
       {/* Status — editable */}
       <StatusSelect status={status} onChange={id => onUpdate?.({ statusId: id })} />
 
