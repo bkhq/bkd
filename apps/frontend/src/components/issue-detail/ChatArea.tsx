@@ -10,6 +10,11 @@ import { addRecentIssue } from '@/hooks/use-recent-issues'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import { getIssueUrl } from '@/stores/server-store'
 import { ChatBody } from './ChatBody'
+import {
+  createAutoHideState,
+  DEFAULT_AUTO_HIDE_THRESHOLDS,
+  nextAutoHideState,
+} from './title-auto-hide'
 
 const LazyDiffPanel = lazy(() => import('./DiffPanel').then(m => ({ default: m.DiffPanel })))
 const LazyFileBrowserPanel = lazy(() => import('../files/FileBrowserPanel').then(m => ({ default: m.FileBrowserPanel })))
@@ -66,21 +71,22 @@ export function ChatArea({
   const showFileBrowser = useFileBrowserStore(s => s.isOpen && !s.isDrawer && s.issueId === issueId)
   const closeFileBrowser = useFileBrowserStore(s => s.close)
 
-  // Auto-hide title bar (top only) when reading. Mobile only — desktop has
-  // plenty of vertical space and the always-visible header is useful as
-  // orientation.
+  // Auto-hide title bar (mobile only) to maximise reading area. The chat
+  // lands at the bottom by default, so the OLD heuristic ("hide on
+  // scrollTop-increasing scroll") could never trigger — the user starts at
+  // scrollTop=max and the only way to go is back up. Reversed semantics:
   //
-  // Hysteresis design: a single-direction-delta trigger (e.g. >6px) makes
-  // the bar flicker the moment the user's finger drifts the wrong way. We
-  // accumulate scroll distance per direction and only flip visibility once
-  // a minimum continuous scroll is reached, resetting the opposite
-  // accumulator on every direction change. Result: a hesitant nudge up
-  // does nothing, but a deliberate 80px upward scroll brings the bar back.
+  //   – scroll UP toward history  (scrollTop ↓)  →  HIDE  (give the
+  //     reader as much vertical space as possible while skimming history)
+  //   – scroll DOWN toward latest (scrollTop ↑)  →  SHOW  (re-anchor the
+  //     reader as they return to the live conversation)
+  //   – at the top OR within 80px of the bottom →  always SHOW
   //
-  // The bottom chrome (status bar + chat input) intentionally stays visible
-  // at all times. Auto-hiding it created an oscillation feedback loop near
-  // the bottom of the message list, and modern phone chat apps (Telegram /
-  // WhatsApp / iMessage) all keep the input permanently pinned.
+  // Hysteresis: accumulate per-direction distance and only flip once a
+  // minimum continuous scroll is reached. Resets the opposite accumulator
+  // on every direction change so a hesitant nudge the other way doesn't
+  // flap the bar. Bottom chrome (status bar + chat input) intentionally
+  // stays pinned — same pattern as Telegram / WhatsApp / iMessage.
   const [titleVisible, setTitleVisible] = useState(true)
   useEffect(() => {
     if (!isMobile) {
@@ -88,42 +94,21 @@ export function ChatArea({
       return
     }
 
-    const HIDE_THRESHOLD = 40 // px of continuous down-scroll before hiding
-    const SHOW_THRESHOLD = 90 // px of continuous up-scroll before re-showing
-
     let el = scrollRef.current
     let lastTop = el?.scrollTop ?? 0
-    let upAccum = 0
-    let downAccum = 0
+    let state = createAutoHideState()
     let cleanup: (() => void) | undefined
 
     const onScroll = () => {
       if (!el) return
-      const top = el.scrollTop
-      const delta = top - lastTop
-      lastTop = top
-
-      // Always reveal at the very top so the user has a "home" anchor.
-      if (top < 8) {
-        upAccum = 0
-        downAccum = 0
-        setTitleVisible(true)
-        return
+      const sample = {
+        scrollTop: el.scrollTop,
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
       }
-
-      if (delta > 0) {
-        downAccum += delta
-        upAccum = 0
-        if (downAccum > HIDE_THRESHOLD) {
-          setTitleVisible(false)
-        }
-      } else if (delta < 0) {
-        upAccum += -delta
-        downAccum = 0
-        if (upAccum > SHOW_THRESHOLD) {
-          setTitleVisible(true)
-        }
-      }
+      state = nextAutoHideState(state, lastTop, sample, DEFAULT_AUTO_HIDE_THRESHOLDS)
+      lastTop = sample.scrollTop
+      setTitleVisible(state.visible)
     }
 
     const attach = () => {

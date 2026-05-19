@@ -379,13 +379,17 @@ export function ChatBody({
             null}
         </div>
         <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden">
-          {/* max-md:pt-[60px]: mobile title bar is absolute-positioned and
-              overlays the top ~52px of the scroll container. Without this
-              padding, the auto-load spinner (and the very first message)
-              render BEHIND the title bar, so users can't see the loading
-              feedback when scrolling up. 60px = 52px title + 8px breathing
-              room. Desktop keeps the original tight `py-1` only. */}
-          <div className="flex flex-col min-h-full justify-end py-1 max-md:pt-[60px]">
+          {/* Mobile top padding tracks titleVisible: when the absolute-positioned
+              title bar is visible we reserve ~52px so the load spinner / first
+              message aren't hidden behind it; when the bar slides away we drop
+              the padding to 8px so the chat content reclaims the freed space
+              (otherwise the user gets no real benefit from auto-hide). Desktop
+              keeps the tight `py-1` baseline. */}
+          <div
+            className={`flex flex-col min-h-full justify-end py-1 transition-[padding-top] duration-200 ease-out ${
+              titleVisible ? 'max-md:pt-[60px]' : 'max-md:pt-2'
+            }`}
+          >
             <Suspense
               fallback={
                 <div className="px-5 py-2 text-xs text-muted-foreground">{t('common.loading')}</div>
