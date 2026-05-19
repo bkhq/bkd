@@ -4,7 +4,7 @@ import { getAppSetting, setAppSetting } from '@/db/helpers'
 import type { EngineType } from '@/engines/types'
 import type { EngineContext } from './context'
 import type { LogQueryOpts, PaginatedLogResult } from './persistence/queries'
-import { getLogsFromDb } from './persistence/queries'
+import { getLogsAround as getLogsAroundDb, getLogsFromDb } from './persistence/queries'
 import { cancel } from './process/cancel'
 import { getActiveProcesses, getActiveProcessForIssue } from './process/state'
 import type { ManagedProcess } from './types'
@@ -196,6 +196,16 @@ export function getLogs(
   })
 
   return { entries: merged, hasMore: result.hasMore }
+}
+
+/** Fetch a window of entries around a pivot log id. */
+export function getLogsAround(
+  _ctx: EngineContext,
+  issueId: string,
+  pivotLogId: string,
+  window?: number,
+): PaginatedLogResult {
+  return getLogsAroundDb(issueId, pivotLogId, window)
 }
 
 export function getActiveProcessesList(ctx: EngineContext): ManagedProcess[] {

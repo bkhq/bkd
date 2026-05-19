@@ -70,6 +70,15 @@ void refreshGlobalEnvCache().catch((err) => {
   logger.error({ err }, 'global_env_cache_load_failed')
 })
 
+// Ensure FTS shadow is built with the current tokenizer version.
+// Rebuilds when migrating from the previous porter/unicode61 tokenizer.
+void Promise.resolve().then(async () => {
+  const { ensureFtsTokenizerVersion } = await import('./db/fts')
+  ensureFtsTokenizerVersion()
+}).catch((err) => {
+  logger.error({ err }, 'fts_rebuild_failed')
+})
+
 // Load max concurrent executions setting from DB
 void issueEngine.initMaxConcurrent().catch((err) => {
   logger.error({ err }, 'init_max_concurrent_failed')

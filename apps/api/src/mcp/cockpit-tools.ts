@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { STATUS_IDS } from '@/config'
 import type { StatusId } from '@/config'
 import { db, sqlite } from '@/db'
+import { buildMatchQuery } from '@/db/fts'
 import { issueLogs, issues as issuesTable, projects as projectsTable } from '@/db/schema'
 import { toISO } from '@/utils/date'
 
@@ -188,21 +189,6 @@ export async function cockpitRecentActivity(params: { limit?: number }): Promise
 
 // ---------- cockpit_search_logs ----------
 
-// Sanitize free-form text into an FTS5 MATCH string. We strip operators
-// (AND/OR/NOT/NEAR), quotes, and parens to avoid accidental syntax errors,
-// then wrap remaining non-empty tokens as prefix terms joined by AND.
-function buildFtsQuery(raw: string): string {
-  const cleaned = raw
-    .replace(/["()*]/g, ' ')
-    .split(/\s+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 0 && !/^(?:AND|OR|NOT|NEAR)$/i.test(s))
-  if (cleaned.length === 0) return ''
-  // Add trailing * for prefix matching on the last token only (typical
-  // incremental-search UX); join all with AND.
-  return cleaned.map((t, i) => (i === cleaned.length - 1 ? `${t}*` : t)).join(' AND ')
-}
-
 interface LogSearchRow {
   log_id: string
   issue_id: string
@@ -226,13 +212,19 @@ export interface LogSearchHit {
 }
 
 /** Direct FTS5 search — also reusable by HTTP routes. Returns ranked hits. */
-export function searchLogs(rawQuery: string, limit = 30): LogSearchHit[] {
-  const ftsQuery = buildFtsQuery(rawQuery)
+export function searchLogs(
+  rawQuery: string,
+  limit = 30,
+  opts: { issueId?: string } = {},
+): LogSearchHit[] {
+  const ftsQuery = buildMatchQuery(rawQuery)
   if (!ftsQuery) return []
   const cappedLimit = Math.min(Math.max(limit, 1), 200)
+  const { issueId } = opts
 
   try {
-    const stmt = sqlite.prepare<LogSearchRow, [string, number]>(`
+    const issueFilter = issueId ? `AND l.issue_id = ?` : ''
+    const stmt = sqlite.prepare<LogSearchRow, [string, ...(string[]), number]>(`
       SELECT
         l.id           AS log_id,
         l.issue_id     AS issue_id,
@@ -252,10 +244,14 @@ export function searchLogs(rawQuery: string, limit = 30): LogSearchHit[] {
         AND i.is_hidden = 0
         AND i.is_deleted = 0
         AND p.is_deleted = 0
+        ${issueFilter}
       ORDER BY score
       LIMIT ?
     `)
-    const rows = stmt.all(ftsQuery, cappedLimit)
+    const args: any[] = issueId
+      ? [ftsQuery, issueId, cappedLimit]
+      : [ftsQuery, cappedLimit]
+    const rows = stmt.all(...(args as [string, number])) as LogSearchRow[]
     return rows.map(r => ({
       logId: r.log_id,
       issueId: r.issue_id,
@@ -269,13 +265,18 @@ export function searchLogs(rawQuery: string, limit = 30): LogSearchHit[] {
   } catch {
     // Defensive fallback: if FTS5 table is missing (migration not applied
     // yet) or MATCH syntax somehow still fails, degrade to LIKE.
-    return likeSearchLogs(rawQuery, cappedLimit)
+    return likeSearchLogs(rawQuery, cappedLimit, opts)
   }
 }
 
-function likeSearchLogs(rawQuery: string, limit: number): LogSearchHit[] {
+function likeSearchLogs(
+  rawQuery: string,
+  limit: number,
+  opts: { issueId?: string } = {},
+): LogSearchHit[] {
   const pattern = `%${rawQuery.replace(/[\\%_]/g, c => `\\${c}`)}%`
-  const rows = sqlite.prepare<LogSearchRow, [string, number]>(`
+  const issueFilter = opts.issueId ? `AND l.issue_id = ?` : ''
+  const stmt = sqlite.prepare<LogSearchRow, any[]>(`
     SELECT
       l.id         AS log_id,
       l.issue_id   AS issue_id,
@@ -291,9 +292,12 @@ function likeSearchLogs(rawQuery: string, limit: number): LogSearchHit[] {
     WHERE l.is_deleted = 0 AND l.visible = 1
       AND i.is_hidden = 0 AND i.is_deleted = 0 AND p.is_deleted = 0
       AND l.content LIKE ? ESCAPE '\\'
+      ${issueFilter}
     ORDER BY l.created_at DESC
     LIMIT ?
-  `).all(pattern, limit)
+  `)
+  const args = opts.issueId ? [pattern, opts.issueId, limit] : [pattern, limit]
+  const rows = stmt.all(...args) as LogSearchRow[]
   return rows.map(r => ({
     logId: r.log_id,
     issueId: r.issue_id,

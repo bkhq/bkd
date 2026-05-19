@@ -175,6 +175,16 @@
     "modelDefaultHint": "Use system default"
   },
   "chat": {
+    "search": {
+      "placeholder": "Search this conversation…",
+      "empty": "No matches",
+      "openShortcut": "Search this conversation (⌘F)",
+      "prev": "Previous",
+      "next": "Next",
+      "close": "Close (Esc)",
+      "scrollUpHint": "Scroll up to load more history, then click again",
+      "jumpFailed": "Could not jump to that message"
+    },
     "send": "Send",
     "currentPrompt": {
       "viewing": "Viewing answer to",

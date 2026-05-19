@@ -20,6 +20,7 @@ import {
   getActiveProcessesList,
   getCategorizedCommands,
   getLogs,
+  getLogsAround,
   getProcess,
   getSlashCommands,
   hasActiveProcessForIssue,
@@ -160,6 +161,14 @@ export class IssueEngine {
     opts?: LogQueryOpts,
   ): PaginatedLogResult {
     return getLogs(this.ctx, issueId, opts)
+  }
+
+  getLogsAround(
+    issueId: string,
+    pivotLogId: string,
+    window?: number,
+  ): PaginatedLogResult {
+    return getLogsAround(this.ctx, issueId, pivotLogId, window)
   }
 
   /**

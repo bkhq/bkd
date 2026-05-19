@@ -1,5 +1,6 @@
 import { ulid } from 'ulid'
 import { db } from '@/db'
+import { indexLog } from '@/db/fts'
 import { issueLogs as logsTable } from '@/db/schema'
 import type { NormalizedLogEntry } from '@/engines/types'
 import { logger } from '@/logger'
@@ -30,6 +31,9 @@ export function persistLogEntry(
         visible: 1,
       })
       .run()
+
+    // Mirror content into the FTS shadow (bigram-encoded application-side).
+    indexLog(messageId, entry.content)
 
     // Return new object — do NOT mutate the input entry
     return {

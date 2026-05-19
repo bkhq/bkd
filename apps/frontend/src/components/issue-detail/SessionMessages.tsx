@@ -11,7 +11,21 @@ import { ToolGroupMessage } from './ToolItems'
 
 // ── ChatMessage renderer ─────────────────────────────────
 
+function messageIdOf(message: ChatMessage): string | undefined {
+  if ('entry' in message && message.entry) {
+    return (message.entry as NormalizedLogEntry).messageId
+  }
+  return undefined
+}
+
 const ChatMessageRow = memo(({ message }: { message: ChatMessage }) => {
+  const inner = renderChatMessage(message)
+  const mid = messageIdOf(message)
+  if (!mid) return inner
+  return <div data-message-id={mid}>{inner}</div>
+})
+
+function renderChatMessage(message: ChatMessage) {
   switch (message.type) {
     case 'user': {
       if (message.status === 'command') {
@@ -54,7 +68,7 @@ const ChatMessageRow = memo(({ message }: { message: ChatMessage }) => {
     default:
       return null
   }
-})
+}
 
 // ── Task Plan ────────────────────────────────────────────
 

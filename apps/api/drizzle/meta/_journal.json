@@ -148,6 +148,13 @@
       "when": 1784064000000,
       "tag": "0020_cockpit_logs_fts",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1784678400000,
+      "tag": "0021_fts_bigram_rebuild",
+      "breakpoints": true
     }
   ]
 }

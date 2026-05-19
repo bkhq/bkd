@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-05-19 14:45 [feat]
+
+SEARCH-001 / PLAN-019 — In-chat full-text search + CJK-friendly tokenizer.
+
+Solves "历史消息太多了，经常找不到": opening an issue now exposes a
+`⌘F` / Ctrl+F search inside the conversation (also a `🔍` button in
+the chat header for mobile), and the underlying FTS5 index now actually
+ranks Chinese matches instead of falling back to noisy single-character
+prefix scans.
+
+Backend:
+- Migration `0021_fts_bigram_rebuild.sql` drops the trigger-based FTS5
+  pipeline and recreates `issue_logs_fts` with `unicode61
+  remove_diacritics 2`. The bigram transform happens in the app layer
+  (`apps/api/src/db/fts.ts`), keeping the standalone Bun binary free of
+  native tokenizer extensions.
+- App-layer double-write in `engines/issue/persistence/log-entry.ts`
+  and `db/pending-messages.ts`. Startup `ensureFtsTokenizerVersion()`
+  reindexes idempotently when the persisted tokenizer version changes.
+- `searchLogs()` accepts an `{ issueId }` filter; the same option is
+  surfaced through `GET /api/search/logs?issueId=...`. New
+  `GET /api/projects/:projectId/issues/:id/logs/around/:logId?window=20`
+  returns the entries bracketing a search hit for future deep-jump UX.
+
+Frontend:
+- `ChatSearchBar` — sticky bar inside the chat scroll viewport with
+  ranked hit list, `↑/↓` + `Enter` / `Shift+Enter` navigation, `Esc`
+  to close. Clicking a hit scrolls to the matching `[data-message-id]`
+  bubble and flashes a yellow ring; out-of-window hits surface a
+  "scroll up to load more" hint.
+- Search icon + `⌘F` binding wired into `ChatArea`, both desktop and
+  mobile.
+
+Risk mitigations: source `issues_logs` is never touched; FTS rebuild is
+idempotent; the `searchLogs()` LIKE fallback still kicks in if the
+shadow is unavailable.
+
 ## 2026-05-19 05:30 [progress]
 
 COCKPIT-006 / PLAN-018 — Cockpit reachability upgrade (frontend only).

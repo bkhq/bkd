@@ -2,10 +2,19 @@ import { beforeAll, describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { db, sqlite } from '@/db'
+import { indexLog } from '@/db/fts'
 import { issueLogs, issues as issuesTable, projects as projectsTable } from '@/db/schema'
 import { cockpitSearchLogs } from '@/mcp/cockpit-tools'
 import { expectSuccess, get } from './helpers'
 import './setup'
+
+// Helper: insert an issue log + mirror it into the FTS shadow.
+// In production both writes happen inside persistLogEntry; tests bypass
+// the persist pipeline so we mirror manually here.
+async function insertLog(row: typeof issueLogs.$inferInsert) {
+  await db.insert(issueLogs).values(row)
+  indexLog(row.id!, row.content!)
+}
 
 let projectId: string
 let issueId: string
@@ -37,51 +46,49 @@ beforeAll(async () => {
     .returning()
   issueId = issue.id
 
-  await db.insert(issueLogs).values([
-    {
-      id: ulid(),
-      issueId,
-      turnIndex: 0,
-      entryIndex: 0,
-      entryType: 'assistant-message',
-      content: 'I refactored the JWT authentication middleware and added rotation tests.',
-    },
-    {
-      id: ulid(),
-      issueId,
-      turnIndex: 0,
-      entryIndex: 1,
-      entryType: 'assistant-message',
-      content: 'The websocket reconnect logic needed exponential backoff.',
-    },
-    {
-      id: ulid(),
-      issueId,
-      turnIndex: 0,
-      entryIndex: 2,
-      entryType: 'assistant-message',
-      content: 'Database migration completed for the user table.',
-    },
-  ])
+  await insertLog({
+    id: ulid(),
+    issueId,
+    turnIndex: 0,
+    entryIndex: 0,
+    entryType: 'assistant-message',
+    content: 'I refactored the JWT authentication middleware and added rotation tests.',
+  })
+  await insertLog({
+    id: ulid(),
+    issueId,
+    turnIndex: 0,
+    entryIndex: 1,
+    entryType: 'assistant-message',
+    content: 'The websocket reconnect logic needed exponential backoff.',
+  })
+  await insertLog({
+    id: ulid(),
+    issueId,
+    turnIndex: 0,
+    entryIndex: 2,
+    entryType: 'assistant-message',
+    content: 'Database migration completed for the user table.',
+  })
 })
 
 describe('FTS5 issue_logs_fts shadow', () => {
-  test('shadow table exists and backfilled', () => {
+  test('shadow table populated via app-layer indexLog', () => {
     const row = sqlite
       .prepare('SELECT count(*) as c FROM issue_logs_fts')
       .get() as { c: number }
     expect(row.c).toBeGreaterThanOrEqual(3)
   })
 
-  test('insert trigger keeps shadow in sync', async () => {
+  test('app-layer double-write keeps shadow in sync', async () => {
     const newId = ulid()
-    await db.insert(issueLogs).values({
+    await insertLog({
       id: newId,
       issueId,
       turnIndex: 1,
       entryIndex: 0,
       entryType: 'assistant-message',
-      content: 'sentinelphrasezxq added for trigger test',
+      content: 'sentinelphrasezxq added for double-write test',
     })
     const row = sqlite
       .prepare('SELECT count(*) as c FROM issue_logs_fts WHERE log_id = ?')
@@ -140,7 +147,7 @@ describe('FTS hidden-issue isolation', () => {
       })
       .returning()
     const sentinel = `hiddensentinelxyz${Date.now()}`
-    await db.insert(issueLogs).values({
+    await insertLog({
       id: ulid(),
       issueId: hidden.id,
       turnIndex: 0,

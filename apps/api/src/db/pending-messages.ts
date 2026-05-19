@@ -2,6 +2,7 @@ import { resolve } from 'node:path'
 import { and, asc, eq, inArray, isNotNull, max } from 'drizzle-orm'
 import { UPLOAD_DIR } from '@/uploads'
 import { db } from '.'
+import { indexLog, removeLog } from './fts'
 import { attachments as attachmentsTable, issueLogs } from './schema'
 
 function isQueuedMessageType(type: unknown): boolean {
@@ -105,17 +106,19 @@ export async function upsertPendingMessage(
     const turnIndex = (maxRow?.maxTurn ?? -1) + 1
 
     const displayPrompt = metadata.displayPrompt as string | undefined
+    const persistedContent = (displayPrompt ?? content).trim()
     await tx.insert(issueLogs).values({
       id: messageId,
       issueId,
       turnIndex,
       entryIndex,
       entryType: 'user-message',
-      content: (displayPrompt ?? content).trim(),
+      content: persistedContent,
       metadata: JSON.stringify(metadata),
       timestamp: new Date().toISOString(),
       visible: 1,
     })
+    indexLog(messageId, persistedContent)
   })
   return messageId
 }
@@ -154,6 +157,7 @@ export async function deletePendingMessage(issueId: string, messageId: string): 
 
   // Hard delete the pending row (it was never processed by AI)
   await db.delete(issueLogs).where(eq(issueLogs.id, pending.id))
+  removeLog(pending.id)
   // Also delete associated attachments records
   if (attachmentRows.length > 0) {
     await db.delete(attachmentsTable).where(eq(attachmentsTable.logId, pending.id))
@@ -191,6 +195,7 @@ export async function deleteAllPendingMessages(issueId: string): Promise<string[
   const ids = rows.map(r => r.id)
   await db.delete(attachmentsTable).where(inArray(attachmentsTable.logId, ids))
   await db.delete(issueLogs).where(inArray(issueLogs.id, ids))
+  for (const id of ids) removeLog(id)
   return ids
 }
 

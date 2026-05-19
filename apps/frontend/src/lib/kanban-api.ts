@@ -463,9 +463,13 @@ export const kanbanApi = {
       defaultTags?: string[]
     }>>('/api/issue-templates'),
 
-  // Cross-project log search (FTS5)
-  searchLogs: (query: string, limit = 30) =>
-    get<Array<{
+  // Cross-project (or per-issue, via opts.issueId) log search (FTS5)
+  searchLogs: (query: string, limit = 30, opts?: { issueId?: string }) => {
+    const params = new URLSearchParams()
+    params.set('q', query)
+    params.set('limit', String(limit))
+    if (opts?.issueId) params.set('issueId', opts.issueId)
+    return get<Array<{
       logId: string
       issueId: string
       issueTitle: string
@@ -474,7 +478,17 @@ export const kanbanApi = {
       content: string
       createdAt: string
       score: number
-    }>>(`/api/search/logs?q=${encodeURIComponent(query)}&limit=${limit}`),
+    }>>(`/api/search/logs?${params.toString()}`)
+  },
+  getLogsAround: (
+    projectId: string,
+    issueId: string,
+    logId: string,
+    windowSize = 20,
+  ) =>
+    get<IssueLogsResponse>(
+      `/api/projects/${projectId}/issues/${issueId}/logs/around/${logId}?window=${windowSize}`,
+    ),
   getIssues: (projectId: string) => get<Issue[]>(`/api/projects/${projectId}/issues`),
   createIssue: (
     projectId: string,

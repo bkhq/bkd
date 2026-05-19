@@ -3,13 +3,14 @@ import { searchLogs } from '@/mcp/cockpit-tools'
 
 const search = createOpenAPIRouter()
 
-// GET /api/search/logs?q=...&limit=...
+// GET /api/search/logs?q=...&limit=...&issueId=...
 search.get('/logs', (c) => {
   const q = (c.req.query('q') ?? '').trim()
   const limitRaw = c.req.query('limit')
   const limit = limitRaw ? Math.min(Math.max(Number.parseInt(limitRaw, 10) || 30, 1), 200) : 30
+  const issueId = c.req.query('issueId')?.trim() || undefined
   if (!q) return c.json({ success: false, error: 'query is required' }, 400)
-  const hits = searchLogs(q, limit)
+  const hits = searchLogs(q, limit, { issueId })
   return c.json({ success: true, data: hits })
 })
 

@@ -226,6 +226,50 @@ function getFilteredLogsFromDb(
   return { entries, hasMore }
 }
 
+/**
+ * Fetch a window of log entries around a pivot log id.
+ * Returns up to `window` entries before and `window` entries after the pivot
+ * (inclusive of the pivot itself), ordered ascending. Used by the chat
+ * search UI to jump to a hit that lies outside the loaded log window.
+ */
+export function getLogsAround(
+  issueId: string,
+  pivotLogId: string,
+  window = 20,
+): PaginatedLogResult {
+  const w = Math.min(Math.max(window, 1), 200)
+
+  const before = db
+    .select()
+    .from(logsTable)
+    .where(and(
+      eq(logsTable.issueId, issueId),
+      eq(logsTable.visible, 1),
+      lt(logsTable.id, pivotLogId),
+    ))
+    .orderBy(desc(logsTable.id))
+    .limit(w)
+    .all()
+    .reverse()
+
+  const fromPivot = db
+    .select()
+    .from(logsTable)
+    .where(and(
+      eq(logsTable.issueId, issueId),
+      eq(logsTable.visible, 1),
+      gte(logsTable.id, pivotLogId),
+    ))
+    .orderBy(asc(logsTable.id))
+    .limit(w + 1)
+    .all()
+
+  const rows = [...before, ...fromPivot]
+  const toolByLogId = fetchToolDetails(rows.map(r => r.id))
+  const entries = rows.map(row => rowToEntry(row, toolByLogId)).filter(isVisible)
+  return { entries, hasMore: false }
+}
+
 /** Soft-remove a log entry by marking it invisible (idempotent). */
 export function removeLogEntry(messageId: string): void {
   db.update(logsTable).set({ visible: 0, isDeleted: 1 }).where(eq(logsTable.id, messageId)).run()

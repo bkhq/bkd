@@ -201,6 +201,25 @@ logs.openapi(R.getIssueLogs, async (c) => {
   }, 200 as const)
 })
 
+// GET /:id/logs/around/:logId — window of entries around a pivot logId
+logs.get('/:id/logs/around/:logId', async (c) => {
+  const resolved = await resolveIssue(c, 'id')
+  if ('error' in resolved) return resolved.error
+  const logId = c.req.param('logId')!
+  const windowRaw = c.req.query('window')
+  const window = windowRaw ? Math.min(Math.max(Number.parseInt(windowRaw, 10) || 20, 1), 200) : 20
+  const result = issueEngine.getLogsAround(resolved.issueId, logId, window)
+  return c.json({
+    success: true,
+    data: {
+      issue: serializeIssue(resolved.issue!),
+      logs: toTimeline(result.entries),
+      nextCursor: null,
+      hasMore: false,
+    },
+  })
+})
+
 // GET /:id/logs/filter/* — Filtered logs with path-based key/value pairs
 // Stays as regular route since it uses wildcard pattern
 logs.get('/:id/logs/filter/*', async (c) => {
