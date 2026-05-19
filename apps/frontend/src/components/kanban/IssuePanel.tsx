@@ -201,6 +201,7 @@ export function IssuePanel({ projectId, issueId, onClose, hideHeaderActions }: I
                   width={diffWidth}
                   onWidthChange={setDiffWidth}
                   onClose={() => setShowDiff(false)}
+                  useWorktree={effectiveIssue?.useWorktree}
                   fullScreen
                 />
               </Suspense>

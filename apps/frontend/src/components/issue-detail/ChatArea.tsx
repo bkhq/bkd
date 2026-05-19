@@ -323,6 +323,7 @@ export function ChatArea({
                         onWidthChange={onDiffWidthChange}
                         onClose={onCloseDiff}
                         fullScreen
+                        useWorktree={issue?.useWorktree}
                       />
                     </Suspense>
                   </div>
@@ -341,6 +342,7 @@ export function ChatArea({
                       width={diffWidth}
                       onWidthChange={onDiffWidthChange}
                       onClose={onCloseDiff}
+                      useWorktree={issue?.useWorktree}
                     />
                   </Suspense>
                 )

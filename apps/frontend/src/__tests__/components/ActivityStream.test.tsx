@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -31,6 +31,13 @@ vi.mock('@/lib/event-bus', () => ({
   },
 }))
 
+const recentActivityMock = vi.fn<(limit?: number) => Promise<unknown[]>>(() => Promise.resolve([]))
+vi.mock('@/lib/kanban-api', () => ({
+  kanbanApi: {
+    getCockpitRecentActivity: (limit?: number) => recentActivityMock(limit),
+  },
+}))
+
 function fire(data: Parameters<Listener>[0]) {
   act(() => {
     for (const l of listeners) l(data)
@@ -40,6 +47,8 @@ function fire(data: Parameters<Listener>[0]) {
 describe('activityStream', () => {
   beforeEach(() => {
     listeners.clear()
+    recentActivityMock.mockReset()
+    recentActivityMock.mockResolvedValue([])
   })
 
   it('shows empty state initially', () => {
@@ -65,6 +74,24 @@ describe('activityStream', () => {
     fire({ issueId: 'i1', changes: { sessionStatus: 'completed' }, title: 'A', projectAlias: 'p' })
     const items = screen.getAllByTestId(/^cockpit-activity-item-/)
     expect(items.length).toBe(1)
+  })
+
+  it('backfills from getCockpitRecentActivity on mount', async () => {
+    recentActivityMock.mockResolvedValue([
+      {
+        issueId: 'b1',
+        title: 'Backfilled Issue',
+        projectAlias: 'p1',
+        sessionStatus: null,
+        statusId: 'review',
+        statusUpdatedAt: '2026-05-19T00:00:00.000Z',
+      },
+    ])
+    render(<MemoryRouter><ActivityStream /></MemoryRouter>)
+    await waitFor(() => {
+      expect(screen.getByText('Backfilled Issue')).toBeDefined()
+    })
+    expect(recentActivityMock).toHaveBeenCalledWith(30)
   })
 
   it('caps the list at 30 items', () => {

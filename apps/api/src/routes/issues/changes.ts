@@ -2,6 +2,8 @@ import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { runCommand } from '@/engines/spawn'
 import { findProject } from '@/db/helpers'
+import { dirtyNotTouched, getAiTouchedFiles, partitionByPresence } from '@/services/ai-changes'
+import { getFileTimeline } from '@/services/ai-changes-timeline'
 import { checkOversized, countTextLines, isPathInsideRoot, resolveIssueDir } from '@/utils/changes'
 import { isGitRepo } from '@/utils/git'
 import { createOpenAPIRouter } from '@/openapi/hono'
@@ -10,9 +12,9 @@ import { getProjectOwnedIssue } from './_shared'
 
 // ---------- Types ----------
 
-type ChangeType = 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'unknown'
+export type ChangeType = 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'unknown'
 
-interface GitChangedFile {
+export interface GitChangedFile {
   path: string
   status: string
   type: ChangeType
@@ -72,7 +74,7 @@ function parsePorcelainLine(line: string): GitChangedFile | null {
   return { path, status, type, staged, unstaged, previousPath }
 }
 
-async function listChangedFiles(cwd: string): Promise<{ files: GitChangedFile[], timedOut?: boolean }> {
+export async function listChangedFiles(cwd: string): Promise<{ files: GitChangedFile[], timedOut?: boolean }> {
   const result = await runGit(['status', '--porcelain=v1', '-uall'], cwd)
   if (result.timedOut) return { files: [], timedOut: true }
   if (result.code !== 0) return { files: [] }
@@ -93,7 +95,7 @@ async function listChangedFiles(cwd: string): Promise<{ files: GitChangedFile[],
   return { files }
 }
 
-async function summarizeFileLines(
+export async function summarizeFileLines(
   cwd: string,
   file: GitChangedFile,
 ): Promise<{ additions: number, deletions: number }> {
@@ -278,13 +280,16 @@ changes.get('/:id/changes/file', async (c) => {
     oldText = ''
     newText = content
   } else {
-    // Try unstaged diff first; fall back to staged diff if empty (fully staged files)
-    const unstaged = await runGit(['diff', '--no-color', '--no-ext-diff', '--', path], root)
-    patch = unstaged.stdout
-    if (!patch.trim()) {
-      const staged = await runGit(['diff', '--cached', '--no-color', '--no-ext-diff', '--', path], root)
-      patch = staged.stdout
-    }
+    // Single `git diff HEAD` covers staged + unstaged hunks in one shot,
+    // so files with mixed staged/unstaged changes don't drop the staged
+    // portion (which the prior `unstaged → staged fallback` did when
+    // unstaged was non-empty). `-M` enables rename detection so the patch
+    // headers match the per-file numstat path.
+    const combined = await runGit(
+      ['diff', 'HEAD', '-M', '--no-color', '--no-ext-diff', '--', path],
+      root,
+    )
+    patch = combined.stdout
 
     const oldPath = file.previousPath ?? path
     // SEC-019: Validate previousPath too
@@ -327,6 +332,87 @@ changes.get('/:id/changes/file', async (c) => {
       status: file.status,
     },
   })
+})
+
+// GET /api/projects/:projectId/issues/:issueId/ai-changes
+// Returns the files the agent itself reported editing (Edit/Write/MultiEdit
+// tool calls), cross-referenced with the current git working tree so the UI
+// can show "files the agent edited that are still dirty on disk", "files the
+// agent edited that are now clean again (likely reverted)", and "dirty files
+// the agent did NOT report editing (bash / lockfile / manual)".
+changes.get('/:id/ai-changes', async (c) => {
+  const projectId = c.req.param('projectId')!
+  const project = await findProject(projectId)
+  if (!project) return c.json({ success: false, error: 'Project not found' }, 404)
+
+  const issueId = c.req.param('id')!
+  const issue = await getProjectOwnedIssue(project.id, issueId)
+  if (!issue) return c.json({ success: false, error: 'Issue not found' }, 404)
+
+  const projectRoot = await resolveProjectDir(project.id)
+  const root = projectRoot
+    ? await resolveIssueDir(project.id, issueId, issue.useWorktree, projectRoot)
+    : projectRoot
+
+  // 1. Mine the tool-call log for AI-attributed edits (works without git).
+  const touched = root
+    ? await getAiTouchedFiles(issueId, root)
+    : await getAiTouchedFiles(issueId, '/')
+
+  // 2. If we have a git working tree, compute dirty paths so we can split
+  //    touched files into "still dirty" vs "reverted" and surface the
+  //    "dirty but not touched" set (bash / lockfile / manual edits).
+  let dirtyPaths: string[] = []
+  let gitRepo = false
+  let timedOut = false
+  if (root && await isGitRepo(root)) {
+    gitRepo = true
+    const listing = await listChangedFiles(root)
+    timedOut = listing.timedOut ?? false
+    dirtyPaths = listing.files.map(f => f.path)
+  }
+
+  const dirtySet = new Set(dirtyPaths)
+  const { onDisk, reverted } = partitionByPresence(touched, dirtySet)
+  const notTouched = dirtyNotTouched(dirtyPaths, touched)
+
+  return c.json({
+    success: true,
+    data: {
+      root,
+      gitRepo,
+      timedOut,
+      onDisk,
+      reverted,
+      dirtyNotTouched: notTouched,
+    },
+  })
+})
+
+// GET /api/projects/:projectId/issues/:id/ai-changes/file?path=...
+// Per-file timeline + reconstructed net effect (baseline → final buffer).
+// Used by DiffPanel's "agent timeline" view to render per-turn edits and
+// the synthesized diff that doesn't depend on git.
+changes.get('/:id/ai-changes/file', async (c) => {
+  const projectId = c.req.param('projectId')!
+  const project = await findProject(projectId)
+  if (!project) return c.json({ success: false, error: 'Project not found' }, 404)
+
+  const issueId = c.req.param('id')!
+  const issue = await getProjectOwnedIssue(project.id, issueId)
+  if (!issue) return c.json({ success: false, error: 'Issue not found' }, 404)
+
+  const path = c.req.query('path')?.trim()
+  if (!path) return c.json({ success: false, error: 'Missing path' }, 400)
+
+  const timeline = await getFileTimeline(issueId, path)
+  if (!timeline) {
+    return c.json({
+      success: true,
+      data: null,
+    })
+  }
+  return c.json({ success: true, data: timeline })
 })
 
 export default changes

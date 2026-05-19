@@ -3,6 +3,7 @@ import { generateKeyBetween } from 'jittered-fractional-indexing'
 import { db } from '@/db'
 import { getAppSetting, setAppSetting } from '@/db/helpers'
 import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
+import { ROOT_DIR } from '@/root'
 
 const PROJECT_ALIAS = '__cockpit__'
 const PROJECT_NAME = 'Cockpit (internal)'
@@ -14,11 +15,27 @@ export async function ensureCockpitProject(): Promise<{
   alias: string
 }> {
   const [existing] = await db
-    .select({ id: projectsTable.id, name: projectsTable.name, alias: projectsTable.alias })
+    .select({
+      id: projectsTable.id,
+      name: projectsTable.name,
+      alias: projectsTable.alias,
+      directory: projectsTable.directory,
+    })
     .from(projectsTable)
     .where(and(eq(projectsTable.alias, PROJECT_ALIAS), eq(projectsTable.isDeleted, 0)))
 
-  if (existing) return existing
+  if (existing) {
+    // Backfill `directory` for legacy installs that created the cockpit
+    // project before this field was set. Without it the `/changes` route
+    // returns 400 and DiffPanel can't surface anything the assistant edits.
+    if (!existing.directory) {
+      await db
+        .update(projectsTable)
+        .set({ directory: ROOT_DIR, updatedAt: new Date() })
+        .where(eq(projectsTable.id, existing.id))
+    }
+    return { id: existing.id, name: existing.name, alias: existing.alias }
+  }
 
   const [created] = await db
     .insert(projectsTable)
@@ -26,6 +43,7 @@ export async function ensureCockpitProject(): Promise<{
       name: PROJECT_NAME,
       alias: PROJECT_ALIAS,
       description: 'Internal home for the cockpit AI assistant. Hidden from regular listings.',
+      directory: ROOT_DIR,
       isArchived: 1,
     })
     .returning({ id: projectsTable.id, name: projectsTable.name, alias: projectsTable.alias })

@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
-import { issues as issuesTable } from '@/db/schema'
+import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
+import { ROOT_DIR } from '@/root'
 import { expectSuccess, get } from './helpers'
 import './setup'
 
@@ -48,6 +49,35 @@ describe('GET /api/cockpit/_singleton', () => {
     expect(second.project.id).toBe(first.project.id)
     expect(second.issueId).toBe(first.issueId)
     expect(second.isFresh).toBe(false)
+  })
+
+  test('cockpit project has directory=ROOT_DIR so /changes can resolve files', async () => {
+    // Regression: previously the project was created without `directory`,
+    // which made GET /changes return 400 and DiffPanel show nothing even
+    // though the assistant was editing files in ROOT_DIR.
+    const s = expectSuccess(await get<SingletonResponse>('/api/cockpit/_singleton'))
+    const [row] = await db
+      .select({ directory: projectsTable.directory })
+      .from(projectsTable)
+      .where(eq(projectsTable.id, s.project.id))
+    expect(row?.directory).toBe(ROOT_DIR)
+  })
+
+  test('backfills directory on legacy projects (existed before this field)', async () => {
+    const s = expectSuccess(await get<SingletonResponse>('/api/cockpit/_singleton'))
+    // Simulate a pre-existing cockpit project missing `directory`
+    await db
+      .update(projectsTable)
+      .set({ directory: null })
+      .where(eq(projectsTable.id, s.project.id))
+
+    // Next access should backfill it transparently
+    expectSuccess(await get<SingletonResponse>('/api/cockpit/_singleton'))
+    const [row] = await db
+      .select({ directory: projectsTable.directory })
+      .from(projectsTable)
+      .where(eq(projectsTable.id, s.project.id))
+    expect(row?.directory).toBe(ROOT_DIR)
   })
 
   test('the cockpit project does not appear in /api/projects default listing', async () => {

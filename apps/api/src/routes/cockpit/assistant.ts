@@ -1,9 +1,10 @@
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import * as z from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { db } from '@/db'
 import { getAppSetting, setAppSetting } from '@/db/helpers'
 import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
+import { toISO } from '@/utils/date'
 import { issueEngine } from '@/engines/issue/engine'
 import { appEvents } from '@/events'
 import { createOpenAPIRouter } from '@/openapi/hono'
@@ -133,6 +134,40 @@ assistant.post('/engine', zValidator('json', engineSchema), async (c) => {
   return c.json({
     success: true,
     data: { issueId, engineType },
+  })
+})
+
+// GET /api/cockpit/recent-activity — recent non-hidden issues across all
+// projects, ordered by statusUpdatedAt desc. Used by the cockpit
+// ActivityStream to backfill on mount (SSE only delivers live updates).
+assistant.get('/recent-activity', async (c) => {
+  const raw = c.req.query('limit')
+  const parsed = raw ? Number.parseInt(raw, 10) : 20
+  const limit = Math.min(Math.max(Number.isFinite(parsed) ? parsed : 20, 1), 100)
+  const rows = await db
+    .select({
+      issueId: issuesTable.id,
+      title: issuesTable.title,
+      projectAlias: projectsTable.alias,
+      sessionStatus: issuesTable.sessionStatus,
+      statusId: issuesTable.statusId,
+      statusUpdatedAt: issuesTable.statusUpdatedAt,
+    })
+    .from(issuesTable)
+    .innerJoin(projectsTable, eq(issuesTable.projectId, projectsTable.id))
+    .where(and(
+      eq(issuesTable.isDeleted, 0),
+      eq(issuesTable.isHidden, false),
+      eq(projectsTable.isDeleted, 0),
+    ))
+    .orderBy(desc(issuesTable.statusUpdatedAt))
+    .limit(limit)
+  return c.json({
+    success: true,
+    data: rows.map(r => ({
+      ...r,
+      statusUpdatedAt: toISO(r.statusUpdatedAt),
+    })),
   })
 })
 

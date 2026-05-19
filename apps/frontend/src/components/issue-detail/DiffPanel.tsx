@@ -1,7 +1,12 @@
-import { AlertTriangle, ChevronRight, Copy, X } from 'lucide-react'
+import { AlertTriangle, Bot, ChevronRight, Copy, X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useIssueChanges, useIssueFilePatch } from '@/hooks/use-kanban'
+import {
+  useIssueAiChanges,
+  useIssueAiTimeline,
+  useIssueChanges,
+  useIssueFilePatch,
+} from '@/hooks/use-kanban'
 import { useTheme } from '@/hooks/use-theme'
 import type { IssueChangedFile } from '@/types/kanban'
 import { DIFF_MIN_WIDTH } from './diff-constants'
@@ -63,6 +68,7 @@ export function DiffPanel({
   onWidthChange,
   onClose,
   fullScreen,
+  useWorktree,
 }: {
   projectId: string
   issueId: string
@@ -70,10 +76,31 @@ export function DiffPanel({
   onWidthChange: (w: number) => void
   onClose: () => void
   fullScreen?: boolean
+  /**
+   * When false, the issue runs against the shared project working tree —
+   * the diff necessarily reflects everything dirty in that workspace
+   * (other issues, manual edits, …), not just what *this* issue produced.
+   * The panel surfaces a banner in that case so the count isn't mistaken
+   * for per-issue authorship.
+   */
+  useWorktree?: boolean
 }) {
   const { t } = useTranslation()
   const changesQuery = useIssueChanges(projectId, issueId, true)
+  const aiChangesQuery = useIssueAiChanges(projectId, issueId, true)
   const files = changesQuery.data?.files ?? []
+  const aiData = aiChangesQuery.data
+  const aiTouchedPaths = useMemo(() => {
+    const set = new Set<string>()
+    for (const f of aiData?.onDisk ?? []) set.add(f.path)
+    return set
+  }, [aiData])
+  const gitOtherFiles = useMemo(
+    () => files.filter(f => !aiTouchedPaths.has(f.path)),
+    [files, aiTouchedPaths],
+  )
+  const aiCount = (aiData?.onDisk?.length ?? 0) + (aiData?.reverted?.length ?? 0)
+  const headerCount = aiCount + gitOtherFiles.length
 
   return (
     <div
@@ -91,7 +118,7 @@ export function DiffPanel({
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold tracking-tight">{t('diff.changes')}</span>
             <span className="text-[11px] font-medium text-muted-foreground/60 bg-muted/50 rounded-full px-1.5 py-0.5 tabular-nums">
-              {files.length}
+              {headerCount}
             </span>
           </div>
           <button
@@ -118,55 +145,405 @@ export function DiffPanel({
                   </span>
                 </div>
               ) :
-              !changesQuery.data?.gitRepo ?
-                  (
-                    <div className="flex-1 flex items-center justify-center px-4">
-                      <span className="text-sm text-muted-foreground text-center">
-                        {t('diff.notGitRepo')}
-                      </span>
-                    </div>
-                  ) :
-                changesQuery.data?.timedOut ?
-                    (
-                      <div className="flex-1 flex items-center justify-center px-4">
-                        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 max-w-xs">
-                          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-                          <span className="text-sm text-amber-700 dark:text-amber-300">
-                            {t('diff.timedOut')}
-                          </span>
-                        </div>
-                      </div>
-                    ) :
-                  files.length === 0 ?
-                      (
-                        <div className="flex-1 flex items-center justify-center px-4">
-                          <span className="text-sm text-muted-foreground text-center">{t('diff.noChanges')}</span>
-                        </div>
-                      ) :
-                      (
-                        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain touch-pan-y p-2 space-y-2">
-                          <OversizedFilesBanner files={files} />
-                          {files.map(file => (
-                            <DiffFileCard
-                              key={file.path}
-                              projectId={projectId}
-                              issueId={issueId}
-                              path={file.path}
-                              type={file.type}
-                              additions={file.additions}
-                              deletions={file.deletions}
-                              oversized={file.oversized}
-                              sizeDisplay={file.sizeDisplay}
-                            />
-                          ))}
-                        </div>
-                      )}
+            headerCount === 0 ?
+                (
+                  <div className="flex-1 flex items-center justify-center px-4">
+                    <span className="text-sm text-muted-foreground text-center">{t('diff.noChanges')}</span>
+                  </div>
+                ) :
+                (
+                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain touch-pan-y p-2 space-y-2">
+                    {useWorktree === false ? <SharedWorkspaceBanner /> : null}
+                    {changesQuery.data?.timedOut ?
+                        (
+                          <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+                            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                            <span className="text-sm text-amber-700 dark:text-amber-300">
+                              {t('diff.timedOut')}
+                            </span>
+                          </div>
+                        ) :
+                      null}
+                    {!changesQuery.data?.gitRepo ?
+                        (
+                          <div className="rounded-lg border border-border/30 bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground/80">
+                            {t('diff.notGitRepoHint', '工作目录不是 Git 仓库，仅显示 agent 编辑记录。')}
+                          </div>
+                        ) :
+                      null}
+                    <AiAttributedSection
+                      projectId={projectId}
+                      issueId={issueId}
+                      onDisk={aiData?.onDisk ?? []}
+                      reverted={aiData?.reverted ?? []}
+                    />
+                    {gitOtherFiles.length > 0 ?
+                        (
+                          <GitOtherSection
+                            projectId={projectId}
+                            issueId={issueId}
+                            files={gitOtherFiles}
+                          />
+                        ) :
+                      null}
+                  </div>
+                )}
       </div>
     </div>
   )
 }
 
 export { DIFF_MIN_WIDTH }
+
+interface AiTouchedFile {
+  path: string
+  toolName: string
+  editCount: number
+  firstTurnIndex: number
+  lastTurnIndex: number
+  status: 'edited' | 'created' | 'maybe-deleted'
+}
+
+function AiAttributedSection({
+  projectId,
+  issueId,
+  onDisk,
+  reverted,
+}: {
+  projectId: string
+  issueId: string
+  onDisk: AiTouchedFile[]
+  reverted: AiTouchedFile[]
+}) {
+  const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(true)
+  const all = [...onDisk, ...reverted]
+  if (all.length === 0) return null
+
+  return (
+    <div
+      data-testid="diff-ai-attributed-section"
+      className="rounded-lg border border-primary/30 bg-primary/5 overflow-hidden"
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-[12px] font-medium hover:bg-primary/10 cursor-pointer"
+      >
+        <Bot className="h-3.5 w-3.5 text-primary shrink-0" />
+        <span className="flex-1 text-left">
+          {t('diff.aiEditedTitle', 'Agent 编辑过的文件')}
+          <span className="ml-1.5 text-muted-foreground/70 font-normal">
+            (
+            {all.length}
+            )
+          </span>
+        </span>
+        <ChevronRight
+          className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expanded ? 'rotate-90' : ''}`}
+        />
+      </button>
+      {expanded ?
+          (
+            <ul className="border-t border-primary/20 divide-y divide-primary/10">
+              {onDisk.map(f => (
+                <AiFileRow
+                  key={`d-${f.path}`}
+                  projectId={projectId}
+                  issueId={issueId}
+                  file={f}
+                  dirty
+                />
+              ))}
+              {reverted.map(f => (
+                <AiFileRow
+                  key={`r-${f.path}`}
+                  projectId={projectId}
+                  issueId={issueId}
+                  file={f}
+                  dirty={false}
+                />
+              ))}
+            </ul>
+          ) :
+        null}
+    </div>
+  )
+}
+
+function AiFileRow({
+  projectId,
+  issueId,
+  file,
+  dirty,
+}: {
+  projectId: string
+  issueId: string
+  file: AiTouchedFile
+  dirty: boolean
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const turnLabel = file.firstTurnIndex === file.lastTurnIndex
+    ? `turn ${file.firstTurnIndex}`
+    : `turn ${file.firstTurnIndex}–${file.lastTurnIndex}`
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        data-testid={`ai-file-row-${file.path}`}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-[12px] hover:bg-primary/5 cursor-pointer text-left"
+      >
+        <ChevronRight
+          className={`h-3 w-3 shrink-0 text-muted-foreground/60 transition-transform ${open ? 'rotate-90' : ''}`}
+        />
+        <span
+          className="truncate font-mono text-foreground/85 min-w-0 flex-1"
+          title={file.path}
+        >
+          {file.path}
+        </span>
+        <span className="shrink-0 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wide">
+          {file.toolName}
+        </span>
+        <span className="shrink-0 text-[10px] text-muted-foreground/60 tabular-nums">
+          ×
+          {file.editCount}
+        </span>
+        <span className="shrink-0 text-[10px] text-muted-foreground/60">
+          {turnLabel}
+        </span>
+        {file.status === 'created' ?
+            (
+              <span className="shrink-0 text-[9px] font-semibold leading-none text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 rounded px-1 py-0.5">
+                {t('diff.aiStatus.created', 'NEW')}
+              </span>
+            ) :
+          file.status === 'maybe-deleted' ?
+              (
+                <span className="shrink-0 text-[9px] font-semibold leading-none text-red-600 dark:text-red-400 border border-red-500/30 bg-red-500/10 rounded px-1 py-0.5">
+                  {t('diff.aiStatus.maybeDeleted', 'DEL?')}
+                </span>
+              ) :
+            null}
+        {!dirty ?
+            (
+              <span
+                className="shrink-0 text-[9px] font-semibold leading-none text-amber-600 dark:text-amber-400 border border-amber-500/30 bg-amber-500/10 rounded px-1 py-0.5"
+                title={t('diff.aiStatus.revertedTooltip', 'Agent 编辑过但磁盘当前干净——很可能后续被回滚或被另一次编辑覆盖回去了')}
+              >
+                {t('diff.aiStatus.reverted', 'REVERTED')}
+              </span>
+            ) :
+          null}
+      </button>
+      {open ? <AiFileTimeline projectId={projectId} issueId={issueId} path={file.path} /> : null}
+    </li>
+  )
+}
+
+function AiFileTimeline({
+  projectId,
+  issueId,
+  path,
+}: {
+  projectId: string
+  issueId: string
+  path: string
+}) {
+  const { t } = useTranslation()
+  const q = useIssueAiTimeline(projectId, issueId, path, true)
+  if (q.isLoading) {
+    return (
+      <div className="px-6 py-2 text-[11px] text-muted-foreground/70">
+        {t('common.loading', 'Loading…')}
+      </div>
+    )
+  }
+  if (q.isError || !q.data) {
+    return (
+      <div className="px-6 py-2 text-[11px] text-muted-foreground/70">
+        {t('diff.aiTimelineEmpty', '没有可重建的时间线')}
+      </div>
+    )
+  }
+  const tl = q.data
+  return (
+    <div
+      data-testid={`ai-file-timeline-${path}`}
+      className="px-3 pb-2 pt-1 text-[11px] bg-primary/[0.03] border-t border-primary/10"
+    >
+      <div className="flex items-center gap-2 px-3 py-1 text-muted-foreground/80">
+        <span>
+          {t('diff.aiTimelineNet', '净效果')}
+          :
+        </span>
+        {tl.netAdditions > 0 ?
+            (
+              <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">
+                +
+                {tl.netAdditions}
+              </span>
+            ) :
+          null}
+        {tl.netDeletions > 0 ?
+            (
+              <span className="text-red-600 dark:text-red-400 tabular-nums">
+                -
+                {tl.netDeletions}
+              </span>
+            ) :
+          null}
+        {tl.status === 'reverted' ?
+            (
+              <span className="ml-1 text-[9px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/30 bg-amber-500/10 rounded px-1 py-0.5">
+                {t('diff.aiTimelineRevertedFlag', 'NET ZERO')}
+              </span>
+            ) :
+          null}
+        {tl.baselineSource === 'write' ?
+            (
+              <span
+                className="ml-auto text-[9px] font-medium text-muted-foreground/70"
+                title={t('diff.aiTimelineNoBaselineTooltip', '首次操作是 Write，无法重建原始内容；只能展示最终内容。')}
+              >
+                {t('diff.aiTimelineNoBaseline', 'no baseline')}
+              </span>
+            ) :
+          null}
+      </div>
+      <ol className="space-y-0.5 mt-1">
+        {tl.edits.map((e, i) => (
+          <li
+            key={`${e.turnIndex}-${e.entryIndex}-${i}`}
+            className="flex items-center gap-2 px-3 py-1 rounded hover:bg-primary/5"
+          >
+            <span className="shrink-0 text-muted-foreground/60 tabular-nums">
+              T
+              {e.turnIndex}
+            </span>
+            <span className="shrink-0 text-[10px] uppercase font-medium text-muted-foreground/70">
+              {e.toolName}
+            </span>
+            <span className="flex-1 truncate text-muted-foreground/80">
+              {e.summary}
+            </span>
+            {e.skipped ?
+                (
+                  <span className="shrink-0 text-[9px] font-semibold text-red-600 dark:text-red-400 border border-red-500/30 bg-red-500/10 rounded px-1 py-0.5">
+                    SKIPPED
+                  </span>
+                ) :
+                (
+                  <>
+                    {e.additions > 0 ?
+                        (
+                          <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">
+                            +
+                            {e.additions}
+                          </span>
+                        ) :
+                      null}
+                    {e.deletions > 0 ?
+                        (
+                          <span className="text-red-600 dark:text-red-400 tabular-nums">
+                            -
+                            {e.deletions}
+                          </span>
+                        ) :
+                      null}
+                  </>
+                )}
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
+function GitOtherSection({
+  projectId,
+  issueId,
+  files,
+}: {
+  projectId: string
+  issueId: string
+  files: IssueChangedFile[]
+}) {
+  const { t } = useTranslation()
+  // Collapsed by default — these are the "漏网" files that the agent did
+  // not directly edit (bash / lockfile / manual). Most reviews don't need
+  // to look here, so we don't want them eating vertical space.
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div
+      data-testid="diff-git-other-section"
+      className="rounded-lg border border-border/40 bg-card/40 overflow-hidden"
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-[12px] font-medium hover:bg-muted/40 cursor-pointer"
+      >
+        <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+        <span className="flex-1 text-left">
+          {t('diff.gitOtherTitle', '工作区其它脏文件')}
+          <span className="ml-1.5 text-muted-foreground/70 font-normal">
+            (
+            {files.length}
+            )
+          </span>
+        </span>
+        <span className="text-[10px] text-muted-foreground/60 hidden sm:inline">
+          {t('diff.gitOtherHint', 'bash / lockfile / 手动')}
+        </span>
+        <ChevronRight
+          className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expanded ? 'rotate-90' : ''}`}
+        />
+      </button>
+      {expanded ?
+          (
+            <div className="border-t border-border/30 p-2 space-y-2">
+              <OversizedFilesBanner files={files} />
+              {files.map(file => (
+                <DiffFileCard
+                  key={file.path}
+                  projectId={projectId}
+                  issueId={issueId}
+                  path={file.path}
+                  type={file.type}
+                  additions={file.additions}
+                  deletions={file.deletions}
+                  oversized={file.oversized}
+                  sizeDisplay={file.sizeDisplay}
+                />
+              ))}
+            </div>
+          ) :
+        null}
+    </div>
+  )
+}
+
+function SharedWorkspaceBanner() {
+  const { t } = useTranslation()
+  return (
+    <div
+      data-testid="diff-shared-workspace-banner"
+      className="flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-[11px] text-blue-700 dark:text-blue-300"
+    >
+      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+      <span>
+        {t(
+          'diff.sharedWorkspaceHint',
+          '此 issue 与项目共用工作目录，下方更改包含整个工作区的所有脏改动（含其他 issue 与手动编辑），并非仅此 issue 产生。',
+        )}
+      </span>
+    </div>
+  )
+}
 
 function OversizedFilesBanner({ files }: { files: IssueChangedFile[] }) {
   const { t } = useTranslation()

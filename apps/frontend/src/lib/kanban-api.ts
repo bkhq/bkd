@@ -378,6 +378,65 @@ export const kanbanApi = {
     post<{ deletedIssueId: string | null }>('/api/cockpit/reset', {}),
   cockpitSetEngine: (engineType: string) =>
     post<{ issueId: string, engineType: string }>('/api/cockpit/engine', { engineType }),
+  getIssueAiTimeline: (projectId: string, issueId: string, path: string) =>
+    get<{
+      path: string
+      baselineSource: 'edit' | 'write' | 'none'
+      baseline: string
+      finalBuffer: string
+      netAdditions: number
+      netDeletions: number
+      status: 'reverted' | 'write-only' | 'clean'
+      edits: Array<{
+        turnIndex: number
+        entryIndex: number
+        at: string
+        toolName: string
+        bufferLinesAfter: number
+        additions: number
+        deletions: number
+        skipped: boolean
+        summary: string
+      }>
+    } | null>(`/api/projects/${projectId}/issues/${issueId}/ai-changes/file?path=${encodeURIComponent(path)}`),
+
+  getIssueAiChanges: (projectId: string, issueId: string) =>
+    get<{
+      root: string | null
+      gitRepo: boolean
+      timedOut: boolean
+      onDisk: Array<{
+        path: string
+        rawPath: string
+        toolName: string
+        editCount: number
+        firstTurnIndex: number
+        lastTurnIndex: number
+        lastTouchAt: string
+        status: 'edited' | 'created' | 'maybe-deleted'
+      }>
+      reverted: Array<{
+        path: string
+        rawPath: string
+        toolName: string
+        editCount: number
+        firstTurnIndex: number
+        lastTurnIndex: number
+        lastTouchAt: string
+        status: 'edited' | 'created' | 'maybe-deleted'
+      }>
+      dirtyNotTouched: string[]
+    }>(`/api/projects/${projectId}/issues/${issueId}/ai-changes`),
+
+  getCockpitRecentActivity: (limit = 20) =>
+    get<Array<{
+      issueId: string
+      title: string
+      projectAlias: string
+      sessionStatus: string | null
+      statusId: string
+      statusUpdatedAt: string
+    }>>(`/api/cockpit/recent-activity?limit=${limit}`),
   listCockpitProposals: () =>
     get<Array<{
       id: string

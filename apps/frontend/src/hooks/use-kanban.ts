@@ -18,6 +18,10 @@ export const queryKeys = {
     ['projects', projectId, 'issues', issueId] as const,
   issueChanges: (projectId: string, issueId: string) =>
     ['projects', projectId, 'issues', issueId, 'changes'] as const,
+  issueAiChanges: (projectId: string, issueId: string) =>
+    ['projects', projectId, 'issues', issueId, 'ai-changes'] as const,
+  issueAiTimeline: (projectId: string, issueId: string, path: string) =>
+    ['projects', projectId, 'issues', issueId, 'ai-changes', 'file', path] as const,
   issueFilePatch: (projectId: string, issueId: string, path: string) =>
     ['projects', projectId, 'issues', issueId, 'changes', 'file', path] as const,
   slashCommands: (projectId: string, issueId: string) =>
@@ -230,6 +234,29 @@ export function useIssueChanges(projectId: string, issueId: string, enabled = tr
     queryKey: queryKeys.issueChanges(projectId, issueId),
     queryFn: () => kanbanApi.getIssueChanges(projectId, issueId),
     enabled: !!projectId && !!issueId && enabled,
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useIssueAiChanges(projectId: string, issueId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.issueAiChanges(projectId, issueId),
+    queryFn: () => kanbanApi.getIssueAiChanges(projectId, issueId),
+    enabled: !!projectId && !!issueId && enabled,
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useIssueAiTimeline(
+  projectId: string,
+  issueId: string,
+  path: string | null,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.issueAiTimeline(projectId, issueId, path ?? ''),
+    queryFn: () => kanbanApi.getIssueAiTimeline(projectId, issueId, path ?? ''),
+    enabled: !!projectId && !!issueId && !!path && enabled,
     staleTime: STALE_TIME.STANDARD,
   })
 }
