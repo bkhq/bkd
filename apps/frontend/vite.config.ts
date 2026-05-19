@@ -86,6 +86,14 @@ const config = defineConfig(() => {
       environment: 'jsdom',
       globals: true,
       setupFiles: ['./src/test-setup.ts'],
+      coverage: {
+        provider: 'v8',
+        reportsDirectory: './coverage',
+        reporter: ['text', 'json-summary', 'html'],
+        reportOnFailure: true,
+        include: ['src/**/*.{ts,tsx}'],
+        exclude: ['src/**/*.test.{ts,tsx}', 'src/**/__tests__/**', 'src/types/**'],
+      },
     },
     server: {
       port: devPort,

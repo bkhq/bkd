@@ -27,7 +27,7 @@ export function ShikiCodeBlock({ code, lang }: ShikiCodeBlockProps) {
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(code).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setTimeout(setCopied, 2000, false)
     }).catch(() => {})
   }, [code])
 

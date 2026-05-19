@@ -56,7 +56,10 @@ eventBus.onConnectionChange((connected) => {
 // Invalidate issue queries when any issue status changes via SSE
 eventBus.onIssueUpdated(() => {
   queryClient.invalidateQueries({ queryKey: ['projects'] })
-  queryClient.invalidateQueries({ queryKey: ['issues', 'review'] })
+  // Match all useReviewIssues variants (with or without status filter) + stats
+  queryClient.invalidateQueries({
+    predicate: q => q.queryKey[0] === 'issues' && (q.queryKey[1] === 'review' || q.queryKey[1] === 'stats'),
+  })
 })
 // Debounced invalidation of changes queries on any issue activity (log/state/done)
 {

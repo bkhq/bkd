@@ -14,6 +14,7 @@ import type {
 import { CommandBuilder } from '@/engines/command'
 import { safeEnv } from '@/engines/safe-env'
 import { spawnNode } from '@/engines/spawn'
+import { getCockpitMcpServer } from '@/mcp/cockpit-server'
 import type {
   EngineAvailability,
   EngineCapability,
@@ -437,6 +438,16 @@ export class ClaudeCodeSdkExecutor implements EngineExecutor {
 
     if (Object.keys(extraArgs).length > 0) {
       sdkOptions.extraArgs = extraArgs
+    }
+
+    // Cockpit assistant sentinel: when the caller marks this spawn with
+    // BKD_COCKPIT_ASSISTANT=1, attach the in-process cockpit MCP server so
+    // Claude can answer questions about the whole BKD instance via tools.
+    if (userExtra.BKD_COCKPIT_ASSISTANT === '1') {
+      sdkOptions.mcpServers = {
+        ...(sdkOptions.mcpServers ?? {}),
+        cockpit: getCockpitMcpServer(),
+      }
     }
 
     const logLevel = process.env.LOG_LEVEL ?? 'info'

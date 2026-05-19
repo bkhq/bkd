@@ -51,3 +51,11 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**CHAT-006 Mermaid diagram zoom viewer**](CHAT-006.md) `P2`
 - [x] [**CHAT-007 Mobile auto-load older history reliability fixes**](CHAT-007.md) `P1`
 - [x] [**CHAT-008 Kill duplicate user-message renders + raise bubble contrast**](CHAT-008.md) `P1`
+- [x] [**COCKPIT-001 Global cockpit page skeleton via /review upgrade**](COCKPIT-001.md) `P1`
+- [x] [**COCKPIT-A1 Cockpit AI assistant (read-only) + responsive cockpit**](COCKPIT-A1.md) `P1`
+- [x] [**COCKPIT-A2 Cockpit AI write tools with approval gate**](COCKPIT-A2.md) `P1`
+- [x] [**COCKPIT-002 Cross-project full-text log search (FTS5)**](COCKPIT-002.md) `P2`
+- [x] [**COCKPIT-A3 Cockpit assistant session reset + suggested prompts**](COCKPIT-A3.md) `P2`
+- [x] [**COCKPIT-003 Bulk operations on review list**](COCKPIT-003.md) `P1`
+- [x] [**COCKPIT-004 Issue templates in create dialog**](COCKPIT-004.md) `P2`
+- [x] [**COCKPIT-005 Diff hover preview on done cards**](COCKPIT-005.md) `P2`

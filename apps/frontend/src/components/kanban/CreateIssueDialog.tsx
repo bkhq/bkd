@@ -2,6 +2,8 @@ import { ChevronDown } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
+import { IssueTemplateSelect } from '@/components/cockpit/IssueTemplateSelect'
+import type { IssueTemplate } from '@/components/cockpit/IssueTemplateSelect'
 import { EngineIcon } from '@/components/EngineIcons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -75,6 +77,23 @@ export function CreateIssueForm({
   const [modelId, setModelId] = useState('')
   const [permission, setPermission] = useState<PermissionId>('auto')
   const [useWorktree, setUseWorktree] = useState(false)
+  const [templateId, setTemplateId] = useState('')
+  const [templatePrefix, setTemplatePrefix] = useState('')
+
+  const handleTemplateChange = useCallback((tpl: IssueTemplate | null) => {
+    if (!tpl) {
+      setTemplateId('')
+      setTemplatePrefix('')
+      return
+    }
+    setTemplateId(tpl.id)
+    setTemplatePrefix(tpl.promptPrefix ?? '')
+    if (tpl.defaultStatusId) setStatusId(tpl.defaultStatusId)
+    if (tpl.defaultTags && tpl.defaultTags.length > 0) {
+      setTag(prev => prev.trim() ? prev : tpl.defaultTags!.join(','))
+    }
+    if (!input.trim() && tpl.titlePattern) setInput(tpl.titlePattern)
+  }, [input])
 
   // Keep worktree disabled for non-git projects, but do not auto-enable it.
   useEffect(() => {
@@ -127,9 +146,10 @@ export function CreateIssueForm({
       auto: 'auto',
       ask: 'supervised',
     }
+    const fullTitle = templatePrefix ? `${templatePrefix}${trimmed}` : trimmed
     createIssue.mutate(
       {
-        title: trimmed,
+        title: fullTitle,
         tags: (() => {
           const arr = tag
             .split(',')
@@ -151,6 +171,8 @@ export function CreateIssueForm({
           setModelId('')
           setPermission('auto')
           setUseWorktree(false)
+          setTemplateId('')
+          setTemplatePrefix('')
           onCreated?.()
         },
       },
@@ -165,6 +187,7 @@ export function CreateIssueForm({
     modelId,
     createIssue,
     onCreated,
+    templatePrefix,
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -183,6 +206,11 @@ export function CreateIssueForm({
 
   return (
     <div onKeyDown={handleKeyDown}>
+      {/* ─── Template select ────────────────────── */}
+      <div className="mb-2.5">
+        <IssueTemplateSelect value={templateId} onChange={handleTemplateChange} />
+      </div>
+
       {/* ─── Input area ─────────────────────────── */}
       <div className="rounded-lg border bg-muted/30 focus-within:ring-1 focus-within:ring-ring transition-shadow">
         <Textarea

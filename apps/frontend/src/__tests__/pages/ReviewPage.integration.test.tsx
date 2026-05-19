@@ -1,0 +1,168 @@
+/**
+ * Page-level integration tests for /review.
+ * Not a real browser e2e — uses RTL + jsdom + memory router.
+ * Mocks the data layer and AppSidebar; verifies the composition that single-
+ * component tests can't see (mobile mode switching, list collapse, ghost strip,
+ * cockpit-empty-state).
+ */
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { type ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useViewModeStore } from '@/stores/view-mode-store'
+
+// ── Mocks (hoisted) ──────────────────────────────────────
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, fallback?: string) => fallback ?? key,
+    i18n: { language: 'en' },
+  }),
+}))
+
+const isMobileMock = vi.fn(() => false)
+vi.mock('@/hooks/use-mobile', () => ({
+  useIsMobile: () => isMobileMock(),
+}))
+
+vi.mock('@/hooks/use-kanban', () => ({
+  useReviewIssues: () => ({ data: [], isLoading: false }),
+  useIssueStats: () => ({
+    data: [
+      {
+        projectId: 'p1',
+        projectName: 'Alpha',
+        projectAlias: 'alpha',
+        counts: { todo: 1, working: 2, review: 0, done: 3 },
+        total: 6,
+      },
+    ],
+    isLoading: false,
+  }),
+  useProjects: () => ({ data: [{ id: 'p1', name: 'Alpha', alias: 'alpha' }] }),
+  useReviewReadStatus: () => ({ markAsRead: vi.fn(), isRead: () => true }),
+  queryKeys: { issues: () => ['x'], issueStats: () => ['y'], reviewIssues: () => ['z'] },
+}))
+
+vi.mock('@/hooks/use-issue-templates', () => ({
+  useIssueTemplates: () => ({ data: [] }),
+}))
+
+vi.mock('@/hooks/use-bulk-operations', () => ({
+  useBulkOperations: () => ({ run: vi.fn(), progress: null, isRunning: false }),
+}))
+
+vi.mock('@/components/kanban/AppSidebar', () => ({
+  AppSidebar: () => <div data-testid="app-sidebar-stub" />,
+}))
+
+vi.mock('@/components/kanban/MobileSidebar', () => ({
+  MobileSidebar: () => <div data-testid="mobile-sidebar-stub" />,
+}))
+
+vi.mock('@/components/cockpit/AssistantFab', () => ({
+  AssistantFab: () => <div data-testid="assistant-fab-stub" />,
+}))
+
+vi.mock('@/components/cockpit/ActivityStream', () => ({
+  ActivityStream: () => <div data-testid="activity-stream-stub" />,
+}))
+
+vi.mock('@/lib/event-bus', () => ({
+  eventBus: {
+    onIssueUpdated: () => () => {},
+    onCockpitProposal: () => () => {},
+  },
+}))
+
+import ReviewPage from '@/pages/ReviewPage'
+
+function Wrapper({ children, initialPath = '/review' }: { children: ReactNode, initialPath?: string }) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return (
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route path="/review" element={children} />
+          <Route path="/review/:projectAlias/:issueId" element={children} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+describe('reviewPage integration — desktop, no issue selected', () => {
+  beforeEach(() => {
+    isMobileMock.mockReturnValue(false)
+    useViewModeStore.setState({
+      sidebarCollapsed: false,
+      listPanelCollapsed: false,
+    })
+  })
+
+  it('renders sidebar + review list + CockpitDashboard (matrix + activity)', () => {
+    render(<Wrapper><ReviewPage /></Wrapper>)
+    expect(screen.getByTestId('app-sidebar-stub')).toBeDefined()
+    // Matrix rendered (desktop variant) via project p1
+    expect(screen.getByTestId('cockpit-matrix-row-p1')).toBeDefined()
+    // Activity stream stub mounted
+    expect(screen.getByTestId('activity-stream-stub')).toBeDefined()
+    // AI assistant FAB present
+    expect(screen.getByTestId('assistant-fab-stub')).toBeDefined()
+  })
+
+  it('clicking the list-panel collapse button swaps the list for a ghost strip', () => {
+    render(<Wrapper><ReviewPage /></Wrapper>)
+    // Initially expanded — collapse button visible, ghost absent
+    expect(screen.queryByTestId('list-panel-ghost')).toBeNull()
+    fireEvent.click(screen.getByTestId('list-panel-collapse'))
+    expect(useViewModeStore.getState().listPanelCollapsed).toBe(true)
+    // Re-render: ghost now visible
+    expect(screen.getByTestId('list-panel-ghost')).toBeDefined()
+  })
+
+  it('clicking the ghost re-expands the list', () => {
+    useViewModeStore.setState({ listPanelCollapsed: true })
+    render(<Wrapper><ReviewPage /></Wrapper>)
+    expect(screen.getByTestId('list-panel-ghost')).toBeDefined()
+    fireEvent.click(screen.getByTestId('list-panel-ghost-expand'))
+    expect(useViewModeStore.getState().listPanelCollapsed).toBe(false)
+  })
+})
+
+describe('reviewPage integration — mobile, no issue selected', () => {
+  beforeEach(() => {
+    isMobileMock.mockReturnValue(true)
+    useViewModeStore.setState({
+      sidebarCollapsed: false,
+      listPanelCollapsed: false,
+    })
+  })
+
+  it('defaults to List mode (mobile tabs show, list panel mounts)', () => {
+    render(<Wrapper><ReviewPage /></Wrapper>)
+    // Mobile tabs rendered inside list panel header
+    expect(screen.getByTestId('cockpit-mobile-tabs')).toBeDefined()
+    expect(screen.getByTestId('cockpit-mobile-tab-list')).toBeDefined()
+    // App sidebar NOT rendered on mobile
+    expect(screen.queryByTestId('app-sidebar-stub')).toBeNull()
+  })
+
+  it('switching to Cockpit tab swaps list out and renders full-width CockpitDashboard', () => {
+    render(<Wrapper><ReviewPage /></Wrapper>)
+    fireEvent.click(screen.getByTestId('cockpit-mobile-tab-cockpit'))
+    // List panel collapse button should NOT be present (we are in cockpit mode)
+    expect(screen.queryByTestId('list-panel-collapse')).toBeNull()
+    // Matrix should be the mobile card variant
+    expect(screen.getByTestId('cockpit-matrix-mobile-card-p1')).toBeDefined()
+    // Mobile tabs still present (rendered in the cockpit container header)
+    expect(screen.getAllByTestId('cockpit-mobile-tabs').length).toBeGreaterThan(0)
+  })
+
+  it('list panel collapse button is NOT exposed on mobile', () => {
+    render(<Wrapper><ReviewPage /></Wrapper>)
+    expect(screen.queryByTestId('list-panel-collapse')).toBeNull()
+  })
+})

@@ -344,8 +344,76 @@ export const kanbanApi = {
     del<{ issueId: string }>(`/api/projects/${projectId}/worktrees/${issueId}`),
 
   // Issues
-  getReviewIssues: () =>
-    get<Array<Issue & { projectName: string, projectAlias: string }>>('/api/issues/review'),
+  getReviewIssues: (opts?: { statuses?: string[] }) => {
+    const qs = opts?.statuses && opts.statuses.length > 0 ?
+      `?statuses=${encodeURIComponent(opts.statuses.join(','))}` :
+      ''
+    return get<Array<Issue & { projectName: string, projectAlias: string }>>(
+      `/api/issues/review${qs}`,
+    )
+  },
+  getIssueStats: () =>
+    get<Array<{
+      projectId: string
+      projectName: string
+      projectAlias: string
+      counts: { todo: number, working: number, review: number, done: number }
+      total: number
+    }>>('/api/issues/stats'),
+
+  // Cockpit assistant
+  getCockpitAssistant: () =>
+    get<{
+      issueId: string
+      projectId: string
+      projectAlias: string
+      projectName: string
+    }>('/api/cockpit/assistant'),
+  cockpitAsk: (prompt: string, model?: string) =>
+    post<{ issueId: string, executionId: string, firstTurn: boolean }>(
+      '/api/cockpit/ask',
+      { prompt, ...(model ? { model } : {}) },
+    ),
+  cockpitReset: () =>
+    post<{ deletedIssueId: string | null }>('/api/cockpit/reset', {}),
+  listCockpitProposals: () =>
+    get<Array<{
+      id: string
+      type: 'cancel_issue' | 'restart_issue' | 'bulk_update_status' | 'create_issue'
+      summary: string
+      params: Record<string, unknown>
+      status: string
+      createdAt: number
+    }>>('/api/cockpit/proposals'),
+  approveCockpitProposal: (id: string) =>
+    post<{ status: string, result?: unknown }>(`/api/cockpit/proposals/${id}/approve`, {}),
+  rejectCockpitProposal: (id: string) =>
+    post<{ status: string }>(`/api/cockpit/proposals/${id}/reject`, {}),
+
+  // Issue templates
+  listIssueTemplates: () =>
+    get<Array<{
+      id: string
+      name: string
+      source: 'builtin' | 'user'
+      titlePattern?: string
+      promptPrefix?: string
+      defaultStatusId?: 'todo' | 'working' | 'review' | 'done'
+      defaultTags?: string[]
+    }>>('/api/issue-templates'),
+
+  // Cross-project log search (FTS5)
+  searchLogs: (query: string, limit = 30) =>
+    get<Array<{
+      logId: string
+      issueId: string
+      issueTitle: string
+      projectAlias: string
+      entryType: string
+      content: string
+      createdAt: string
+      score: number
+    }>>(`/api/search/logs?q=${encodeURIComponent(query)}&limit=${limit}`),
   getIssues: (projectId: string) => get<Issue[]>(`/api/projects/${projectId}/issues`),
   createIssue: (
     projectId: string,

@@ -27,7 +27,7 @@ export function useReviewReadStatus() {
   const [readIds, setReadIds] = useState<Set<string>>(getReadIds)
 
   const markAsRead = useCallback((issueId: string) => {
-    setReadIds(prev => {
+    setReadIds((prev) => {
       if (prev.has(issueId)) return prev
       const next = new Set(prev)
       next.add(issueId)

@@ -22,6 +22,7 @@
     "projects": "Projects",
     "quickActions": "Quick Actions",
     "noResults": "No results",
+    "logs": "Logs",
     "running": "Running",
     "review": "Review",
     "gotoHome": "Home",
@@ -330,7 +331,7 @@
     "switchView": "Switch view mode",
     "kanban": "Kanban",
     "list": "List",
-    "review": "Review",
+    "review": "Cockpit",
     "files": "Files"
   },
   "settings": {
@@ -517,6 +518,69 @@
     "title": "Review",
     "empty": "No issues pending review",
     "selectToStart": "Select an issue to review"
+  },
+  "cockpit": {
+    "title": "Cockpit",
+    "matrix": {
+      "title": "Projects overview",
+      "project": "Project",
+      "total": "Total",
+      "empty": "No projects yet"
+    },
+    "activity": {
+      "title": "Recent activity",
+      "empty": "No recent activity"
+    },
+    "quickCreate": {
+      "title": "Quick create (⌘N)",
+      "button": "New",
+      "project": "Project",
+      "template": "Template",
+      "titleLabel": "Title",
+      "placeholder": "What to do…",
+      "submit": "Create"
+    },
+    "assistant": {
+      "title": "AI Assistant",
+      "open": "Open AI assistant",
+      "placeholder": "Ask about your workspace…",
+      "reset": "Reset session",
+      "resetConfirmTitle": "Reset AI session?",
+      "resetConfirmBody": "The conversation history will be archived and a fresh session will start on your next message. Pending proposals are unaffected.",
+      "suggest": {
+        "title": "Try asking",
+        "stuck": "What's stuck right now?",
+        "failed": "Show me failed sessions today",
+        "progress": "Summarize progress across all projects",
+        "review": "Which issues are waiting for review?"
+      }
+    },
+    "proposals": {
+      "title": "Pending AI actions",
+      "approve": "Approve",
+      "reject": "Reject"
+    },
+    "diffHover": {
+      "title": "Changes",
+      "empty": "No changes detected",
+      "error": "Failed to load changes",
+      "more": "… + {{n}} more"
+    }
+  },
+  "issueTemplate": {
+    "none": "No template"
+  },
+  "listPanel": {
+    "collapse": "Collapse list",
+    "expand": "Expand list"
+  },
+  "bulk": {
+    "selected": "selected",
+    "clear": "Clear selection",
+    "restart": "Restart",
+    "cancel": "Cancel",
+    "moveTo": "Move to",
+    "running": "Running…"
   },
   "statusName": {
     "Todo": "Todo",

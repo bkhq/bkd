@@ -1,5 +1,254 @@
 # Changelog
 
+## 2026-05-19 01:40 [progress]
+
+COCKPIT-003 + COCKPIT-004 + COCKPIT-005 / PLAN-017 — Last three audit
+items closed: bulk operations on the review list, issue templates in
+the create flow, and a diff hover preview on done cards. All UI
+changes shipped desktop + mobile per the mobile first-class rule.
+
+### COCKPIT-004 — Issue templates
+- `apps/api/src/cockpit/templates.ts` ships 5 built-in templates
+  (bug-fix, refactor, add-tests, investigate, follow-up). User
+  templates persist under `appSettings.cockpit:issueTemplates` and
+  override built-ins by id.
+- `GET /api/issue-templates` + `PUT /api/issue-templates`
+  (zod-validated, max 50 user templates).
+- New `IssueTemplateSelect` component (native `<select>` for mobile
+  reliability) wired into both `CreateIssueForm` (kanban dialog) and
+  `CockpitQuickCreate`. Selecting a template fills the title pattern
+  and prepends `promptPrefix` to the user's typed title.
+- 4 backend tests + 4 frontend tests.
+
+### COCKPIT-003 — Bulk operations on review list
+- New Zustand store `bulk-selection-store.ts` (Set<string> of
+  selected issue ids).
+- New `use-bulk-operations` hook with concurrency cap (5), running
+  per-issue restart / cancel / status-update across project boundaries
+  via existing endpoints (no backend changes needed).
+- `ReviewListPanel` row gains a checkbox (hover-revealed on desktop,
+  always-visible on mobile, 44×44 touch target). Group header gains a
+  tri-state "select all in this project" checkbox.
+- New `BulkOperationsBar` sticky at the bottom of the list panel:
+  shows selected count + live progress + Restart / Cancel / Move-to
+  dropdown.
+- 4 frontend tests.
+
+### COCKPIT-005 — Diff hover preview on done cards
+- New `DoneDiffHover` wraps `KanbanCard` content when
+  `columnStatusId === 'done'`. Hover opens a popover lazy-loading
+  `useIssueChanges(projectId, issueId, open)` (only fetches once
+  opened). Renders compact file list with `+N -M` line stats.
+- Reuses existing `/api/projects/:projectId/issues/:id/changes`
+  endpoint — no backend changes.
+- 2 frontend tests.
+
+### Bug caught by lint autofix
+`Array.from({length}).fill(worker())` was the lint-autofix suggestion
+for `Array.from({length}, () => worker())` in
+`use-bulk-operations.ts`. **That suggestion is incorrect** — it
+collapses N parallel worker promises into a single shared promise,
+breaking concurrency. Reverted to an explicit `for` loop with a
+comment warning. (pitfall)
+
+### Test coverage delta
+- backend cockpit suite: 40/40
+- frontend full sweep: 218/219 (the 1 unrelated AppSidebar width
+  assertion persists from earlier).
+- lint: 0 errors, 2 pre-existing warnings.
+
+### Now closed (all original audit items)
+| pain point | status |
+|---|---|
+| 批量操作太弱 | ✅ ReviewListPanel multi-select + BulkOperationsBar |
+| 日志只能看不能搜 | ✅ FTS5 (COCKPIT-002) |
+| 没有 diff 高亮变化 | ✅ DoneDiffHover (COCKPIT-005) |
+| 没有 issue 模板 | ✅ Built-ins + user templates (COCKPIT-004) |
+| 跨项目搜索缺失 | ✅ /search + ⌘K + FTS5 logs section |
+| 驾驶舱 dashboard | ✅ COCKPIT-001 |
+| AI 助手 read-only | ✅ COCKPIT-A1 |
+| AI 助手 write + 审批 | ✅ COCKPIT-A2 |
+| AI 助手 reset + 建议 | ✅ COCKPIT-A3 |
+| 移动端响应式 | ✅ throughout |
+
+### Known limits / future
+- Cron-driven autonomous assistant still deferred.
+- Settings UI for managing user issue templates not built (PUT works).
+- Per-project template overrides not supported.
+- Hover popover is desktop-first; mobile users see the popover on
+  tap but no long-press affordance.
+
+## 2026-05-19 01:30 [progress]
+
+COCKPIT-A2 + COCKPIT-002 + COCKPIT-A3 / PLAN-016 — Cockpit assistant
+gains write capability (gated), full-text log search, and session
+lifecycle. All UI changes shipped desktop + mobile per the mobile
+first-class rule.
+
+Backend (write tools with approval gate):
+- New `apps/api/src/cockpit/proposals.ts` — in-memory proposal store
+  (TTL 30 min) with `propose / get / listPending / markApproved /
+  markRejected / markFailed`. Lost on restart by design.
+- New MCP tool `cockpit_propose_action({type, summary, params})` —
+  the AI cannot execute mutations directly; it can only queue
+  proposals for the user to approve in the panel.
+- New `routes/cockpit/proposals.ts` with three endpoints:
+  - `GET /api/cockpit/proposals` (pending)
+  - `POST /api/cockpit/proposals/:id/approve` — dispatches to
+    `issueEngine.cancelIssue` / `issueEngine.restartIssue` /
+    in-place bulk status update (capped at 50) / `create_issue`
+    helper. Validates project + issue existence; capped + soft-only.
+  - `POST /api/cockpit/proposals/:id/reject`
+- SSE events `cockpit-proposal` + `cockpit-reset` added to both the
+  shared `AppEventMap` + `SSEEventMap` and wired into
+  `routes/events.ts`.
+- Cockpit system prompt updated: AI must propose, never claim it
+  acted directly.
+
+Backend (FTS5 cross-project log search):
+- New migration `0020_cockpit_logs_fts.sql` — `issue_logs_fts`
+  virtual table (porter + unicode61 tokenizer) backfilled from
+  existing visible logs; insert/update/delete triggers keep shadow
+  in sync.
+- `cockpitSearchLogs` MCP tool upgraded to FTS5 (`bm25()` ranking,
+  prefix match on the last token) with defensive LIKE fallback.
+- New `GET /api/search/logs?q=&limit=` route exposes the same to
+  the frontend.
+
+Backend (session reset):
+- New `POST /api/cockpit/reset` soft-deletes the singleton issue
+  + clears `appSettings.cockpit:assistantIssueId`. Next `/ask`
+  creates a fresh session. Emits `cockpit-reset` SSE event.
+
+Frontend (desktop + mobile):
+- `AssistantPanel` gained:
+  - `CockpitProposalsBanner` — amber strip above the chat lists
+    pending proposals with Approve (✓ / 44×44 on mobile) and Reject
+    (✕) buttons. Live-updated via the SSE `cockpit-proposal` listener
+    on the event bus.
+  - Reset button in header with `alert-dialog` confirmation.
+  - `SuggestedPrompts` chip row shown when the session has no
+    conversation yet (4 chips, 44px touch targets on mobile).
+- `SearchContent` (already used by `/search` page + ⌘K palette)
+  gained a "Logs" section using the FTS5 endpoint. Loads only when
+  query length ≥ 2, ranked + truncated, click navigates to
+  `/review/:projectAlias/:issueId`.
+- New hooks: `useCockpitProposals`, `useApproveCockpitProposal`,
+  `useRejectCockpitProposal`, `useCockpitReset` (in
+  `hooks/use-cockpit-proposals.ts`).
+- EventBus: `onCockpitProposal` + `onCockpitReset` listeners.
+- New i18n keys: `cockpit.proposals.*`, `cockpit.assistant.reset*`,
+  `cockpit.assistant.suggest.*`, `search.logs` (en + zh).
+
+TDD coverage:
+- `apps/api/test/cockpit-proposals.test.ts` (9 tests)
+- `apps/api/test/cockpit-search-fts.test.ts` (8 tests — incl. trigger
+  sync + hidden-issue isolation)
+- `apps/api/test/api-cockpit-reset.test.ts` (2 tests)
+- `apps/frontend/.../CockpitProposalsBanner.test.tsx` (4 tests)
+- `apps/frontend/.../SuggestedPrompts.test.tsx` (2 tests)
+
+Overall sweep: backend 36/36 cockpit suite, frontend 208/209 (the
+single failure is the pre-existing AppSidebar width assertion noted
+in earlier changelogs).
+
+Known limits / follow-ups:
+- Proposals are in-memory only (lost on server restart). Acceptable
+  for short-lived approvals; persistence is a future enhancement.
+- FTS5 search currently indexes log `content` only — not metadata or
+  tool arguments. Adding tool calls would require a column-typed
+  shadow plus index expansion.
+- Autonomous mode (cron-driven cockpit checks + escalation) is still
+  deliberately out of scope.
+
+## 2026-05-19 01:15 [progress]
+
+COCKPIT-A1 / PLAN-015 — Cockpit AI assistant (read-only) + responsive
+cockpit. All UI changes shipped desktop + mobile in the same task per
+the mobile-first-class feedback.
+
+Backend:
+- New `apps/api/src/mcp/cockpit-tools.ts` + `cockpit-server.ts` — in-process
+  SDK MCP server (`createSdkMcpServer` / `tool()`) registering five
+  read-only tools: `cockpit_get_stats`, `cockpit_list_issues`,
+  `cockpit_get_issue`, `cockpit_recent_activity`, `cockpit_search_logs`.
+- `claude-sdk` executor now attaches the cockpit MCP server when the
+  spawn env carries `BKD_COCKPIT_ASSISTANT=1` — zero changes to
+  `SpawnOptions` or orchestration plumbing.
+- New `routes/cockpit/assistant.ts`:
+  - `GET /api/cockpit/assistant` returns the singleton assistant pointer
+  - `POST /api/cockpit/ask` first-turn-then-followup against the singleton
+  - `GET /api/cockpit/_singleton` debug helper
+- New `routes/cockpit/ensure-singleton.ts` — auto-creates an archived
+  `__cockpit__` project + a hidden assistant issue (id pinned in
+  `appSettings.cockpit:assistantIssueId`).
+- TDD surfaced a hidden-issue leak in COCKPIT-001 routes; patched
+  `/api/issues/review` and `/api/issues/stats` to filter `isHidden=false`.
+
+Frontend (every component double-surface):
+- New `components/cockpit/AssistantPanel.tsx` — desktop floating dock
+  (`fixed right-4 top-16 bottom-4 w-[380px]`), mobile bottom `Sheet`
+  85vh; wraps `<ChatBody>` against the assistant issue.
+- New `AssistantFab.tsx` — floating action button on cockpit dashboard.
+- `ProjectMatrix.tsx` — desktop grid table, `<md` collapses to
+  vertical card stack with 4 status pills per project (44px+ targets).
+- `CockpitQuickCreate.tsx` — popover ↔ bottom Sheet by viewport;
+  ⌘N shortcut disabled on mobile.
+- `pages/ReviewPage.tsx` — mobile-only `cockpitMode` state with new
+  `MobileCockpitTabs` segmented control (`[List | Cockpit]`); desktop
+  unchanged.
+- New `hooks/use-cockpit-assistant.ts` — `useCockpitAssistant`,
+  `useCockpitAsk`.
+- New i18n keys `cockpit.assistant.*` (en + zh).
+
+TDD coverage:
+- `apps/api/test/cockpit-tools.test.ts` (11 tests)
+- `apps/api/test/api-cockpit.test.ts` (6 tests)
+- `apps/frontend/.../ProjectMatrix.mobile.test.tsx` (2 tests)
+- `apps/frontend/.../CockpitQuickCreate.mobile.test.tsx` (2 tests)
+- `apps/frontend/.../AssistantPanel.test.tsx` (4 tests)
+
+Known limits / follow-ups:
+- Read-only this round. Write tools (cancel/restart/bulk) deferred to
+  COCKPIT-A2 with confirmation gates.
+- Search uses `LIKE`; FTS5 deferred to COCKPIT-002.
+- No session reset / context cap; deferred to COCKPIT-A3.
+- Assistant unavailable if `claude-code-sdk` engine is not installed —
+  panel falls back to loading state (graceful but not a friendly
+  installer guide yet).
+
+## 2026-05-19 00:50 [progress]
+
+COCKPIT-001 / PLAN-014 — Upgraded `/review` page into a global cockpit
+without introducing a new route.
+
+Backend:
+- `GET /api/issues/review` now accepts `?statuses=todo,working,review,done`
+  (defaults to `review` for back-compat with the notifications hook).
+- New `GET /api/issues/stats` returns per-project status counts.
+
+Frontend:
+- New `components/cockpit/` package: `ProjectMatrix`, `ActivityStream`,
+  `CockpitQuickCreate`, `CockpitDashboard`.
+- `ReviewPage` renders `<CockpitDashboard />` in the right pane when no
+  issue is selected. The list panel shows status filter chips
+  (default `working+review`) and per-row status dots.
+- ⌘N / Ctrl+N opens an inline project-pick + title quick-create popover;
+  no page switch required.
+- New i18n keys under `cockpit.*` (en + zh).
+- React Query invalidation refreshes all `useReviewIssues` variants
+  + `useIssueStats` on `issue-updated` SSE events.
+
+TDD coverage:
+- `apps/api/test/api-issues-review.test.ts` (5 tests)
+- `apps/api/test/api-issues-stats.test.ts` (2 tests)
+- `apps/frontend/src/__tests__/components/ProjectMatrix.test.tsx` (3 tests)
+- `apps/frontend/src/__tests__/components/ActivityStream.test.tsx` (4 tests)
+
+Follow-up tasks: COCKPIT-002 cross-project log search (FTS5),
+COCKPIT-003 bulk operations, COCKPIT-004 issue templates,
+COCKPIT-005 inline diff hover preview.
+
 ## 2026-05-11 18:50 [BUG-P1]
 
 Fix file path chips not opening the preview drawer when nested inside a

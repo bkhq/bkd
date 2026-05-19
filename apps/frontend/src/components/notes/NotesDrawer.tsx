@@ -413,7 +413,10 @@ function NoteListItem({
                 </span>
               ))}
               {note.tags.length > 3 && (
-                <span className="text-[9px] text-muted-foreground/50">+{note.tags.length - 3}</span>
+                <span className="text-[9px] text-muted-foreground/50">
+                  +
+                  {note.tags.length - 3}
+                </span>
               )}
             </div>
           )}

@@ -7,7 +7,12 @@ import filesystem from './filesystem'
 import git from './git'
 import issues from './issues'
 import reviewIssues from './issues/review'
+import issueStats from './issues/stats'
+import cockpitAssistant from './cockpit/assistant'
+import cockpitProposals from './cockpit/proposals'
 import processes from './processes'
+import search from './search'
+import templates from './templates'
 import projects from './projects'
 import whiteboard from './whiteboard'
 import worktrees from './worktrees'
@@ -19,6 +24,11 @@ apiRoutes.route('/projects', projects)
 apiRoutes.route('/projects/:projectId/issues', issues)
 apiRoutes.route('/projects/:projectId/whiteboard', whiteboard)
 apiRoutes.route('/issues/review', reviewIssues)
+apiRoutes.route('/issues/stats', issueStats)
+apiRoutes.route('/cockpit', cockpitAssistant)
+apiRoutes.route('/cockpit/proposals', cockpitProposals)
+apiRoutes.route('/search', search)
+apiRoutes.route('/issue-templates', templates)
 apiRoutes.route('/files', files)
 apiRoutes.route('/projects/:projectId/worktrees', worktrees)
 apiRoutes.route('/processes', processes)

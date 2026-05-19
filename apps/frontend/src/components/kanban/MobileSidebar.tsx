@@ -1,4 +1,4 @@
-import { ChevronRight, Eye, Menu, Plus, Search, Settings, StickyNote, TerminalSquare } from 'lucide-react'
+import { ChevronRight, LayoutDashboard, Menu, Plus, Search, Settings, StickyNote, TerminalSquare } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -38,8 +38,10 @@ export function MobileSidebar({
   side = 'left',
 }: {
   activeProjectId: string
-  /** Which edge the sheet slides in from. Match the trigger button's side
-   *  so the motion feels connected to where the user tapped. */
+  /**
+   * Which edge the sheet slides in from. Match the trigger button's side
+   *  so the motion feels connected to where the user tapped.
+   */
   side?: 'left' | 'right'
 }) {
   const [open, setOpen] = useState(false)
@@ -186,7 +188,7 @@ export function MobileSidebar({
                 }}
                 className="flex items-center gap-3 w-full px-4 min-h-[44px] text-sm text-foreground/80 hover:bg-accent/50 active:bg-accent transition-colors"
               >
-                <Eye className="h-4 w-4 text-muted-foreground" />
+                <LayoutDashboard className="h-4 w-4 text-muted-foreground" />
                 {t('viewMode.review')}
                 {unreadCount > 0 && (
                   <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">

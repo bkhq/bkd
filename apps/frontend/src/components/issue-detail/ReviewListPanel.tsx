@@ -1,31 +1,53 @@
-import { ChevronDown, ChevronUp, Search } from 'lucide-react'
+import { ChevronDown, ChevronsLeft, ChevronUp, Search } from 'lucide-react'
 import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { BulkOperationsBar } from '@/components/issue-detail/BulkOperationsBar'
 import { useReviewIssues } from '@/hooks/use-kanban'
 import { useReviewReadStatus } from '@/hooks/use-review-read-status'
+import { useBulkSelectionStore } from '@/stores/bulk-selection-store'
 import type { Issue } from '@/types/kanban'
 
 type ReviewIssue = Issue & { projectName: string, projectAlias: string }
+
+const FILTER_STATUSES = ['todo', 'working', 'review', 'done'] as const
+const STATUS_DOT_COLOR: Record<string, string> = {
+  todo: '#6b7280',
+  working: '#3b82f6',
+  review: '#f59e0b',
+  done: '#22c55e',
+}
 
 export function ReviewListPanel({
   activeIssueId,
   width,
   onResizeStart,
   mobileNav,
+  statuses,
+  onStatusesChange,
+  headerExtra,
+  onCollapse,
 }: {
   activeIssueId: string
   width?: number
   onResizeStart?: (e: React.MouseEvent) => void
   mobileNav?: React.ReactNode
+  statuses?: string[]
+  onStatusesChange?: (next: string[]) => void
+  headerExtra?: React.ReactNode
+  onCollapse?: () => void
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { data: issues, isLoading } = useReviewIssues()
+  const effectiveStatuses = statuses ?? ['review']
+  const { data: issues, isLoading } = useReviewIssues(effectiveStatuses)
   const { markAsRead, isRead } = useReviewReadStatus()
   const [search, setSearch] = useState('')
   const searchTerm = search.trim().toLowerCase()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const selected = useBulkSelectionStore(s => s.selected)
+  const toggleSelected = useBulkSelectionStore(s => s.toggle)
+  const setManySelected = useBulkSelectionStore(s => s.setMany)
 
   const filtered = useMemo(() => {
     if (!issues) return []
@@ -110,8 +132,65 @@ export function ReviewListPanel({
                 </span>
               ) :
             null}
+          {onCollapse ?
+              (
+                <button
+                  type="button"
+                  data-testid="list-panel-collapse"
+                  onClick={onCollapse}
+                  className="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+                  title={t('listPanel.collapse', 'Collapse list')}
+                  aria-label={t('listPanel.collapse', 'Collapse list')}
+                >
+                  <ChevronsLeft className="h-3.5 w-3.5" />
+                </button>
+              ) :
+            null}
         </div>
       </div>
+
+      {headerExtra ?
+          (
+            <div className="px-2.5 pt-2 shrink-0">{headerExtra}</div>
+          ) :
+        null}
+
+      {/* Status filter chips */}
+      {onStatusesChange ?
+          (
+            <div className="flex items-center gap-1 px-2.5 pt-1.5 flex-wrap">
+              {FILTER_STATUSES.map((s) => {
+                const active = effectiveStatuses.includes(s)
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    data-testid={`status-chip-${s}`}
+                    aria-pressed={active}
+                    onClick={() => {
+                      const next = active ?
+                          effectiveStatuses.filter(x => x !== s) :
+                          [...effectiveStatuses, s]
+                      // Always keep at least one selected — fall back to default
+                      onStatusesChange(next.length > 0 ? next : ['review'])
+                    }}
+                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border transition-colors cursor-pointer ${
+                      active ?
+                        'bg-primary/10 border-primary/30 text-foreground' :
+                        'bg-transparent border-border/50 text-muted-foreground/70 hover:text-foreground hover:border-border'
+                    }`}
+                  >
+                    <span
+                      className="h-1.5 w-1.5 rounded-full"
+                      style={{ backgroundColor: STATUS_DOT_COLOR[s] }}
+                    />
+                    {t(`statusName.${s.charAt(0).toUpperCase()}${s.slice(1)}`, s)}
+                  </button>
+                )
+              })}
+            </div>
+          ) :
+        null}
 
       {/* Search */}
       <div className="px-2.5 py-1.5">
@@ -154,10 +233,19 @@ export function ReviewListPanel({
                     isRead={isRead}
                     markAsRead={markAsRead}
                     onNavigate={(projectAlias, issueId) => navigate(`/review/${projectAlias}/${issueId}`)}
+                    selected={selected}
+                    toggleSelected={toggleSelected}
+                    setManySelected={setManySelected}
                   />
                 ))
               )}
       </div>
+
+      <BulkOperationsBar
+        items={(issues ?? [])
+          .filter(i => selected.has(i.id))
+          .map(i => ({ issueId: i.id, projectId: i.projectId }))}
+      />
 
       {/* Resize handle */}
       {onResizeStart ?
@@ -183,6 +271,9 @@ function ProjectGroup({
   isRead,
   markAsRead,
   onNavigate,
+  selected,
+  toggleSelected,
+  setManySelected,
 }: {
   projectName: string
   projectAlias: string
@@ -193,46 +284,71 @@ function ProjectGroup({
   isRead: (issueId: string) => boolean
   markAsRead: (issueId: string) => void
   onNavigate: (projectAlias: string, issueId: string) => void
+  selected: Set<string>
+  toggleSelected: (id: string) => void
+  setManySelected: (ids: string[], on: boolean) => void
 }) {
   const reviewColor = '#f59e0b' // amber — matches review status color
+  const ids = issues.map(i => i.id)
+  const selectedCount = ids.filter(id => selected.has(id)).length
+  const allSelected = selectedCount === ids.length && ids.length > 0
+  const someSelected = selectedCount > 0 && !allSelected
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={onToggle}
+      <div
         className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs sticky top-0 z-10 transition-colors border-b border-border/20"
         style={{ backgroundColor: `${reviewColor}14` }}
       >
-        <span
-          className="h-2 w-2 rounded-full shrink-0 ring-2 ring-offset-1 ring-offset-transparent"
-          style={{
-            backgroundColor: reviewColor,
-            boxShadow: `0 0 6px ${reviewColor}40`,
+        <input
+          type="checkbox"
+          checked={allSelected}
+          ref={(el) => {
+            if (el) el.indeterminate = someSelected
           }}
+          onChange={() => setManySelected(ids, !allSelected)}
+          aria-label={`select all ${projectName}`}
+          className="h-4 w-4 cursor-pointer shrink-0"
+          onClick={e => e.stopPropagation()}
         />
-        <span className="font-semibold text-foreground/80 truncate tracking-tight">
-          {projectName}
-        </span>
-        <span className="text-[10px] font-medium text-muted-foreground/50 ml-auto shrink-0 tabular-nums">
-          {issues.length}
-        </span>
-      </button>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex-1 flex items-center gap-2 text-left"
+        >
+          <span
+            className="h-2 w-2 rounded-full shrink-0 ring-2 ring-offset-1 ring-offset-transparent"
+            style={{
+              backgroundColor: reviewColor,
+              boxShadow: `0 0 6px ${reviewColor}40`,
+            }}
+          />
+          <span className="font-semibold text-foreground/80 truncate tracking-tight">
+            {projectName}
+          </span>
+          <span className="text-[10px] font-medium text-muted-foreground/50 ml-auto shrink-0 tabular-nums">
+            {selectedCount > 0 ? `${selectedCount}/` : ''}
+            {issues.length}
+          </span>
+        </button>
+      </div>
 
       {!isCollapsed ?
           (
             <div>
               {issues.map(issue => (
-                  <ReviewIssueRow
-                    key={issue.id}
-                    issue={issue}
-                    isActive={issue.id === activeIssueId}
-                    isRead={isRead(issue.id)}
-                    onNavigate={() => {
-                      markAsRead(issue.id)
-                      onNavigate(projectAlias, issue.id)
-                    }}
-                  />
+                <ReviewIssueRow
+                  key={issue.id}
+                  issue={issue}
+                  isActive={issue.id === activeIssueId}
+                  isRead={isRead(issue.id)}
+                  isSelected={selected.has(issue.id)}
+                  onToggleSelect={() => toggleSelected(issue.id)}
+                  onNavigate={() => {
+                    markAsRead(issue.id)
+                    onNavigate(projectAlias, issue.id)
+                  }}
+                />
               ))}
             </div>
           ) :
@@ -245,11 +361,15 @@ const ReviewIssueRow = memo(({
   issue,
   isActive,
   isRead,
+  isSelected,
+  onToggleSelect,
   onNavigate,
 }: {
   issue: ReviewIssue
   isActive: boolean
   isRead: boolean
+  isSelected: boolean
+  onToggleSelect: () => void
   onNavigate: () => void
 }) => {
   return (
@@ -263,11 +383,25 @@ const ReviewIssueRow = memo(({
           onNavigate()
         }
       }}
-      className={`w-full flex items-center gap-1 px-1.5 py-2.5 md:py-1.5 text-left border-b border-border/20 transition-all duration-150 cursor-pointer ${
+      className={`group w-full flex items-center gap-1 px-1.5 py-2.5 md:py-1.5 text-left border-b border-border/20 transition-all duration-150 cursor-pointer ${
         isActive ? 'bg-primary/[0.06]' : 'hover:bg-accent/50'
-      }`}
+      } ${isSelected ? 'bg-primary/[0.04]' : ''}`}
     >
-      <span className="w-3.5 shrink-0" />
+      <input
+        type="checkbox"
+        checked={isSelected}
+        onChange={onToggleSelect}
+        onClick={e => e.stopPropagation()}
+        aria-label={`select ${issue.title}`}
+        className={`h-4 w-4 shrink-0 ml-1 cursor-pointer md:opacity-0 md:group-hover:opacity-100 transition-opacity ${
+          isSelected ? 'md:opacity-100' : ''
+        }`}
+      />
+      <span
+        className="w-2 h-2 rounded-full shrink-0 mr-0.5"
+        style={{ backgroundColor: STATUS_DOT_COLOR[issue.statusId] ?? '#9ca3af' }}
+        title={issue.statusId}
+      />
       <span
         className={`text-[11px] font-mono shrink-0 tabular-nums ${
           isActive ? 'text-primary font-medium' : 'text-muted-foreground/70'

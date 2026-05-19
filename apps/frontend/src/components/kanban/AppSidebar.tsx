@@ -1,4 +1,4 @@
-import { ChevronsLeft, ChevronsRight, Eye, Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight, LayoutDashboard, Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -216,7 +216,7 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
           title={t('viewMode.review')}
           onClick={() => navigate('/review')}
         >
-          <Eye className="h-4 w-4" />
+          <LayoutDashboard className="h-4 w-4" />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
               {unreadCount > 9 ? '9+' : unreadCount}

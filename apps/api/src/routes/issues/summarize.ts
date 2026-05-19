@@ -1,4 +1,3 @@
-import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { notes } from '@/db/schema'
 import { findProject } from '@/db/helpers'
@@ -124,7 +123,7 @@ function buildSummaryFromLogs(entries: Array<{
   }
 
   if (assistantMessages.length > 0) {
-    const lastResponse = assistantMessages[assistantMessages.length - 1]
+    const lastResponse = assistantMessages.at(-1)
     lines.push('### Final Response')
     lines.push(lastResponse.slice(0, 400) + (lastResponse.length > 400 ? '...' : ''))
     lines.push('')
@@ -144,35 +143,35 @@ function buildSummaryFromLogs(entries: Array<{
 
 function inferTagsFromContent(content: string, title: string): string[] {
   const tags = new Set<string>()
-  const combined = (content + ' ' + title).toLowerCase()
+  const combined = (`${content} ${title}`).toLowerCase()
 
   const KEYWORD_TAGS: Record<string, string[]> = {
-    '登录': ['topic:auth'],
-    'auth': ['topic:auth'],
-    'jwt': ['topic:auth', 'tech:jwt'],
-    'token': ['topic:auth'],
-    '数据库': ['topic:db'],
-    'db': ['topic:db'],
-    'drizzle': ['topic:db', 'tech:drizzle'],
-    'schema': ['topic:db'],
-    '迁移': ['topic:db', 'topic:migration'],
-    'migration': ['topic:db', 'topic:migration'],
-    'react': ['tech:react'],
-    'query': ['tech:react-query'],
-    'api': ['topic:api'],
-    '路由': ['topic:api'],
-    'route': ['topic:api'],
-    '测试': ['topic:testing'],
-    'test': ['topic:testing'],
-    '部署': ['topic:deploy'],
-    'deploy': ['topic:deploy'],
-    'docker': ['topic:deploy', 'tech:docker'],
-    '缓存': ['topic:cache'],
-    'cache': ['topic:cache'],
-    '配置': ['topic:config'],
-    'config': ['topic:config'],
-    '类型': ['topic:types'],
-    'type': ['topic:types'],
+    登录: ['topic:auth'],
+    auth: ['topic:auth'],
+    jwt: ['topic:auth', 'tech:jwt'],
+    token: ['topic:auth'],
+    数据库: ['topic:db'],
+    db: ['topic:db'],
+    drizzle: ['topic:db', 'tech:drizzle'],
+    schema: ['topic:db'],
+    迁移: ['topic:db', 'topic:migration'],
+    migration: ['topic:db', 'topic:migration'],
+    react: ['tech:react'],
+    query: ['tech:react-query'],
+    api: ['topic:api'],
+    路由: ['topic:api'],
+    route: ['topic:api'],
+    测试: ['topic:testing'],
+    test: ['topic:testing'],
+    部署: ['topic:deploy'],
+    deploy: ['topic:deploy'],
+    docker: ['topic:deploy', 'tech:docker'],
+    缓存: ['topic:cache'],
+    cache: ['topic:cache'],
+    配置: ['topic:config'],
+    config: ['topic:config'],
+    类型: ['topic:types'],
+    type: ['topic:types'],
   }
 
   for (const [keyword, tagList] of Object.entries(KEYWORD_TAGS)) {

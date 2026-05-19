@@ -128,8 +128,7 @@ if (staticAssets.size > 0) {
         onFound: (path, c) => {
           if (path === 'index.html') {
             c.header('Cache-Control', 'no-cache')
-          }
-          else {
+          } else {
             c.header('Cache-Control', 'public, max-age=3600, must-revalidate')
           }
         },

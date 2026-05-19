@@ -4,6 +4,8 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useViewModeStore } from '../../stores/view-mode-store'
 
+import { AppSidebar } from '../../components/kanban/AppSidebar'
+
 // ── Mocks must be defined before importing the component ────────────────────
 
 vi.mock('react-i18next', () => ({
@@ -30,8 +32,6 @@ vi.mock('../../components/AppSettingsDialog', () => ({
   AppSettingsDialog: () => null,
 }))
 
-import { AppSidebar } from '../../components/kanban/AppSidebar'
-
 function Wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return (
@@ -41,7 +41,7 @@ function Wrapper({ children }: { children: React.ReactNode }) {
   )
 }
 
-describe('AppSidebar collapse/expand', () => {
+describe('appSidebar collapse/expand', () => {
   beforeEach(() => {
     // Reset store to expanded before each test
     useViewModeStore.setState({ sidebarCollapsed: false })
@@ -68,7 +68,7 @@ describe('AppSidebar collapse/expand', () => {
     // The collapsed strip should have the narrow width style
     const strip = container.firstChild as HTMLElement
     expect(strip).toBeDefined()
-    expect(strip.style.width).toBe('8px')
+    expect(strip.style.width).toBe('28px')
   })
 
   it('clicking collapse button toggles the store', () => {

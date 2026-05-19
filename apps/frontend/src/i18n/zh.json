@@ -22,6 +22,7 @@
     "projects": "项目",
     "quickActions": "快捷操作",
     "noResults": "无结果",
+    "logs": "日志",
     "running": "运行中",
     "review": "待 Review",
     "gotoHome": "首页",
@@ -327,7 +328,7 @@
     "switchView": "切换视图模式",
     "kanban": "看板",
     "list": "列表",
-    "review": "审核",
+    "review": "驾驶舱",
     "files": "文件"
   },
   "settings": {
@@ -514,6 +515,69 @@
     "title": "待审核",
     "empty": "没有待审核的任务",
     "selectToStart": "选择一个任务进行审核"
+  },
+  "cockpit": {
+    "title": "驾驶舱",
+    "matrix": {
+      "title": "项目概览",
+      "project": "项目",
+      "total": "合计",
+      "empty": "暂无项目"
+    },
+    "activity": {
+      "title": "实时活动",
+      "empty": "暂无最近活动"
+    },
+    "quickCreate": {
+      "title": "快速新建（⌘N）",
+      "button": "新建",
+      "project": "项目",
+      "template": "模板",
+      "titleLabel": "标题",
+      "placeholder": "做点什么…",
+      "submit": "创建"
+    },
+    "assistant": {
+      "title": "AI 助手",
+      "open": "打开 AI 助手",
+      "placeholder": "问问你的工作区…",
+      "reset": "重置会话",
+      "resetConfirmTitle": "重置 AI 会话？",
+      "resetConfirmBody": "对话历史将被归档，下一次提问会开启全新会话。待批准的提案不受影响。",
+      "suggest": {
+        "title": "试试问",
+        "stuck": "当前有什么卡住的任务？",
+        "failed": "今天有哪些失败的会话？",
+        "progress": "总结一下所有项目的进展",
+        "review": "哪些任务在等待审查？"
+      }
+    },
+    "proposals": {
+      "title": "待批准的 AI 操作",
+      "approve": "批准",
+      "reject": "拒绝"
+    },
+    "diffHover": {
+      "title": "变更",
+      "empty": "没有检测到变更",
+      "error": "加载变更失败",
+      "more": "… 还有 {{n}} 个"
+    }
+  },
+  "issueTemplate": {
+    "none": "无模板"
+  },
+  "listPanel": {
+    "collapse": "收起列表",
+    "expand": "展开列表"
+  },
+  "bulk": {
+    "selected": "已选择",
+    "clear": "清空选择",
+    "restart": "重跑",
+    "cancel": "取消",
+    "moveTo": "移动到",
+    "running": "处理中…"
   },
   "statusName": {
     "Todo": "待办",

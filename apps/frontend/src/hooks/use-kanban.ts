@@ -41,7 +41,15 @@ export const queryKeys = {
   deletedIssues: () => ['settings', 'deletedIssues'] as const,
   serverInfo: () => ['settings', 'serverInfo'] as const,
   systemInfo: () => ['settings', 'systemInfo'] as const,
-  reviewIssues: () => ['issues', 'review'] as const,
+  reviewIssues: (statuses?: string[]) =>
+    statuses && statuses.length > 0 ?
+        (['issues', 'review', [...statuses].sort().join(',')] as const) :
+        (['issues', 'review'] as const),
+  issueStats: () => ['issues', 'stats'] as const,
+  cockpitAssistant: () => ['cockpit', 'assistant'] as const,
+  cockpitProposals: () => ['cockpit', 'proposals'] as const,
+  logSearch: (query: string) => ['search', 'logs', query] as const,
+  issueTemplates: () => ['issueTemplates'] as const,
   globalEnvVars: () => ['settings', 'globalEnvVars'] as const,
   webhooks: () => ['settings', 'webhooks'] as const,
   webhookDeliveries: (id: string) => ['settings', 'webhooks', id, 'deliveries'] as const,
@@ -68,10 +76,18 @@ export function useArchivedProjects(enabled = false) {
   })
 }
 
-export function useReviewIssues() {
+export function useReviewIssues(statuses?: string[]) {
   return useQuery({
-    queryKey: queryKeys.reviewIssues(),
-    queryFn: () => kanbanApi.getReviewIssues(),
+    queryKey: queryKeys.reviewIssues(statuses),
+    queryFn: () => kanbanApi.getReviewIssues({ statuses }),
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useIssueStats() {
+  return useQuery({
+    queryKey: queryKeys.issueStats(),
+    queryFn: () => kanbanApi.getIssueStats(),
     staleTime: STALE_TIME.STANDARD,
   })
 }

@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
+import { CockpitDashboard } from '@/components/cockpit/CockpitDashboard'
+import { MobileCockpitTabs } from '@/components/cockpit/MobileCockpitTabs'
+import type { CockpitMobileMode } from '@/components/cockpit/MobileCockpitTabs'
 import { ChatArea } from '@/components/issue-detail/ChatArea'
 import { DIFF_MIN_WIDTH } from '@/components/issue-detail/diff-constants'
+import { ListPanelGhost } from '@/components/issue-detail/ListPanelGhost'
 import { ReviewListPanel } from '@/components/issue-detail/ReviewListPanel'
 import { AppSidebar } from '@/components/kanban/AppSidebar'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
@@ -20,14 +23,17 @@ const DEFAULT_LIST_WIDTH = 232
 const MIN_LIST_WIDTH = 180
 const MAX_LIST_WIDTH = 400
 
+const DEFAULT_COCKPIT_STATUSES = ['working', 'review']
+
 export default function ReviewPage() {
-  const { t } = useTranslation()
   const { projectAlias = '', issueId = '' } = useParams<{
     projectAlias: string
     issueId: string
   }>()
 
-  const { data: reviewIssues } = useReviewIssues()
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(DEFAULT_COCKPIT_STATUSES)
+  const [mobileMode, setMobileMode] = useState<CockpitMobileMode>('list')
+  const { data: reviewIssues } = useReviewIssues(selectedStatuses)
 
   // Find the matching issue to get its projectId (alias)
   const activeIssue = reviewIssues?.find(i => i.id === issueId)
@@ -42,6 +48,8 @@ export default function ReviewPage() {
   const isMobile = useIsMobile()
   const sidebarCollapsed = useViewModeStore(s => s.sidebarCollapsed)
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
+  const listPanelCollapsed = useViewModeStore(s => s.listPanelCollapsed)
+  const toggleListPanel = useViewModeStore(s => s.toggleListPanel)
 
   const handleListResizeStart = useCallback(
     (e: React.MouseEvent) => {
@@ -81,6 +89,7 @@ export default function ReviewPage() {
 
   const availableWidth = typeof window !== 'undefined' ? window.innerWidth - sidebarWidth : 1200
   const hideListPanel = (isMobile && !!issueId) || (showDiff && diffWidth > availableWidth * 0.5)
+  const showMobileCockpit = isMobile && !issueId && mobileMode === 'cockpit'
 
   const handleFileBrowserWidthChange = useCallback(
     (w: number) => {
@@ -115,14 +124,38 @@ export default function ReviewPage() {
     <div className="flex h-full text-foreground overflow-hidden animate-page-enter">
       {!isMobile ? <AppSidebar activeProjectId="" /> : null}
 
-      {!hideListPanel ?
+      {!hideListPanel && !showMobileCockpit ?
+          (isMobile || !listPanelCollapsed ?
+              (
+                <ReviewListPanel
+                  activeIssueId={issueId}
+                  width={isMobile ? undefined : listWidth}
+                  onResizeStart={isMobile ? undefined : handleListResizeStart}
+                  mobileNav={isMobile ? <MobileSidebar activeProjectId="" /> : undefined}
+                  statuses={selectedStatuses}
+                  onStatusesChange={setSelectedStatuses}
+                  headerExtra={isMobile ?
+                      <MobileCockpitTabs mode={mobileMode} onChange={setMobileMode} /> :
+                    undefined}
+                  onCollapse={isMobile ? undefined : toggleListPanel}
+                />
+              ) :
+              <ListPanelGhost onExpand={toggleListPanel} />) :
+        null}
+
+      {showMobileCockpit ?
           (
-            <ReviewListPanel
-              activeIssueId={issueId}
-              width={isMobile ? undefined : listWidth}
-              onResizeStart={isMobile ? undefined : handleListResizeStart}
-              mobileNav={isMobile ? <MobileSidebar activeProjectId="" /> : undefined}
-            />
+            <div className="flex flex-1 flex-col min-w-0 h-full bg-background">
+              <div className="flex items-center gap-2 px-2.5 py-2 border-b border-border/60 shrink-0">
+                <MobileSidebar activeProjectId="" />
+                <div className="flex-1">
+                  <MobileCockpitTabs mode={mobileMode} onChange={setMobileMode} />
+                </div>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <CockpitDashboard />
+              </div>
+            </div>
           ) :
         null}
 
@@ -143,12 +176,8 @@ export default function ReviewPage() {
               backPath="/review"
             />
           ) :
-          !hideListPanel ?
-              (
-                <div className="flex flex-1 items-center justify-center">
-                  <p className="text-sm text-muted-foreground">{t('review.selectToStart')}</p>
-                </div>
-              ) :
+          !isMobile && !hideListPanel ?
+              <CockpitDashboard /> :
             null}
     </div>
   )

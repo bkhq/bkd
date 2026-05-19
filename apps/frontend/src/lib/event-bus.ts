@@ -17,6 +17,8 @@ type ChangesSummaryListener = (data: ChangesSummaryData) => void
 type IssueActivityListener = (issueId: string) => void
 type ConnectionListener = (connected: boolean) => void
 type ResumeListener = () => void
+type CockpitProposalListener = (data: { proposalId: string, status: 'pending' | 'approved' | 'rejected' | 'failed' }) => void
+type CockpitResetListener = (data: { issueId: string }) => void
 
 const MAX_RECONNECT_DELAY = 30_000
 const BASE_RECONNECT_DELAY = 1_000
@@ -38,6 +40,8 @@ class EventBus {
   private issueActivityListeners = new Set<IssueActivityListener>()
   private connectionListeners = new Set<ConnectionListener>()
   private resumeListeners = new Set<ResumeListener>()
+  private cockpitProposalListeners = new Set<CockpitProposalListener>()
+  private cockpitResetListeners = new Set<CockpitResetListener>()
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private heartbeatWatchdog: ReturnType<typeof setTimeout> | null = null
   private reconnectDelay = BASE_RECONNECT_DELAY
@@ -180,6 +184,36 @@ class EventBus {
       }
     })
 
+    es.addEventListener('cockpit-proposal', (e) => {
+      try {
+        const data = JSON.parse(e.data) as Parameters<CockpitProposalListener>[0]
+        for (const cb of this.cockpitProposalListeners) {
+          try {
+            cb(data)
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+    })
+
+    es.addEventListener('cockpit-reset', (e) => {
+      try {
+        const data = JSON.parse(e.data) as Parameters<CockpitResetListener>[0]
+        for (const cb of this.cockpitResetListeners) {
+          try {
+            cb(data)
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+    })
+
     // Reset watchdog on heartbeat — server sends every 15s
     es.addEventListener('heartbeat', () => {
       this.lastHeartbeatAt = Date.now()
@@ -293,6 +327,20 @@ class EventBus {
     this.changesSummaryListeners.add(listener)
     return () => {
       this.changesSummaryListeners.delete(listener)
+    }
+  }
+
+  onCockpitProposal(listener: CockpitProposalListener): () => void {
+    this.cockpitProposalListeners.add(listener)
+    return () => {
+      this.cockpitProposalListeners.delete(listener)
+    }
+  }
+
+  onCockpitReset(listener: CockpitResetListener): () => void {
+    this.cockpitResetListeners.add(listener)
+    return () => {
+      this.cockpitResetListeners.delete(listener)
     }
   }
 

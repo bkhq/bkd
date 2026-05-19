@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { type ReactNode, useRef } from 'react'
+import { useRef } from 'react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AcpTimeline } from '@/components/issue-detail/AcpTimeline'
 import type { NormalizedLogEntry, TimelineEntry } from '@/types/kanban'
@@ -42,7 +43,7 @@ function createWrapper() {
 function toTimeline(entries: NormalizedLogEntry[]): TimelineEntry[] {
   return entries.map((entry) => {
     const typeMap: Record<string, TimelineEntry['type']> = {
-      thinking: 'thinking',
+      'thinking': 'thinking',
       'assistant-message': 'assistant',
       'tool-use': 'tool',
       'system-message': 'system',

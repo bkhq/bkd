@@ -180,7 +180,7 @@ describe('chatInput density refactor (PLAN-012)', () => {
   })
 })
 
-describe('ChatInput send-to-cancel behaviour', () => {
+describe('chatInput send-to-cancel behaviour', () => {
   it('shows the send button by default', () => {
     renderChat()
     expect(screen.getByTitle('chat.send')).toBeInTheDocument()
@@ -219,7 +219,7 @@ describe('ChatInput send-to-cancel behaviour', () => {
   })
 })
 
-describe('ChatInput — restart button gating regression', () => {
+describe('chatInput — restart button gating regression', () => {
   // Regression: the restart Button used to have two `disabled={...}` JSX
   // props. React keeps only the LAST one when an attribute is duplicated,
   // so `disabled={isSending || !input.trim()}` silently overrode the
@@ -265,7 +265,7 @@ describe('ChatInput — restart button gating regression', () => {
   })
 })
 
-describe('ChatInput — MobileMoreMenu renders without crashing', () => {
+describe('chatInput — MobileMoreMenu renders without crashing', () => {
   // Regression: a partial render-prop refactor on MobileMoreMenu's
   // PopoverTrigger left mismatched JSX (`</button>` missing from inside
   // `render`, so the closing tag matched the wrong element). Build failed

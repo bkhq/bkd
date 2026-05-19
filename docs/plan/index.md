@@ -42,3 +42,7 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-011 Clickable file path chips with quick preview drawer**](PLAN-011.md) `2026-05-11`
 - [x] [**PLAN-012 ChatInput density refactor + design token primitives**](PLAN-012.md) `2026-05-11`
 - [x] [**PLAN-013 Mermaid diagram zoom viewer**](PLAN-013.md) `2026-05-12`
+- [x] [**PLAN-014 Global cockpit skeleton via /review upgrade**](PLAN-014.md) `2026-05-19`
+- [x] [**PLAN-015 Cockpit AI assistant (read-only MCP) + responsive cockpit**](PLAN-015.md) `2026-05-19`
+- [x] [**PLAN-016 Cockpit write tools + FTS5 search + reset/suggested prompts**](PLAN-016.md) `2026-05-19`
+- [x] [**PLAN-017 Bulk ops + issue templates + done diff hover**](PLAN-017.md) `2026-05-19`

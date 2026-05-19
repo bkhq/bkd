@@ -2,10 +2,14 @@ import {
   Activity,
   Clock,
   Eye,
+  FileSearch,
   Home,
   LayoutGrid,
   TerminalSquare,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { kanbanApi } from '@/lib/kanban-api'
+import { queryKeys, useAllProcesses, useProjects, useReviewIssues } from '@/hooks/use-kanban'
 import type { LucideIcon } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,11 +23,6 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
-import {
-  useAllProcesses,
-  useProjects,
-  useReviewIssues,
-} from '@/hooks/use-kanban'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import { formatRelativeTime } from '@/lib/format'
@@ -136,6 +135,16 @@ export function SearchContent({
   const showReview = filteredReview.length > 0
   const showActions = filteredActions.length > 0 && !normalizedQuery
   const showProjects = filteredProjects.length > 0
+  // (logs hook below; recompute hasResults to include them)
+  // FTS5 log search — only when user has typed at least 2 chars
+  const logSearchEnabled = normalizedQuery.length >= 2
+  const { data: logHits } = useQuery({
+    queryKey: queryKeys.logSearch(normalizedQuery),
+    queryFn: () => kanbanApi.searchLogs(normalizedQuery, 20),
+    enabled: logSearchEnabled,
+    staleTime: 5000,
+  })
+  const showLogs = logSearchEnabled && logHits && logHits.length > 0
 
   return (
     <Command className="bg-transparent" shouldFilter={false}>
@@ -146,7 +155,7 @@ export function SearchContent({
         autoFocus={autoFocus}
       />
       <CommandList className="no-scrollbar">
-        {!hasResults && normalizedQuery && (
+        {!hasResults && !showLogs && normalizedQuery && (
           <CommandEmpty>{t('search.noResults', '无结果')}</CommandEmpty>
         )}
 
@@ -232,10 +241,41 @@ export function SearchContent({
           </CommandGroup>
         )}
 
+        {/* Logs — FTS5 cross-project conversation search */}
+        {showLogs && (
+          <>
+            {(showRunning || showReview || showActions) && <CommandSeparator />}
+            <CommandGroup heading={`${t('search.logs', '日志')} (${logHits!.length})`}>
+              {logHits!.map(hit => (
+                <CommandItem
+                  key={hit.logId}
+                  value={`log-${hit.logId}`}
+                  onSelect={() =>
+                    handleSelect(() =>
+                      navigate(`/review/${hit.projectAlias}/${hit.issueId}`),
+                    )}
+                  className="items-start"
+                >
+                  <FileSearch className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                  <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                    <span className="truncate text-sm">{hit.issueTitle}</span>
+                    <span className="text-[11px] text-muted-foreground/80 line-clamp-2 break-words">
+                      {hit.content}
+                    </span>
+                  </div>
+                  <span className="ml-2 shrink-0 text-[10px] font-mono text-muted-foreground/60 self-start mt-1">
+                    {hit.projectAlias}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+
         {/* Projects — only when filtering */}
         {showProjects && (
           <>
-            {(showRunning || showReview || showActions) && <CommandSeparator />}
+            {(showRunning || showReview || showActions || showLogs) && <CommandSeparator />}
             <CommandGroup heading={t('search.projects', '项目')}>
               {filteredProjects.map(project => (
                 <CommandItem

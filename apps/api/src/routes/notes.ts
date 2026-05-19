@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, or, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { db } from '@/db'
 import { notes } from '@/db/schema'
 import { logger } from '@/logger'
@@ -135,7 +135,7 @@ notesRoutes.openapi(R.queryNotes, async (c) => {
       .orderBy(desc(notes.isPinned), desc(notes.updatedAt))
 
     // Score by tag overlap + pinned boost
-    const scored = rows.map(row => {
+    const scored = rows.map((row) => {
       const noteTags = parseTags(row.tags)
       const overlap = noteTags.filter(t => intentTags.includes(t)).length
       return {
@@ -172,33 +172,33 @@ function extractIntentTags(prompt: string): string[] {
   const tags = new Set<string>()
 
   const KEYWORD_TAGS: Record<string, string[]> = {
-    '登录': ['topic:auth'],
-    'auth': ['topic:auth'],
-    'jwt': ['topic:auth', 'tech:jwt'],
-    'token': ['topic:auth'],
-    '数据库': ['topic:db'],
-    'db': ['topic:db'],
-    'drizzle': ['topic:db', 'tech:drizzle'],
-    '迁移': ['topic:db', 'topic:migration'],
-    'migration': ['topic:db', 'topic:migration'],
-    'schema': ['topic:db'],
-    'react': ['tech:react'],
-    'query': ['tech:react-query'],
-    'api': ['topic:api'],
-    '路由': ['topic:api'],
-    'route': ['topic:api'],
-    '测试': ['topic:testing'],
-    'test': ['topic:testing'],
-    '部署': ['topic:deploy'],
-    'deploy': ['topic:deploy'],
-    'docker': ['topic:deploy', 'tech:docker'],
-    '缓存': ['topic:cache'],
-    'cache': ['topic:cache'],
-    '配置': ['topic:config'],
-    'config': ['topic:config'],
-    '类型': ['topic:types'],
-    'type': ['topic:types'],
-    '类型安全': ['topic:types'],
+    登录: ['topic:auth'],
+    auth: ['topic:auth'],
+    jwt: ['topic:auth', 'tech:jwt'],
+    token: ['topic:auth'],
+    数据库: ['topic:db'],
+    db: ['topic:db'],
+    drizzle: ['topic:db', 'tech:drizzle'],
+    迁移: ['topic:db', 'topic:migration'],
+    migration: ['topic:db', 'topic:migration'],
+    schema: ['topic:db'],
+    react: ['tech:react'],
+    query: ['tech:react-query'],
+    api: ['topic:api'],
+    路由: ['topic:api'],
+    route: ['topic:api'],
+    测试: ['topic:testing'],
+    test: ['topic:testing'],
+    部署: ['topic:deploy'],
+    deploy: ['topic:deploy'],
+    docker: ['topic:deploy', 'tech:docker'],
+    缓存: ['topic:cache'],
+    cache: ['topic:cache'],
+    配置: ['topic:config'],
+    config: ['topic:config'],
+    类型: ['topic:types'],
+    type: ['topic:types'],
+    类型安全: ['topic:types'],
   }
 
   for (const [keyword, tagList] of Object.entries(KEYWORD_TAGS)) {

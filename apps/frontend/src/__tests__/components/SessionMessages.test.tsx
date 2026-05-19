@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen } from '@testing-library/react'
-import { type ReactNode, useRef } from 'react'
+import { useRef } from 'react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionMessages } from '@/components/issue-detail/SessionMessages'
 import type { TimelineEntry } from '@/types/kanban'
@@ -156,7 +157,7 @@ function fireIntersection(isIntersecting: boolean) {
   })
 }
 
-describe('SessionMessages — auto-load older history', () => {
+describe('sessionMessages — auto-load older history', () => {
   it('observes a sentinel and triggers onLoadOlder when it intersects', () => {
     // User-visible bug: "I scroll to the top and nothing loads" — the IO
     // wiring is the entire trigger path now that the button is gone.
@@ -306,7 +307,7 @@ describe('SessionMessages — auto-load older history', () => {
   })
 })
 
-describe('SessionMessages — loading affordance', () => {
+describe('sessionMessages — loading affordance', () => {
   it('renders a spinner (not a button) while older logs are loading', () => {
     // Mobile-overlay regression: the old <button> was hidden under the
     // floating title bar. The replacement spinner is passive UI and the
@@ -406,7 +407,7 @@ function AnchorHarness({
   )
 }
 
-describe('SessionMessages — scroll anchoring on prepend', () => {
+describe('sessionMessages — scroll anchoring on prepend', () => {
   it('compensates for prepended content so the user stays on the same message', () => {
     // User-visible bug: clicking load-more / hitting the auto-load
     // sentinel teleports the viewport to the very top of the new content

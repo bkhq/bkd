@@ -41,11 +41,9 @@ function mergeStreamingParts(parts: readonly string[]): string {
   for (const part of parts) {
     if (part.length > merged.length && part.startsWith(merged)) {
       merged = part
-    }
-    else if (merged.length > part.length && merged.startsWith(part)) {
+    } else if (merged.length > part.length && merged.startsWith(part)) {
       // keep merged — out-of-order shorter delivery
-    }
-    else {
+    } else {
       merged += part
     }
   }
