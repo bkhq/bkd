@@ -19,8 +19,9 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
+const followUpMutateAsync = vi.fn().mockResolvedValue({ messageId: 'm1' })
 vi.mock('@/hooks/use-kanban', () => ({
-  useFollowUpIssue: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useFollowUpIssue: () => ({ mutateAsync: followUpMutateAsync, isPending: false }),
   useRestartIssue: () => ({ mutate: vi.fn(), isPending: false }),
   useClearIssueSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useOmitModel: () => ({ data: { enabled: false } }),
@@ -40,6 +41,11 @@ vi.mock('@/stores/file-browser-store', () => ({
 vi.mock('@/hooks/use-pending-messages', () => ({
   usePendingMessages: () => ({ data: [] }),
   useInvalidatePendingMessages: () => vi.fn(),
+}))
+
+const isMobileMock = vi.fn(() => false)
+vi.mock('@/hooks/use-mobile', () => ({
+  useIsMobile: () => isMobileMock(),
 }))
 
 vi.mock('@/lib/kanban-api', () => ({
@@ -119,6 +125,77 @@ describe('chatInput — done state guard', () => {
       expect(textareas[0].disabled).toBe(false)
       unmount()
     }
+  })
+
+  it('mobile: bare Enter does NOT call the send mutation (newline preserved)', () => {
+    isMobileMock.mockReturnValue(true)
+    followUpMutateAsync.mockClear()
+    render(
+      <Wrapper>
+        <ChatInput
+          projectId="p1"
+          issueId="i1"
+          statusId="working"
+          sessionStatus={null}
+          isThinking={false}
+          slashCommands={[]}
+          pluginCommands={[]}
+          onCancel={() => {}}
+        />
+      </Wrapper>,
+    )
+    const textarea = screen.getAllByRole('textbox')[0] as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: 'hello' } })
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+    expect(followUpMutateAsync).not.toHaveBeenCalled()
+    isMobileMock.mockReturnValue(false)
+  })
+
+  it('desktop: bare Enter triggers the send mutation', () => {
+    isMobileMock.mockReturnValue(false)
+    followUpMutateAsync.mockClear()
+    render(
+      <Wrapper>
+        <ChatInput
+          projectId="p1"
+          issueId="i1"
+          statusId="working"
+          sessionStatus={null}
+          isThinking={false}
+          slashCommands={[]}
+          pluginCommands={[]}
+          onCancel={() => {}}
+        />
+      </Wrapper>,
+    )
+    const textarea = screen.getAllByRole('textbox')[0] as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: 'hello' } })
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+    expect(followUpMutateAsync).toHaveBeenCalled()
+  })
+
+  it('mobile: Cmd+Enter still triggers send (tablet+keyboard escape hatch)', () => {
+    isMobileMock.mockReturnValue(true)
+    followUpMutateAsync.mockClear()
+    render(
+      <Wrapper>
+        <ChatInput
+          projectId="p1"
+          issueId="i1"
+          statusId="working"
+          sessionStatus={null}
+          isThinking={false}
+          slashCommands={[]}
+          pluginCommands={[]}
+          onCancel={() => {}}
+        />
+      </Wrapper>,
+    )
+    const textarea = screen.getAllByRole('textbox')[0] as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: 'hello' } })
+    fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true })
+    expect(followUpMutateAsync).toHaveBeenCalled()
+    isMobileMock.mockReturnValue(false)
   })
 
   it('typing in a working-issue input enables the send button (sanity)', () => {

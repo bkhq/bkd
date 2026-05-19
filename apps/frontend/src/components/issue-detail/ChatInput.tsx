@@ -47,6 +47,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
 import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue, useOmitModel, useRestartIssue } from '@/hooks/use-kanban'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { formatFileSize, formatModelName } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
@@ -110,6 +111,7 @@ export function ChatInput({
   onPendingEditConsumed?: () => void
 }) {
   const { t } = useTranslation()
+  const isMobile = useIsMobile()
   const draftKey = issueId ? `bkd:draft:${issueId}` : null
   // Ref tracks current issueId so async callbacks (handleSend) can compare
   // against the live value rather than the stale closure capture.
@@ -489,11 +491,21 @@ export function ChatInput({
     // Enter sends, Shift+Enter inserts newline. Cmd/Ctrl+Enter kept for muscle
     // memory. Skip while IME is composing so Chinese/Japanese input commits
     // its candidate first.
+    //
+    // Mobile exception: there is no Shift key on a phone keyboard, so a bare
+    // Enter must insert a newline (browser default) — otherwise the user has
+    // no way to write multi-line messages. They send via the explicit button.
+    // Cmd/Ctrl+Enter still sends for tablet-with-keyboard users.
     if (
       e.key === 'Enter' &&
       !e.shiftKey &&
       !e.nativeEvent.isComposing
     ) {
+      const hasShortcut = e.metaKey || e.ctrlKey
+      if (isMobile && !hasShortcut) {
+        // Let the browser insert \n.
+        return
+      }
       e.preventDefault()
       void handleSend()
     }
@@ -913,11 +925,11 @@ export function ChatInput({
                     restartIssue.mutate(issueId)
                   }}
                   title={t('chat.restart')}
-                  className="rounded-full size-11 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-primary text-primary-foreground hover:bg-primary/90"
+                  className="rounded-full size-9 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   {isSendingRef.current ?
-                      <Loader2 className="size-5 animate-spin" /> :
-                      <Play className="size-5" strokeWidth={2.5} />}
+                      <Loader2 className="size-4 animate-spin" /> :
+                      <Play className="size-4" strokeWidth={2.5} />}
                 </Button>
               ) :
             null}
@@ -929,11 +941,11 @@ export function ChatInput({
                   disabled={isCancelling}
                   onClick={onCancel}
                   title={isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
-                  className="rounded-full size-11 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  className="rounded-full size-9 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   {isCancelling ?
-                      <Loader2 className="size-5 animate-spin" /> :
-                      <Square className="size-5" strokeWidth={2.5} />}
+                      <Loader2 className="size-4 animate-spin" /> :
+                      <Square className="size-4" strokeWidth={2.5} />}
                 </Button>
               ) :
               (
@@ -943,11 +955,11 @@ export function ChatInput({
                   disabled={!canSend || followUp.isPending}
                   onClick={handleSend}
                   title={t('chat.send')}
-                  className="rounded-full size-7 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"
+                  className="rounded-full size-9 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"
                 >
                   {followUp.isPending ?
-                      <Loader2 className="size-3.5 animate-spin" /> :
-                      <ArrowUp className="size-3.5" strokeWidth={2.5} />}
+                      <Loader2 className="size-4 animate-spin" /> :
+                      <ArrowUp className="size-4" strokeWidth={2.5} />}
                 </Button>
               )}
         </div>
