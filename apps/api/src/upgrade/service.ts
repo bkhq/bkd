@@ -7,7 +7,12 @@ import { cleanupBackupDirs, cleanupTmpFiles } from './files'
 
 // --- Re-exports (preserve public API for route consumers) ---
 
-export { applyUpgradeAndRestart, registerShutdownForUpgrade } from './apply'
+export {
+  applyLocalVersion,
+  applyUpgradeAndRestart,
+  listLocalAppVersions,
+  registerShutdownForUpgrade,
+} from './apply'
 
 export { checkForUpdates, getLastCheckResult } from './checker'
 export { downloadUpdate, getDownloadStatus } from './download'

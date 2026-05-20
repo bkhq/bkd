@@ -9,6 +9,9 @@
 const SEMVER_PART = '\\d+\\.\\d+\\.\\d+(?:-[\\w.-]+)?(?:\\+[\\w.-]+)?'
 export const VALID_FILE_NAME_RE = new RegExp(`^bkd-[\\w-]+-v${SEMVER_PART}(?:\\.tar\\.gz)?$`)
 
+/** Matches a bare SemVer version string (no `v` prefix, no filename wrapper). */
+export const VALID_VERSION_RE = new RegExp(`^${SEMVER_PART}$`)
+
 /** Extract semver from package archive filename (e.g. "bkd-app-v0.0.6.tar.gz" → "0.0.6") */
 export function parseVersionFromFileName(fileName: string): string | null {
   const match = fileName.match(new RegExp(`^bkd-app-v(${SEMVER_PART})\\.tar\\.gz$`))

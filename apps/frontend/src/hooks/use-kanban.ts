@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { kanbanApi } from '@/lib/kanban-api'
+import { ApiError, kanbanApi } from '@/lib/kanban-api'
 import { STALE_TIME } from '@/lib/query-config'
 import { useBoardStore } from '@/stores/board-store'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
@@ -40,6 +40,7 @@ export const queryKeys = {
   upgradeEnabled: () => ['upgrade', 'enabled'] as const,
   upgradeCheck: () => ['upgrade', 'check'] as const,
   upgradeDownloadStatus: () => ['upgrade', 'downloadStatus'] as const,
+  upgradeLocalVersions: () => ['upgrade', 'localVersions'] as const,
   systemLogs: () => ['settings', 'systemLogs'] as const,
   cleanupStats: () => ['settings', 'cleanupStats'] as const,
   deletedIssues: () => ['settings', 'deletedIssues'] as const,
@@ -925,35 +926,64 @@ export function useDownloadStatus(enabled = false) {
   })
 }
 
+// Server is restarting — poll /version until it answers, then reload the page.
+// The graceful drain can hold the old process for several minutes, so the
+// timeout is generous; on timeout we reload anyway and let the user retry.
+async function pollServerBackAndReload() {
+  const start = Date.now()
+  const timeout = 6 * 60_000
+  const interval = 1_500
+  // Wait for the server to fully shut down before polling.
+  await new Promise(r => setTimeout(r, 2_000))
+  while (Date.now() - start < timeout) {
+    try {
+      const res = await fetch('/api/settings/upgrade/version')
+      if (res.ok) {
+        window.location.reload()
+        return
+      }
+    } catch {
+      // Server still down — keep polling.
+    }
+    await new Promise(r => setTimeout(r, interval))
+  }
+  // Timeout — reload anyway.
+  window.location.reload()
+}
+
 export function useRestartWithUpgrade() {
   return useMutation({
     mutationFn: () => kanbanApi.restartWithUpgrade(),
     // Use onSettled (not onSuccess) because the server typically shuts down
     // before the HTTP response is sent, causing a network error on the client.
     onSettled: () => {
-      // Server is restarting — poll until it comes back, then reload.
-      const poll = async () => {
-        const start = Date.now()
-        const timeout = 60_000
-        const interval = 1_500
-        // Wait for the server to fully shut down
-        await new Promise(r => setTimeout(r, 2_000))
-        while (Date.now() - start < timeout) {
-          try {
-            const res = await fetch('/api/settings/upgrade/version')
-            if (res.ok) {
-              window.location.reload()
-              return
-            }
-          } catch {
-            // Server still down — keep polling
-          }
-          await new Promise(r => setTimeout(r, interval))
-        }
-        // Timeout — reload anyway
-        window.location.reload()
-      }
-      void poll()
+      void pollServerBackAndReload()
+    },
+  })
+}
+
+export function useLocalVersions(enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.upgradeLocalVersions(),
+    queryFn: () => kanbanApi.listLocalVersions(),
+    enabled,
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useApplyLocalVersion() {
+  return useMutation({
+    mutationFn: (version: string) => kanbanApi.applyLocalVersion(version),
+    // On success the server shuts down before responding, so poll until back.
+    onSuccess: () => {
+      void pollServerBackAndReload()
+    },
+    onError: (err) => {
+      // A real 4xx rejection (bad version / not package mode) means the server
+      // never restarted — surface the error, don't poll/reload. A network-level
+      // failure means the server is already going down: poll for it to return.
+      if (err instanceof ApiError && err.isUserError) return
+      void pollServerBackAndReload()
     },
   })
 }

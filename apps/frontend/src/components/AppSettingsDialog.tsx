@@ -41,6 +41,7 @@ import type { SettingsNavItem } from '@/components/ui/settings-layout'
 import { SettingsLayout } from '@/components/ui/settings-layout'
 import { Switch } from '@/components/ui/switch'
 import {
+  useApplyLocalVersion,
   useCheckForUpdates,
   useCleanupStats,
   useClearSystemLogs,
@@ -52,6 +53,7 @@ import {
   useEngineProfiles,
   useEngineSettings,
   useGlobalEnvVars,
+  useLocalVersions,
   useLogPageSize,
   useMaxConcurrentExecutions,
   useOmitModel,
@@ -1419,6 +1421,88 @@ function UpgradeSection({ open }: { open: boolean }) {
                   {t('settings.upgradeCheckNow')}
                 </Button>
               </div>
+            </div>
+          ) :
+        null}
+
+      {/* Local installed packages (package mode only) */}
+      {versionInfo?.isPackageMode ?
+          <LocalVersionsPanel open={open} /> :
+        null}
+    </div>
+  )
+}
+
+function LocalVersionsPanel({ open }: { open: boolean }) {
+  const { t } = useTranslation()
+  const { data: versions, isLoading } = useLocalVersions(open)
+  const applyLocal = useApplyLocalVersion()
+  const [applyingVersion, setApplyingVersion] = useState<string | null>(null)
+
+  const handleApply = (version: string) => {
+    setApplyingVersion(version)
+    applyLocal.mutate(version)
+  }
+
+  const list = versions ?? []
+
+  return (
+    <div className="mt-3 rounded-lg border p-3">
+      <div className="mb-2">
+        <span className="text-sm font-medium">{t('settings.localVersionsTitle')}</span>
+        <p className="text-[11px] text-muted-foreground">{t('settings.localVersionsHint')}</p>
+      </div>
+      {isLoading ?
+          (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {t('settings.localVersionsLoading')}
+            </div>
+          ) :
+        list.length === 0 ?
+            <div className="text-xs text-muted-foreground">{t('settings.localVersionsEmpty')}</div> :
+            (
+              <div className="flex flex-col gap-1.5">
+                {list.map(v => (
+                  <div key={v.version} className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <Badge variant="outline" className="shrink-0 font-mono">
+                        v
+                        {v.version}
+                      </Badge>
+                      {v.isCurrent ?
+                          (
+                            <Badge variant="secondary" className="shrink-0 py-0 text-[10px]">
+                              {t('settings.localVersionsCurrent')}
+                            </Badge>
+                          ) :
+                        null}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={v.isCurrent || applyLocal.isPending}
+                      onClick={() => handleApply(v.version)}
+                    >
+                      {applyLocal.isPending && applyingVersion === v.version ?
+                          (
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              {t('settings.upgradeRestarting')}
+                            </>
+                          ) :
+                          t('settings.localVersionsApply')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+      {applyLocal.isError ?
+          (
+            <div className="mt-2 text-xs text-red-500">
+              {applyLocal.error instanceof Error ?
+                applyLocal.error.message :
+                  t('settings.localVersionsApplyFailed')}
             </div>
           ) :
         null}

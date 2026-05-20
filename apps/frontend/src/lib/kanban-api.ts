@@ -838,6 +838,14 @@ export const kanbanApi = {
       checksumMatch: boolean | null
     }>('/api/settings/upgrade/download/status'),
   restartWithUpgrade: () => post<{ status: string }>('/api/settings/upgrade/restart', {}),
+  listLocalVersions: () =>
+    get<Array<{ version: string, isCurrent: boolean }>>(
+      '/api/settings/upgrade/local-versions',
+    ),
+  applyLocalVersion: (version: string) =>
+    post<{ status: string, version: string }>('/api/settings/upgrade/apply-local', {
+      version,
+    }),
 
   // File Browser
   listFiles: (root: string, path?: string, hideIgnored?: boolean) => {

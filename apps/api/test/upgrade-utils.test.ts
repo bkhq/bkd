@@ -6,6 +6,7 @@ import {
   parseVersionFromFileName,
   resolveDownloadFileName,
   VALID_FILE_NAME_RE,
+  VALID_VERSION_RE,
 } from '@/upgrade/utils'
 
 describe('isNewerVersion', () => {
@@ -189,5 +190,33 @@ describe('detectPlatformAssetSuffix', () => {
   it('returns a non-empty string in the format os-arch', () => {
     const suffix = detectPlatformAssetSuffix()
     expect(suffix).toMatch(/^\w+-\w+$/)
+  })
+})
+
+describe('VALID_VERSION_RE', () => {
+  it('accepts plain semver', () => {
+    expect(VALID_VERSION_RE.test('0.0.1')).toBe(true)
+    expect(VALID_VERSION_RE.test('1.2.3')).toBe(true)
+    expect(VALID_VERSION_RE.test('10.20.30')).toBe(true)
+  })
+
+  it('accepts pre-release and build-metadata suffixes', () => {
+    expect(VALID_VERSION_RE.test('0.0.163-lc')).toBe(true)
+    expect(VALID_VERSION_RE.test('1.0.0+nightly')).toBe(true)
+  })
+
+  it('rejects a leading v prefix', () => {
+    expect(VALID_VERSION_RE.test('v0.0.1')).toBe(false)
+  })
+
+  it('rejects path traversal and separators', () => {
+    expect(VALID_VERSION_RE.test('../../../etc/passwd')).toBe(false)
+    expect(VALID_VERSION_RE.test('0.0.1/../..')).toBe(false)
+    expect(VALID_VERSION_RE.test('0.0.1 0.0.2')).toBe(false)
+  })
+
+  it('rejects incomplete versions', () => {
+    expect(VALID_VERSION_RE.test('1.2')).toBe(false)
+    expect(VALID_VERSION_RE.test('')).toBe(false)
   })
 })

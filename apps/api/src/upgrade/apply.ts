@@ -1,10 +1,10 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { rename, rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { runCommand, spawnNode } from '@/engines/spawn'
 import { logger } from '@/logger'
 import { writeUpgradeToken } from '@/pid-lock'
-import { isPathWithinDir, parseVersionFromFileName } from '@/upgrade/utils'
+import { isPathWithinDir, parseVersionFromFileName, VALID_VERSION_RE } from '@/upgrade/utils'
 import { APP_BASE, isPackageMode, UPDATES_DIR, VERSION_FILE } from './constants'
 import { DRAIN_TIMEOUT_MS, setDraining } from './drain'
 import { getDownloadStatus } from './download'
@@ -77,6 +77,35 @@ let isApplying = false
 // block for up to DRAIN_TIMEOUT_MS waiting for in-flight turns to settle.
 const APPLY_TIMEOUT_MS = DRAIN_TIMEOUT_MS + 60_000
 
+/**
+ * Run the registered graceful shutdown (which drains in-flight turns and
+ * releases the port), then spawn `target` as a detached replacement process
+ * and exit. Never returns on the success path.
+ */
+async function shutdownAndRespawn(target: string): Promise<void> {
+  // Graceful shutdown: drain in-flight turns, stop server, release the port.
+  if (registeredShutdownFn) {
+    await registeredShutdownFn()
+  } else {
+    logger.warn('upgrade_no_shutdown_fn_registered')
+  }
+
+  // Write upgrade token so the new process can take over the PID lock.
+  writeUpgradeToken()
+
+  // Spawn the replacement as a detached process after the port is released.
+  const child = spawnNode([target], {
+    env: { ...process.env } as Record<string, string>,
+    stdin: 'ignore',
+    stdout: 'ignore',
+    stderr: 'ignore',
+  })
+  child.unref?.()
+
+  logger.info('upgrade_shutting_down_for_restart')
+  process.exit(0)
+}
+
 export async function applyUpgradeAndRestart(): Promise<void> {
   if (isApplying) {
     throw new Error('An upgrade is already being applied')
@@ -127,27 +156,8 @@ export async function applyUpgradeAndRestart(): Promise<void> {
       )
       logger.info({ version }, 'upgrade_version_activated')
 
-      // Graceful shutdown
-      if (registeredShutdownFn) {
-        await registeredShutdownFn()
-      } else {
-        logger.warn('upgrade_no_shutdown_fn_registered')
-      }
-
-      // Write upgrade token so the new process can take over the PID lock
-      writeUpgradeToken()
-
       // Re-exec the launcher binary (process.execPath is the launcher)
-      const child = spawnNode([process.execPath], {
-        env: { ...process.env } as Record<string, string>,
-        stdin: 'ignore',
-        stdout: 'ignore',
-        stderr: 'ignore',
-      })
-      child.unref?.()
-
-      logger.info('upgrade_shutting_down_for_restart')
-      process.exit(0)
+      await shutdownAndRespawn(process.execPath)
     } else {
       // Binary mode: spawn the new binary directly
       const upgradeBinary = status.filePath
@@ -159,27 +169,8 @@ export async function applyUpgradeAndRestart(): Promise<void> {
 
       logger.info({ from: process.execPath, to: upgradeBinary }, 'upgrade_applying')
 
-      // Graceful shutdown: stop server, cancel engine processes, release port
-      if (registeredShutdownFn) {
-        await registeredShutdownFn()
-      } else {
-        logger.warn('upgrade_no_shutdown_fn_registered')
-      }
-
-      // Write upgrade token so the new process can take over the PID lock
-      writeUpgradeToken()
-
-      // Spawn the new binary as a detached process after port is released
-      const child = spawnNode([upgradeBinary], {
-        env: { ...process.env } as Record<string, string>,
-        stdin: 'ignore',
-        stdout: 'ignore',
-        stderr: 'ignore',
-      })
-      child.unref?.()
-
-      logger.info('upgrade_shutting_down_for_restart')
-      process.exit(0)
+      // Spawn the new binary directly as the replacement process
+      await shutdownAndRespawn(upgradeBinary)
     }
   } finally {
     clearTimeout(safetyTimer)
@@ -188,6 +179,88 @@ export async function applyUpgradeAndRestart(): Promise<void> {
     // instance permanently rejecting every execution. On the success path
     // process.exit(0) already ran and this finally block never executes;
     // it only matters when a post-drain step (token write / re-spawn) threw.
+    setDraining(false)
+  }
+}
+
+// --- Local package apply (package mode) ---
+
+/**
+ * List app package versions already installed under data/app/v{version}/.
+ * Only versions with a runnable server.js are returned. Package mode only.
+ */
+export function listLocalAppVersions(): Array<{ version: string, isCurrent: boolean }> {
+  if (!isPackageMode || !existsSync(APP_BASE)) return []
+
+  let current: string | null = null
+  if (existsSync(VERSION_FILE)) {
+    try {
+      const data = JSON.parse(readFileSync(VERSION_FILE, 'utf8')) as { version?: unknown }
+      if (typeof data.version === 'string') current = data.version
+    } catch {
+      // Ignore a malformed version.json — just means nothing is marked current.
+    }
+  }
+
+  const out: Array<{ version: string, isCurrent: boolean }> = []
+  for (const entry of readdirSync(APP_BASE, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.startsWith('v')) continue
+    const version = entry.name.slice(1)
+    if (!VALID_VERSION_RE.test(version)) continue
+    if (!existsSync(resolve(APP_BASE, entry.name, 'server.js'))) continue
+    out.push({ version, isCurrent: version === current })
+  }
+  return out
+}
+
+/**
+ * Activate an already-installed local app package version and restart through
+ * the same graceful-drain path as a downloaded upgrade. Unlike
+ * applyUpgradeAndRestart this skips the GitHub download/checksum gate, so it
+ * works for locally-built packages (`bun run package`). Package mode only.
+ */
+export async function applyLocalVersion(version: string): Promise<void> {
+  if (!isPackageMode) {
+    throw new Error('Local version apply is only available in package mode')
+  }
+  if (!VALID_VERSION_RE.test(version)) {
+    throw new Error(`Invalid version: ${version}`)
+  }
+  if (isApplying) {
+    throw new Error('An upgrade is already being applied')
+  }
+  isApplying = true
+
+  const safetyTimer = setTimeout(() => {
+    isApplying = false
+    logger.warn('upgrade_apply_timeout_reset')
+  }, APPLY_TIMEOUT_MS)
+  if (typeof safetyTimer === 'object' && 'unref' in safetyTimer) {
+    safetyTimer.unref()
+  }
+
+  try {
+    const versionDir = resolve(APP_BASE, `v${version}`)
+    // Defence in depth: VALID_VERSION_RE already rejects path separators.
+    if (!isPathWithinDir(versionDir, APP_BASE)) {
+      throw new Error('Version directory escapes the app directory')
+    }
+    const serverPath = resolve(versionDir, 'server.js')
+    if (!existsSync(serverPath)) {
+      throw new Error(`Version ${version} is not installed (missing server.js)`)
+    }
+
+    // Activate the version, then restart through the shared drain path.
+    writeFileSync(
+      VERSION_FILE,
+      JSON.stringify({ version, updatedAt: new Date().toISOString() }),
+    )
+    logger.info({ version }, 'upgrade_local_version_activated')
+
+    await shutdownAndRespawn(process.execPath)
+  } finally {
+    clearTimeout(safetyTimer)
+    isApplying = false
     setDraining(false)
   }
 }

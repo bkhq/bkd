@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator'
 import * as z from 'zod'
 import { logger } from '@/logger'
 import {
+  applyLocalVersion,
   applyUpgradeAndRestart,
   checkForUpdates,
   deleteDownloadedUpdate,
@@ -11,10 +12,11 @@ import {
   getVersionInfo,
   isUpgradeEnabled,
   listDownloadedUpdates,
+  listLocalAppVersions,
   setUpgradeEnabled,
 } from '@/upgrade/service'
 import { createOpenAPIRouter } from '@/openapi/hono'
-import { VALID_FILE_NAME_RE } from '@/upgrade/utils'
+import { VALID_FILE_NAME_RE, VALID_VERSION_RE } from '@/upgrade/utils'
 
 const ALLOWED_DOWNLOAD_HOSTS = new Set(['github.com', 'objects.githubusercontent.com'])
 
@@ -34,6 +36,12 @@ const upgradeFileNameSchema = z
   .min(1)
   .max(255)
   .regex(VALID_FILE_NAME_RE, 'File name must match bkd-<type>-v<version> format')
+
+const versionSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(VALID_VERSION_RE, 'Version must be a valid SemVer string')
 
 const upgrade = createOpenAPIRouter()
 
@@ -144,6 +152,47 @@ upgrade.post('/restart', async (c) => {
     )
   }
 })
+
+// GET /api/settings/upgrade/local-versions — list installed local app packages
+upgrade.get('/local-versions', (c) => {
+  const versions = listLocalAppVersions()
+  return c.json({ success: true, data: versions })
+})
+
+// POST /api/settings/upgrade/apply-local — activate a local package + restart
+upgrade.post(
+  '/apply-local',
+  zValidator('json', z.object({ version: versionSchema }), (result, c) => {
+    if (!result.success) {
+      return c.json(
+        {
+          success: false,
+          error: result.error.issues.map(i => i.message).join(', '),
+        },
+        400,
+      )
+    }
+  }),
+  async (c) => {
+    const { version } = c.req.valid('json')
+    try {
+      await applyLocalVersion(version)
+      return c.json({ success: true, data: { status: 'restarting', version } })
+    } catch (err) {
+      logger.error(
+        { err, version, stack: err instanceof Error ? err.stack : undefined },
+        'upgrade_apply_local_failed',
+      )
+      return c.json(
+        {
+          success: false,
+          error: err instanceof Error ? err.message : 'Failed to apply local version',
+        },
+        400,
+      )
+    }
+  },
+)
 
 // GET /api/settings/upgrade/downloads — list downloaded update files
 upgrade.get('/downloads', async (c) => {
