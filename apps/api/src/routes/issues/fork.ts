@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { and, desc, eq, max } from 'drizzle-orm'
 import { generateKeyBetween } from 'jittered-fractional-indexing'
 import { ulid } from 'ulid'
@@ -7,10 +8,16 @@ import { indexLog } from '@/db/fts'
 import { findProject, getDefaultEngine, getEngineDefaultModel } from '@/db/helpers'
 import { issues as issuesTable, issueLogs as logsTable } from '@/db/schema'
 import { resolveWorkingDir } from '@/engines/issue/utils/helpers'
-import { createWorktree, resolveWorktreePath } from '@/engines/issue/utils/worktree'
+import {
+  createWorktree,
+  isWorktreeRegistered,
+  resolveWorktreePath,
+} from '@/engines/issue/utils/worktree'
+import { runCommand } from '@/engines/spawn'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
+import { ROOT_DIR } from '@/root'
 import { buildForkContext } from '@/services/fork-context'
 import { carryUncommitted } from '@/services/worktree-carry'
 import { getProjectOwnedIssue, parseProjectEnvVars, serializeIssue, triggerIssueExecution } from './_shared'
@@ -44,6 +51,34 @@ async function appendSystemMessage(
   indexLog(logId, content)
 }
 
+/**
+ * Resolve the parent issue's actual working directory and current HEAD.
+ * The child worktree is branched from this HEAD so the parent's committed
+ * work is carried — regardless of which branch the parent's agent ended up
+ * on (it may have switched to a `feature/*` branch per repo conventions).
+ */
+async function resolveParentSource(
+  projectId: string,
+  projectDir: string | null,
+  parent: { id: string, useWorktree: boolean },
+): Promise<{ workingDir: string, headRef: string | undefined }> {
+  const baseDir = projectDir ? resolve(projectDir) : ROOT_DIR
+  let workingDir = baseDir
+  if (parent.useWorktree) {
+    const wt = resolveWorktreePath(projectId, parent.id)
+    try {
+      if (await isWorktreeRegistered(baseDir, wt)) workingDir = wt
+    } catch {
+      /* fall back to baseDir */
+    }
+  }
+  const { code, stdout } = await runCommand(
+    ['git', 'rev-parse', 'HEAD'],
+    { cwd: workingDir, stderr: 'pipe' },
+  )
+  return { workingDir, headRef: code === 0 ? stdout.trim() : undefined }
+}
+
 // POST /api/projects/:projectId/issues/:issueId/fork — Fork an issue
 fork.openapi(R.forkIssue, async (c) => {
   const projectId = c.req.param('projectId')!
@@ -59,15 +94,13 @@ fork.openapi(R.forkIssue, async (c) => {
   }
 
   const body = c.req.valid('json')
-  const { mode } = body
-  const includeHistory = body.includeHistory ?? false
+  const { runWhen } = body
   const inheritEngine = body.inheritEngine ?? true
-  const autoExecute = body.autoExecute ?? true
 
   const ctx = await buildForkContext({
     parentIssueId: parent.id,
     instruction: body.instruction,
-    includeHistory,
+    fromLogId: body.fromLogId,
   })
   if (!ctx) {
     return c.json({ success: false, error: 'Failed to build fork context' }, 400 as const)
@@ -85,7 +118,7 @@ fork.openapi(R.forkIssue, async (c) => {
     if (saved && saved !== 'auto') model = saved
   }
 
-  const isDependent = mode === 'dependent'
+  const isDependent = runWhen === 'after-parent'
   const statusId = isDependent ? 'todo' : 'working'
 
   try {
@@ -133,33 +166,31 @@ fork.openapi(R.forkIssue, async (c) => {
 
     await cacheDel(`projectIssueIds:${project.id}`)
 
-    // Bidirectional lineage markers in both timelines.
     await appendSystemMessage(
       parent.id,
       `Forked to issue #${child.issueNumber}: ${child.title}`,
-      { kind: 'fork-out', childIssueId: child.id, mode },
+      { kind: 'fork-out', childIssueId: child.id, runWhen },
     ).catch(err => logger.warn({ issueId: parent.id, err }, 'fork_parent_marker_failed'))
 
     let carryWarning: string | undefined
 
-    // snapshot mode: pre-create the child worktree and import the parent's
-    // uncommitted work before execution kicks off.
-    if (mode === 'snapshot') {
+    // Run-now: branch the child worktree off the parent's current HEAD and
+    // carry the parent's uncommitted work before execution kicks off.
+    if (!isDependent) {
       try {
         const baseDir = await resolveWorkingDir(project.id)
-        const parentWorkingDir = parent.useWorktree
-          ? resolveWorktreePath(project.id, parent.id)
-          : baseDir
-        const childWorktree = await createWorktree(baseDir, project.id, child.id)
-        carryWarning = (await carryUncommitted(parentWorkingDir, childWorktree)) ?? undefined
+        const { workingDir: parentDir, headRef } = await resolveParentSource(
+          project.id,
+          project.directory,
+          parent,
+        )
+        const childWorktree = await createWorktree(baseDir, project.id, child.id, headRef)
+        carryWarning = (await carryUncommitted(parentDir, childWorktree)) ?? undefined
       } catch (err) {
-        logger.warn({ childId: child.id, err }, 'fork_snapshot_failed')
-        carryWarning = 'Could not carry uncommitted changes into the new worktree.'
+        logger.warn({ childId: child.id, err }, 'fork_worktree_seed_failed')
+        carryWarning = 'Could not seed the new worktree from the parent; it may start from a clean base.'
       }
-    }
 
-    // Kick off execution for immediate modes.
-    if (!isDependent && autoExecute) {
       triggerIssueExecution(
         child.id,
         { engineType, prompt: ctx.prompt, model },
@@ -174,7 +205,7 @@ fork.openapi(R.forkIssue, async (c) => {
       data: {
         issue: serializeIssue(child),
         parentIssueId: parent.id,
-        mode,
+        runWhen,
         ...(carryWarning ? { carryWarning } : {}),
       },
     }, 201 as const)

@@ -1,12 +1,12 @@
 /**
  * Build the title + prompt for an issue forked off a parent issue.
- * See PLAN-021.
+ * See PLAN-021 / FORK-002.
  */
 import { and, asc, eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { issues as issuesTable, issueLogs as logsTable } from '@/db/schema'
 
-/** Max characters of parent transcript carried when includeHistory is set. */
+/** Max characters of parent transcript carried into the forked issue. */
 const HISTORY_CHAR_BUDGET = 8000
 
 export interface ForkContext {
@@ -19,17 +19,18 @@ function truncate(text: string, max: number): string {
 }
 
 /**
- * Compose the spawned issue's prompt from the parent's context plus the
+ * Compose the spawned issue's prompt from the parent's conversation plus the
  * user-supplied instruction.
  *
- * - includeHistory=false: parent title + last user + last assistant message.
- * - includeHistory=true: parent transcript (user/assistant turns, newest
- *   turns kept) truncated to HISTORY_CHAR_BUDGET.
+ * The carried context is the parent conversation up to (and including)
+ * `fromLogId` — message-level fork. When `fromLogId` is omitted the whole
+ * conversation is carried. Either way it is truncated to HISTORY_CHAR_BUDGET,
+ * keeping the newest turns.
  */
 export async function buildForkContext(opts: {
   parentIssueId: string
   instruction: string
-  includeHistory: boolean
+  fromLogId?: string
 }): Promise<ForkContext | null> {
   const [parent] = await db
     .select()
@@ -43,13 +44,19 @@ export async function buildForkContext(opts: {
     .where(and(eq(logsTable.issueId, opts.parentIssueId), eq(logsTable.visible, 1)))
     .orderBy(asc(logsTable.turnIndex), asc(logsTable.entryIndex))
 
-  const messages = logs.filter(
+  let messages = logs.filter(
     l => l.entryType === 'user-message' || l.entryType === 'assistant-message',
   )
 
+  // Message-level fork: cut the transcript at the chosen log entry.
+  if (opts.fromLogId) {
+    const cutIdx = messages.findIndex(m => m.id === opts.fromLogId)
+    if (cutIdx >= 0) messages = messages.slice(0, cutIdx + 1)
+  }
+
   const parts: string[] = [`# Forked from issue: ${parent.title}`]
 
-  if (opts.includeHistory && messages.length > 0) {
+  if (messages.length > 0) {
     // Walk newest-first, accumulate until the char budget is hit, then
     // restore chronological order.
     const picked: string[] = []
@@ -63,13 +70,6 @@ export async function buildForkContext(opts: {
       used += block.length
     }
     parts.push('## Parent conversation', truncate(picked.join('\n\n'), HISTORY_CHAR_BUDGET))
-  } else {
-    const lastUser = [...messages].reverse().find(m => m.entryType === 'user-message')
-    const lastAssistant = [...messages].reverse().find(m => m.entryType === 'assistant-message')
-    if (lastUser) parts.push(`## Last instruction in parent\n${truncate(lastUser.content, 2000)}`)
-    if (lastAssistant) {
-      parts.push(`## Last assistant reply in parent\n${truncate(lastAssistant.content, 2000)}`)
-    }
   }
 
   parts.push(`# Your task\n${opts.instruction.trim()}`)

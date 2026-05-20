@@ -202,7 +202,7 @@ export function IssueContextMenu({
       <ForkDialog
         open={forkOpen}
         onOpenChange={setForkOpen}
-        issue={issue}
+        issueId={issue.id}
         projectId={projectId}
       />
 

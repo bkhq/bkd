@@ -21,7 +21,7 @@ export type {
   FileListingResult,
   ForkIssuePayload,
   ForkIssueResult,
-  ForkMode,
+  ForkRunWhen,
   Issue,
   IssueChangedFile,
   IssueChangesResponse,

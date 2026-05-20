@@ -241,21 +241,19 @@
     "configChipCurrentEngine": "Current engine",
     "fork": {
       "cta": "Fork to new issue",
+      "forkFromMessage": "Fork from here",
       "dialog": {
         "title": "Fork to a new issue",
         "subtitle": "Spin this task off into a separate issue so it runs without occupying the current session.",
+        "fromMessage": "Forking from the selected message — the new issue gets the conversation up to this point.",
         "instruction": "What should the new issue do?",
-        "mode": {
-          "independent": "Independent — run in parallel now",
-          "independentDesc": "A fresh worktree off main. Runs immediately alongside this issue.",
-          "snapshot": "Carry current changes — run in parallel now",
-          "snapshotDesc": "A fresh worktree seeded with this issue's uncommitted changes. Runs immediately.",
-          "dependent": "Depends on this issue's result",
-          "dependentDesc": "Waits in To-do and starts automatically once this issue finishes."
+        "runWhen": {
+          "now": "Run now",
+          "nowDesc": "Runs immediately, in parallel with this issue. Branches from this issue's current code.",
+          "after-parent": "Run after this issue finishes",
+          "after-parentDesc": "Waits in To-do, then starts automatically once this issue settles."
         },
-        "includeHistory": "Include conversation history as context",
         "inheritEngine": "Inherit engine and model",
-        "createOnly": "Create only",
         "createAndRun": "Create and run",
         "schedule": "Create and schedule"
       },
@@ -317,6 +315,7 @@
     "scrollToTop": "Scroll to top",
     "scrollToBottom": "Scroll to bottom",
     "executionFailed": "Execution failed",
+    "upgradeDraining": "The server is restarting for an upgrade — try again in a moment",
     "duration": "Completed in {{time}}",
     "copyMessage": "Copy markdown source",
     "viewMessage": "View as Markdown",

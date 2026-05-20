@@ -1,7 +1,11 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
 import { createTestProject, expectError, expectSuccess, get, post } from './helpers'
 /**
- * Issue fork API tests (PLAN-021 / FORK-001).
+ * Issue fork API tests (PLAN-021 / FORK-002).
+ *
+ * Coverage focuses on the `after-parent` path — it has no filesystem side
+ * effects. The `now` path's worktree seeding is covered by worktree.test.ts
+ * and worktree-carry.test.ts.
  */
 import './setup'
 
@@ -20,7 +24,7 @@ interface Issue {
 interface ForkResponse {
   issue: Issue
   parentIssueId: string
-  mode: string
+  runWhen: string
 }
 
 let projectId: string
@@ -38,39 +42,28 @@ beforeAll(async () => {
 })
 
 describe('POST /api/projects/:projectId/issues/:issueId/fork', () => {
-  test('independent mode creates a child with parentIssueId, no execution', async () => {
+  test('after-parent mode creates a todo child awaiting the parent', async () => {
     const result = await post<ForkResponse>(
       `/api/projects/${projectId}/issues/${parentId}/fork`,
-      { instruction: 'Write the docs', mode: 'independent', autoExecute: false },
+      { instruction: 'Run after the parent finishes', runWhen: 'after-parent' },
     )
     expect(result.status).toBe(201)
     const data = expectSuccess(result)
-    expect(data.mode).toBe('independent')
+    expect(data.runWhen).toBe('after-parent')
     expect(data.parentIssueId).toBe(parentId)
     expect(data.issue.parentIssueId).toBe(parentId)
-    expect(data.issue.statusId).toBe('working')
-    expect(data.issue.forkAwaitingParent).toBe(false)
-    expect(data.issue.title).toContain('Parent issue')
-    expect(data.issue.prompt).toContain('Write the docs')
-  })
-
-  test('dependent mode creates a todo child awaiting the parent', async () => {
-    const result = await post<ForkResponse>(
-      `/api/projects/${projectId}/issues/${parentId}/fork`,
-      { instruction: 'Run after parent', mode: 'dependent' },
-    )
-    expect(result.status).toBe(201)
-    const data = expectSuccess(result)
-    expect(data.mode).toBe('dependent')
     expect(data.issue.statusId).toBe('todo')
     expect(data.issue.forkAwaitingParent).toBe(true)
     expect(data.issue.sessionStatus).toBeNull()
+    expect(data.issue.useWorktree).toBe(true)
+    expect(data.issue.title).toContain('Parent issue')
+    expect(data.issue.prompt).toContain('Run after the parent finishes')
   })
 
   test('parent GET reports forked children', async () => {
     const data = expectSuccess(await get<Issue>(`/api/projects/${projectId}/issues/${parentId}`))
     expect(Array.isArray(data.forks)).toBe(true)
-    expect(data.forks!.length).toBeGreaterThanOrEqual(2)
+    expect(data.forks!.length).toBeGreaterThanOrEqual(1)
   })
 
   test('parent timeline records a fork-out system message', async () => {
@@ -86,7 +79,15 @@ describe('POST /api/projects/:projectId/issues/:issueId/fork', () => {
   test('rejects empty instruction', async () => {
     const result = await post(
       `/api/projects/${projectId}/issues/${parentId}/fork`,
-      { instruction: '', mode: 'independent' },
+      { instruction: '', runWhen: 'after-parent' },
+    )
+    expectError(result, 400)
+  })
+
+  test('rejects an invalid runWhen', async () => {
+    const result = await post(
+      `/api/projects/${projectId}/issues/${parentId}/fork`,
+      { instruction: 'x', runWhen: 'whenever' },
     )
     expectError(result, 400)
   })
@@ -94,7 +95,7 @@ describe('POST /api/projects/:projectId/issues/:issueId/fork', () => {
   test('returns 404 for unknown issue', async () => {
     const result = await post(
       `/api/projects/${projectId}/issues/nonexist0/fork`,
-      { instruction: 'x', mode: 'independent', autoExecute: false },
+      { instruction: 'x', runWhen: 'after-parent' },
     )
     expectError(result, 404)
   })

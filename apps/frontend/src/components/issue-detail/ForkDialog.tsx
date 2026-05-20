@@ -1,4 +1,4 @@
-import type { ForkMode, Issue } from '@/types/kanban'
+import type { ForkRunWhen } from '@/types/kanban'
 import { Check, GitBranch } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,46 +18,47 @@ import { Textarea } from '@/components/ui/textarea'
 import { useForkIssue } from '@/hooks/use-kanban'
 import { cn } from '@/lib/utils'
 
-const MODES: ForkMode[] = ['independent', 'snapshot', 'dependent']
+const RUN_WHEN: ForkRunWhen[] = ['now', 'after-parent']
 
 export function ForkDialog({
   open,
   onOpenChange,
-  issue,
+  issueId,
   projectId,
+  fromLogId,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  issue: Issue
+  issueId: string
   projectId: string
+  /** When set, fork from this message — context is the parent chat up to here. */
+  fromLogId?: string
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const forkIssue = useForkIssue(projectId)
 
   const [instruction, setInstruction] = useState('')
-  const [mode, setMode] = useState<ForkMode>('independent')
-  const [includeHistory, setIncludeHistory] = useState(false)
+  const [runWhen, setRunWhen] = useState<ForkRunWhen>('now')
   const [inheritEngine, setInheritEngine] = useState(true)
 
   const reset = () => {
     setInstruction('')
-    setMode('independent')
-    setIncludeHistory(false)
+    setRunWhen('now')
     setInheritEngine(true)
   }
 
-  const submit = (autoExecute: boolean) => {
+  const submit = () => {
     const trimmed = instruction.trim()
     if (!trimmed) return
     forkIssue.mutate(
-      { issueId: issue.id, data: { instruction: trimmed, mode, includeHistory, inheritEngine, autoExecute } },
+      { issueId, data: { instruction: trimmed, runWhen, fromLogId, inheritEngine } },
       {
         onSuccess: (res) => {
           onOpenChange(false)
           reset()
           if (res.carryWarning) toast.warning(res.carryWarning)
-          if (res.mode === 'dependent') {
+          if (res.runWhen === 'after-parent') {
             toast.success(t('chat.fork.toast.scheduled'))
           } else {
             toast.success(t('chat.fork.toast.started'))
@@ -71,7 +72,6 @@ export function ForkDialog({
     )
   }
 
-  const isDependent = mode === 'dependent'
   const canSubmit = instruction.trim().length > 0 && !forkIssue.isPending
 
   return (
@@ -88,7 +88,9 @@ export function ForkDialog({
             <GitBranch className="size-4" />
             {t('chat.fork.dialog.title')}
           </DialogTitle>
-          <DialogDescription>{t('chat.fork.dialog.subtitle')}</DialogDescription>
+          <DialogDescription>
+            {fromLogId ? t('chat.fork.dialog.fromMessage') : t('chat.fork.dialog.subtitle')}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -101,32 +103,32 @@ export function ForkDialog({
           />
 
           <div className="space-y-2">
-            {MODES.map(m => (
+            {RUN_WHEN.map(w => (
               <button
-                key={m}
+                key={w}
                 type="button"
-                onClick={() => setMode(m)}
+                onClick={() => setRunWhen(w)}
                 className={cn(
                   'flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors',
-                  mode === m
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:bg-accent',
+                  runWhen === w ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent',
                 )}
               >
                 <span
                   className={cn(
                     'mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border',
-                    mode === m ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground',
+                    runWhen === w
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-muted-foreground',
                   )}
                 >
-                  {mode === m && <Check className="size-3" />}
+                  {runWhen === w && <Check className="size-3" />}
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-medium">
-                    {t(`chat.fork.dialog.mode.${m}`)}
+                    {t(`chat.fork.dialog.runWhen.${w}`)}
                   </span>
                   <span className="block text-xs text-muted-foreground">
-                    {t(`chat.fork.dialog.mode.${m}Desc`)}
+                    {t(`chat.fork.dialog.runWhen.${w}Desc`)}
                   </span>
                 </span>
               </button>
@@ -134,32 +136,17 @@ export function ForkDialog({
           </div>
 
           <label className="flex items-center justify-between gap-3 py-1">
-            <span className="text-sm">{t('chat.fork.dialog.includeHistory')}</span>
-            <Switch checked={includeHistory} onCheckedChange={setIncludeHistory} />
-          </label>
-          <label className="flex items-center justify-between gap-3 py-1">
             <span className="text-sm">{t('chat.fork.dialog.inheritEngine')}</span>
             <Switch checked={inheritEngine} onCheckedChange={setInheritEngine} />
           </label>
         </div>
 
         <DialogFooter>
-          {isDependent
-            ? (
-                <Button disabled={!canSubmit} onClick={() => submit(false)}>
-                  {t('chat.fork.dialog.schedule')}
-                </Button>
-              )
-            : (
-                <>
-                  <Button variant="outline" disabled={!canSubmit} onClick={() => submit(false)}>
-                    {t('chat.fork.dialog.createOnly')}
-                  </Button>
-                  <Button disabled={!canSubmit} onClick={() => submit(true)}>
-                    {t('chat.fork.dialog.createAndRun')}
-                  </Button>
-                </>
-              )}
+          <Button disabled={!canSubmit} onClick={submit}>
+            {runWhen === 'after-parent'
+              ? t('chat.fork.dialog.schedule')
+              : t('chat.fork.dialog.createAndRun')}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -31,6 +31,7 @@ import { getCommandPreview } from '@/lib/command-preview'
 import { formatFileSize } from '@/lib/format'
 import type { NormalizedLogEntry, ToolAction } from '@/types/kanban'
 import { MarkdownContent } from './MarkdownContent'
+import { MessageForkButton } from './MessageForkButton'
 
 interface AttachmentMeta {
   id: string
@@ -270,7 +271,13 @@ function LogEntryImpl({
   inToolGroup?: boolean
 }) {
   const { t } = useTranslation()
-  const { projectId = '', issueId = '' } = useParams<{ projectId: string, issueId: string }>()
+  // On the cockpit `/review/:projectAlias/:issueId` route the param is the
+  // project *alias*, not `projectId`. Fall back to it — the API resolves
+  // projects by id or alias — so attachment URLs and the fork action don't
+  // end up with an empty `/api/projects//...` segment.
+  const params = useParams<{ projectId: string, projectAlias: string, issueId: string }>()
+  const projectId = params.projectId || params.projectAlias || ''
+  const issueId = params.issueId || ''
 
   switch (entry.entryType) {
     case 'user-message': {
@@ -304,7 +311,17 @@ function LogEntryImpl({
           className="group py-1.5 animate-message-enter"
           data-user-turn={anchorTurn}
         >
-          <div className={`px-3 py-2 border-l-[3px] rounded-r-md ${barColor}`}>
+          <div className={`relative px-3 py-2 border-l-[3px] rounded-r-md ${barColor}`}>
+            {entry.messageId
+              ? (
+                  <MessageForkButton
+                    projectId={projectId}
+                    issueId={issueId}
+                    logId={entry.messageId}
+                    className="absolute right-1 top-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
+                )
+              : null}
             {displayContent ?
                 (
                   <div className="text-[15px] whitespace-pre-wrap break-words text-foreground leading-[1.7]">
@@ -384,6 +401,9 @@ function LogEntryImpl({
           timestamp={entry.timestamp}
           durationMs={durationMs}
           isStreaming={entry.metadata?.streaming === true}
+          messageId={entry.messageId}
+          projectId={projectId}
+          issueId={issueId}
         />
       )
 
@@ -557,11 +577,17 @@ function AssistantMessage({
   timestamp,
   durationMs,
   isStreaming = false,
+  messageId,
+  projectId = '',
+  issueId = '',
 }: {
   content: string
   timestamp?: string
   durationMs?: number
   isStreaming?: boolean
+  messageId?: string
+  projectId?: string
+  issueId?: string
 }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
@@ -590,6 +616,16 @@ function AssistantMessage({
   return (
     <div className={`group py-1 ${isStreaming ? '' : 'animate-message-enter'}`}>
       <div className="relative min-w-0">
+        {messageId
+          ? (
+              <MessageForkButton
+                projectId={projectId}
+                issueId={issueId}
+                logId={messageId}
+                className="absolute right-7 top-0 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+              />
+            )
+          : null}
         <button
           type="button"
           onClick={handleCopy}

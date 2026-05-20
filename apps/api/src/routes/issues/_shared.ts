@@ -1,5 +1,6 @@
 import { mkdir, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { UPGRADE_DRAINING_CODE } from '@bkd/shared'
 import { and, eq } from 'drizzle-orm'
 import * as z from 'zod'
 import { cacheDel, cacheGetOrSet } from '@/cache'
@@ -16,6 +17,7 @@ import { isValidAcpEngineType } from '@/engines/startup-probe'
 import type { EngineType } from '@/engines/types'
 import { emitIssueLogRemoved, emitIssueUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
+import { isDraining } from '@/upgrade/drain'
 import { toISO } from '@/utils/date'
 
 const fractionalKeyRegex = /^[a-z0-9]+$/i
@@ -232,6 +234,9 @@ export function normalizePrompt(input: string): string {
  * - working → proceed as-is
  */
 export async function ensureWorking(issue: IssueRow): Promise<{ ok: boolean, reason?: string }> {
+  if (isDraining()) {
+    return { ok: false, reason: UPGRADE_DRAINING_CODE }
+  }
   if (issue.statusId === 'todo') {
     return {
       ok: false,

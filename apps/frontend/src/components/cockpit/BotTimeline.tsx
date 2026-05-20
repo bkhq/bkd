@@ -3,7 +3,7 @@ import type {
   CockpitTimelineMessage,
   CockpitTimelineMessageKind,
 } from '@bkd/shared'
-import { AlertTriangle, Bell, BellOff, Bot, Check, CircleAlert, Clock, Hourglass, MessageSquare, Send, X } from 'lucide-react'
+import { AlertTriangle, Bell, BellOff, Bot, Check, CircleAlert, Clock, GitBranch, Hourglass, MessageSquare, Send, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -35,6 +35,7 @@ import {
 } from '@/hooks/use-cockpit-timeline'
 import { eventBus } from '@/lib/event-bus'
 import { cn } from '@/lib/utils'
+import { ForkDialog } from '../issue-detail/ForkDialog'
 import { CockpitQuickCreate } from './CockpitQuickCreate'
 
 const HOUR_MS = 60 * 60 * 1000
@@ -116,6 +117,8 @@ export function BotTimeline() {
   const [replyOpenFor, setReplyOpenFor] = useState<string | null>(null)
   const [replyDraft, setReplyDraft] = useState('')
   const [confirmBulkOpen, setConfirmBulkOpen] = useState(false)
+  // Which message's fork dialog is open (cockpit forks the whole issue).
+  const [forkFor, setForkFor] = useState<CockpitTimelineMessage | null>(null)
 
   const visible = useMemo(() => {
     if (!data) return []
@@ -506,7 +509,7 @@ export function BotTimeline() {
                   <div className="text-sm leading-relaxed text-foreground/90 break-words">
                     {msg.body}
                   </div>
-                  {msg.actions.length > 0 && (
+                  {(msg.actions.length > 0 || (!!msg.issueId && !!msg.projectId)) && (
                     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                       {msg.actions.map((action) => {
                         // Snooze gets a dropdown with 3 presets instead
@@ -571,6 +574,19 @@ export function BotTimeline() {
                           </Button>
                         )
                       })}
+                      {!!msg.issueId && !!msg.projectId && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2.5 text-xs"
+                          disabled={busy}
+                          onClick={() => setForkFor(msg)}
+                          data-testid={`fork-trigger-${msg.id}`}
+                        >
+                          <GitBranch className="mr-1 h-3 w-3" />
+                          {t('chat.fork.cta')}
+                        </Button>
+                      )}
                     </div>
                   )}
                   {isReplyOpen && (
@@ -654,6 +670,18 @@ export function BotTimeline() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Fork an issue from a timeline message (whole-issue fork). */}
+      {forkFor?.issueId && forkFor.projectId && (
+        <ForkDialog
+          open={!!forkFor}
+          onOpenChange={(o) => {
+            if (!o) setForkFor(null)
+          }}
+          issueId={forkFor.issueId}
+          projectId={forkFor.projectId}
+        />
+      )}
     </div>
   )
 }

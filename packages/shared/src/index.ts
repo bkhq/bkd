@@ -1,6 +1,13 @@
 // @bkd/shared — Types shared between @bkd/api and @bkd/frontend
 // Re-exported from packages/shared for cross-workspace consumption.
 
+// ── Error codes ────────────────────────────────────────
+// Machine-readable error codes returned in the `error` field of a failed
+// ApiResponse. The frontend maps these to localized messages.
+
+/** Returned when an execution is rejected because the server is draining for an upgrade restart. */
+export const UPGRADE_DRAINING_CODE = 'UPGRADE_DRAINING'
+
 export interface Project {
   id: string
   alias: string
@@ -71,25 +78,30 @@ export interface IssueForkRef {
 }
 
 /**
- * Fork mode (PLAN-021):
- * - `independent` — new worktree off main, runs immediately.
- * - `snapshot` — new worktree + parent's uncommitted changes, runs immediately.
- * - `dependent` — waits in `todo`, auto-runs when the parent issue settles.
+ * Fork timing (PLAN-021 / FORK-002):
+ * - `now` — runs immediately, in parallel with the parent.
+ * - `after-parent` — waits in `todo`, auto-runs when the parent issue settles.
+ *
+ * In both cases the child worktree branches from the parent worktree's
+ * current HEAD and carries the parent's uncommitted changes.
  */
-export type ForkMode = 'independent' | 'snapshot' | 'dependent'
+export type ForkRunWhen = 'now' | 'after-parent'
 
 export interface ForkIssuePayload {
   instruction: string
-  mode: ForkMode
-  includeHistory?: boolean
+  runWhen: ForkRunWhen
+  /**
+   * Optional log entry to fork from — the new issue's context is the parent
+   * conversation up to and including this entry. Omitted = whole conversation.
+   */
+  fromLogId?: string
   inheritEngine?: boolean
-  autoExecute?: boolean
 }
 
 export interface ForkIssueResult {
   issue: Issue
   parentIssueId: string
-  mode: ForkMode
+  runWhen: ForkRunWhen
   carryWarning?: string
 }
 

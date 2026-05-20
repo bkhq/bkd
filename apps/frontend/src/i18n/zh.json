@@ -238,21 +238,19 @@
     "configChipCurrentEngine": "当前引擎",
     "fork": {
       "cta": "分流到新 issue",
+      "forkFromMessage": "从这里分流",
       "dialog": {
         "title": "分流到新 issue",
         "subtitle": "把这个任务分流成独立 issue，让它在不占用当前会话的情况下运行。",
+        "fromMessage": "从选中的这条消息分流——新 issue 会带上到这条为止的对话。",
         "instruction": "新 issue 要做什么？",
-        "mode": {
-          "independent": "独立 — 立即并行运行",
-          "independentDesc": "从 main 新建 worktree，立即与当前 issue 并行执行。",
-          "snapshot": "携带当前改动 — 立即并行运行",
-          "snapshotDesc": "新建 worktree 并带上当前 issue 的未提交改动，立即执行。",
-          "dependent": "依赖当前 issue 的成果",
-          "dependentDesc": "先停在待办，当前 issue 完成后自动开始。"
+        "runWhen": {
+          "now": "现在就跑",
+          "nowDesc": "立即与当前 issue 并行运行，从当前 issue 此刻的代码起步。",
+          "after-parent": "等当前 issue 跑完再跑",
+          "after-parentDesc": "先停在待办，当前 issue 结束后自动开始。"
         },
-        "includeHistory": "把对话历史作为上下文带上",
         "inheritEngine": "继承引擎和模型",
-        "createOnly": "仅创建",
         "createAndRun": "创建并执行",
         "schedule": "创建并排期"
       },
@@ -313,6 +311,7 @@
     "scrollToTop": "滚动到顶部",
     "scrollToBottom": "滚动到底部",
     "executionFailed": "执行失败",
+    "upgradeDraining": "服务正在升级重启，请稍候片刻再试",
     "duration": "耗时 {{time}}",
     "copyMessage": "复制 Markdown 原文",
     "viewMessage": "查看 Markdown 渲染",

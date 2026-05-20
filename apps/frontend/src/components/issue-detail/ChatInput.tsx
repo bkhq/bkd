@@ -48,6 +48,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
 import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue, useOmitModel, useRestartIssue } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { apiErrorMessage } from '@/lib/api-error'
 import { formatFileSize, formatModelName } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
@@ -347,7 +348,7 @@ export function ChatInput({
       await clearSession.mutateAsync(issueId)
       setClearSessionOpen(false)
     } catch (err) {
-      setSendError(err instanceof Error ? err.message : String(err))
+      setSendError(apiErrorMessage(err, t))
       setTimeout(setSendError, 5000, null)
     }
   }
@@ -438,7 +439,7 @@ export function ChatInput({
         })
       }, 100)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = apiErrorMessage(err, t)
       setSendError(msg)
       setUploadProgress(null)
       // Restore input on failure — only if still on the same issue.
@@ -890,7 +891,7 @@ export function ChatInput({
             Center: combined engine·mode·model chip (replaces 3 separate chips).
             Right:  diff status + restart + send.
             Hidden in mobile collapsed reading mode (mobileCollapsed). */}
-        <div data-testid="chat-toolbar" className={`flex items-center gap-1 px-2 pb-2 pt-0.5 ${mobileCollapsed ? 'hidden' : ''}`}>
+        <div data-testid="chat-toolbar" className={`flex flex-wrap items-center gap-1 px-2 pb-2 pt-0.5 ${mobileCollapsed ? 'hidden' : ''}`}>
           {/* Left group */}
           <Button
             variant="ghost"
@@ -974,80 +975,82 @@ export function ChatInput({
             />
           </div>
 
-          {/* Spacer pushes the action group to the right edge */}
-          <div className="flex-1" />
-
-          {/* Right group: diff status (when relevant) + restart + send */}
-          {hasChanges ?
-              (
-                <button
-                  type="button"
-                  onClick={onToggleDiff}
-                  data-active={diffOpen || undefined}
-                  className="chip-surface px-2 mr-0.5"
-                  title={t('diff.changes')}
-                >
-                  <FileText className="size-3 shrink-0" />
-                  <span className="font-mono tabular-nums">{changedCount}</span>
-                  <span className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
-                    +
-                    {additions}
-                  </span>
-                  <span className="font-mono tabular-nums text-red-600 dark:text-red-400">
-                    -
-                    {deletions}
-                  </span>
-                </button>
-              ) :
-            null}
-          {sessionStatus === 'failed' || sessionStatus === 'cancelled' ?
-              (
-                <Button
-                  type="button"
-                  size="icon"
-                  disabled={!issueId || restartIssue.isPending || isSendingRef.current || !input.trim()}
-                  onClick={() => {
-                    if (!issueId) return
-                    restartIssue.mutate(issueId)
-                  }}
-                  title={t('chat.restart')}
-                  className="rounded-full size-9 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  {isSendingRef.current ?
-                      <Loader2 className="size-4 animate-spin" /> :
-                      <Play className="size-4" strokeWidth={2.5} />}
-                </Button>
-              ) :
-            null}
-          {isThinking && onCancel ?
-              (
-                <Button
-                  type="button"
-                  size="icon"
-                  disabled={isCancelling}
-                  onClick={onCancel}
-                  title={isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
-                  className="rounded-full size-9 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  {isCancelling ?
-                      <Loader2 className="size-4 animate-spin" /> :
-                      <Square className="size-4" strokeWidth={2.5} />}
-                </Button>
-              ) :
-              (
-                <Button
-                  type="button"
-                  size="icon"
-                  disabled={!canSend || followUp.isPending}
-                  onClick={handleSend}
-                  title={t('chat.send')}
-                  className="rounded-full size-9 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"
-                >
-                  {followUp.isPending ?
-                      <Loader2 className="size-4 animate-spin" /> :
-                      <ArrowUp className="size-4" strokeWidth={2.5} />}
-                </Button>
-              )}
+          {/* Right group: diff status (when relevant) + restart + send.
+              Wrapped + ml-auto so it stays together and hugs the right edge;
+              on a narrow panel the whole toolbar wraps instead of the row
+              overflowing horizontally. */}
+          <div className="flex items-center gap-1 ml-auto">
+            {hasChanges ?
+                (
+                  <button
+                    type="button"
+                    onClick={onToggleDiff}
+                    data-active={diffOpen || undefined}
+                    className="chip-surface px-2 mr-0.5"
+                    title={t('diff.changes')}
+                  >
+                    <FileText className="size-3 shrink-0" />
+                    <span className="font-mono tabular-nums">{changedCount}</span>
+                    <span className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
+                      +
+                      {additions}
+                    </span>
+                    <span className="font-mono tabular-nums text-red-600 dark:text-red-400">
+                      -
+                      {deletions}
+                    </span>
+                  </button>
+                ) :
+              null}
+            {sessionStatus === 'failed' || sessionStatus === 'cancelled' ?
+                (
+                  <Button
+                    type="button"
+                    size="icon"
+                    disabled={!issueId || restartIssue.isPending || isSendingRef.current || !input.trim()}
+                    onClick={() => {
+                      if (!issueId) return
+                      restartIssue.mutate(issueId)
+                    }}
+                    title={t('chat.restart')}
+                    className="rounded-full size-9 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    {isSendingRef.current ?
+                        <Loader2 className="size-4 animate-spin" /> :
+                        <Play className="size-4" strokeWidth={2.5} />}
+                  </Button>
+                ) :
+              null}
+            {isThinking && onCancel ?
+                (
+                  <Button
+                    type="button"
+                    size="icon"
+                    disabled={isCancelling}
+                    onClick={onCancel}
+                    title={isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
+                    className="rounded-full size-9 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {isCancelling ?
+                        <Loader2 className="size-4 animate-spin" /> :
+                        <Square className="size-4" strokeWidth={2.5} />}
+                  </Button>
+                ) :
+                (
+                  <Button
+                    type="button"
+                    size="icon"
+                    disabled={!canSend || followUp.isPending}
+                    onClick={handleSend}
+                    title={t('chat.send')}
+                    className="rounded-full size-9 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"
+                  >
+                    {followUp.isPending ?
+                        <Loader2 className="size-4 animate-spin" /> :
+                        <ArrowUp className="size-4" strokeWidth={2.5} />}
+                  </Button>
+                )}
+          </div>
         </div>
       </div>
 

@@ -145,16 +145,15 @@ export const IssueSchema = z.object({
 
 export const ForkIssueSchema = z.object({
   instruction: z.string().min(1).max(8000),
-  mode: z.enum(['independent', 'snapshot', 'dependent']),
-  includeHistory: z.boolean().optional(),
+  runWhen: z.enum(['now', 'after-parent']),
+  fromLogId: z.string().optional(),
   inheritEngine: z.boolean().optional(),
-  autoExecute: z.boolean().optional(),
 }).openapi('ForkIssue')
 
 export const ForkIssueResponseSchema = z.object({
   issue: IssueSchema,
   parentIssueId: z.string(),
-  mode: z.enum(['independent', 'snapshot', 'dependent']),
+  runWhen: z.enum(['now', 'after-parent']),
   carryWarning: z.string().optional(),
 }).openapi('ForkIssueResponse')
 
