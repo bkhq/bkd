@@ -76,6 +76,13 @@ export async function executeIssue(
         workingDir = worktreePath
       } catch (error) {
         logger.warn({ issueId, error }, 'worktree_creation_failed_fallback_to_base')
+        emitDiagnosticLog(
+          issueId,
+          '',
+          '[BKD] Worktree creation failed — running in the shared project directory without isolation. '
+          + `Reason: ${error instanceof Error ? error.message : String(error)}`,
+          { event: 'worktree_fallback' },
+        )
       }
     }
 

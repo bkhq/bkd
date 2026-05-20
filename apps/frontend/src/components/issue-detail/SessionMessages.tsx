@@ -4,6 +4,7 @@ import { CheckCircle2, ChevronDown, Circle, ListTodo, Loader2 } from 'lucide-rea
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useChatMessages } from '@/hooks/use-chat-messages'
+import { useChatSearchStore } from '@/stores/chat-search-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import { AcpTimeline } from './AcpTimeline'
 import { LogEntry } from './LogEntry'
@@ -16,6 +17,32 @@ function messageIdOf(message: ChatMessage): string | undefined {
     return (message.entry as NormalizedLogEntry).messageId
   }
   return undefined
+}
+
+/** Briefly flash a yellow ring on a jumped-to message bubble. */
+function flashHighlight(el: Element) {
+  el.classList.add('bkd-search-flash')
+  setTimeout(() => el.classList.remove('bkd-search-flash'), 1800)
+}
+
+/**
+ * Scroll the bubble for `messageId` into view inside `root` and flash it.
+ * Polls briefly because virtualized rows mount a frame or two after a
+ * `scrollToIndex` call.
+ */
+function scrollToMessage(root: HTMLElement | null, messageId: string) {
+  if (!root) return
+  let tries = 0
+  const tick = () => {
+    const el = root.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      flashHighlight(el)
+      return
+    }
+    if (tries++ < 40) requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
 }
 
 const ChatMessageRow = memo(({ message }: { message: ChatMessage }) => {
@@ -344,6 +371,16 @@ function LegacySessionMessages({
     prevFirstIdRef.current = firstMessageId
   }, [firstMessageId, isRunning, lastContentLen, messages.length, scrollRef])
 
+  // In-chat search jump (non-virtualized branch). The virtualized branch
+  // handles its own jump inside VirtualMessageList since it needs the
+  // virtualizer to bring an off-screen row into the DOM first.
+  const jumpNonce = useChatSearchStore(s => s.jumpNonce)
+  const jumpMessageId = useChatSearchStore(s => s.jumpMessageId)
+  useEffect(() => {
+    if (useVirtual || !jumpMessageId) return
+    scrollToMessage(scrollRef?.current ?? null, jumpMessageId)
+  }, [jumpNonce, jumpMessageId, useVirtual, scrollRef])
+
   if (messages.length === 0 && pendingMessages.length === 0 && !isRunning) return null
 
   return (
@@ -403,6 +440,23 @@ function VirtualMessageList({
     estimateSize: () => 60,
     overscan: 15,
   })
+
+  // In-chat search jump: bring the target row's index into view via the
+  // virtualizer (so the row mounts), then scroll + flash the bubble.
+  const jumpNonce = useChatSearchStore(s => s.jumpNonce)
+  const jumpMessageId = useChatSearchStore(s => s.jumpMessageId)
+  useEffect(() => {
+    if (!jumpMessageId) return
+    const idx = messages.findIndex(m => messageIdOf(m) === jumpMessageId)
+    if (idx < 0) return
+    virtualizer.scrollToIndex(idx, { align: 'center' })
+    // A second pass after layout settles — dynamically-measured rows can
+    // shift the first estimate.
+    requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(idx, { align: 'center' })
+      scrollToMessage(scrollRef?.current ?? null, jumpMessageId)
+    })
+  }, [jumpNonce, jumpMessageId, messages, virtualizer, scrollRef])
 
   return (
     <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>

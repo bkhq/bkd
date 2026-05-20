@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-describe('DropdownMenu — modal default (regression)', () => {
+describe('dropdownMenu — modal default (regression)', () => {
   it('defaults to modal=false so mobile touch events are not intercepted', async () => {
     const { DropdownMenu } = await import('@/components/ui/dropdown-menu')
     // We can't easily inspect the rendered base-ui Root props, but we can
@@ -10,7 +10,7 @@ describe('DropdownMenu — modal default (regression)', () => {
   })
 })
 
-describe('Popover — modal default (regression)', () => {
+describe('popover — modal default (regression)', () => {
   it('defaults to modal=false so mobile touch events are not intercepted inside dialogs', async () => {
     const { Popover } = await import('@/components/ui/popover')
     expect(Popover).toBeDefined()

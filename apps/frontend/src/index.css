@@ -318,6 +318,25 @@
     animation: message-enter 0.25s ease-out both;
   }
 
+  /* In-chat search: flash the bubble a jumped-to search hit lands on. */
+  .bkd-search-flash {
+    animation: search-flash 1.8s ease-out both;
+    border-radius: 0.5rem;
+  }
+
+  @keyframes search-flash {
+    0%,
+    35% {
+      box-shadow: 0 0 0 2px var(--color-yellow-400, #facc15);
+      background-color: color-mix(in srgb, var(--color-yellow-400, #facc15) 18%, transparent);
+    }
+
+    100% {
+      box-shadow: 0 0 0 2px transparent;
+      background-color: transparent;
+    }
+  }
+
   .thinking-dots span {
     display: inline-block;
     width: 5px;

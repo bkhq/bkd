@@ -19,6 +19,12 @@ interface UseIssueStreamReturn {
   hasOlderLogs: boolean
   isLoadingOlder: boolean
   loadOlderLogs: () => void
+  /**
+   * Pull the window of entries around a specific log id into the stream
+   * (used by in-chat search to jump to a historical hit). Resolves true
+   * once the target entry is present in the merged timeline.
+   */
+  loadLogWindow: (logId: string) => Promise<boolean>
   clearLogs: () => void
   refreshLogs: () => void
   removeEntries: (ids: string[]) => void
@@ -435,6 +441,51 @@ export function useIssueStream({
       })
   }, [projectId, issueId, isLoadingOlder, typesFilter])
 
+  const loadLogWindow = useCallback(
+    async (logId: string): Promise<boolean> => {
+      if (!issueId) return false
+      // Already loaded — nothing to fetch.
+      const present = (entry: TimelineEntry) =>
+        entry.id === logId || entry.messageId === logId
+      if (
+        liveLogsRef.current.some(present) ||
+        olderLogsRef.current.some(present)
+      ) {
+        return true
+      }
+      try {
+        const data = await kanbanApi.getLogsAround(projectId, issueId, logId, 25)
+        if (!data.logs.length) return false
+        // The around endpoint is not type-filtered. In concise mode, keep
+        // only the entry types the stream is showing — plus the jump
+        // target itself — so the injected window doesn't sprout stray
+        // tool-use / system bubbles in the middle of the history.
+        const typeSet = typesSetRef.current
+        const incoming = data.logs
+          .map(e => toTimelineEntry(e))
+          .filter(e =>
+            !typeSet
+            || typeSet.has(e.entryType)
+            || e.id === logId
+            || e.messageId === logId,
+          )
+        setOlderLogs((prev) => {
+          const map = new Map<string, TimelineEntry>()
+          for (const e of prev) map.set(e.id, e)
+          for (const e of incoming) map.set(e.id, e)
+          const next = Array.from(map.values()).sort(compareTimeline)
+          olderLogsRef.current = next
+          return next
+        })
+        return incoming.some(present)
+      } catch (err) {
+        console.warn('Failed to load log window:', err)
+        return false
+      }
+    },
+    [projectId, issueId],
+  )
+
   // Scope / status effects.
   //
   // The render-time inline block above (search "Scope change") already does
@@ -599,6 +650,7 @@ export function useIssueStream({
     hasOlderLogs,
     isLoadingOlder,
     loadOlderLogs,
+    loadLogWindow,
     clearLogs,
     refreshLogs,
     removeEntries,

@@ -2,7 +2,7 @@ import { cleanupStaleSessions } from '@/db/helpers'
 import { getIssueWithSession, updateIssueSession } from '@/engines/engine-store'
 import { engineRegistry } from '@/engines/executors'
 import type { EngineContext } from '@/engines/issue/context'
-import { emitErrorLog } from '@/engines/issue/diagnostic'
+import { emitDiagnosticLog, emitErrorLog } from '@/engines/issue/diagnostic'
 import { emitStateChange } from '@/engines/issue/events'
 import { monitorCompletion } from '@/engines/issue/lifecycle/completion-monitor'
 import { spawnFresh } from '@/engines/issue/lifecycle/spawn'
@@ -57,6 +57,13 @@ export async function restartIssue(
         workingDir = worktreePath
       } catch (error) {
         logger.warn({ issueId, error }, 'worktree_creation_failed_fallback_to_base')
+        emitDiagnosticLog(
+          issueId,
+          '',
+          '[BKD] Worktree creation failed — running in the shared project directory without isolation. '
+          + `Reason: ${error instanceof Error ? error.message : String(error)}`,
+          { event: 'worktree_fallback' },
+        )
       }
     }
 

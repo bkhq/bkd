@@ -207,20 +207,10 @@ export function ChatArea({
     void navigate(resolvedBackPath)
   }, [navigate, resolvedBackPath])
 
-  // SEARCH-001: in-chat search panel. Toggled via ⌘F / Ctrl+F or the
-  // header search button.
+  // SEARCH-001: in-chat search panel. Opened from the header search
+  // button only — we deliberately do NOT hijack ⌘F / Ctrl+F so the
+  // browser's native page find keeps working.
   const [searchOpen, setSearchOpen] = useState(false)
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const isFind = (e.key === 'f' || e.key === 'F') && (e.metaKey || e.ctrlKey)
-      if (isFind && !e.shiftKey && !e.altKey) {
-        e.preventDefault()
-        setSearchOpen(true)
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
 
   if (isLoading) {
     return (
@@ -347,7 +337,7 @@ export function ChatArea({
               variant="ghost"
               size="icon"
               className="h-6 w-6 md:h-7 md:w-7 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-              title={t('chat.search.openShortcut', '搜索此对话 (⌘F)')}
+              title={t('chat.search.openShortcut', '搜索此对话')}
               onClick={() => setSearchOpen(true)}
             >
               <Search className="h-3.5 w-3.5" />

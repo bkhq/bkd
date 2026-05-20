@@ -60,9 +60,14 @@ export function IssueDetail({
 
   return (
     <div
-      className={`shrink-0 relative z-20 flex flex-wrap items-center gap-1.5 px-4 border-t border-border/40 bg-muted/20 transition-[max-height,padding,opacity,border-top-width] duration-200 ease-out overflow-hidden ${
+      // `overflow-hidden` is scoped to the collapsed state only: the
+      // expanded bar hosts upward-opening dropdowns (StatusSelect, the
+      // worktree info popup — both `absolute bottom-full`) that must be
+      // free to escape the bar's bounds. Clipping them here was a
+      // regression that made the worktree popup and status menu invisible.
+      className={`shrink-0 relative z-20 flex flex-wrap items-center gap-1.5 px-4 border-t border-border/40 bg-muted/20 transition-[max-height,padding,opacity,border-top-width] duration-200 ease-out ${
         collapsed ?
-          'max-md:max-h-0 max-md:py-0 max-md:opacity-0 max-md:border-t-0 md:py-1.5' :
+          'max-md:max-h-0 max-md:py-0 max-md:opacity-0 max-md:border-t-0 max-md:overflow-hidden md:py-1.5' :
           'py-1.5'
       }`}
     >

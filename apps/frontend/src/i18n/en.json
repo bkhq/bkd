@@ -178,11 +178,10 @@
     "search": {
       "placeholder": "Search this conversation…",
       "empty": "No matches",
-      "openShortcut": "Search this conversation (⌘F)",
+      "openShortcut": "Search this conversation",
       "prev": "Previous",
       "next": "Next",
       "close": "Close (Esc)",
-      "scrollUpHint": "Scroll up to load more history, then click again",
       "jumpFailed": "Could not jump to that message"
     },
     "send": "Send",

@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { kanbanApi } from '@/lib/kanban-api'
+import { useChatSearchStore } from '@/stores/chat-search-store'
 
 interface SearchHit {
   logId: string
@@ -16,9 +17,9 @@ interface SearchHit {
 }
 
 interface ChatSearchBarProps {
-  projectId: string
   issueId: string
-  scrollRef: React.RefObject<HTMLDivElement | null>
+  /** Pulls the window around a log id into the stream so it can be scrolled to. */
+  loadLogWindow: (logId: string) => Promise<boolean>
   onClose: () => void
   /** Whether the search panel is currently open. */
   open: boolean
@@ -29,19 +30,21 @@ interface ChatSearchBarProps {
  *
  * - Queries `/api/search/logs?issueId=...` with the bigram FTS5 index.
  * - Renders a ranked dropdown of hits with content snippets.
- * - Clicking a hit scrolls to the matching message bubble; rows not in the
- *   loaded window are pulled in via the `/logs/around/:logId` endpoint
- *   (V1 falls back to "load more history" when no merge API is exposed).
+ * - Clicking a hit loads the window around it via `loadLogWindow` and then
+ *   asks the message list (through `chat-search-store`) to scroll the
+ *   matching bubble into view and flash-highlight it — even when the hit
+ *   is far outside the currently loaded history.
  */
-export function ChatSearchBar({ projectId, issueId, scrollRef, onClose, open }: ChatSearchBarProps) {
+export function ChatSearchBar({ issueId, loadLogWindow, onClose, open }: ChatSearchBarProps) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
+  const requestJump = useChatSearchStore(s => s.requestJump)
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<SearchHit[] | null>(null)
   const [active, setActive] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [jumping, setJumping] = useState(false)
 
-  // Reset state when issue changes or closed
   useEffect(() => {
     if (!open) return
     inputRef.current?.focus()
@@ -63,7 +66,7 @@ export function ChatSearchBar({ projectId, issueId, scrollRef, onClose, open }: 
       setHits(null)
       return
     }
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       setLoading(true)
       kanbanApi
         .searchLogs(q, 50, { issueId })
@@ -74,7 +77,7 @@ export function ChatSearchBar({ projectId, issueId, scrollRef, onClose, open }: 
         .catch(() => setHits([]))
         .finally(() => setLoading(false))
     }, 220)
-    return () => clearTimeout(t)
+    return () => clearTimeout(timer)
   }, [query, issueId, open])
 
   const total = hits?.length ?? 0
@@ -84,29 +87,20 @@ export function ChatSearchBar({ projectId, issueId, scrollRef, onClose, open }: 
     const safe = ((index % hits.length) + hits.length) % hits.length
     setActive(safe)
     const hit = hits[safe]!
-    const root = scrollRef.current
-    if (!root) return
-    const target = root.querySelector<HTMLElement>(
-      `[data-message-id="${CSS.escape(hit.logId)}"]`,
-    )
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      target.classList.add('ring-2', 'ring-yellow-400', 'rounded-md')
-      setTimeout(() => {
-        target.classList.remove('ring-2', 'ring-yellow-400', 'rounded-md')
-      }, 1600)
-      return
-    }
-    // Not in DOM — pull the window around this log so the bubble exists
-    // before we scroll. (V1: best-effort; if the merge API isn't wired
-    // we surface a hint so the user can load older history manually.)
+    setJumping(true)
     try {
-      await kanbanApi.getLogsAround(projectId, issueId, hit.logId, 20)
-      toast.info(t('chat.search.scrollUpHint', '请向上滚动以加载更多历史，然后再点击'))
-    } catch {
-      toast.error(t('chat.search.jumpFailed', '无法跳转到该消息'))
+      const ready = await loadLogWindow(hit.logId)
+      if (!ready) {
+        toast.error(t('chat.search.jumpFailed', '无法跳转到该消息'))
+        return
+      }
+      // Hand off to the message list — it owns the virtualizer and is the
+      // only place that can reliably scroll a virtualized row into view.
+      requestJump(hit.logId)
+    } finally {
+      setJumping(false)
     }
-  }, [hits, scrollRef, projectId, issueId, t])
+  }, [hits, loadLogWindow, requestJump, t])
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -158,7 +152,7 @@ export function ChatSearchBar({ projectId, issueId, scrollRef, onClose, open }: 
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          disabled={total === 0}
+          disabled={total === 0 || jumping}
           onClick={() => jumpTo(active - 1)}
           title={t('chat.search.prev', '上一个')}
         >
@@ -168,7 +162,7 @@ export function ChatSearchBar({ projectId, issueId, scrollRef, onClose, open }: 
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          disabled={total === 0}
+          disabled={total === 0 || jumping}
           onClick={() => jumpTo(active + 1)}
           title={t('chat.search.next', '下一个')}
         >

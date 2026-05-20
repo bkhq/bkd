@@ -111,6 +111,36 @@ describe('createWorktree', () => {
     const worktreeDir = await createWorktree(gitRoot, TEST_PROJECT_ID, issueId)
     expect(existsSync(worktreeDir)).toBe(true)
   })
+
+  // Regression: repos using release/develop (no main/master) must still get
+  // an isolated worktree instead of silently falling back to the shared dir.
+  function makeRepoOnBranch(branch: string): string {
+    const repo = mkdtempSync(join(tmpdir(), 'bkd-wt-branch-'))
+    gitSync(['init'], repo)
+    gitSync(['config', 'user.email', 'test@example.com'], repo)
+    gitSync(['config', 'user.name', 'BitK Test'], repo)
+    writeFileSync(join(repo, 'README.md'), 'x\n')
+    gitSync(['add', '.'], repo)
+    gitSync(['commit', '-m', 'init'], repo)
+    gitSync(['branch', '-m', branch], repo)
+    return repo
+  }
+
+  test('creates a worktree in a repo whose default branch is release', async () => {
+    const repo = makeRepoOnBranch('release')
+    const issueId = makeIssueId('release')
+    const wtDir = await createWorktree(repo, TEST_PROJECT_ID, issueId)
+    expect(existsSync(wtDir)).toBe(true)
+    rmSync(repo, { recursive: true, force: true })
+  })
+
+  test('falls back to HEAD when no known default branch name exists', async () => {
+    const repo = makeRepoOnBranch('feature/some-work')
+    const issueId = makeIssueId('headfallback')
+    const wtDir = await createWorktree(repo, TEST_PROJECT_ID, issueId)
+    expect(existsSync(wtDir)).toBe(true)
+    rmSync(repo, { recursive: true, force: true })
+  })
 })
 
 describe('removeWorktree', () => {

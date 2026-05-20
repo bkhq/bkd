@@ -73,19 +73,18 @@ describe('miniMatrix', () => {
     expect(navigateMock).toHaveBeenCalledWith('/projects/alpha')
   })
 
-  it('collapses to a small button via the toggle', () => {
+  it('collapsing via the toggle renders nothing (no floating button)', () => {
     render(<Wrap><MiniMatrix /></Wrap>)
     fireEvent.click(screen.getByTestId('mini-matrix-collapse'))
     expect(useViewModeStore.getState().miniMatrixCollapsed).toBe(true)
     expect(screen.queryByTestId('mini-matrix')).toBeNull()
-    expect(screen.getByTestId('mini-matrix-collapsed')).toBeDefined()
+    expect(screen.queryByTestId('mini-matrix-collapsed')).toBeNull()
   })
 
-  it('clicking the collapsed button expands again', () => {
+  it('renders nothing while collapsed', () => {
     useViewModeStore.setState({ miniMatrixCollapsed: true })
-    render(<Wrap><MiniMatrix /></Wrap>)
-    fireEvent.click(screen.getByTestId('mini-matrix-collapsed'))
-    expect(useViewModeStore.getState().miniMatrixCollapsed).toBe(false)
+    const { container } = render(<Wrap><MiniMatrix /></Wrap>)
+    expect(container.firstChild).toBeNull()
   })
 
   it('returns null when there are no projects', () => {

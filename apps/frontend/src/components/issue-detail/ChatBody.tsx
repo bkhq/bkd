@@ -91,6 +91,7 @@ export function useSessionState(
     hasOlderLogs,
     isLoadingOlder,
     loadOlderLogs,
+    loadLogWindow,
     refreshLogs,
     removeEntries,
     appendServerMessage,
@@ -132,6 +133,7 @@ export function useSessionState(
     hasOlderLogs,
     isLoadingOlder,
     loadOlderLogs,
+    loadLogWindow,
     refreshLogs,
     removeEntries,
     appendServerMessage,
@@ -209,6 +211,7 @@ export function ChatBody({
     hasOlderLogs,
     isLoadingOlder,
     loadOlderLogs,
+    loadLogWindow,
     refreshLogs,
     removeEntries,
     appendServerMessage,
@@ -419,9 +422,8 @@ export function ChatBody({
           {searchOpen
             ? (
                 <ChatSearchBar
-                  projectId={projectId}
                   issueId={issueId}
-                  scrollRef={scrollRef}
+                  loadLogWindow={loadLogWindow}
                   open={searchOpen}
                   onClose={() => onCloseSearch?.()}
                 />

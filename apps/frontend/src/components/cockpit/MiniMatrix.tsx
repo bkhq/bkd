@@ -1,4 +1,4 @@
-import { ChevronUp, LayoutGrid } from 'lucide-react'
+import { ChevronUp } from 'lucide-react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -18,8 +18,9 @@ const STATUS_COLOR: Record<Status, string> = {
 /**
  * Compact (project × status) overview anchored to the upper-right of the chat
  * area when an issue is open. Lets the user "望一眼全局" without leaving the
- * current issue. Collapsible via the global toggle in view-mode-store so the
- * user can hide it permanently if they find it noisy.
+ * current issue. When collapsed it renders nothing — the only entry point is
+ * the fixed ⊞ toggle in the CockpitTopBar (we deliberately do NOT show a
+ * floating button, which was redundant with that fixed control).
  */
 export const MiniMatrix = memo(() => {
   const { t } = useTranslation()
@@ -30,20 +31,8 @@ export const MiniMatrix = memo(() => {
 
   if (!data || data.length === 0) return null
 
-  if (collapsed) {
-    return (
-      <button
-        type="button"
-        data-testid="mini-matrix-collapsed"
-        onClick={toggle}
-        title={t('cockpit.miniMatrix.expand', 'Show overview')}
-        aria-label={t('cockpit.miniMatrix.expand', 'Show overview')}
-        className="absolute right-4 top-4 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-card/90 text-muted-foreground border border-border/60 shadow-sm hover:bg-accent transition-colors cursor-pointer"
-      >
-        <LayoutGrid className="h-3.5 w-3.5" />
-      </button>
-    )
-  }
+  // Collapsed → render nothing; reopen via the CockpitTopBar ⊞ button.
+  if (collapsed) return null
 
   return (
     <div

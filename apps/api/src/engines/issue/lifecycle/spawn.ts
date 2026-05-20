@@ -321,6 +321,13 @@ export async function spawnFollowUpProcess(
         workingDir = worktreePath
       } catch (wtErr) {
         logger.warn({ issueId, err: wtErr }, 'worktree_creation_failed_fallback_to_base')
+        emitDiagnosticLog(
+          issueId,
+          '',
+          '[BKD] Worktree creation failed — running in the shared project directory without isolation. '
+          + `Reason: ${wtErr instanceof Error ? wtErr.message : String(wtErr)}`,
+          { event: 'worktree_fallback' },
+        )
       }
     }
   }

@@ -23,24 +23,61 @@ export function resolveWorktreePath(projectId: string, issueId: string): string 
   return join(WORKTREE_BASE, projectId, issueId)
 }
 
-/**
- * Resolve the main branch start point for worktree creation.
- * Priority: origin/main > origin/master > local main > local master.
- * Throws if no main branch is found — refuses to use HEAD which may
- * point to an arbitrary feature branch with uncommitted state.
- */
-async function resolveMainBranch(baseDir: string): Promise<string> {
-  const candidates = ['origin/main', 'origin/master', 'main', 'master']
-  for (const ref of candidates) {
-    const { code } = await runCommand(
-      ['git', 'rev-parse', '--verify', '--quiet', ref],
-      { cwd: baseDir, stderr: 'pipe' },
-    )
-    if (code === 0) return ref
-  }
-  throw new Error(
-    `Cannot resolve main branch in ${baseDir}: none of ${candidates.join(', ')} exist`,
+/** Return the ref name if it resolves to a commit in `baseDir`, else null. */
+async function verifyRef(baseDir: string, ref: string): Promise<string | null> {
+  const { code } = await runCommand(
+    ['git', 'rev-parse', '--verify', '--quiet', ref],
+    { cwd: baseDir, stderr: 'pipe' },
   )
+  return code === 0 ? ref : null
+}
+
+/**
+ * Resolve the start-point ref for worktree creation.
+ *
+ * Priority:
+ *  1. The repo's actual default branch via `origin/HEAD` (handles repos
+ *     using `release`/`develop`/etc. instead of `main`/`master`).
+ *  2. Common default-branch names.
+ *  3. Current `HEAD` as a last resort — a worktree branched off HEAD is
+ *     still isolated from the main checkout, which is far safer than
+ *     falling back to running directly in the shared repo directory.
+ *
+ * Throws only when even `HEAD` cannot be resolved (e.g. an empty repo).
+ */
+async function resolveStartPoint(baseDir: string): Promise<string> {
+  // 1. Repo's declared default branch (origin/HEAD -> refs/remotes/origin/<x>).
+  const { code, stdout } = await runCommand(
+    ['git', 'symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'],
+    { cwd: baseDir, stderr: 'pipe' },
+  )
+  if (code === 0) {
+    const defaultRef = stdout.trim().replace(/^refs\/remotes\//, '')
+    if (defaultRef && (await verifyRef(baseDir, defaultRef))) return defaultRef
+  }
+
+  // 2. Common default-branch names.
+  const candidates = [
+    'origin/main',
+    'origin/master',
+    'origin/release',
+    'origin/develop',
+    'main',
+    'master',
+    'release',
+    'develop',
+  ]
+  for (const ref of candidates) {
+    if (await verifyRef(baseDir, ref)) return ref
+  }
+
+  // 3. Last resort — current HEAD (still isolated as a separate worktree).
+  if (await verifyRef(baseDir, 'HEAD')) {
+    logger.warn({ baseDir }, 'worktree_start_point_fallback_head')
+    return 'HEAD'
+  }
+
+  throw new Error(`Cannot resolve a worktree start point in ${baseDir}`)
 }
 
 export async function createWorktree(
@@ -49,8 +86,8 @@ export async function createWorktree(
   issueId: string,
   /**
    * Optional git ref to branch the worktree from. Defaults to the resolved
-   * main branch. Used by forked dependent issues to start from the parent
-   * issue's branch (PLAN-021).
+   * default-branch start point. Used by forked dependent issues to start
+   * from the parent issue's branch (PLAN-021).
    */
   startPointRef?: string,
 ): Promise<string> {
@@ -78,9 +115,9 @@ export async function createWorktree(
     )
     if (code !== 0) startPoint = undefined
   }
-  if (!startPoint) startPoint = await resolveMainBranch(baseDir)
+  if (!startPoint) startPoint = await resolveStartPoint(baseDir)
 
-  // Create worktree with a new branch off the resolved main branch
+  // Create worktree with a new branch off the resolved start point
   const result = await runCommand(
     ['git', 'worktree', 'add', '-b', branchName, worktreeDir, startPoint],
     { cwd: baseDir, stderr: 'pipe' },

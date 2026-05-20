@@ -69,3 +69,19 @@ Building in-chat FTS search with CJK bigram tokenizer.
 - Tests: `test/fts-bigram.test.ts` (8 cases: tokenizer + CJK search +
   issueId filter + GET endpoint); existing `test/cockpit-search-fts.test.ts`
   updated for the new app-layer double-write path and still passes.
+
+### 2026-05-20 — Post-review fixes
+
+User feedback on the first cut:
+
+1. *Jumping to an out-of-window hit only showed a "scroll up" toast.*
+   Fixed: `useIssueStream` now exposes `loadLogWindow(logId)` which
+   fetches `/logs/around/:logId` and merges the window into `olderLogs`
+   (type-filtered to the stream's concise set, target always kept).
+   A new `chat-search-store` (`requestJump`) hands the scroll off to
+   `SessionMessages` — the virtualized branch calls
+   `virtualizer.scrollToIndex()` so off-screen rows mount before we
+   scroll + flash-highlight (`.bkd-search-flash`, see `index.css`).
+2. *⌘F no longer reached the browser's native find.* Fixed: removed the
+   `Ctrl/⌘+F` interception entirely; the search panel opens from the
+   header 🔍 button only.
