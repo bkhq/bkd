@@ -3,7 +3,7 @@ import { kanbanApi } from '@/lib/kanban-api'
 import { STALE_TIME } from '@/lib/query-config'
 import { useBoardStore } from '@/stores/board-store'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
-import type { ExecuteIssueRequest, Issue, WebhookEventType } from '@/types/kanban'
+import type { ExecuteIssueRequest, ForkIssuePayload, Issue, WebhookEventType } from '@/types/kanban'
 
 export const queryKeys = {
   workspacePath: () => ['settings', 'workspacePath'] as const,
@@ -372,6 +372,18 @@ export function useDuplicateIssue(projectId: string) {
     mutationFn: (issueId: string) => kanbanApi.duplicateIssue(projectId, issueId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.issues(projectId) })
+    },
+  })
+}
+
+export function useForkIssue(projectId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (args: { issueId: string, data: ForkIssuePayload }) =>
+      kanbanApi.forkIssue(projectId, args.issueId, args.data),
+    onSuccess: (_data, args) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues(projectId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.issue(projectId, args.issueId) })
     },
   })
 }

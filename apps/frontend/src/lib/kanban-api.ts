@@ -8,6 +8,8 @@ import type {
   ExecuteIssueRequest,
   ExecuteIssueResponse,
   FileListingResult,
+  ForkIssuePayload,
+  ForkIssueResult,
   Issue,
   IssueChangesResponse,
   IssueFilePatchResponse,
@@ -546,6 +548,8 @@ export const kanbanApi = {
     del<{ id: string }>(`/api/projects/${projectId}/issues/${issueId}`),
   duplicateIssue: (projectId: string, issueId: string) =>
     post<Issue>(`/api/projects/${projectId}/issues/${issueId}/duplicate`, {}),
+  forkIssue: (projectId: string, issueId: string, data: ForkIssuePayload) =>
+    post<ForkIssueResult>(`/api/projects/${projectId}/issues/${issueId}/fork`, data),
   exportIssueUrl: (projectId: string, issueId: string) =>
     `/api/projects/${projectId}/issues/${issueId}/export?format=json`,
 

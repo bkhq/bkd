@@ -59,6 +59,38 @@ export interface Issue {
   statusUpdatedAt: string
   createdAt: string
   updatedAt: string
+  // Populated only on single-issue GET — child issues forked from this one.
+  forks?: IssueForkRef[]
+}
+
+export interface IssueForkRef {
+  id: string
+  issueNumber: number
+  title: string
+  statusId: string
+}
+
+/**
+ * Fork mode (PLAN-021):
+ * - `independent` — new worktree off main, runs immediately.
+ * - `snapshot` — new worktree + parent's uncommitted changes, runs immediately.
+ * - `dependent` — waits in `todo`, auto-runs when the parent issue settles.
+ */
+export type ForkMode = 'independent' | 'snapshot' | 'dependent'
+
+export interface ForkIssuePayload {
+  instruction: string
+  mode: ForkMode
+  includeHistory?: boolean
+  inheritEngine?: boolean
+  autoExecute?: boolean
+}
+
+export interface ForkIssueResult {
+  issue: Issue
+  parentIssueId: string
+  mode: ForkMode
+  carryWarning?: string
 }
 
 export type ApiResponse<T> = { success: true, data: T } | { success: false, error: string }
