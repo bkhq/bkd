@@ -5,6 +5,7 @@ import { emitIssueSettled } from '@/engines/issue/events'
 import { flushTimelineConverter } from '@/engines/issue/pipeline/timeline-emit'
 import { cleanupDomainData } from '@/engines/issue/process/state'
 import { logger } from '@/logger'
+import { resumeDependentForks } from '@/services/fork-dependent'
 
 /**
  * Common settle flow: persist status, auto-move, clean domain data, emit event.
@@ -40,5 +41,9 @@ export async function settleIssue(
     // of the response (the frontend's done-guard previously masked this).
     flushTimelineConverter(issueId)
     emitIssueSettled(issueId, executionId, status)
+    // Start any dependent forked issues waiting on this one (PLAN-021).
+    void resumeDependentForks(issueId, status).catch(err =>
+      logger.error({ issueId, err }, 'resume_dependent_forks_failed'),
+    )
   }
 }

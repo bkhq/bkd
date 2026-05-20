@@ -46,9 +46,24 @@ query.openapi(R.getIssue, async (c) => {
     return c.json({ success: false, error: 'Issue not found' }, 404 as const)
   }
 
+  // Child issues forked from this one (lineage chip).
+  const forkRows = await db
+    .select({
+      id: issuesTable.id,
+      issueNumber: issuesTable.issueNumber,
+      title: issuesTable.title,
+      statusId: issuesTable.statusId,
+    })
+    .from(issuesTable)
+    .where(and(
+      eq(issuesTable.parentIssueId, issueId),
+      eq(issuesTable.isDeleted, 0),
+    ))
+    .orderBy(desc(issuesTable.createdAt))
+
   return c.json({
     success: true,
-    data: serializeIssue(issue),
+    data: { ...serializeIssue(issue), forks: forkRows },
   }, 200 as const)
 })
 

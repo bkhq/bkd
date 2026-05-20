@@ -107,6 +107,8 @@ export function serializeIssue(row: IssueRow) {
     title: row.title,
     tags: parseTags(row.tag),
     sortOrder: row.sortOrder,
+    parentIssueId: row.parentIssueId ?? null,
+    forkAwaitingParent: row.forkAwaitingParent,
     useWorktree: row.useWorktree,
     isPinned: row.isPinned,
     keepAlive: row.keepAlive,

@@ -110,6 +110,13 @@ export const SortProjectSchema = z.object({
 
 const statusIdEnum = z.enum(['todo', 'working', 'review', 'done'])
 
+const IssueForkRefSchema = z.object({
+  id: z.string(),
+  issueNumber: z.number().int(),
+  title: z.string(),
+  statusId: statusIdEnum,
+})
+
 export const IssueSchema = z.object({
   id: z.string(),
   projectId: z.string(),
@@ -118,6 +125,8 @@ export const IssueSchema = z.object({
   title: z.string(),
   tags: z.array(z.string()).nullable(),
   sortOrder: z.string(),
+  parentIssueId: z.string().nullable(),
+  forkAwaitingParent: z.boolean(),
   useWorktree: z.boolean(),
   isPinned: z.boolean(),
   keepAlive: z.boolean(),
@@ -130,7 +139,24 @@ export const IssueSchema = z.object({
   statusUpdatedAt: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  // Populated only on single-issue GET — child issues forked from this one.
+  forks: z.array(IssueForkRefSchema).optional(),
 }).openapi('Issue')
+
+export const ForkIssueSchema = z.object({
+  instruction: z.string().min(1).max(8000),
+  mode: z.enum(['independent', 'snapshot', 'dependent']),
+  includeHistory: z.boolean().optional(),
+  inheritEngine: z.boolean().optional(),
+  autoExecute: z.boolean().optional(),
+}).openapi('ForkIssue')
+
+export const ForkIssueResponseSchema = z.object({
+  issue: IssueSchema,
+  parentIssueId: z.string(),
+  mode: z.enum(['independent', 'snapshot', 'dependent']),
+  carryWarning: z.string().optional(),
+}).openapi('ForkIssueResponse')
 
 export const CreateIssueSchema = z.object({
   title: z.string().min(1).max(500),

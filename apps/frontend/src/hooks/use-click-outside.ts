@@ -15,7 +15,16 @@ export function useClickOutside(
         onCloseRef.current()
       }
     }
+    function handleTouch(e: TouchEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onCloseRef.current()
+      }
+    }
     document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
+    document.addEventListener('touchstart', handleTouch)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('touchstart', handleTouch)
+    }
   }, [ref, open])
 }

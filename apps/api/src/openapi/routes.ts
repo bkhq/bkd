@@ -25,6 +25,8 @@ import {
   ExecuteIssueResponseSchema,
   ExecuteIssueSchema,
   FollowUpSchema,
+  ForkIssueResponseSchema,
+  ForkIssueSchema,
   GeneratedIssueItemSchema,
   GenerateIssuesFromNodesSchema,
   IssueChangesResponseSchema,
@@ -328,6 +330,23 @@ export const duplicateIssue = createRoute({
     201: successResponse(IssueSchema, 'Duplicated issue'),
     404: errorResponse('Issue not found'),
     500: errorResponse('Internal error'),
+  },
+})
+
+export const forkIssue = createRoute({
+  method: 'post',
+  path: '/{issueId}/fork',
+  tags: ['Issues'],
+  summary: 'Fork issue into a new spawned issue',
+  operationId: 'forkIssue',
+  request: {
+    params: projectIssueParams,
+    body: { content: { 'application/json': { schema: ForkIssueSchema } } },
+  },
+  responses: {
+    201: successResponse(ForkIssueResponseSchema, 'Forked issue'),
+    400: errorResponse('Bad request'),
+    404: errorResponse('Issue not found'),
   },
 })
 

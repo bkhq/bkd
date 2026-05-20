@@ -38,6 +38,10 @@ export interface Issue {
   title: string
   tags: string[] | null
   sortOrder: string
+  // Fork lineage (PLAN-021). `parentIssueId` is set on issues spawned via
+  // fork; `forkAwaitingParent` marks a dependent fork still waiting to run.
+  parentIssueId: string | null
+  forkAwaitingParent: boolean
   useWorktree: boolean
   isPinned: boolean
   keepAlive: boolean

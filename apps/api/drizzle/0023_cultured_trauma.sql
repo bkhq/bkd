@@ -1,0 +1,1 @@
+ALTER TABLE `issues` ADD `fork_awaiting_parent` integer DEFAULT false NOT NULL;

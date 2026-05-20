@@ -782,3 +782,24 @@ Pending (still M3+):
 - AskUserQuestion exact tool-call match (waiting on ENG-002).
 
 Tracking: COCKPIT-007 / PLAN-020.
+
+## 2026-05-19 20:10 [progress]
+
+COCKPIT-007 / PLAN-020 — Test coverage gap fill.
+
+Added the two coverage gaps flagged in review:
+- `apps/api/test/cockpit-digest-bridge.test.ts` (6 tests) — the
+  event-wiring integration that was previously untested: engine
+  review transition → suggest_merge; user transition ignored;
+  out-of-review transition supersedes the row; 3 failed `done`
+  events → alert_repeat_fail; single failure does not trip it;
+  wide `changes-summary` diff → alert_off_track.
+- `apps/frontend/src/__tests__/hooks/use-cockpit-timeline.test.ts`
+  (7 tests) — `patchSnapshot` SSE cache logic: seed, prepend,
+  in-place upsert, count recompute (open-only, per-kind),
+  dismissed drops from count, 200-message window cap, all-kinds
+  smoke. `patchSnapshot` is now exported for testing.
+
+Cockpit test totals: 40 backend (5 files) + 20 frontend (2 files).
+
+Tracking: COCKPIT-007 / PLAN-020.

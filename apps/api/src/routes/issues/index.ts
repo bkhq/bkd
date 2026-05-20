@@ -5,6 +5,7 @@ import command from './command'
 import create from './create'
 import del from './delete'
 import duplicate from './duplicate'
+import fork from './fork'
 import exportRoute from './export'
 import logs from './logs'
 import message from './message'
@@ -18,6 +19,7 @@ issues.route('/', create)
 issues.route('/', update)
 issues.route('/', del)
 issues.route('/', duplicate)
+issues.route('/', fork)
 issues.route('/', exportRoute)
 issues.route('/', command)
 issues.route('/', message)

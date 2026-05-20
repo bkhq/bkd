@@ -276,3 +276,5 @@ describe('chatInput — MobileMoreMenu renders without crashing', () => {
     expect(() => renderChat()).not.toThrow()
   })
 })
+
+

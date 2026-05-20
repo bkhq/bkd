@@ -628,8 +628,6 @@ export function ChatInput({
     && !isFocused
     && input.length === 0
     && attachedFiles.length === 0
-    && !isSessionActive
-    && !isThinking
     && !isDoneIssue
     && !isDragOver
     && !sendError
@@ -829,7 +827,7 @@ export function ChatInput({
             className="w-full bg-transparent text-base md:text-sm resize-none outline-none border-none shadow-none placeholder:text-muted-foreground/40 leading-relaxed focus-visible:ring-0 overflow-y-auto min-h-[36px] px-3 py-2 [field-sizing:fixed]"
           />
           {mobileCollapsed ? (
-            <div className="flex items-center gap-0.5 shrink-0 mb-1">
+            <div data-testid="mobile-collapsed-actions" className="flex items-center gap-0.5 shrink-0 mb-1">
               <MobileMoreMenu
                 engineType={engineType}
                 mode={mode}
@@ -840,8 +838,8 @@ export function ChatInput({
                 modelLocked={modelLocked}
                 busyAction={busyAction}
                 onBusyActionChange={setBusyAction}
-                showBusyAction={false}
-                isSessionActive={false}
+                showBusyAction={isSessionActive && !isThinking}
+                isSessionActive={isSessionActive}
                 onRefreshLogs={onRefreshLogs}
                 onOpenFileBrowser={() => projectId && issueId && openFileBrowser(projectId, issueId, changesRoot)}
                 onClearSession={() => setClearSessionOpen(true)}
@@ -850,15 +848,39 @@ export function ChatInput({
                 onSlashCommand={selectSlashCommand}
                 compact
               />
-              <Button
-                type="button"
-                size="icon"
-                onClick={() => textareaRef.current?.focus()}
-                title={t('chat.placeholder')}
-                className="rounded-full size-8 opacity-60 hover:opacity-100 bg-muted text-muted-foreground hover:bg-muted/80"
-              >
-                <ArrowUp className="size-3.5" strokeWidth={2.5} />
-              </Button>
+              {isThinking && onCancel ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  disabled={isCancelling}
+                  onClick={onCancel}
+                  title={isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
+                  className="rounded-full size-8 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isCancelling ? <Loader2 className="size-3.5 animate-spin" /> : <Square className="size-3.5" strokeWidth={2.5} />}
+                </Button>
+              ) : isSessionActive ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  disabled={!canSend || followUp.isPending}
+                  onClick={handleSend}
+                  title={t('chat.send')}
+                  className="rounded-full size-8 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"
+                >
+                  {followUp.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowUp className="size-3.5" strokeWidth={2.5} />}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  size="icon"
+                  onClick={() => textareaRef.current?.focus()}
+                  title={t('chat.placeholder')}
+                  className="rounded-full size-8 opacity-60 hover:opacity-100 bg-muted text-muted-foreground hover:bg-muted/80"
+                >
+                  <ArrowUp className="size-3.5" strokeWidth={2.5} />
+                </Button>
+              )}
             </div>
           ) : null}
         </div>
@@ -868,7 +890,7 @@ export function ChatInput({
             Center: combined engine·mode·model chip (replaces 3 separate chips).
             Right:  diff status + restart + send.
             Hidden in mobile collapsed reading mode (mobileCollapsed). */}
-        <div className={`flex items-center gap-1 px-2 pb-2 pt-0.5 ${mobileCollapsed ? 'hidden' : ''}`}>
+        <div data-testid="chat-toolbar" className={`flex items-center gap-1 px-2 pb-2 pt-0.5 ${mobileCollapsed ? 'hidden' : ''}`}>
           {/* Left group */}
           <Button
             variant="ghost"

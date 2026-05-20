@@ -55,6 +55,11 @@ export const issues = sqliteTable(
     tag: text('tag'),
     sortOrder: text('sort_order').notNull().default('a0'),
     parentIssueId: text('parent_issue_id').references((): any => issues.id),
+    // Fork: a dependent child issue waits in `todo` until its parent issue
+    // settles, then auto-executes. See PLAN-021 fork mode 'dependent'.
+    forkAwaitingParent: integer('fork_awaiting_parent', { mode: 'boolean' })
+      .notNull()
+      .default(false),
     useWorktree: integer('use_worktree', { mode: 'boolean' }).notNull().default(false),
     isPinned: integer('is_pinned', { mode: 'boolean' }).notNull().default(false),
     keepAlive: integer('keep_alive', { mode: 'boolean' }).notNull().default(false),

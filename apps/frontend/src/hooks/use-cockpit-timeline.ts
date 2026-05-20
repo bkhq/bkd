@@ -13,7 +13,12 @@ export interface TimelineSnapshot {
   counts: Record<CockpitTimelineMessageKind, number>
 }
 
-function patchSnapshot(prev: TimelineSnapshot | undefined, next: CockpitTimelineMessage): TimelineSnapshot {
+/**
+ * Apply a single SSE delta to the cached snapshot — upsert by id,
+ * cap the in-memory window at 200, recompute open-bucket counts.
+ * Exported for unit testing.
+ */
+export function patchSnapshot(prev: TimelineSnapshot | undefined, next: CockpitTimelineMessage): TimelineSnapshot {
   const base = prev ?? {
     messages: [],
     counts: {

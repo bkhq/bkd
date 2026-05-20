@@ -47,6 +47,12 @@ export async function createWorktree(
   baseDir: string,
   projectId: string,
   issueId: string,
+  /**
+   * Optional git ref to branch the worktree from. Defaults to the resolved
+   * main branch. Used by forked dependent issues to start from the parent
+   * issue's branch (PLAN-021).
+   */
+  startPointRef?: string,
 ): Promise<string> {
   // Guard: baseDir must be inside a git work tree
   if (!(await isGitRepoFresh(baseDir))) {
@@ -57,7 +63,22 @@ export async function createWorktree(
   const worktreeDir = resolveWorktreePath(projectId, issueId)
   await mkdir(join(WORKTREE_BASE, projectId), { recursive: true })
 
-  const startPoint = await resolveMainBranch(baseDir)
+  // If the worktree dir already exists and is registered, reuse it as-is —
+  // makes createWorktree idempotent (a forked issue may pre-create it).
+  if (await isWorktreeRegistered(baseDir, worktreeDir)) {
+    logger.debug({ issueId, worktreeDir }, 'worktree_reuse_existing')
+    return worktreeDir
+  }
+
+  let startPoint = startPointRef
+  if (startPoint) {
+    const { code } = await runCommand(
+      ['git', 'rev-parse', '--verify', '--quiet', startPoint],
+      { cwd: baseDir, stderr: 'pipe' },
+    )
+    if (code !== 0) startPoint = undefined
+  }
+  if (!startPoint) startPoint = await resolveMainBranch(baseDir)
 
   // Create worktree with a new branch off the resolved main branch
   const result = await runCommand(
