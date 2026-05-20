@@ -671,17 +671,18 @@ export function BotTimeline() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Fork an issue from a timeline message (whole-issue fork). */}
-      {forkFor?.issueId && forkFor.projectId && (
-        <ForkDialog
-          open={!!forkFor}
-          onOpenChange={(o) => {
-            if (!o) setForkFor(null)
-          }}
-          issueId={forkFor.issueId}
-          projectId={forkFor.projectId}
-        />
-      )}
+      {/* Fork an issue from a timeline message (whole-issue fork).
+          Kept always-mounted — conditionally unmounting a modal the instant
+          it closes skips the dialog's scroll-lock cleanup and freezes page
+          scrolling. */}
+      <ForkDialog
+        open={!!forkFor}
+        onOpenChange={(o) => {
+          if (!o) setForkFor(null)
+        }}
+        issueId={forkFor?.issueId ?? ''}
+        projectId={forkFor?.projectId ?? ''}
+      />
     </div>
   )
 }
