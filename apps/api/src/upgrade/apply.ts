@@ -6,7 +6,7 @@ import { logger } from '@/logger'
 import { writeUpgradeToken } from '@/pid-lock'
 import { isPathWithinDir, parseVersionFromFileName } from '@/upgrade/utils'
 import { APP_BASE, isPackageMode, UPDATES_DIR, VERSION_FILE } from './constants'
-import { DRAIN_TIMEOUT_MS } from './drain'
+import { DRAIN_TIMEOUT_MS, setDraining } from './drain'
 import { getDownloadStatus } from './download'
 
 // --- Shutdown registration ---
@@ -184,5 +184,10 @@ export async function applyUpgradeAndRestart(): Promise<void> {
   } finally {
     clearTimeout(safetyTimer)
     isApplying = false
+    // Reset the drain flag so a failed upgrade doesn't leave this still-alive
+    // instance permanently rejecting every execution. On the success path
+    // process.exit(0) already ran and this finally block never executes;
+    // it only matters when a post-drain step (token write / re-spawn) threw.
+    setDraining(false)
   }
 }
