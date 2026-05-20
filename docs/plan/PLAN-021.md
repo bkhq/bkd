@@ -1,9 +1,10 @@
 ---
 id: PLAN-021
 title: One-click fork current issue into a new spawned issue
-status: implementing
+status: completed
 created: 2026-05-19
 approvedAt: 2026-05-20
+completedAt: 2026-05-20
 relatedTask: FORK-001
 ---
 
@@ -179,3 +180,18 @@ Frontend: 1 新 dialog + 血缘 chip + 3 edits + 1 测试 + i18n。
   原 carry-over 设计不完整。与用户澄清后确认真实需求是「外挂并行,
   不阻塞主任务」,重写为三模式(independent / snapshot / dependent)
   由用户在 ForkDialog 选择。删除 worktreeOwnerId 共享列方案。
+- 2026-05-20: 实现完成。实现差异说明:
+  - `git stash create` 不捕获 untracked 文件(`-u` 在 create 上无效),
+    snapshot 模式改为「tracked 走 stash + untracked 直接拷贝」
+    (`services/worktree-carry.ts` 的 `carryUncommitted`)。
+  - 入口落在共享的 `IssueContextMenu`(看板卡片 + issue 详情通用),
+    天然桌面/移动双覆盖,未单独做 TopBar 入口与 ⌘⇧F 快捷键。
+  - 血缘:顶栏渲染 `↗ from` / `↳ N forks` chip;父 issue 时间线写
+    `Forked to #N` system-message。子 issue 的 fork-in system-message
+    因 turn-index 与引擎首条消息冲突未写,改由血缘 chip 承担。
+  - 后端:迁移 `0023_cultured_trauma.sql`、`services/fork-context.ts`、
+    `services/worktree-carry.ts`、`services/fork-dependent.ts`、
+    `routes/issues/fork.ts`、settle 钩子、`createWorktree` 幂等 +
+    `startPointRef` 参数。测试:`issue-fork.test.ts`(6)、
+    `worktree-carry.test.ts`(3)、`ForkDialog.test.tsx`(3) 全绿。
+    dependent 模式的 settle 自动接力依赖引擎集成,未写独立 e2e 测试。

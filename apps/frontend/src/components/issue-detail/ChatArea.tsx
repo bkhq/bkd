@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Link, Search } from 'lucide-react'
+import { ArrowLeft, Check, GitBranch, Link, Search } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -294,6 +294,26 @@ export function ChatArea({
                   #
                   {issue.issueNumber}
                 </span>
+                {issue.parentIssueId && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/projects/${projectId}/issues/${issue.parentIssueId}`)}
+                    className="shrink-0 inline-flex items-center gap-0.5 rounded bg-muted/50 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-primary transition-colors"
+                    title={t('chat.fork.lineage.from')}
+                  >
+                    <GitBranch className="size-3" />
+                    {t('chat.fork.lineage.from')}
+                  </button>
+                )}
+                {issue.forks && issue.forks.length > 0 && (
+                  <span
+                    className="shrink-0 inline-flex items-center gap-0.5 rounded bg-muted/50 px-1.5 py-0.5 text-[11px] text-muted-foreground tabular-nums"
+                    title={t('chat.fork.lineage.forks', { count: issue.forks.length })}
+                  >
+                    <GitBranch className="size-3" />
+                    {t('chat.fork.lineage.forks', { count: issue.forks.length })}
+                  </span>
+                )}
                 {editingTitle ?
                     (
                       <input

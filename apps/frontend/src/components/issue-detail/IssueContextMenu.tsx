@@ -1,4 +1,4 @@
-import { Copy, Download, MoreHorizontal, Pencil, Pin, PinOff, Trash2 } from 'lucide-react'
+import { Copy, Download, GitBranch, MoreHorizontal, Pencil, Pin, PinOff, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,6 +31,7 @@ import { useDeleteIssue, useDuplicateIssue, useUpdateIssue } from '@/hooks/use-k
 import { kanbanApi } from '@/lib/kanban-api'
 import { cn } from '@/lib/utils'
 import type { Issue } from '@/types/kanban'
+import { ForkDialog } from './ForkDialog'
 
 /** Shared rename dialog — used by both IssueContextMenu and IssueRow */
 export function RenameDialog({
@@ -115,6 +116,7 @@ export function IssueContextMenu({
   const { t } = useTranslation()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
+  const [forkOpen, setForkOpen] = useState(false)
   const updateIssue = useUpdateIssue(projectId)
   const deleteIssue = useDeleteIssue(projectId)
   const duplicateIssue = useDuplicateIssue(projectId)
@@ -172,6 +174,10 @@ export function IssueContextMenu({
             <Copy className="size-4" />
             {t('contextMenu.copy')}
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setForkOpen(true)}>
+            <GitBranch className="size-4" />
+            {t('chat.fork.cta')}
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={handleExport}>
             <Download className="size-4" />
             {t('contextMenu.download')}
@@ -188,6 +194,14 @@ export function IssueContextMenu({
       <RenameDialog
         open={renameOpen}
         onOpenChange={setRenameOpen}
+        issue={issue}
+        projectId={projectId}
+      />
+
+      {/* Fork dialog */}
+      <ForkDialog
+        open={forkOpen}
+        onOpenChange={setForkOpen}
         issue={issue}
         projectId={projectId}
       />

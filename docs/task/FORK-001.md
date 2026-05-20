@@ -1,7 +1,7 @@
 ---
 id: FORK-001
 title: One-click fork current issue into a new spawned issue
-status: in_progress
+status: completed
 priority: P1
 owner: claude
 created: 2026-05-19

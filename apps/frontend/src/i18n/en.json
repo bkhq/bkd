@@ -239,7 +239,38 @@
     "clearSessionAction": "Reset session ID",
     "more": "More",
     "configChipTitle": "Engine settings",
-    "configChipCurrentEngine": "Current engine"
+    "configChipCurrentEngine": "Current engine",
+    "fork": {
+      "cta": "Fork to new issue",
+      "dialog": {
+        "title": "Fork to a new issue",
+        "subtitle": "Spin this task off into a separate issue so it runs without occupying the current session.",
+        "instruction": "What should the new issue do?",
+        "mode": {
+          "independent": "Independent — run in parallel now",
+          "independentDesc": "A fresh worktree off main. Runs immediately alongside this issue.",
+          "snapshot": "Carry current changes — run in parallel now",
+          "snapshotDesc": "A fresh worktree seeded with this issue's uncommitted changes. Runs immediately.",
+          "dependent": "Depends on this issue's result",
+          "dependentDesc": "Waits in To-do and starts automatically once this issue finishes."
+        },
+        "includeHistory": "Include conversation history as context",
+        "inheritEngine": "Inherit engine and model",
+        "createOnly": "Create only",
+        "createAndRun": "Create and run",
+        "schedule": "Create and schedule"
+      },
+      "toast": {
+        "started": "Side task started",
+        "scheduled": "Scheduled — will start when this issue finishes",
+        "failed": "Failed to fork issue"
+      },
+      "lineage": {
+        "from": "Forked from parent",
+        "forks_one": "{{count}} fork",
+        "forks_other": "{{count}} forks"
+      }
+    }
   },
   "diff": {
     "changes": "Changes",
