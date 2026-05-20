@@ -21,6 +21,7 @@ import { acquirePidLock, releasePidLock } from './pid-lock'
 import { APP_DIR, ROOT_DIR } from './root'
 import { printStartupBanner } from './startup-banner'
 import { staticAssets } from './static-assets'
+import { drainRunningIssues } from './upgrade/drain'
 import { initUpgradeSystem, registerShutdownForUpgrade, stopPeriodicCheck } from './upgrade/service'
 import { initWebhookDispatcher, startDeliveryCleanup } from './webhooks/dispatcher'
 
@@ -188,11 +189,21 @@ const stopCron = startCron()
 
 // Register shutdown callback for upgrade restarts (stops server + cancels engines)
 registerShutdownForUpgrade(async () => {
+  // Stop schedulers first so no cron/periodic runs start while we drain.
+  stopCron()
+  stopPeriodicCheck()
+
+  // Graceful drain: reject new executions and wait for in-flight engine
+  // turns to settle naturally, so the upgrade doesn't kill running sessions
+  // mid-turn. Turns that exceed the drain timeout fall through to cancelAll.
+  const { drained, remaining } = await drainRunningIssues()
+  if (!drained) {
+    logger.warn({ remaining }, 'upgrade_proceeding_with_unsettled_issues')
+  }
+
   stopChangesSummaryWatcher()
   stopSettledReconciliation()
   stopPeriodicReconciliation()
-  stopCron()
-  stopPeriodicCheck()
   stopDeliveryCleanup()
   stopCockpitDigestBridge()
   await issueEngine.cancelAll()

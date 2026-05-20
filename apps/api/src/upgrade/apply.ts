@@ -6,6 +6,7 @@ import { logger } from '@/logger'
 import { writeUpgradeToken } from '@/pid-lock'
 import { isPathWithinDir, parseVersionFromFileName } from '@/upgrade/utils'
 import { APP_BASE, isPackageMode, UPDATES_DIR, VERSION_FILE } from './constants'
+import { DRAIN_TIMEOUT_MS } from './drain'
 import { getDownloadStatus } from './download'
 
 // --- Shutdown registration ---
@@ -72,7 +73,9 @@ async function extractArchive(archivePath: string, destDir: string): Promise<voi
 
 let isApplying = false
 
-const APPLY_TIMEOUT_MS = 30_000 // 30 seconds safety timeout
+// Safety timeout must outlast the graceful drain — the shutdown hook can
+// block for up to DRAIN_TIMEOUT_MS waiting for in-flight turns to settle.
+const APPLY_TIMEOUT_MS = DRAIN_TIMEOUT_MS + 60_000
 
 export async function applyUpgradeAndRestart(): Promise<void> {
   if (isApplying) {
