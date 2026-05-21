@@ -3,7 +3,7 @@ import type {
   CockpitTimelineMessage,
   CockpitTimelineMessageKind,
 } from '@bkd/shared'
-import { AlertTriangle, Bell, BellOff, Bot, Check, CircleAlert, Clock, GitBranch, Hourglass, MessageSquare, Send, X } from 'lucide-react'
+import { AlertTriangle, Bell, BellOff, Bot, Check, CircleAlert, Clock, GitBranch, Hourglass, Lightbulb, MessageSquare, Send, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -240,20 +240,26 @@ export function BotTimeline() {
     })
   }
 
-  function submitReply(msg: CockpitTimelineMessage) {
-    const body = replyDraft.trim()
-    if (!body || !msg.issueId) return
-    execute.mutate({ type: 'send_reply', params: { issueId: msg.issueId, body } }, {
+  function dispatchSendReply(msg: CockpitTimelineMessage, body: string, onDone?: () => void) {
+    const trimmed = body.trim()
+    if (!trimmed || !msg.issueId) return
+    execute.mutate({ type: 'send_reply', params: { issueId: msg.issueId, body: trimmed } }, {
       onSuccess: () => {
         void ack.mutateAsync(msg.id)
-        setReplyOpenFor(null)
-        setReplyDraft('')
         toast.success(t('cockpit.timeline.replySent', 'Reply sent'))
+        onDone?.()
       },
       onError: (err: unknown) => {
         const m = err instanceof Error ? err.message : t('cockpit.timeline.actionFailed', 'Action failed')
         toast.error(m)
       },
+    })
+  }
+
+  function submitReply(msg: CockpitTimelineMessage) {
+    dispatchSendReply(msg, replyDraft, () => {
+      setReplyOpenFor(null)
+      setReplyDraft('')
     })
   }
 
@@ -285,6 +291,14 @@ export function BotTimeline() {
           setReplyOpenFor(msg.id)
           setReplyDraft('')
         }
+        return
+      }
+      case 'reply-preset': {
+        // One-click candidate reply drafted by the secretary — send the
+        // preset text straight back to the issue, no typing.
+        const text = (action.payload?.text as string | undefined) ?? ''
+        if (!text) return
+        dispatchSendReply(msg, text)
         return
       }
       case 'navigate': {
@@ -505,10 +519,36 @@ export function BotTimeline() {
                         {t('cockpit.timeline.tag.stale', 'stuck')}
                       </span>
                     )}
+                    {/* Enrichment rung badge — observability for the
+                        decision-card degradation chain (COCKPIT-008). */}
+                    {msg.enrichmentStatus === 'enriched' && (
+                      <span className="rounded-full bg-primary/10 px-1.5 text-primary">
+                        {t('cockpit.timeline.badge.enriched', 'enriched')}
+                      </span>
+                    )}
+                    {msg.enrichmentStatus === 'structured' && (
+                      <span className="rounded-full bg-muted px-1.5 text-muted-foreground">
+                        {t('cockpit.timeline.badge.options', 'options')}
+                      </span>
+                    )}
+                    {msg.enrichmentError && (
+                      <span
+                        title={msg.enrichmentError}
+                        className="rounded-full bg-amber-500/10 px-1.5 text-amber-600 dark:text-amber-400"
+                      >
+                        {t('cockpit.timeline.badge.enrichFailed', 'AI failed')}
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm leading-relaxed text-foreground/90 break-words">
                     {msg.body}
                   </div>
+                  {msg.recommendation && (
+                    <div className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                      <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span>{msg.recommendation.reasoning}</span>
+                    </div>
+                  )}
                   {(msg.actions.length > 0 || (!!msg.issueId && !!msg.projectId)) && (
                     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                       {msg.actions.map((action) => {
@@ -570,6 +610,7 @@ export function BotTimeline() {
                           >
                             {action.kind === 'dismiss' && <X className="mr-1 h-3 w-3" />}
                             {action.kind === 'reply-input' && <MessageSquare className="mr-1 h-3 w-3" />}
+                            {action.kind === 'reply-preset' && <Send className="mr-1 h-3 w-3" />}
                             {action.label}
                           </Button>
                         )

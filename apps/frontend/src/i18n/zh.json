@@ -659,6 +659,11 @@
         "awaiting": "等你回复",
         "repeatFail": "反复失败",
         "stale": "卡住"
+      },
+      "badge": {
+        "enriched": "已富化",
+        "options": "选项卡",
+        "enrichFailed": "AI 失败"
       }
     }
   },

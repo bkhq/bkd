@@ -83,6 +83,10 @@ function mkMsg(over: Partial<CockpitTimelineMessage> = {}): CockpitTimelineMessa
     signalKey: 'merge:i1',
     status: 'open',
     snoozedUntil: null,
+    recommendation: null,
+    enrichedAt: null,
+    enrichmentStatus: 'template',
+    enrichmentError: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...over,
@@ -138,6 +142,53 @@ describe('botTimeline', () => {
     })
     // proposal success path also fires ack
     expect(ackMutate).toHaveBeenCalledWith('m1')
+  })
+
+  it('renders an enriched reply card and sends the preset reply on click', () => {
+    timelineDataRef.current = {
+      messages: [mkMsg({
+        id: 'r1',
+        kind: 'suggest_reply',
+        signalKey: 'reply:i1',
+        body: 'How should order status be stored?',
+        enrichmentStatus: 'enriched',
+        recommendation: { actionId: 'preset0', reasoning: 'Enum is simpler for 4 states.' },
+        actions: [
+          { id: 'preset0', label: 'Use an enum', kind: 'reply-preset', tone: 'primary', payload: { issueId: 'i1', text: 'Use an enum.' } },
+          { id: 'reply', label: 'Reply…', kind: 'reply-input', payload: { issueId: 'i1' } },
+          { id: 'dismiss', label: 'Dismiss', kind: 'dismiss' },
+        ],
+      })],
+      counts: { ...emptyCounts, suggest_reply: 1 },
+    }
+    render(<Wrapper><BotTimeline /></Wrapper>)
+    // recommendation reasoning + enrichment badge are visible
+    expect(screen.getByText('Enum is simpler for 4 states.')).toBeDefined()
+    expect(screen.getByText('enriched')).toBeDefined()
+    // clicking the preset sends the drafted reply back, no typing
+    fireEvent.click(screen.getByText('Use an enum'))
+    expect(executeMutate).toHaveBeenCalledWith({
+      type: 'send_reply',
+      params: { issueId: 'i1', body: 'Use an enum.' },
+    })
+    expect(ackMutate).toHaveBeenCalledWith('r1')
+  })
+
+  it('shows the AI-failed badge when enrichmentError is set', () => {
+    timelineDataRef.current = {
+      messages: [mkMsg({
+        id: 'r2',
+        kind: 'suggest_reply',
+        signalKey: 'reply:i2',
+        issueId: 'i2',
+        enrichmentStatus: 'structured',
+        enrichmentError: 'timeout',
+      })],
+      counts: { ...emptyCounts, suggest_reply: 1 },
+    }
+    render(<Wrapper><BotTimeline /></Wrapper>)
+    expect(screen.getByText('AI failed')).toBeDefined()
+    expect(screen.getByText('options')).toBeDefined()
   })
 
   it('snooze 1h preset fires snooze mutation with ~1h-ahead untilMs', () => {

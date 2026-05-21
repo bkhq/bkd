@@ -228,3 +228,27 @@ Known remaining gap (accepted): the live engine path — `runEnrichment`
 success path end-to-end — has no automated test, since it spawns a
 real engine. Covering it would need an injectable engine-call seam
 (deferred — not done). Until then it relies on manual smoke.
+
+### 2026-05-21 — M2 slice A: decision cards in the existing timeline
+
+M2 is being shipped in slices (A: decision cards in place; B: settings
+UI; C: single-column layout; D: dissolve AssistantPanel). Slice A —
+no layout change, just enrich the existing `BotTimeline` rows so M1's
+data becomes usable:
+
+- `reply-preset` actions render as one-click buttons; clicking sends
+  the drafted text via the existing `send_reply` proposal (new
+  `dispatchSendReply` helper; `runAction` `reply-preset` case).
+- `recommendation.reasoning` renders as a one-line hint above the
+  actions; the recommended candidate keeps its backend-set `primary`
+  tone.
+- `enrichmentStatus` / `enrichmentError` render as small badges
+  (`enriched` / `options` / `AI failed`) — the observability surface.
+- i18n keys `cockpit.timeline.badge.*` in en + zh.
+
+Verification: `BotTimeline.test.tsx` + `use-cockpit-timeline.test.ts`
+— 22 pass (2 new: enriched reply card renders candidate/recommendation/
+badge and sends preset on click; AI-failed badge). Frontend `tsc`
+clean; ESLint clean on touched files.
+
+Pending M2 slices B/C/D and M3.
