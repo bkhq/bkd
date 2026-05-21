@@ -90,12 +90,13 @@ function rebuildAcpTimeline(logs: NormalizedLogEntry[]) {
 }
 
 describe('useAcpTimeline rendering', () => {
-  it('renders thinking and assistant as independent items (no frontend dedup)', () => {
-    // Contract change (2026-05-10): backend TimelineConverter splits
-    // thinking/assistant into segment-aware entries with distinct ids.
-    // The frontend renders BOTH — no more "discard thinking if assistant
-    // contains same prefix" heuristic, which was the source of flicker
-    // during streaming and lost-content bugs.
+  it('deduplicates adjacent thinking when assistant repeats the same prefix', () => {
+    // When OpenCode streams thinking and then sends an assistant message that
+    // starts with the exact same text, the thinking block is redundant — the
+    // user sees the same content twice. Remove the standalone thinking entry
+    // so only the assistant message (with its richer formatting) remains.
+    // This only applies when thinking and assistant are adjacent; thinking
+    // blocks separated by tool calls are preserved.
     const logs: NormalizedLogEntry[] = [
       {
         entryType: 'thinking',
@@ -115,13 +116,49 @@ describe('useAcpTimeline rendering', () => {
 
     const { items } = rebuildAcpTimeline(logs)
 
-    expect(items).toHaveLength(2)
+    // Only the assistant message remains — thinking deduplicated.
+    expect(items).toHaveLength(1)
+    expect(items[0]!.type).toBe('entry')
+    expect((items[0] as { entry: NormalizedLogEntry }).entry.entryType).toBe('assistant-message')
+  })
+
+  it('keeps thinking across tool groups when assistant has different content', () => {
+    // When the assistant does NOT repeat the thinking prefix, both should be
+    // preserved — the thinking block shows the reasoning process, and the
+    // assistant shows the final reply.
+    const logs: NormalizedLogEntry[] = [
+      {
+        entryType: 'thinking',
+        content: 'Let me check the imports first',
+        timestamp: '2026-01-01T00:00:00Z',
+        turnIndex: 0,
+        metadata: { streaming: true },
+      },
+      {
+        entryType: 'tool-use',
+        content: 'Read src/app.ts',
+        timestamp: '2026-01-01T00:00:01Z',
+        turnIndex: 0,
+        messageId: 't1',
+        metadata: { toolCallId: 't1', isResult: false },
+        toolDetail: { kind: 'file-read', toolName: 'Read', toolCallId: 't1', isResult: false },
+      },
+      {
+        entryType: 'assistant-message',
+        content: 'I found the issue in the type definitions',
+        timestamp: '2026-01-01T00:00:02Z',
+        turnIndex: 0,
+        metadata: { streaming: true },
+      },
+    ]
+
+    const { items } = rebuildAcpTimeline(logs)
+
+    // 3 items: thinking + tool-group + assistant — all preserved.
+    expect(items).toHaveLength(3)
     expect(items[0]!.type).toBe('thinking')
-    expect((items[0] as { entry: NormalizedLogEntry }).entry.content).toBe(
-      '用户问为什么测试兜不住',
-    )
-    expect(items[1]!.type).toBe('entry')
-    expect((items[1] as { entry: NormalizedLogEntry }).entry.entryType).toBe('assistant-message')
+    expect(items[1]!.type).toBe('tool-group')
+    expect(items[2]!.type).toBe('entry')
   })
 
   it('keeps standalone thinking when assistant does NOT overlap', () => {
@@ -154,10 +191,11 @@ describe('useAcpTimeline rendering', () => {
     expect((items[1] as { entry: NormalizedLogEntry }).entry.entryType).toBe('assistant-message')
   })
 
-  it('keeps thinking, tool group, and assistant inline (Cursor-style)', () => {
-    // Real-world OpenCode pattern: thinking → tool → assistant. Each segment
-    // is its own entry — no overlapping content discards. This is what makes
-    // multi-step reasoning visible to users.
+  it('deduplicates thinking across tool groups when assistant repeats the same prefix', () => {
+    // OpenCode often sends thinking → tool → assistant where the assistant
+    // starts with the exact same text as the thinking. Without dedup, users
+    // see the same content twice — once in the thinking block and again in
+    // the assistant reply — which feels like "thinking and reply merged".
     const logs: NormalizedLogEntry[] = [
       {
         entryType: 'thinking',
@@ -186,12 +224,11 @@ describe('useAcpTimeline rendering', () => {
 
     const { items } = rebuildAcpTimeline(logs)
 
-    // 3 items: thinking, tool-group, assistant — all inline.
-    expect(items).toHaveLength(3)
-    expect(items[0]!.type).toBe('thinking')
-    expect(items[1]!.type).toBe('tool-group')
-    expect(items[2]!.type).toBe('entry')
-    const assistantItem = items[2] as { entry: NormalizedLogEntry }
+    // 2 items: tool-group + assistant — thinking deduplicated.
+    expect(items).toHaveLength(2)
+    expect(items[0]!.type).toBe('tool-group')
+    expect(items[1]!.type).toBe('entry')
+    const assistantItem = items[1] as { entry: NormalizedLogEntry }
     expect(assistantItem.entry.entryType).toBe('assistant-message')
   })
 })

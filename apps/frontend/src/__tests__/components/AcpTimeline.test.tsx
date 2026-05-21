@@ -176,6 +176,68 @@ describe('acpTimeline', () => {
     // Should show streaming thinking content (i18n label not loaded in tests)
     expect(screen.getByText(/Analyzing the codebase/)).toBeInTheDocument()
   })
+
+  it('deduplicates thinking when assistant repeats the same content', () => {
+    // Regression: OpenCode sends thinking that is a prefix of the assistant
+    // message. Without dedup, users see the same text in both thinking block
+    // and assistant reply.
+    const logs: NormalizedLogEntry[] = [
+      {
+        entryType: 'thinking',
+        content: '让我分析这个问题',
+        timestamp: new Date().toISOString(),
+        turnIndex: 0,
+        metadata: { streaming: false },
+      },
+      {
+        entryType: 'assistant-message',
+        content: '让我分析这个问题\n\n答案是42',
+        timestamp: new Date(Date.now() + 100).toISOString(),
+        turnIndex: 0,
+        metadata: { streaming: false, completed: true },
+      },
+    ]
+
+    render(<AcpTimeline logs={toTimeline(logs)} />, { wrapper: createWrapper() })
+
+    // Should NOT show the thinking block — it's deduplicated
+    expect(screen.queryByText('session.thoughtProcess')).not.toBeInTheDocument()
+
+    // Should show the assistant message
+    expect(screen.getByText(/答案是42/)).toBeInTheDocument()
+
+    // Only one message should contain the thinking text
+    const thinkingTexts = screen.queryAllByText(/让我分析这个问题/)
+    expect(thinkingTexts.length).toBe(1)
+  })
+
+  it('preserves thinking block when assistant has different content', () => {
+    // Normal case: thinking and assistant are distinct — both should show.
+    const logs: NormalizedLogEntry[] = [
+      {
+        entryType: 'thinking',
+        content: 'Let me check the logs',
+        timestamp: new Date().toISOString(),
+        turnIndex: 0,
+        metadata: { streaming: false },
+      },
+      {
+        entryType: 'assistant-message',
+        content: 'The error is on line 42',
+        timestamp: new Date(Date.now() + 100).toISOString(),
+        turnIndex: 0,
+        metadata: { streaming: false, completed: true },
+      },
+    ]
+
+    render(<AcpTimeline logs={toTimeline(logs)} />, { wrapper: createWrapper() })
+
+    // Should show the thinking block
+    expect(screen.getByText('session.thoughtProcess')).toBeInTheDocument()
+
+    // Should show the assistant message
+    expect(screen.getByText(/The error is on line 42/)).toBeInTheDocument()
+  })
 })
 
 // ────────────────────────────────────────────────────────────────────────────

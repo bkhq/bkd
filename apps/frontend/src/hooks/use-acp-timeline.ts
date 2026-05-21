@@ -153,6 +153,12 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
   }
 
   let toolBuffer: ToolGroupItem[] = []
+  // Track the most recent thinking entry for deduplication. OpenCode sometimes
+  // sends thinking chunks whose content is a prefix of the subsequent assistant
+  // message. Without this, users see the same text twice — once as a thinking
+  // block and again inside the assistant reply.
+  let lastThinkingEntry: TimelineEntry | null = null
+  let lastThinkingItemIndex = -1
 
   function flushToolBuffer() {
     if (toolBuffer.length === 0) return
@@ -171,6 +177,8 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
 
     if (entry.type === 'thinking') {
       flushToolBuffer()
+      lastThinkingEntry = entry
+      lastThinkingItemIndex = items.length
       items.push({
         type: 'thinking',
         id: entry.id,
@@ -207,6 +215,27 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
     }
 
     flushToolBuffer()
+
+    // If the next message is an assistant that already contains the thinking
+    // content, skip the standalone thinking display. OpenCode sometimes repeats
+    // the entire thinking text inside the assistant message (even after tool
+    // calls), which makes the UI feel like "thinking and reply merged together".
+    // We remove the thinking block so only the formatted assistant reply remains.
+    if (entry.type === 'assistant' && lastThinkingEntry) {
+      if (entry.content.startsWith(lastThinkingEntry.content)) {
+        // Remove the previous thinking item if it's still in items
+        if (
+          lastThinkingItemIndex >= 0
+          && lastThinkingItemIndex < items.length
+          && items[lastThinkingItemIndex]?.type === 'thinking'
+        ) {
+          items.splice(lastThinkingItemIndex, 1)
+        }
+      }
+      lastThinkingEntry = null
+      lastThinkingItemIndex = -1
+    }
+
     items.push({ type: 'entry', id: entry.id, entry })
   }
 
