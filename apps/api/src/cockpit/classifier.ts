@@ -4,7 +4,14 @@ import type {
 } from '@bkd/shared'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '@/db'
-import { issueLogs, issues as issuesTable, projects as projectsTable } from '@/db/schema'
+import {
+  issueLogs,
+  issuesLogsToolsCall,
+  issues as issuesTable,
+  projects as projectsTable,
+} from '@/db/schema'
+import { buildEnrichedReplyCard } from './secretary'
+import type { SecretaryEnrichment } from './secretary'
 import type { AppendInput } from './timeline'
 
 const OFF_TRACK_FILE_THRESHOLD = 8
@@ -75,10 +82,14 @@ async function loadIssue(issueId: string): Promise<{ issue: IssueRow, projectAli
       title: issuesTable.title,
       statusId: issuesTable.statusId,
       sessionStatus: issuesTable.sessionStatus,
+      isHidden: issuesTable.isHidden,
     })
     .from(issuesTable)
     .where(and(eq(issuesTable.id, issueId), eq(issuesTable.isDeleted, 0)))
   if (!issue) return null
+  // Hidden issues (cockpit assistant + secretary singletons) drive their
+  // own engine runs; they must never produce timeline cards about themselves.
+  if (issue.isHidden) return null
 
   const [project] = await db
     .select({ alias: projectsTable.alias })
@@ -216,7 +227,104 @@ function buildStaleMessage(
   }
 }
 
-function buildReplyMessage(issue: IssueRow, projectAlias: string): AppendInput {
+interface AskUserQuestion {
+  question: string
+  options: Array<{ label: string, description?: string, recommended?: boolean }>
+  recommendedIndex?: number
+}
+
+/**
+ * Level 2 of the degradation chain — load the agent's own `AskUserQuestion`
+ * tool call (question + structured options) straight from the persisted
+ * tool-call row. No AI. Returns `null` when there is no usable question.
+ */
+async function loadAskUserQuestion(issueId: string): Promise<AskUserQuestion | null> {
+  const [row] = await db
+    .select({ raw: issuesLogsToolsCall.raw })
+    .from(issuesLogsToolsCall)
+    .where(and(
+      eq(issuesLogsToolsCall.issueId, issueId),
+      eq(issuesLogsToolsCall.kind, 'user-question'),
+      eq(issuesLogsToolsCall.isDeleted, 0),
+    ))
+    .orderBy(desc(issuesLogsToolsCall.createdAt))
+    .limit(1)
+  if (!row?.raw) return null
+
+  try {
+    const parsed = JSON.parse(row.raw) as { toolAction?: unknown }
+    const ta = parsed.toolAction as {
+      kind?: string
+      questions?: unknown
+      recommendedIndex?: unknown
+    } | undefined
+    if (!ta || ta.kind !== 'user-question' || !Array.isArray(ta.questions)) return null
+    const q0 = ta.questions[0] as { question?: unknown, options?: unknown } | undefined
+    if (!q0 || typeof q0.question !== 'string' || !q0.question.trim()) return null
+
+    const options: AskUserQuestion['options'] = []
+    if (Array.isArray(q0.options)) {
+      for (const o of q0.options) {
+        if (!o || typeof o !== 'object') continue
+        const opt = o as { label?: unknown, description?: unknown, recommended?: unknown }
+        if (typeof opt.label !== 'string' || !opt.label.trim()) continue
+        options.push({
+          label: opt.label.trim(),
+          description: typeof opt.description === 'string' ? opt.description : undefined,
+          recommended: opt.recommended === true,
+        })
+      }
+    }
+    const recommendedIndex = typeof ta.recommendedIndex === 'number'
+      && Number.isInteger(ta.recommendedIndex)
+      ? ta.recommendedIndex
+      : undefined
+    return { question: q0.question.trim(), options, recommendedIndex }
+  } catch {
+    return null
+  }
+}
+
+/** Map an `AskUserQuestion` onto the secretary enrichment shape (no AI). */
+function askUserQuestionToEnrichment(auq: AskUserQuestion): SecretaryEnrichment {
+  const candidates = auq.options.map(o => ({ label: o.label, text: o.label }))
+  let recommendationIndex = auq.recommendedIndex ?? auq.options.findIndex(o => o.recommended)
+  if (recommendationIndex == null || recommendationIndex < 0 || recommendationIndex >= candidates.length) {
+    recommendationIndex = 0
+  }
+  return {
+    situation: auq.question,
+    recommendationIndex,
+    reasoning: auq.options[recommendationIndex]?.description ?? '',
+    candidates,
+  }
+}
+
+/**
+ * Build the `suggest_reply` card. Level 2 when the agent's `AskUserQuestion`
+ * carried structured options (one-click buttons, no AI); level 3 (template)
+ * otherwise. The AI secretary may later enrich either into level 1.
+ */
+async function buildReplyMessage(issue: IssueRow, projectAlias: string): Promise<AppendInput> {
+  const auq = await loadAskUserQuestion(issue.id)
+  if (auq && auq.options.length > 0) {
+    const card = buildEnrichedReplyCard(
+      { issueId: issue.id, projectAlias, issueNumber: issue.issueNumber },
+      askUserQuestionToEnrichment(auq),
+    )
+    return {
+      kind: 'suggest_reply',
+      projectId: issue.projectId,
+      issueId: issue.id,
+      body: card.body,
+      actions: card.actions,
+      signalKey: `reply:${issue.id}`,
+      enrichmentStatus: 'structured',
+      recommendation: card.recommendation,
+    }
+  }
+
+  // Level 3 — no structured options to surface; bare template card.
   const aliasPart = projectAlias ? `${projectAlias}/` : ''
   return {
     kind: 'suggest_reply',
@@ -244,6 +352,7 @@ function buildReplyMessage(issue: IssueRow, projectAlias: string): AppendInput {
       },
     ],
     signalKey: `reply:${issue.id}`,
+    enrichmentStatus: 'template',
   }
 }
 
@@ -363,7 +472,7 @@ export async function classifyIssue(
 
   // Awaiting reply: only when an AskUserQuestion tool fired last turn.
   if (signals.hasAskUserQuestion) {
-    return { message: buildReplyMessage(issue, projectAlias) }
+    return { message: await buildReplyMessage(issue, projectAlias) }
   }
 
   // Merge-ready: engine produced an assistant turn, no failing tool, no

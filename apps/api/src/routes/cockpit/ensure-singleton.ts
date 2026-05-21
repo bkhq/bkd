@@ -8,6 +8,7 @@ import { ROOT_DIR } from '@/root'
 const PROJECT_ALIAS = '__cockpit__'
 const PROJECT_NAME = 'Cockpit (internal)'
 const ASSISTANT_ID_KEY = 'cockpit:assistantIssueId'
+const SECRETARY_ID_KEY = 'cockpit:secretaryIssueId'
 
 export async function ensureCockpitProject(): Promise<{
   id: string
@@ -50,11 +51,16 @@ export async function ensureCockpitProject(): Promise<{
   return created
 }
 
-export async function ensureAssistantIssue(projectId: string): Promise<{
-  id: string
-  isFresh: boolean
-}> {
-  const storedId = await getAppSetting(ASSISTANT_ID_KEY)
+/**
+ * Resolve a hidden singleton issue tracked by an `appSettings` pointer key.
+ * Used for both the cockpit chat assistant and the background secretary —
+ * each is a single long-lived hidden issue, not a per-request one.
+ */
+async function ensureSingletonIssue(
+  projectId: string,
+  opts: { idKey: string, title: string, tag: string[], engineType: string },
+): Promise<{ id: string, isFresh: boolean }> {
+  const storedId = await getAppSetting(opts.idKey)
   if (storedId) {
     const [existing] = await db
       .select({ id: issuesTable.id })
@@ -87,15 +93,45 @@ export async function ensureAssistantIssue(projectId: string): Promise<{
       projectId,
       statusId: 'working',
       issueNumber,
-      title: '[Cockpit] Assistant',
-      tag: JSON.stringify(['cockpit', 'assistant']),
+      title: opts.title,
+      tag: JSON.stringify(opts.tag),
       sortOrder,
-      engineType: 'claude-code-sdk',
-      prompt: 'Cockpit assistant session',
+      engineType: opts.engineType,
+      prompt: opts.title,
       isHidden: true,
     })
     .returning({ id: issuesTable.id })
 
-  await setAppSetting(ASSISTANT_ID_KEY, created.id)
+  await setAppSetting(opts.idKey, created.id)
   return { id: created.id, isFresh: true }
+}
+
+export function ensureAssistantIssue(projectId: string): Promise<{
+  id: string
+  isFresh: boolean
+}> {
+  return ensureSingletonIssue(projectId, {
+    idKey: ASSISTANT_ID_KEY,
+    title: '[Cockpit] Assistant',
+    tag: ['cockpit', 'assistant'],
+    engineType: 'claude-code-sdk',
+  })
+}
+
+/**
+ * The background secretary issue (PLAN-022 / COCKPIT-008). A hidden,
+ * long-lived issue the cockpit reuses to run engine-agnostic enrichment
+ * turns. Its engine is set per-run from the `cockpit:secretaryEngine`
+ * setting, so `engineType` here is only the initial seed.
+ */
+export function ensureSecretaryIssue(projectId: string): Promise<{
+  id: string
+  isFresh: boolean
+}> {
+  return ensureSingletonIssue(projectId, {
+    idKey: SECRETARY_ID_KEY,
+    title: '[Cockpit] Secretary',
+    tag: ['cockpit', 'secretary'],
+    engineType: 'claude-code-sdk',
+  })
 }

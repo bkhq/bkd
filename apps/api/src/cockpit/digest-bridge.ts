@@ -7,7 +7,35 @@ import {
   listStaleWorkingIssueIds,
   recordFailure,
 } from './classifier'
-import { appendOrReplace, supersedeForIssue } from './timeline'
+import { enrichReplyCard, isSecretaryEnabled } from './secretary'
+import type { AppendInput } from './timeline'
+import {
+  appendOrReplace,
+  applyEnrichment,
+  recordEnrichmentError,
+  supersedeForIssue,
+} from './timeline'
+
+/**
+ * Append a classifier card, then — for `suggest_reply` cards and when AI
+ * enrichment is enabled — kick off the secretary enrichment in the
+ * background. The level-2/3 card surfaces instantly; the enriched card
+ * patches in via an `update` delta a few seconds later. On failure the
+ * card keeps its rung and the reason is recorded on `enrichmentError`.
+ */
+async function appendAndMaybeEnrich(card: AppendInput): Promise<void> {
+  const msg = await appendOrReplace(card)
+  if (msg.kind !== 'suggest_reply') return
+  if (!(await isSecretaryEnabled())) return
+  void enrichReplyCard(msg)
+    .then((result) => {
+      if (result.ok) return applyEnrichment(msg.id, result.patch)
+      return recordEnrichmentError(msg.id, result.reason)
+    })
+    .catch((err) => {
+      logger.warn({ err, msgId: msg.id }, 'cockpit_secretary_apply_failed')
+    })
+}
 
 const STALE_CHECK_INTERVAL_MS = 10 * 60 * 1000
 const STALE_IDLE_THRESHOLD_MIN = 15
@@ -35,7 +63,7 @@ export function startCockpitDigestBridge(): () => void {
     if (data.source !== 'engine') return
     void classifyIssue(data.issueId, null, { trigger: 'review-transition' })
       .then((res) => {
-        if (res) return appendOrReplace(res.message)
+        if (res) return appendAndMaybeEnrich(res.message)
       })
       .catch((err) => {
         logger.warn({ err, issueId: data.issueId }, 'cockpit_classify_review_failed')
@@ -45,7 +73,7 @@ export function startCockpitDigestBridge(): () => void {
   const unsubChanges = appEvents.on('changes-summary', (data) => {
     void classifyIssue(data.issueId, data, { trigger: 'changes-summary' })
       .then((res) => {
-        if (res) return appendOrReplace(res.message)
+        if (res) return appendAndMaybeEnrich(res.message)
       })
       .catch((err) => {
         logger.warn({ err, issueId: data.issueId }, 'cockpit_classify_changes_failed')
@@ -63,7 +91,7 @@ export function startCockpitDigestBridge(): () => void {
     recordFailure(data.issueId)
     void classifyIssue(data.issueId, null, { trigger: 'failure' })
       .then((res) => {
-        if (res) return appendOrReplace(res.message)
+        if (res) return appendAndMaybeEnrich(res.message)
       })
       .catch((err) => {
         logger.warn({ err, issueId: data.issueId }, 'cockpit_classify_failure_failed')
@@ -105,7 +133,7 @@ async function runStaleCheck(): Promise<void> {
   for (const id of ids) {
     try {
       const res = await classifyIssue(id, null, { trigger: 'stale' })
-      if (res) await appendOrReplace(res.message)
+      if (res) await appendAndMaybeEnrich(res.message)
     } catch (err) {
       logger.warn({ err, issueId: id }, 'cockpit_classify_stale_failed')
     }
@@ -120,7 +148,7 @@ async function coldStart(): Promise<void> {
   for (const id of ids) {
     try {
       const res = await classifyIssue(id, null, { trigger: 'cold-start' })
-      if (res) await appendOrReplace(res.message)
+      if (res) await appendAndMaybeEnrich(res.message)
     } catch (err) {
       logger.warn({ err, issueId: id }, 'cockpit_timeline_cold_start_issue_failed')
     }

@@ -449,15 +449,21 @@ export interface CockpitTimelineAction {
   id: string
   label: string
   /**
-   * 'proposal'    — invoke a cockpit proposal type with payload.
-   * 'navigate'    — open an issue in the UI.
-   * 'snooze'      — snooze this message until `untilMs`.
-   * 'dismiss'     — permanently dismiss this message.
-   * 'reply-input' — show an inline textarea; submitting sends a
-   *                 `send_reply` proposal with the typed body.
+   * 'proposal'     — invoke a cockpit proposal type with payload.
+   * 'navigate'     — open an issue in the UI.
+   * 'snooze'       — snooze this message until `untilMs`.
+   * 'dismiss'      — permanently dismiss this message.
+   * 'reply-input'  — show an inline textarea; submitting sends a
+   *                  `send_reply` proposal with the typed body.
+   * 'reply-preset' — a one-click candidate reply drafted by the cockpit
+   *                  secretary; clicking sends `send_reply` with
+   *                  `payload.text` as the body (no typing needed).
    */
-  kind: 'proposal' | 'navigate' | 'snooze' | 'dismiss' | 'reply-input'
-  /** For 'proposal': { type, params }. For 'navigate': { projectAlias, issueNumber }. */
+  kind: 'proposal' | 'navigate' | 'snooze' | 'dismiss' | 'reply-input' | 'reply-preset'
+  /**
+   * For 'proposal': { type, params }. For 'navigate': { projectAlias, issueNumber }.
+   * For 'reply-preset': { issueId, text }.
+   */
   payload?: Record<string, unknown>
   /** Visual tone hint for the button. */
   tone?: 'primary' | 'default' | 'danger'
@@ -476,9 +482,42 @@ export interface CockpitTimelineMessage {
   signalKey: string
   status: CockpitTimelineMessageStatus
   snoozedUntil: number | null
+  /**
+   * Secretary's recommended action for this card, with a one-line
+   * rationale. `actionId` points at one of the `actions` entries.
+   * Null until the card has been enriched (or if enrichment failed).
+   */
+  recommendation: CockpitTimelineRecommendation | null
+  /** ISO timestamp of when the secretary enriched this card; null = not enriched. */
+  enrichedAt: string | null
+  /** Which rung of the degradation chain this card is on. */
+  enrichmentStatus: CockpitEnrichmentStatus
+  /**
+   * If AI enrichment was attempted and failed, the short reason
+   * (`no_engine` | `timeout` | `parse_failed` | `run_failed`); null
+   * otherwise. Lets the UI explain *why* a card did not reach `enriched`.
+   */
+  enrichmentError: string | null
   createdAt: string
   updatedAt: string
 }
+
+/** Secretary's recommendation attached to an enriched decision card. */
+export interface CockpitTimelineRecommendation {
+  /** Id of the recommended action within `CockpitTimelineMessage.actions`. */
+  actionId: string
+  /** One short sentence: why the secretary recommends this action. */
+  reasoning: string
+}
+
+/**
+ * Which rung of the decision-card degradation chain a card is on:
+ * - `template`   — rule template only (level 3, the floor).
+ * - `structured` — built from the agent's own `AskUserQuestion` options,
+ *                  no AI (level 2, the non-AI floor).
+ * - `enriched`   — AI secretary enrichment applied (level 1, the best).
+ */
+export type CockpitEnrichmentStatus = 'template' | 'structured' | 'enriched'
 
 export interface CockpitTimelineDelta {
   op: 'append' | 'update'

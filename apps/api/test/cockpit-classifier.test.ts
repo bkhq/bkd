@@ -2,7 +2,12 @@ import { beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { classifyIssue, clearFailures, recordFailure } from '@/cockpit/classifier'
 import { db } from '@/db'
-import { cockpitTimelineMessages, issueLogs, issues as issuesTable } from '@/db/schema'
+import {
+  cockpitTimelineMessages,
+  issueLogs,
+  issuesLogsToolsCall,
+  issues as issuesTable,
+} from '@/db/schema'
 import { createTestProject, expectSuccess, post } from './helpers'
 import './setup'
 
@@ -128,7 +133,132 @@ describe('classifier — bucket selection', () => {
     })
     const res = await classifyIssue(id, null, { trigger: 'review-transition' })
     expect(res?.message.kind).toBe('suggest_reply')
-    expect(res?.message.actions.some(a => a.kind === 'reply-input')).toBe(true)
+    expect(res?.message.actions?.some(a => a.kind === 'reply-input')).toBe(true)
+  })
+
+  test('AskUserQuestion with structured options yields a level-2 structured card', async () => {
+    const id = await makeIssue('review')
+    await appendLogEntry(id, { turnIndex: 0, entryIndex: 0, entryType: 'assistant-message' })
+    const [toolLog] = await db
+      .insert(issueLogs)
+      .values({
+        issueId: id,
+        turnIndex: 0,
+        entryIndex: 1,
+        entryType: 'tool-use',
+        content: 'How should order status be stored?',
+        metadata: '{"toolName":"AskUserQuestion"}',
+        visible: 1,
+      })
+      .returning({ id: issueLogs.id })
+    await db.insert(issuesLogsToolsCall).values({
+      issueId: id,
+      logId: toolLog!.id,
+      toolName: 'AskUserQuestion',
+      kind: 'user-question',
+      raw: JSON.stringify({
+        toolAction: {
+          kind: 'user-question',
+          recommendedIndex: 1,
+          questions: [{
+            question: 'How should order status be stored?',
+            options: [
+              { label: 'Enum column' },
+              { label: 'Status table', description: 'More extensible' },
+            ],
+          }],
+        },
+      }),
+    })
+
+    const res = await classifyIssue(id, null, { trigger: 'review-transition' })
+    expect(res?.message.kind).toBe('suggest_reply')
+    expect(res?.message.enrichmentStatus).toBe('structured')
+    const presets = (res?.message.actions ?? []).filter(a => a.kind === 'reply-preset')
+    expect(presets).toHaveLength(2)
+    expect(presets[0]!.payload).toEqual({ issueId: id, text: 'Enum column' })
+    expect(res?.message.recommendation?.actionId).toBe('preset1')
+  })
+
+  test('AskUserQuestion without a tool-call row stays a level-3 template card', async () => {
+    const id = await makeIssue('review')
+    await appendLogEntry(id, { turnIndex: 0, entryIndex: 0, entryType: 'assistant-message' })
+    await appendLogEntry(id, {
+      turnIndex: 0,
+      entryIndex: 1,
+      entryType: 'tool-use',
+      metadata: '{"toolName":"AskUserQuestion"}',
+    })
+    const res = await classifyIssue(id, null, { trigger: 'review-transition' })
+    expect(res?.message.kind).toBe('suggest_reply')
+    expect(res?.message.enrichmentStatus).toBe('template')
+  })
+
+  test('malformed AskUserQuestion tool-call raw falls back to a template card', async () => {
+    const id = await makeIssue('review')
+    await appendLogEntry(id, { turnIndex: 0, entryIndex: 0, entryType: 'assistant-message' })
+    const [toolLog] = await db
+      .insert(issueLogs)
+      .values({
+        issueId: id,
+        turnIndex: 0,
+        entryIndex: 1,
+        entryType: 'tool-use',
+        content: '?',
+        metadata: '{"toolName":"AskUserQuestion"}',
+        visible: 1,
+      })
+      .returning({ id: issueLogs.id })
+    await db.insert(issuesLogsToolsCall).values({
+      issueId: id,
+      logId: toolLog!.id,
+      toolName: 'AskUserQuestion',
+      kind: 'user-question',
+      raw: 'not valid json{{{',
+    })
+    const res = await classifyIssue(id, null, { trigger: 'review-transition' })
+    expect(res?.message.kind).toBe('suggest_reply')
+    expect(res?.message.enrichmentStatus).toBe('template')
+  })
+
+  test('AskUserQuestion with no options falls back to a template card', async () => {
+    const id = await makeIssue('review')
+    await appendLogEntry(id, { turnIndex: 0, entryIndex: 0, entryType: 'assistant-message' })
+    const [toolLog] = await db
+      .insert(issueLogs)
+      .values({
+        issueId: id,
+        turnIndex: 0,
+        entryIndex: 1,
+        entryType: 'tool-use',
+        content: 'open question',
+        metadata: '{"toolName":"AskUserQuestion"}',
+        visible: 1,
+      })
+      .returning({ id: issueLogs.id })
+    await db.insert(issuesLogsToolsCall).values({
+      issueId: id,
+      logId: toolLog!.id,
+      toolName: 'AskUserQuestion',
+      kind: 'user-question',
+      raw: JSON.stringify({
+        toolAction: {
+          kind: 'user-question',
+          questions: [{ question: 'What approach?', options: [] }],
+        },
+      }),
+    })
+    const res = await classifyIssue(id, null, { trigger: 'review-transition' })
+    expect(res?.message.kind).toBe('suggest_reply')
+    expect(res?.message.enrichmentStatus).toBe('template')
+  })
+
+  test('hidden issues never produce a timeline card', async () => {
+    const id = await makeIssue('review')
+    await appendLogEntry(id, { turnIndex: 0, entryIndex: 0, entryType: 'assistant-message' })
+    await db.update(issuesTable).set({ isHidden: true }).where(eq(issuesTable.id, id))
+    const res = await classifyIssue(id, null, { trigger: 'review-transition' })
+    expect(res).toBeNull()
   })
 
   test('repeat-failure tracker fires alert_repeat_fail once threshold reached', async () => {

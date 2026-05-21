@@ -9,6 +9,13 @@ import { issueEngine } from '@/engines/issue/engine'
 import { appEvents } from '@/events'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import { logger } from '@/logger'
+import {
+  dryRunEnrichment,
+  getSecretaryEngine,
+  isSecretaryEnabled,
+  SECRETARY_ENABLED_KEY,
+  SECRETARY_ENGINE_KEY,
+} from '@/cockpit/secretary'
 import { ensureAssistantIssue, ensureCockpitProject } from './ensure-singleton'
 import { buildCockpitSystemPrompt } from './prompt'
 
@@ -135,6 +142,52 @@ assistant.post('/engine', zValidator('json', engineSchema), async (c) => {
     success: true,
     data: { issueId, engineType },
   })
+})
+
+// GET /api/cockpit/secretary-engine — the engine the background secretary
+// runs enrichment on (separate from the chat assistant's engine above).
+assistant.get('/secretary-engine', async (c) => {
+  const engineType = await getSecretaryEngine()
+  return c.json({ success: true, data: { engineType } })
+})
+
+// POST /api/cockpit/secretary-engine — change the secretary's enrichment
+// engine. Stored as a plain setting; the next enrichment run picks it up.
+assistant.post('/secretary-engine', zValidator('json', engineSchema), async (c) => {
+  const { engineType } = c.req.valid('json')
+  await setAppSetting(SECRETARY_ENGINE_KEY, engineType)
+  return c.json({ success: true, data: { engineType } })
+})
+
+// GET /api/cockpit/secretary — combined secretary config (observability).
+assistant.get('/secretary', async (c) => {
+  const [engineType, enabled] = await Promise.all([
+    getSecretaryEngine(),
+    isSecretaryEnabled(),
+  ])
+  return c.json({ success: true, data: { engineType, enabled } })
+})
+
+// POST /api/cockpit/secretary-enabled — master switch for AI enrichment.
+// Off → decision cards stay at the structured/template rung (no tokens spent).
+const enabledSchema = z.object({ enabled: z.boolean() })
+
+assistant.post('/secretary-enabled', zValidator('json', enabledSchema), async (c) => {
+  const { enabled } = c.req.valid('json')
+  await setAppSetting(SECRETARY_ENABLED_KEY, enabled ? 'true' : 'false')
+  return c.json({ success: true, data: { enabled } })
+})
+
+// POST /api/cockpit/secretary/dry-run — run enrichment for one issue and
+// return the prompt context + raw + parsed output, without touching the
+// timeline. The test/observability hook: see exactly what the secretary
+// produces for an issue on demand.
+const dryRunSchema = z.object({ issueId: z.string().min(1).max(40) })
+
+assistant.post('/secretary/dry-run', zValidator('json', dryRunSchema), async (c) => {
+  const { issueId } = c.req.valid('json')
+  const result = await dryRunEnrichment(issueId)
+  return c.json({ success: true, data: result })
 })
 
 // GET /api/cockpit/recent-activity — recent non-hidden issues across all

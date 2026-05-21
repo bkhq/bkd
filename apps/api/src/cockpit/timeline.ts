@@ -1,9 +1,11 @@
 import type {
+  CockpitEnrichmentStatus,
   CockpitTimelineAction,
   CockpitTimelineDelta,
   CockpitTimelineMessage,
   CockpitTimelineMessageKind,
   CockpitTimelineMessageStatus,
+  CockpitTimelineRecommendation,
 } from '@bkd/shared'
 import { and, desc, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import { db } from '@/db'
@@ -22,6 +24,10 @@ export interface AppendInput {
   body: string
   actions?: CockpitTimelineAction[]
   signalKey: string
+  /** Degradation-chain rung the card is appended at. Defaults to `template`. */
+  enrichmentStatus?: CockpitEnrichmentStatus
+  /** Recommendation available at append time (e.g. from `AskUserQuestion`). */
+  recommendation?: CockpitTimelineRecommendation
 }
 
 type Subscriber = (delta: CockpitTimelineDelta) => void
@@ -80,6 +86,10 @@ async function hydrate(row: typeof cockpitTimelineMessages.$inferSelect): Promis
     signalKey: row.signalKey,
     status: row.status as CockpitTimelineMessageStatus,
     snoozedUntil: row.snoozedUntil ?? null,
+    recommendation: safeParseRecommendation(row.recommendation),
+    enrichedAt: row.enrichedAt != null ? toISO(row.enrichedAt) : null,
+    enrichmentStatus: (row.enrichmentStatus ?? 'template') as CockpitEnrichmentStatus,
+    enrichmentError: row.enrichmentError ?? null,
     createdAt: toISO(row.createdAt),
     updatedAt: toISO(row.updatedAt),
   }
@@ -91,6 +101,23 @@ function safeParseActions(raw: string): CockpitTimelineAction[] {
     return Array.isArray(parsed) ? parsed as CockpitTimelineAction[] : []
   } catch {
     return []
+  }
+}
+
+function safeParseRecommendation(raw: string | null): CockpitTimelineRecommendation | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw)
+    if (
+      parsed && typeof parsed === 'object'
+      && typeof parsed.actionId === 'string'
+      && typeof parsed.reasoning === 'string'
+    ) {
+      return { actionId: parsed.actionId, reasoning: parsed.reasoning }
+    }
+    return null
+  } catch {
+    return null
   }
 }
 
@@ -121,6 +148,8 @@ export async function appendOrReplace(input: AppendInput): Promise<CockpitTimeli
       actions: JSON.stringify(input.actions ?? []),
       signalKey: input.signalKey,
       status: 'open',
+      enrichmentStatus: input.enrichmentStatus ?? 'template',
+      recommendation: input.recommendation ? JSON.stringify(input.recommendation) : null,
     })
     .returning()
 
@@ -194,6 +223,71 @@ export function dismiss(id: string): Promise<CockpitTimelineMessage | null> {
 
 export function snooze(id: string, untilMs: number): Promise<CockpitTimelineMessage | null> {
   return transitionStatus(id, 'snoozed', { snoozedUntil: untilMs })
+}
+
+export interface EnrichmentPatch {
+  body: string
+  actions: CockpitTimelineAction[]
+  recommendation: CockpitTimelineRecommendation
+}
+
+/**
+ * Apply a secretary enrichment to an existing card: replace body + actions,
+ * attach the recommendation, and stamp `enrichedAt`. Only patches messages
+ * still `open` — if the user already acted on the card the enrichment is
+ * dropped. Emits an `update` delta so the UI patches the card in place.
+ */
+export async function applyEnrichment(
+  id: string,
+  patch: EnrichmentPatch,
+): Promise<CockpitTimelineMessage | null> {
+  const now = new Date()
+  const [row] = await db
+    .update(cockpitTimelineMessages)
+    .set({
+      body: patch.body,
+      actions: JSON.stringify(patch.actions),
+      recommendation: JSON.stringify(patch.recommendation),
+      enrichedAt: now.getTime(),
+      enrichmentStatus: 'enriched',
+      enrichmentError: null,
+      updatedAt: now,
+    })
+    .where(and(
+      eq(cockpitTimelineMessages.id, id),
+      eq(cockpitTimelineMessages.status, 'open'),
+      eq(cockpitTimelineMessages.isDeleted, 0),
+    ))
+    .returning()
+  if (!row) return null
+  const msg = await hydrate(row)
+  notify({ op: 'update', message: msg })
+  return msg
+}
+
+/**
+ * Record that AI enrichment was attempted on a card but did not succeed.
+ * The card keeps whatever rung it was built at (`template`/`structured`);
+ * only `enrichmentError` is set so the UI can explain the failure. Only
+ * patches still-`open` cards. Emits an `update` delta.
+ */
+export async function recordEnrichmentError(
+  id: string,
+  reason: string,
+): Promise<CockpitTimelineMessage | null> {
+  const [row] = await db
+    .update(cockpitTimelineMessages)
+    .set({ enrichmentError: reason, updatedAt: new Date() })
+    .where(and(
+      eq(cockpitTimelineMessages.id, id),
+      eq(cockpitTimelineMessages.status, 'open'),
+      eq(cockpitTimelineMessages.isDeleted, 0),
+    ))
+    .returning()
+  if (!row) return null
+  const msg = await hydrate(row)
+  notify({ op: 'update', message: msg })
+  return msg
 }
 
 /** Internal — supersede any open message tied to an issueId (e.g. on cancel). */

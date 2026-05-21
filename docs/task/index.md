@@ -66,3 +66,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**BUG-002 Worktree creation fails on repos without main/master**](BUG-002.md) `P1`
 - [x] [**UPGRADE-001 Graceful drain before upgrade restart**](UPGRADE-001.md) `P1`
 - [x] [**UPGRADE-002 Apply a locally-installed app package via the graceful drain path**](UPGRADE-002.md) `P1`
+- [-] [**COCKPIT-008 Cockpit secretary — AI-enriched decision cards + decision-stream UI**](COCKPIT-008.md) `P1`

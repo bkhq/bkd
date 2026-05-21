@@ -50,3 +50,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-019 In-chat FTS search + CJK bigram tokenizer upgrade**](PLAN-019.md) `2026-05-19`
 - [-] [**PLAN-020 Cockpit Overview → Always-On Bot Timeline**](PLAN-020.md) `2026-05-19`
 - [x] [**PLAN-021 One-click fork current issue into a new spawned issue**](PLAN-021.md) `2026-05-19`
+- [-] [**PLAN-022 Cockpit secretary — AI-enriched decision cards + single decision-stream UI**](PLAN-022.md) `2026-05-20`

@@ -283,6 +283,16 @@ export const cockpitTimelineMessages = sqliteTable(
     signalKey: text('signal_key').notNull(),
     status: text('status').notNull().default('open'),
     snoozedUntil: integer('snoozed_until'),
+    // Secretary enrichment (PLAN-022 / COCKPIT-008). `recommendation` is a
+    // JSON string `{ actionId, reasoning }`; `enrichedAt` is a unix-ms
+    // timestamp. Both null until the card has been AI-enriched.
+    recommendation: text('recommendation'),
+    enrichedAt: integer('enriched_at'),
+    // Degradation-chain rung: 'template' | 'structured' | 'enriched'.
+    // `enrichmentError` holds the failure reason when AI enrichment was
+    // attempted but did not succeed (null otherwise).
+    enrichmentStatus: text('enrichment_status').notNull().default('template'),
+    enrichmentError: text('enrichment_error'),
     ...commonFields,
   },
   table => [
