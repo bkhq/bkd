@@ -45,7 +45,10 @@ function shikiSlim(): Plugin {
 }
 
 const config = defineConfig(({ mode }) => {
-  const env = loadEnv(mode, import.meta.dirname)
+  // Dev env is consolidated in the monorepo root .env (loaded by the root `dev`
+  // script via --env-file). Read it here so the Vite dev server picks up the
+  // same file whether launched via the root `dev` or `dev:frontend` standalone.
+  const env = loadEnv(mode, path.resolve(import.meta.dirname, '../..'))
   const devPort = Number(env.VITE_DEV_PORT) || 3000
   const devHost = env.VITE_DEV_HOST || '0.0.0.0'
 

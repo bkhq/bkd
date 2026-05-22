@@ -252,7 +252,7 @@ Server (IssueEngine) → SSE /api/events → EventBus singleton (lib/event-bus.t
   - Node.js imports must use `node:` prefix
 - Frontend tests: vitest + @testing-library/react (`bun run test:frontend`)
 - Backend tests: `bun:test` (`bun run test:api`). Tests use preload to set `DB_PATH` to an isolated temp DB.
-- Each workspace has its own `.env` file (`apps/api/.env`, `apps/frontend/.env`) — do not use dotenv. Bun auto-loads `.env` from CWD for API; Vite auto-loads from its project root for frontend.
+- Dev env is consolidated in a single **root `.env`** (gitignored; copy from root `.env.example`). `bun run dev` loads it via `bun --env-file=.env`; `dev:api` loads it via `bun --env-file=../../.env`; the Vite dev server reads it through `loadEnv(mode, <repo root>)` in `vite.config.ts`. nsl routes `http://bkd.localhost/api/*` → API and the rest → Vite. Do not use the `dotenv` package. `apps/api/.env` still serves production `start` and drizzle (CWD auto-load); keep dev values in sync there or rely on the root `.env`.
 - IDs: ULID for logs/attachments/tool calls, nanoid 8-char for projects/issues
 - Shared types live in `packages/shared/src/index.ts`
 - API client in `apps/frontend/src/lib/kanban-api.ts` — add new endpoints here, wrap in React Query hooks in `use-kanban.ts`
