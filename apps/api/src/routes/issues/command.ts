@@ -98,8 +98,11 @@ command.openapi(R.executeIssue, async (c) => {
     const basePrompt = project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt
     const envVars = parseProjectEnvVars(project.envVars)
     // A virtual engine id resolves to its base engine; its preset env vars are
-    // injected by the engine layer from the issue's persisted engineProfileId.
+    // injected by the engine layer from the issue's persisted engineProfileId,
+    // so sync that id (set for a virtual engine, cleared for a real one) before
+    // execution starts — otherwise the run would use the wrong backend.
     const virtual = await getVirtualEngine(body.engineType)
+    await updateIssueSession(issueId, { engineProfileId: virtual ? virtual.id : null })
     const result = await issueEngine.executeIssue(issueId, {
       engineType: (virtual ? virtual.baseEngine : body.engineType) as EngineType,
       prompt: basePrompt,

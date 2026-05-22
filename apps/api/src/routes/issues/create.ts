@@ -141,10 +141,6 @@ create.post('/', async (c) => {
     if (!resolvedModel && virtual.model) resolvedModel = virtual.model
   }
 
-  // Engine identity for per-engine settings + the project-default comparison:
-  // the virtual id when this is a virtual engine, otherwise the real type.
-  const engineId = engineProfileId ?? resolvedEngine
-
   if (!engineRegistry.get(resolvedEngine as EngineType)) {
     if (explicitEngine && !virtual) {
       // An explicit, unrecognized engine id is a client error — do not silently
@@ -154,6 +150,13 @@ create.post('/', async (c) => {
     // A stale/removed project/global default → coerce to a supported engine.
     resolvedEngine = 'claude-code'
   }
+
+  // Engine identity for per-engine settings + the project-default comparison:
+  // the virtual id when this is a virtual engine, otherwise the (post-fallback)
+  // real type — computed after coercion so a stale default does not leak a
+  // removed engine's saved model onto the fallback executor.
+  const engineId = engineProfileId ?? resolvedEngine
+
   if (!resolvedModel) {
     // Precedence: explicit body > project default > saved engine default.
     // The project default model only applies when the resolved engine matches

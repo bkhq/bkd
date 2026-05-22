@@ -2,7 +2,7 @@ import type { VirtualEngine } from '@bkd/shared'
 import { afterAll, afterEach, describe, expect, test } from 'bun:test'
 import { resolveExecEnvVars } from '@/engines/issue/utils/helpers'
 import { clearVirtualModelCache, fetchVirtualEngineModels } from '@/engines/virtual-engines'
-import { api, createTestProject, expectError, expectSuccess, get, patch, post } from './helpers'
+import { api, createTestIssue, createTestProject, expectError, expectSuccess, get, patch, post, waitFor } from './helpers'
 /**
  * Virtual engines API + resolution tests.
  */
@@ -135,6 +135,35 @@ describe('create issue with a virtual engine', () => {
     )
     expect(issue.engineProfileId).toBe('glm-nomodel')
     expect(issue.model).toBe('glm-4.6')
+  })
+})
+
+describe('execute with a virtual engine id (PR #132)', () => {
+  test('persists engineProfileId on the issue so env injection uses the right backend', async () => {
+    // baseEngine codex → uses the mock executor (no real subprocess).
+    await putVirtual([
+      { id: 'gw-codex', name: 'GW', baseEngine: 'codex', baseUrl: 'https://example.com', envVars: {} },
+    ])
+    const projectId = await createTestProject('Virtual Execute Project')
+    const issue = expectSuccess(
+      await createTestIssue(projectId, { title: 'x', statusId: 'working', engineType: 'codex' }),
+    ) as { id: string }
+
+    await waitFor(async () => {
+      const r = await get<{ sessionStatus: string | null }>(`/api/projects/${projectId}/issues/${issue.id}`)
+      return expectSuccess(r).sessionStatus === 'completed'
+    }, 5000)
+
+    const res = await post(`/api/projects/${projectId}/issues/${issue.id}/execute`, {
+      engineType: 'gw-codex',
+      prompt: 'go',
+    })
+    expect(res.status).toBe(200)
+
+    const after = expectSuccess(
+      await get<{ engineProfileId: string | null }>(`/api/projects/${projectId}/issues/${issue.id}`),
+    )
+    expect(after.engineProfileId).toBe('gw-codex')
   })
 })
 

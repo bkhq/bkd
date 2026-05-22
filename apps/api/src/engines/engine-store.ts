@@ -46,6 +46,7 @@ export async function updateIssueSession(
   issueId: string,
   changes: Partial<{
     engineType: string
+    engineProfileId: string | null
     sessionStatus: string
     prompt: string
     externalSessionId: string | null
@@ -54,6 +55,7 @@ export async function updateIssueSession(
 ): Promise<IssueRow | undefined> {
   const updates: Record<string, unknown> = {}
   if (changes.engineType !== undefined) updates.engineType = changes.engineType
+  if (changes.engineProfileId !== undefined) updates.engineProfileId = changes.engineProfileId
   if (changes.sessionStatus !== undefined) updates.sessionStatus = changes.sessionStatus
   if (changes.prompt !== undefined) updates.prompt = changes.prompt
   if (changes.externalSessionId !== undefined) updates.externalSessionId = changes.externalSessionId
