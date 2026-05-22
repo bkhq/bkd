@@ -101,6 +101,25 @@ function preprocessContent(text: string): string {
   return result.join('\n')
 }
 
+/** Markdown image whose src is a safe, renderable source (served file or data URI). */
+const IMAGE_MD_RE = /!\[([^\]]*)\]\((data:image\/[^)\s]+|\/api\/[^)\s]+|https?:\/\/[^)\s]+)\)/g
+
+interface ExtractedImage {
+  alt: string
+  src: string
+}
+
+/** Pull renderable image references out of the content; returns the images and
+ * the remaining text (with those image markdowns removed). */
+function splitImages(content: string): { images: ExtractedImage[], text: string } {
+  const images: ExtractedImage[] = []
+  const text = content.replace(IMAGE_MD_RE, (_m, alt: string, src: string) => {
+    images.push({ alt: alt || 'image', src })
+    return ''
+  })
+  return { images, text: text.trim() }
+}
+
 export function MarkdownContent({
   content,
   className: containerClassName = '',
@@ -108,11 +127,13 @@ export function MarkdownContent({
   content: string
   className?: string
 }) {
-  const formatted = useMemo(() => preprocessContent(content), [content])
+  const { images, text } = useMemo(() => splitImages(content), [content])
+  const formatted = useMemo(() => preprocessContent(text), [text])
   const [html, setHtml] = useState('')
 
   useEffect(() => {
     setHtml('')
+    if (!formatted) return
     let cancelled = false
     void codeToHtml(formatted, 'markdown').then((result) => {
       if (!cancelled) setHtml(result)
@@ -122,18 +143,24 @@ export function MarkdownContent({
     }
   }, [formatted])
 
-  if (!html) {
-    return (
-      <div className={`markdown-shiki ${containerClassName}`}>
-        <pre className="whitespace-pre-wrap break-words">{formatted}</pre>
-      </div>
-    )
-  }
-
   return (
-    <div
-      className={`markdown-shiki ${containerClassName}`}
-      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }}
-    />
+    <div className={`markdown-shiki ${containerClassName}`}>
+      {images.map(img => (
+        <img
+          key={img.src}
+          src={img.src}
+          alt={img.alt}
+          className="my-2 max-w-full h-auto rounded-md border border-foreground/10"
+          loading="lazy"
+        />
+      ))}
+      {formatted
+        ? (
+            html
+              ? <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+              : <pre className="whitespace-pre-wrap break-words">{formatted}</pre>
+          )
+        : null}
+    </div>
   )
 }

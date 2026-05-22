@@ -1,5 +1,6 @@
 import { appEvents } from '@/events'
 import type { EngineContext } from '../context'
+import { registerExtractImagesStage } from './extract-images'
 import { registerFailureDetectStage } from './failure-detect'
 import { registerPersistStage } from './persist'
 import { registerRingBufferStage } from './ring-buffer'
@@ -9,6 +10,7 @@ import { registerTokenUsageStage } from './token-usage'
  * Register all log-entry pipeline stages on the global event bus.
  *
  * Each stage is an independent ordered subscriber:
+ *   order 5    — extract inline base64 images → attachments (extract-images.ts)
  *   order 10   — DB persistence + messageId enrichment  (persist.ts)
  *   order 15   — token usage accumulation               (token-usage.ts)
  *   order 20   — ring buffer push                       (ring-buffer.ts)
@@ -26,6 +28,7 @@ export function registerLogPipeline(ctx: EngineContext): void {
   const on = (cb: Parameters<typeof appEvents.on<'log'>>[1], opts: { order: number }) =>
     appEvents.on('log', cb, opts)
 
+  registerExtractImagesStage(ctx, on)
   registerPersistStage(ctx, on)
   registerTokenUsageStage(ctx, on)
   registerRingBufferStage(ctx, on)
