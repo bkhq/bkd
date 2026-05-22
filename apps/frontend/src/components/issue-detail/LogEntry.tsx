@@ -572,7 +572,7 @@ export const LogEntry = memo(LogEntryImpl, (prev, next) => {
   )
 })
 
-function AssistantMessage({
+export function AssistantMessage({
   content,
   timestamp,
   durationMs,
@@ -602,6 +602,10 @@ function AssistantMessage({
   // message. Users perceive this as "thinking content mixed into the reply".
   // Detect and split: render preamble as a collapsed block, reply normally.
   const { preamble, reply } = splitAssistantPreamble(content)
+  // During streaming the preamble accumulates before the reply begins.
+  // If we wait for reply, users see a blank bubble for seconds — show the
+  // preamble text inline while `reply` is still being generated.
+  const streamingPreview = isStreaming && preamble && !reply ? preamble : null
 
   const handleCopy = () => {
     navigator.clipboard
@@ -692,7 +696,13 @@ function AssistantMessage({
                     />
                   )
             )
-          : null}
+          : streamingPreview
+            ? (
+                <div className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65] whitespace-pre-wrap break-words animate-pulse">
+                  {streamingPreview}
+                </div>
+              )
+            : null}
       </div>
       <div className="flex items-center gap-2 mt-0.5">
         {timestamp ?

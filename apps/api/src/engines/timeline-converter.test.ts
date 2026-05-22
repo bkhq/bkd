@@ -389,6 +389,71 @@ describe('TimelineConverter — sequence and segment ids', () => {
     expect(ids.has('turn-0-thinking-0001')).toBe(true)
   })
 
+  // ── Regression: identical-content guard ──
+  // When an engine re-emits the same cumulative chunk without new text,
+  // mergeChunk must NOT double the content. Before the fix, the `else`
+  // branch blindly did `buffer.content += text`, producing duplicates.
+  // These tests verify both the live streaming path (streamAndCollect)
+  // and the batch /logs path (toTimeline).
+
+  it('does not double content when identical assistant chunk re-emitted', () => {
+    const entries: NormalizedLogEntry[] = [
+      { entryType: 'assistant-message', content: 'Hello', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z', metadata: { streaming: true } },
+      { entryType: 'assistant-message', content: 'Hello', turnIndex: 0, timestamp: '2026-01-01T00:00:01Z', metadata: { streaming: true } },
+      { entryType: 'assistant-message', content: 'Hello world', turnIndex: 0, timestamp: '2026-01-01T00:00:02Z', metadata: { streaming: true } },
+    ]
+    const result = toTimeline(entries)
+    expect(result).toHaveLength(1)
+    expect(result[0].content).toBe('Hello world')
+    // Not doubled: "HelloHelloHello world" or similar
+  })
+
+  it('does not double content when identical thinking chunk re-emitted (live path)', () => {
+    const conv = new TimelineConverter()
+    const all: TimelineEntry[] = []
+    all.push(...conv.ingest('x', { entryType: 'thinking', content: 'X', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z', metadata: { streaming: true } }))
+    all.push(...conv.ingest('x', { entryType: 'thinking', content: 'X', turnIndex: 0, timestamp: '2026-01-01T00:00:01Z', metadata: { streaming: true } }))
+    all.push(...conv.ingest('x', { entryType: 'thinking', content: 'XY', turnIndex: 0, timestamp: '2026-01-01T00:00:02Z', metadata: { streaming: true } }))
+    all.push(...conv.flush('x'))
+    const lastSnapshot = all.filter(e => e.id === 'turn-0-thinking-0000').at(-1)
+    expect(lastSnapshot?.content).toBe('XY')
+  })
+
+  it('does not double content when identical assistant chunk re-emitted (live path)', () => {
+    const conv = new TimelineConverter()
+    const all: TimelineEntry[] = []
+    all.push(...conv.ingest('y', { entryType: 'assistant-message', content: 'A', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z', metadata: { streaming: true } }))
+    all.push(...conv.ingest('y', { entryType: 'assistant-message', content: 'A', turnIndex: 0, timestamp: '2026-01-01T00:00:01Z', metadata: { streaming: true } }))
+    all.push(...conv.ingest('y', { entryType: 'assistant-message', content: 'AB', turnIndex: 0, timestamp: '2026-01-01T00:00:02Z', metadata: { streaming: true } }))
+    all.push(...conv.flush('y'))
+    const lastSnapshot = all.filter(e => e.id === 'turn-0-assistant-0000').at(-1)
+    expect(lastSnapshot?.content).toBe('AB')
+  })
+
+  it('does not splice different responses when assistant chunks interleave', () => {
+    // Simulates: assistant says "Alpha" → thinking → tool → assistant says "Beta"
+    // Each gets its own buffer (different ids), no concatenation.
+    const conv = new TimelineConverter()
+    const byId = new Map<string, TimelineEntry>()
+
+    // Assistant "Alpha"
+    for (const e of conv.ingest('z', { entryType: 'assistant-message', content: 'Alpha', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z', metadata: { streaming: true } })) byId.set(e.id, e)
+    // Thinking flushes assistant
+    for (const e of conv.ingest('z', { entryType: 'thinking', content: 'Think', turnIndex: 0, timestamp: '2026-01-01T00:00:01Z', metadata: { streaming: true } })) byId.set(e.id, e)
+    // Tool flushes thinking
+    for (const e of conv.ingest('z', { entryType: 'tool-use', content: 'Tool', turnIndex: 0, timestamp: '2026-01-01T00:00:02Z', messageId: 't1' })) byId.set(e.id, e)
+    // New assistant segment — must NOT merge into old
+    for (const e of conv.ingest('z', { entryType: 'assistant-message', content: 'Beta', turnIndex: 0, timestamp: '2026-01-01T00:00:03Z', metadata: { streaming: true } })) byId.set(e.id, e)
+    for (const e of conv.flush('z')) byId.set(e.id, e)
+
+    const assistants = Array.from(byId.values()).filter(e => e.type === 'assistant').sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+    expect(assistants).toHaveLength(2)
+    expect(assistants[0].id).toBe('turn-0-assistant-0000')
+    expect(assistants[0].content).toBe('Alpha')
+    expect(assistants[1].id).toBe('turn-0-assistant-0001')
+    expect(assistants[1].content).toBe('Beta')
+  })
+
   it('flush() emits final snapshots and clears in-flight buffers', () => {
     const conv = new TimelineConverter()
     conv.ingest('q', { entryType: 'thinking', content: 'partial', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z' })

@@ -93,7 +93,10 @@ function mergeChunk(buffer: Buffer, entry: NormalizedLogEntry): void {
   if (text.length > buffer.content.length && text.startsWith(buffer.content)) {
     buffer.content = text
   } else if (buffer.content.length > text.length && buffer.content.startsWith(text)) {
-    // keep old
+    // keep old — out-of-order delivery with shorter content, drop
+  } else if (text === buffer.content) {
+    // identical — avoid doubling the content when the engine re-emits the
+    // same cumulative chunk without new text
   } else {
     buffer.content += text
   }

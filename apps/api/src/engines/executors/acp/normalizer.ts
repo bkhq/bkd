@@ -36,10 +36,12 @@ function resetNormalizeState(state: AcpNormalizeState): void {
  * O(N) over the total content size; runs once per turn at flush time
  * instead of once per chunk (which was O(N²) cumulative).
  */
-function mergeStreamingParts(parts: readonly string[]): string {
+export function mergeStreamingParts(parts: readonly string[]): string {
   let merged = ''
   for (const part of parts) {
-    if (part.length > merged.length && part.startsWith(merged)) {
+    if (part === merged) {
+      // identical — skip, avoid doubling
+    } else if (part.length > merged.length && part.startsWith(merged)) {
       merged = part
     } else if (merged.length > part.length && merged.startsWith(part)) {
       // keep merged — out-of-order shorter delivery
