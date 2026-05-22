@@ -39,7 +39,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
 import { useFileAttachments } from '@/hooks/use-file-attachments'
-import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue } from '@/hooks/use-kanban'
+import { useClearIssueSession, useEngineAvailability, useEngineProfiles, useEngineSettings, useFollowUpIssue } from '@/hooks/use-kanban'
 import { formatModelName } from '@/lib/format'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { BusyAction, EngineModel, SessionStatus } from '@/types/kanban'
@@ -729,7 +729,10 @@ function BusyActionSelect({
 function EngineInfo({ engineType }: { engineType: string }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const engineName = t(`createIssue.engineLabel.${engineType}`, engineType)
+  // Virtual engines have no i18n label; fall back to their configured name.
+  const { data: profiles } = useEngineProfiles(true)
+  const profileName = profiles?.find(p => p.engineType === engineType)?.name
+  const engineName = t(`createIssue.engineLabel.${engineType}`, profileName ?? engineType)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

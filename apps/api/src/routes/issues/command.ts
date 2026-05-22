@@ -2,7 +2,10 @@ import { mkdir, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { findProject, getAppSetting } from '@/db/helpers'
 import { updateIssueSession } from '@/engines/engine-store'
+import { engineRegistry } from '@/engines/executors'
 import { issueEngine } from '@/engines/issue'
+import type { EngineType } from '@/engines/types'
+import { getVirtualEngine } from '@/engines/virtual-engines'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
@@ -95,11 +98,24 @@ command.openapi(R.executeIssue, async (c) => {
     // Prepend project-level system prompt if configured
     const basePrompt = project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt
     const envVars = parseProjectEnvVars(project.envVars)
+    // A virtual engine id resolves to its base engine; its preset env vars are
+    // injected by the engine layer from the issue's persisted engineProfileId.
+    const virtual = await getVirtualEngine(body.engineType)
+    const baseEngine = (virtual ? virtual.baseEngine : body.engineType) as EngineType
+    // Validate the engine resolves to a real executor BEFORE mutating the issue,
+    // so an unknown/stale id is a clean 400 without clobbering engineProfileId.
+    if (!engineRegistry.get(baseEngine)) {
+      return c.json({ success: false, error: `Unknown engine type: ${body.engineType}` }, 400 as const)
+    }
+    // Sync the virtual profile (set for a virtual engine, cleared for a real
+    // one) via executeIssue so the write happens under the per-issue lock —
+    // avoiding a race between concurrent execute requests.
     const result = await issueEngine.executeIssue(issueId, {
-      engineType: body.engineType as import('@/engines/types').EngineType,
+      engineType: baseEngine,
+      engineProfileId: virtual ? virtual.id : null,
       prompt: basePrompt,
       workingDir: effectiveWorkingDir,
-      model: body.model,
+      model: body.model ?? virtual?.model,
       permissionMode: body.permissionMode,
       envVars,
     })

@@ -9,7 +9,7 @@ import { ensureNoActiveProcess } from '@/engines/issue/process/guards'
 import { withIssueLock } from '@/engines/issue/process/lock'
 import { register } from '@/engines/issue/process/register'
 import { persistUserMessage } from '@/engines/issue/user-message'
-import { getPermissionOptions } from '@/engines/issue/utils/helpers'
+import { getPermissionOptions, resolveExecEnvVars } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
 import { createWorktree } from '@/engines/issue/utils/worktree'
@@ -22,6 +22,8 @@ export async function executeIssue(
   issueId: string,
   opts: {
     engineType: EngineType
+    /** Virtual engine id to persist (string), clear (null), or leave as-is (undefined). */
+    engineProfileId?: string | null
     prompt: string
     workingDir?: string
     model?: string
@@ -58,11 +60,17 @@ export async function executeIssue(
     // Do NOT look up or fill in a default model from DB; the engine decides.
     const model = opts.model === 'auto' ? undefined : opts.model
 
+    // Resolve the effective virtual profile under the issue lock to avoid a
+    // race between concurrent execute requests targeting different engines.
+    const effectiveProfileId = opts.engineProfileId !== undefined
+      ? opts.engineProfileId
+      : issue.engineProfileId
     await updateIssueSession(issueId, {
       engineType: opts.engineType,
       sessionStatus: 'running',
       prompt: opts.prompt,
       model: model ?? undefined,
+      ...(opts.engineProfileId !== undefined ? { engineProfileId: opts.engineProfileId } : {}),
     })
 
     const baseDir = opts.workingDir ?? ROOT_DIR
@@ -82,6 +90,9 @@ export async function executeIssue(
     const externalSessionId = crypto.randomUUID()
     const executionId = crypto.randomUUID()
 
+    // Merge virtual-engine preset env vars (if this issue runs a virtual engine).
+    const envVars = await resolveExecEnvVars(effectiveProfileId, opts.envVars)
+
     let spawned: SpawnedProcess
     try {
       spawned = await executor.spawn(
@@ -93,7 +104,7 @@ export async function executeIssue(
           externalSessionId,
         },
         {
-          vars: opts.envVars ?? {},
+          vars: envVars ?? {},
           workingDir,
           projectId: issue.projectId,
           issueId,

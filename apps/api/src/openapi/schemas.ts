@@ -65,7 +65,8 @@ export const issueIdParam = {
 const envVarsSchema = z.record(z.string(), z.string().max(10000)).optional()
 
 // Per-project default engine/model overrides. null/'' clears -> inherit global.
-const projectDefaultEngineSchema = z.enum(['claude-code', 'codex']).nullable().optional()
+// Accepts a real engine type or a virtual engine id (resolved at issue create).
+const projectDefaultEngineSchema = z.string().regex(/^[\w.\-:]{1,64}$/).nullable().optional()
 const projectDefaultModelSchema = z.string().max(200).nullable().optional()
 
 export const ProjectSchema = z.object({
@@ -77,7 +78,7 @@ export const ProjectSchema = z.object({
   repositoryUrl: z.string().optional(),
   systemPrompt: z.string().optional(),
   envVars: z.record(z.string(), z.string()).optional(),
-  defaultEngine: z.enum(['claude-code', 'codex']).optional(),
+  defaultEngine: z.string().optional(),
   defaultModel: z.string().optional(),
   sortOrder: z.string(),
   isArchived: z.boolean(),
@@ -132,6 +133,7 @@ export const IssueSchema = z.object({
   isPinned: z.boolean(),
   keepAlive: z.boolean(),
   engineType: z.string().nullable(),
+  engineProfileId: z.string().nullable(),
   sessionStatus: z.enum(['pending', 'running', 'completed', 'failed', 'cancelled']).nullable(),
   prompt: z.string().nullable(),
   externalSessionId: z.string().nullable(),
@@ -147,7 +149,7 @@ export const CreateIssueSchema = z.object({
   statusId: statusIdEnum,
   useWorktree: z.boolean().optional(),
   keepAlive: z.boolean().optional(),
-  engineType: z.enum(['claude-code', 'codex']).optional().openapi({ description: 'claude-code | codex' }),
+  engineType: z.string().regex(/^[\w.\-:]{1,64}$/).optional().openapi({ description: 'engine type or virtual engine id' }),
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
 }).openapi('CreateIssue')
@@ -183,7 +185,7 @@ export const BulkUpdateSchema = z.object({
 }).openapi('BulkUpdate')
 
 export const ExecuteIssueSchema = z.object({
-  engineType: z.enum(['claude-code', 'codex']).openapi({ description: 'claude-code | codex' }),
+  engineType: z.string().regex(/^[\w.\-:]{1,64}$/).openapi({ description: 'engine type or virtual engine id' }),
   prompt: z.string().min(1).max(32768),
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),

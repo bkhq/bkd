@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "dev": "bun --filter @bkd/api --filter @bkd/frontend dev",
+    "dev": "bun --env-file=.env run --filter @bkd/api --filter @bkd/frontend dev",
     "dev:api": "bun --filter @bkd/api dev",
     "dev:frontend": "bun --filter @bkd/frontend dev",
     "build": "bun --filter @bkd/frontend build",

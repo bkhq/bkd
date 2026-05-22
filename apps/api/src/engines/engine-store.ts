@@ -13,6 +13,7 @@ type IssueRow = typeof issuesTable.$inferSelect
 
 export interface IssueSessionFields {
   engineType: EngineType | null
+  engineProfileId: string | null
   sessionStatus: SessionStatus | null
   prompt: string | null
   externalSessionId: string | null
@@ -22,6 +23,7 @@ export interface IssueSessionFields {
 export function getIssueSessionFields(row: IssueRow): IssueSessionFields {
   return {
     engineType: row.engineType as EngineType | null,
+    engineProfileId: row.engineProfileId ?? null,
     sessionStatus: row.sessionStatus as SessionStatus | null,
     prompt: row.prompt ?? null,
     externalSessionId: row.externalSessionId ?? null,
@@ -44,6 +46,7 @@ export async function updateIssueSession(
   issueId: string,
   changes: Partial<{
     engineType: string
+    engineProfileId: string | null
     sessionStatus: string
     prompt: string
     externalSessionId: string | null
@@ -52,6 +55,7 @@ export async function updateIssueSession(
 ): Promise<IssueRow | undefined> {
   const updates: Record<string, unknown> = {}
   if (changes.engineType !== undefined) updates.engineType = changes.engineType
+  if (changes.engineProfileId !== undefined) updates.engineProfileId = changes.engineProfileId
   if (changes.sessionStatus !== undefined) updates.sessionStatus = changes.sessionStatus
   if (changes.prompt !== undefined) updates.prompt = changes.prompt
   if (changes.externalSessionId !== undefined) updates.externalSessionId = changes.externalSessionId

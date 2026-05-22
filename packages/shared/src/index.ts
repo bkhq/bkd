@@ -46,6 +46,8 @@ export interface Issue {
   isPinned: boolean
   keepAlive: boolean
   engineType: EngineType | null
+  /** Virtual engine id when this issue runs a virtual engine; null otherwise. */
+  engineProfileId: string | null
   sessionStatus: SessionStatus | null
   prompt: string | null
   externalSessionId: string | null
@@ -343,6 +345,25 @@ export interface EngineProfile {
   capabilities: string[]
   defaultModel?: string
   permissionPolicy: string
+}
+
+/**
+ * A virtual engine reuses a real executor (its `baseEngine`) but injects a
+ * preset set of environment variables, so e.g. Claude Code can be pointed at a
+ * third-party Anthropic-compatible backend. Persisted in app settings.
+ */
+export interface VirtualEngine {
+  id: string
+  name: string
+  baseEngine: EngineType
+  /** Provider base URL → injected as ANTHROPIC_BASE_URL and used for model discovery. */
+  baseUrl?: string
+  /** Provider token → injected as ANTHROPIC_AUTH_TOKEN and used for model discovery. */
+  authToken?: string
+  /** Optional fallback default model when discovery is unavailable. */
+  model?: string
+  /** Advanced extra env vars merged into the engine process. */
+  envVars: Record<string, string>
 }
 
 export interface EngineSettings {

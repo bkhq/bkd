@@ -17,6 +17,7 @@ import type {
   ProbeResult,
   Project,
   ProjectProcessesResponse,
+  VirtualEngine,
   Webhook,
   WebhookDelivery,
   WebhookEventType,
@@ -404,6 +405,9 @@ export const kanbanApi = {
       data,
     ),
   probeEngines: () => post<ProbeResult>('/api/engines/probe', {}),
+  getVirtualEngines: () => get<VirtualEngine[]>('/api/engines/virtual'),
+  setVirtualEngines: (engines: VirtualEngine[]) =>
+    put<VirtualEngine[]>('/api/engines/virtual', { engines }),
 
   // App Settings
   getSlashCommandSettings: (engine?: string) =>

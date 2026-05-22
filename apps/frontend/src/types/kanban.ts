@@ -36,6 +36,7 @@ export type {
   SessionStatus,
   ToolAction,
   ToolDetail,
+  VirtualEngine,
   Webhook,
   WebhookDelivery,
   WebhookEventType,

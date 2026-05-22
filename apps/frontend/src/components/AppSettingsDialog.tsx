@@ -11,6 +11,7 @@ import {
   FolderOpen,
   Info,
   Loader2,
+  Plus,
   RefreshCw,
   RotateCcw,
   Search,
@@ -65,6 +66,7 @@ import {
   useSetMaxConcurrentExecutions,
   useSetSkipPermissions,
   useSetUpgradeEnabled,
+  useSetVirtualEngines,
   useSetWorktreeAutoCleanup,
   useSkipPermissions,
   useSystemInfo,
@@ -77,6 +79,7 @@ import {
   useUpgradeCheck,
   useUpgradeEnabled,
   useVersionInfo,
+  useVirtualEngines,
   useWorkspacePath,
   useWorktreeAutoCleanup,
 } from '@/hooks/use-kanban'
@@ -84,7 +87,7 @@ import { useTheme } from '@/hooks/use-theme'
 import { LANGUAGES } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { useViewModeStore } from '@/stores/view-mode-store'
-import type { EngineAvailability, EngineModel, EngineProfile } from '@/types/kanban'
+import type { EngineAvailability, EngineModel, EngineProfile, VirtualEngine } from '@/types/kanban'
 
 const THEME_OPTIONS = [
   { id: 'system' as const, labelKey: 'theme.system' },
@@ -1037,7 +1040,165 @@ function ModelsSection({ open }: { open: boolean }) {
                 })
               )}
       </div>
+
+      <VirtualEnginesSection open={open} />
     </div>
+  )
+}
+
+interface VirtualEngineDraft {
+  id: string
+  name: string
+  baseUrl: string
+  authToken: string
+  model: string
+  envText: string
+}
+
+function toDraft(ve: VirtualEngine): VirtualEngineDraft {
+  return {
+    id: ve.id,
+    name: ve.name,
+    baseUrl: ve.baseUrl ?? '',
+    authToken: ve.authToken ?? '',
+    model: ve.model ?? '',
+    envText: envVarsToText(ve.envVars),
+  }
+}
+
+function VirtualEnginesSection({ open }: { open: boolean }) {
+  const { t } = useTranslation()
+  const { data: virtualEngines } = useVirtualEngines(open)
+  const setVirtualEngines = useSetVirtualEngines()
+  const [drafts, setDrafts] = useState<VirtualEngineDraft[]>([])
+  const loaded = useRef(false)
+
+  useEffect(() => {
+    if (virtualEngines && !loaded.current) {
+      setDrafts(virtualEngines.map(toDraft))
+      loaded.current = true
+    }
+  }, [virtualEngines])
+
+  useEffect(() => {
+    if (!open) loaded.current = false
+  }, [open])
+
+  const update = (idx: number, patch: Partial<VirtualEngineDraft>) => {
+    setDrafts(prev => prev.map((d, i) => (i === idx ? { ...d, ...patch } : d)))
+  }
+  const addDraft = () => {
+    setDrafts(prev => [...prev, { id: '', name: '', baseUrl: '', authToken: '', model: '', envText: '' }])
+  }
+  const removeDraft = (idx: number) => {
+    setDrafts(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  const handleSave = () => {
+    const payload: VirtualEngine[] = drafts.map(d => ({
+      id: d.id.trim(),
+      name: d.name.trim(),
+      baseEngine: 'claude-code',
+      baseUrl: d.baseUrl.trim() || undefined,
+      authToken: d.authToken.trim() || undefined,
+      model: d.model.trim() || undefined,
+      envVars: textToEnvVars(d.envText),
+    }))
+    setVirtualEngines.mutate(payload, {
+      onSuccess: data => setDrafts(data.map(toDraft)),
+    })
+  }
+
+  return (
+    <Field>
+      <div className="flex items-center justify-between">
+        <Label>{t('settings.virtualEngines')}</Label>
+        <Button variant="ghost" size="sm" onClick={addDraft}>
+          <Plus className="size-3" />
+          {t('settings.virtualEngineAdd')}
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">{t('settings.virtualEnginesHint')}</p>
+
+      <div className="flex flex-col gap-3 mt-1">
+        {drafts.map((d, idx) => (
+          <div key={idx} className="rounded-md border px-3 py-2.5 space-y-2">
+            <div className="flex items-center gap-2">
+              <Input
+                value={d.id}
+                onChange={e => update(idx, { id: e.target.value })}
+                placeholder={t('settings.virtualEngineIdPlaceholder')}
+                className="h-7 text-xs font-mono"
+              />
+              <Input
+                value={d.name}
+                onChange={e => update(idx, { name: e.target.value })}
+                placeholder={t('settings.virtualEngineNamePlaceholder')}
+                className="h-7 text-xs"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => removeDraft(idx)}
+                className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="size-3" />
+              </Button>
+            </div>
+            <Input
+              value={d.baseUrl}
+              onChange={e => update(idx, { baseUrl: e.target.value })}
+              placeholder={t('settings.virtualEngineBaseUrlPlaceholder')}
+              className="h-7 text-xs font-mono"
+            />
+            <Input
+              type="password"
+              value={d.authToken}
+              onChange={e => update(idx, { authToken: e.target.value })}
+              placeholder={t('settings.virtualEngineTokenPlaceholder')}
+              className="h-7 text-xs font-mono"
+            />
+            <details className="group">
+              <summary className="cursor-pointer text-[11px] text-muted-foreground select-none">
+                {t('settings.virtualEngineAdvanced')}
+              </summary>
+              <div className="mt-2 space-y-2">
+                <Input
+                  value={d.model}
+                  onChange={e => update(idx, { model: e.target.value })}
+                  placeholder={t('settings.virtualEngineModelPlaceholder')}
+                  className="h-7 text-xs font-mono"
+                />
+                <Textarea
+                  className="font-mono text-xs"
+                  rows={3}
+                  value={d.envText}
+                  onChange={e => update(idx, { envText: e.target.value })}
+                  placeholder={t('settings.virtualEngineEnvPlaceholder')}
+                />
+              </div>
+            </details>
+          </div>
+        ))}
+      </div>
+
+      {setVirtualEngines.isError ?
+          (
+            <p className="text-[11px] text-destructive">
+              {setVirtualEngines.error instanceof Error ? setVirtualEngines.error.message : t('common.error')}
+            </p>
+          ) :
+        null}
+
+      <div className="flex justify-end mt-1">
+        <Button size="sm" onClick={handleSave} disabled={setVirtualEngines.isPending}>
+          {setVirtualEngines.isPending
+            ? <Loader2 className="size-3 animate-spin mr-1" />
+            : <Check className="size-3 mr-1" />}
+          {t('common.save')}
+        </Button>
+      </div>
+    </Field>
   )
 }
 

@@ -1,0 +1,1 @@
+ALTER TABLE `issues` ADD `engine_profile_id` text;

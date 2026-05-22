@@ -14,6 +14,7 @@ import { register } from '@/engines/issue/process/register'
 import {
   getPermissionOptions,
   getProjectExecContext,
+  resolveExecEnvVars,
   resolveWorkingDir,
 } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
@@ -61,6 +62,7 @@ export async function restartIssue(
     const permOptions = getPermissionOptions(engineType)
     const executionId = crypto.randomUUID()
     const projCtx = await getProjectExecContext(issue.projectId)
+    const envVars = await resolveExecEnvVars(issue.engineProfileId, projCtx.envVars)
 
     // Prepend project system prompt only. Pending follow-ups remain queued and
     // will be flushed one-by-one after each turn completes.
@@ -79,7 +81,7 @@ export async function restartIssue(
       model: effectiveModel,
       permissionMode: permOptions.permissionMode,
       projectId: issue.projectId,
-      envVars: projCtx.envVars,
+      envVars,
     }
     let spawned: SpawnedProcess
     try {
@@ -93,7 +95,7 @@ export async function restartIssue(
               permissionMode: spawnOpts.permissionMode,
             },
             {
-              vars: projCtx.envVars ?? {},
+              vars: envVars ?? {},
               workingDir,
               projectId: issue.projectId,
               issueId,

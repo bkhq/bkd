@@ -102,6 +102,7 @@ export class IssueEngine {
     issueId: string,
     opts: {
       engineType: EngineType
+      engineProfileId?: string | null
       prompt: string
       workingDir?: string
       model?: string
