@@ -61,3 +61,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-014 Virtual engines: dynamic model discovery via provider /v1/models**](ENG-014.md) `P2`
 - [x] [**ENG-015 Virtual engines: accept virtual ids in engine settings routes**](ENG-015.md) `P2`
 - [x] [**ENG-016 Fix: startup schema self-heal never fires (computeMissing detects 0 tables)**](ENG-016.md) `P1`
+- [x] [**ENG-017 Fix PID-lock false "another instance running" on PID reuse**](ENG-017.md) `P1`

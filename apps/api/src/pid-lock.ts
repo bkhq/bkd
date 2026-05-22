@@ -55,15 +55,22 @@ function isProcessAlive(pid: number): boolean {
 }
 
 /**
- * Check /proc/<pid>/cmdline (Linux only) for BKD-related keywords.
- * Returns `true` if the process looks like a BKD instance, `false` if
- * it is clearly something else, or `undefined` if /proc is unavailable.
+ * Read a process's start time (field 22 of /proc/<pid>/stat, in clock ticks
+ * since boot — Linux only). Combined with the PID it uniquely identifies a
+ * process: the kernel never reuses (pid, starttime) pairs, so a start-time
+ * mismatch means the PID was recycled by a different process.
+ * Returns `undefined` when /proc is unavailable (non-Linux) or unreadable.
  */
-function isBkdByProcfs(pid: number): boolean | undefined {
+export function getProcessStartTime(pid: number): string | undefined {
   try {
-    const cmdline = readFileSync(`/proc/${pid}/cmdline`, 'utf8')
-    const normalized = cmdline.replaceAll('\0', ' ').toLowerCase()
-    return normalized.includes('bkd') || normalized.includes('bun')
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8')
+    // `comm` (field 2) may contain spaces and parentheses; parse after the
+    // last ')'. The remaining fields start at field 3 (state), so starttime
+    // (field 22) is at index 19 of the post-')' split.
+    const rparen = stat.lastIndexOf(')')
+    if (rparen === -1) return undefined
+    const fields = stat.slice(rparen + 1).trim().split(/\s+/)
+    return fields[19]
   } catch {
     return undefined
   }
@@ -90,55 +97,40 @@ function isBkdByHttpProbe(port: number): boolean | undefined {
 }
 
 /**
- * Determine whether the process holding the PID lock is truly a running
- * BKD instance. Combines three signals:
- *   1. kill(pid, 0) — is the process alive at all?
- *   2. /proc/<pid>/cmdline — does it look like bkd/bun? (Linux only)
- *   3. HTTP probe to the configured port — does it serve /api with name='bkd-api'?
+ * Determine whether the PID lock is still held by a live process — and,
+ * crucially, by *the same process that wrote it* (not a recycled PID).
  *
- * The HTTP probe is the strongest signal because it directly confirms the
- * service identity. Neither signal alone is sufficient to declare "not BKD"
- * because the binary may be compiled with a custom name (no "bkd"/"bun" in
- * cmdline) or the port may differ from the current env (HTTP inconclusive).
- * Only when both procfs AND HTTP actively deny BKD identity do we treat
- * the lock as stale.
+ * Identity is the `(pid, starttime)` pair: the kernel never reuses that pair,
+ * so a start-time mismatch unambiguously means the PID was recycled by an
+ * unrelated process and the lock is stale. This avoids the previous
+ * false-positives where any reused PID belonging to a `bun` process (sibling
+ * projects, tooling) looked like a live BKD instance and blocked startup.
+ *
+ * `content` is the lock-file body: `"<pid>"` (legacy) or `"<pid>:<starttime>"`.
  */
-function isBkdProcessAlive(pid: number): boolean {
+export function isLockHolderAlive(content: string): boolean {
+  const [pidStr, recordedStart] = content.trim().split(':')
+  const pid = Number.parseInt(pidStr ?? '', 10)
+  if (Number.isNaN(pid) || pid <= 0) return false
   if (!isProcessAlive(pid)) return false
 
-  // --- procfs check (fast, Linux only) ---
-  const procResult = isBkdByProcfs(pid)
+  const recorded = (recordedStart ?? '').trim()
+  const current = getProcessStartTime(pid)
 
-  // --- HTTP probe (works on all platforms) ---
-  const port = Number(process.env.PORT ?? 3000)
-  const httpResult = isBkdByHttpProbe(port)
-
-  // HTTP positively confirms BKD — strongest signal
-  if (httpResult === true) return true
-
-  // Both signals actively deny BKD identity — safe to treat as stale
-  if (procResult === false && httpResult === false) {
-    logger.info({ pid, port }, 'pid_lock_not_bkd_by_procfs_and_http')
+  // Preferred path (Linux + a start time was recorded): same process iff the
+  // start times match; otherwise the PID was reused → stale.
+  if (recorded && current !== undefined) {
+    if (recorded === current) return true
+    logger.warn({ pid, recorded, current }, 'pid_lock_pid_reused_stale')
     return false
   }
 
-  // Only procfs denies but HTTP is inconclusive (connection refused / timeout).
-  // The process may be a custom-named BKD binary that hasn't started listening
-  // yet, or is listening on a different port. Err on the side of caution.
-  if (procResult === false && httpResult === undefined) {
-    logger.info({ pid, port }, 'pid_lock_procfs_mismatch_http_inconclusive')
-    return true
-  }
-
-  // HTTP denies but procfs confirms or is unavailable — the port may have
-  // been taken by another service while BKD is still alive on a different port
-  if (httpResult === false) {
-    logger.info({ pid, port }, 'pid_lock_http_mismatch_procfs_match')
-    return procResult ?? true
-  }
-
-  // Both inconclusive — assume alive to avoid dual-instance corruption
-  return true
+  // Legacy lock (no recorded start time) or /proc unavailable: fall back to an
+  // HTTP identity probe — only a process answering /api as `bkd-api` counts.
+  const port = Number(process.env.PORT ?? 3000)
+  if (isBkdByHttpProbe(port) === true) return true
+  logger.info({ pid, port }, 'pid_lock_no_starttime_http_not_bkd_stale')
+  return false
 }
 
 /**
@@ -220,24 +212,26 @@ export function acquirePidLock(): void {
   const dir = dirname(pidFile)
   mkdirSync(dir, { recursive: true })
 
+  // Our identity: "<pid>:<starttime>" so a future process can detect PID reuse.
+  const selfContent = `${process.pid}:${getProcessStartTime(process.pid) ?? ''}`
+
   // Fast path: atomically create the lock file. If it succeeds, we own the lock.
-  if (tryCreateExclusive(pidFile, String(process.pid))) {
+  if (tryCreateExclusive(pidFile, selfContent)) {
     logger.info({ pid: process.pid, pidFile }, 'pid_lock_acquired')
     return
   }
 
-  // Lock file already exists — check if the owning process is still alive.
-  let existingPid = Number.NaN
+  // Lock file already exists — check if it is still held by a live process.
+  let content = ''
   try {
-    const content = readFileSync(pidFile, 'utf8').trim()
-    existingPid = Number.parseInt(content, 10)
+    content = readFileSync(pidFile, 'utf8').trim()
   } catch (err) {
     // Corrupt or unreadable PID file — remove and retry
     logger.warn({ err, pidFile }, 'pid_lock_corrupt_removed')
     try {
       unlinkSync(pidFile)
     } catch { /* best effort */ }
-    if (tryCreateExclusive(pidFile, String(process.pid))) {
+    if (tryCreateExclusive(pidFile, selfContent)) {
       logger.info({ pid: process.pid, pidFile }, 'pid_lock_acquired')
       return
     }
@@ -245,7 +239,9 @@ export function acquirePidLock(): void {
     exitDuplicateInstance(pidFile, Number.NaN)
   }
 
-  if (!Number.isNaN(existingPid) && existingPid > 0 && isBkdProcessAlive(existingPid)) {
+  const existingPid = Number.parseInt(content.split(':')[0] ?? '', 10)
+
+  if (isLockHolderAlive(content)) {
     // Allow takeover when the upgrading process left a valid token file.
     // The token contains the parent's PID + a random nonce, so it cannot
     // be forged via environment variables or command-line arguments.
@@ -258,7 +254,7 @@ export function acquirePidLock(): void {
       exitDuplicateInstance(pidFile, existingPid)
     }
   } else {
-    // PID file exists but the process is dead → stale lock
+    // PID file exists but the holder is gone (dead or PID reused) → stale lock
     logger.warn(
       { stalePid: existingPid, pidFile },
       'pid_lock_stale_removed',
@@ -269,7 +265,7 @@ export function acquirePidLock(): void {
   try {
     unlinkSync(pidFile)
   } catch { /* best effort */ }
-  if (tryCreateExclusive(pidFile, String(process.pid))) {
+  if (tryCreateExclusive(pidFile, selfContent)) {
     logger.info({ pid: process.pid, pidFile }, 'pid_lock_acquired')
     return
   }
