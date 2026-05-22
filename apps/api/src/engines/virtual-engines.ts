@@ -212,6 +212,11 @@ export async function decorateDiscoveryWithVirtual(discovery: {
 
   virtuals.forEach((ve, i) => {
     const base = discovery.engines.find(e => e.engineType === ve.baseEngine)
+    // A virtual engine authenticates with its own token (baseUrl + authToken),
+    // so its auth status comes from its own credentials — not the base engine's
+    // local auth (which would wrongly hide it from the UI when the base CLI is
+    // locally unauthenticated).
+    const hasOwnAuth = !!(ve.authToken || ve.envVars.ANTHROPIC_AUTH_TOKEN)
     engines.push({
       // engineType holds the virtual id; the wire schema is z.string().
       engineType: ve.id as EngineType,
@@ -219,7 +224,7 @@ export async function decorateDiscoveryWithVirtual(discovery: {
       executable: base?.executable,
       version: base?.version,
       binaryPath: base?.binaryPath,
-      authStatus: base?.authStatus ?? 'unknown',
+      authStatus: hasOwnAuth ? 'authenticated' : (base?.authStatus ?? 'unknown'),
     })
     const discovered = fetched[i] ?? []
     models[ve.id] = discovered.length > 0

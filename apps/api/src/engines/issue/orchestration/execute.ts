@@ -22,6 +22,8 @@ export async function executeIssue(
   issueId: string,
   opts: {
     engineType: EngineType
+    /** Virtual engine id to persist (string), clear (null), or leave as-is (undefined). */
+    engineProfileId?: string | null
     prompt: string
     workingDir?: string
     model?: string
@@ -58,11 +60,17 @@ export async function executeIssue(
     // Do NOT look up or fill in a default model from DB; the engine decides.
     const model = opts.model === 'auto' ? undefined : opts.model
 
+    // Resolve the effective virtual profile under the issue lock to avoid a
+    // race between concurrent execute requests targeting different engines.
+    const effectiveProfileId = opts.engineProfileId !== undefined
+      ? opts.engineProfileId
+      : issue.engineProfileId
     await updateIssueSession(issueId, {
       engineType: opts.engineType,
       sessionStatus: 'running',
       prompt: opts.prompt,
       model: model ?? undefined,
+      ...(opts.engineProfileId !== undefined ? { engineProfileId: opts.engineProfileId } : {}),
     })
 
     const baseDir = opts.workingDir ?? ROOT_DIR
@@ -83,7 +91,7 @@ export async function executeIssue(
     const executionId = crypto.randomUUID()
 
     // Merge virtual-engine preset env vars (if this issue runs a virtual engine).
-    const envVars = await resolveExecEnvVars(issue.engineProfileId, opts.envVars)
+    const envVars = await resolveExecEnvVars(effectiveProfileId, opts.envVars)
 
     let spawned: SpawnedProcess
     try {

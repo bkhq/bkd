@@ -125,12 +125,15 @@ export function isLockHolderAlive(content: string): boolean {
     return false
   }
 
-  // Legacy lock (no recorded start time) or /proc unavailable: fall back to an
-  // HTTP identity probe — only a process answering /api as `bkd-api` counts.
+  // Legacy lock (no recorded start time) or /proc unavailable (non-Linux):
+  // PID reuse cannot be detected. The HTTP probe can positively confirm BKD,
+  // but an inconclusive result must NOT be treated as stale — during startup
+  // the holder may not be serving /api yet, and deleting the lock would let a
+  // second instance start concurrently. Err on the side of keeping the lock.
   const port = Number(process.env.PORT ?? 3000)
-  if (isBkdByHttpProbe(port) === true) return true
-  logger.info({ pid, port }, 'pid_lock_no_starttime_http_not_bkd_stale')
-  return false
+  const confirmed = isBkdByHttpProbe(port) === true
+  logger.info({ pid, port, confirmed }, 'pid_lock_no_starttime_assume_held')
+  return true
 }
 
 /**

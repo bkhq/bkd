@@ -108,10 +108,11 @@ command.openapi(R.executeIssue, async (c) => {
       return c.json({ success: false, error: `Unknown engine type: ${body.engineType}` }, 400 as const)
     }
     // Sync the virtual profile (set for a virtual engine, cleared for a real
-    // one) so the engine layer injects the right backend overrides.
-    await updateIssueSession(issueId, { engineProfileId: virtual ? virtual.id : null })
+    // one) via executeIssue so the write happens under the per-issue lock —
+    // avoiding a race between concurrent execute requests.
     const result = await issueEngine.executeIssue(issueId, {
       engineType: baseEngine,
+      engineProfileId: virtual ? virtual.id : null,
       prompt: basePrompt,
       workingDir: effectiveWorkingDir,
       model: body.model ?? virtual?.model,

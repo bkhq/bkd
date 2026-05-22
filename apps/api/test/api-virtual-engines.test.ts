@@ -74,6 +74,16 @@ describe('virtual engines in discovery + profiles', () => {
     )
     expect(profiles.find(p => p.engineType === 'glm-test')?.name).toBe('GLM (test)')
   }, 30_000)
+
+  test('a virtual engine with its own token reports authStatus authenticated', async () => {
+    await putVirtual([GLM]) // GLM carries authToken
+    const discovery = expectSuccess(
+      await get<{ engines: Array<{ engineType: string, authStatus: string }> }>(
+        '/api/engines/available',
+      ),
+    )
+    expect(discovery.engines.find(e => e.engineType === 'glm-test')?.authStatus).toBe('authenticated')
+  }, 30_000)
 })
 
 describe('create issue with a virtual engine', () => {

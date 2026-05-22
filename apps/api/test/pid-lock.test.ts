@@ -33,4 +33,10 @@ describe('pid-lock holder detection', () => {
     expect(isLockHolderAlive('')).toBe(false)
     expect(isLockHolderAlive('not-a-pid')).toBe(false)
   })
+
+  test('a legacy lock (no start time) for a live process is conservatively held', () => {
+    // No start time to compare → cannot detect reuse → must NOT be treated as
+    // stale (deleting it would allow a concurrent second instance at startup).
+    expect(isLockHolderAlive(String(process.pid))).toBe(true)
+  })
 })
