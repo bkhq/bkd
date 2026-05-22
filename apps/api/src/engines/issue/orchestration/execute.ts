@@ -9,7 +9,7 @@ import { ensureNoActiveProcess } from '@/engines/issue/process/guards'
 import { withIssueLock } from '@/engines/issue/process/lock'
 import { register } from '@/engines/issue/process/register'
 import { persistUserMessage } from '@/engines/issue/user-message'
-import { getPermissionOptions } from '@/engines/issue/utils/helpers'
+import { getPermissionOptions, resolveExecEnvVars } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
 import { createWorktree } from '@/engines/issue/utils/worktree'
@@ -82,6 +82,9 @@ export async function executeIssue(
     const externalSessionId = crypto.randomUUID()
     const executionId = crypto.randomUUID()
 
+    // Merge virtual-engine preset env vars (if this issue runs a virtual engine).
+    const envVars = await resolveExecEnvVars(issue.engineProfileId, opts.envVars)
+
     let spawned: SpawnedProcess
     try {
       spawned = await executor.spawn(
@@ -93,7 +96,7 @@ export async function executeIssue(
           externalSessionId,
         },
         {
-          vars: opts.envVars ?? {},
+          vars: envVars ?? {},
           workingDir,
           projectId: issue.projectId,
           issueId,

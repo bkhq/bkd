@@ -13,6 +13,7 @@ type IssueRow = typeof issuesTable.$inferSelect
 
 export interface IssueSessionFields {
   engineType: EngineType | null
+  engineProfileId: string | null
   sessionStatus: SessionStatus | null
   prompt: string | null
   externalSessionId: string | null
@@ -22,6 +23,7 @@ export interface IssueSessionFields {
 export function getIssueSessionFields(row: IssueRow): IssueSessionFields {
   return {
     engineType: row.engineType as EngineType | null,
+    engineProfileId: row.engineProfileId ?? null,
     sessionStatus: row.sessionStatus as SessionStatus | null,
     prompt: row.prompt ?? null,
     externalSessionId: row.externalSessionId ?? null,

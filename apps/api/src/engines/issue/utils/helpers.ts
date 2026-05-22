@@ -5,6 +5,7 @@ import { db } from '@/db'
 import { projects as projectsTable } from '@/db/schema'
 import type { EngineType, PermissionPolicy } from '@/engines/types'
 import { BUILT_IN_PROFILES } from '@/engines/types'
+import { resolveProfileEnvVars } from '@/engines/virtual-engines'
 import { ROOT_DIR } from '@/root'
 
 // ---------- Error classification ----------
@@ -77,6 +78,21 @@ export async function getProjectExecContext(projectId: string): Promise<ProjectE
     systemPrompt: project.systemPrompt ?? undefined,
     envVars,
   }
+}
+
+/**
+ * Merge a virtual engine's preset env vars over the project env vars.
+ * Profile vars win on key conflicts (a virtual engine's purpose is to override
+ * the backend target). Returns the project vars unchanged when the issue has no
+ * virtual engine.
+ */
+export async function resolveExecEnvVars(
+  engineProfileId: string | null | undefined,
+  projectEnvVars?: Record<string, string>,
+): Promise<Record<string, string> | undefined> {
+  const profileEnv = await resolveProfileEnvVars(engineProfileId)
+  if (!profileEnv) return projectEnvVars
+  return { ...(projectEnvVars ?? {}), ...profileEnv }
 }
 
 /** @deprecated Use getProjectExecContext instead */

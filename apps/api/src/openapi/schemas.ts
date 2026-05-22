@@ -132,6 +132,7 @@ export const IssueSchema = z.object({
   isPinned: z.boolean(),
   keepAlive: z.boolean(),
   engineType: z.string().nullable(),
+  engineProfileId: z.string().nullable(),
   sessionStatus: z.enum(['pending', 'running', 'completed', 'failed', 'cancelled']).nullable(),
   prompt: z.string().nullable(),
   externalSessionId: z.string().nullable(),
@@ -147,7 +148,7 @@ export const CreateIssueSchema = z.object({
   statusId: statusIdEnum,
   useWorktree: z.boolean().optional(),
   keepAlive: z.boolean().optional(),
-  engineType: z.enum(['claude-code', 'codex']).optional().openapi({ description: 'claude-code | codex' }),
+  engineType: z.string().regex(/^[\w.\-:]{1,64}$/).optional().openapi({ description: 'engine type or virtual engine id' }),
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
 }).openapi('CreateIssue')
@@ -183,7 +184,7 @@ export const BulkUpdateSchema = z.object({
 }).openapi('BulkUpdate')
 
 export const ExecuteIssueSchema = z.object({
-  engineType: z.enum(['claude-code', 'codex']).openapi({ description: 'claude-code | codex' }),
+  engineType: z.string().regex(/^[\w.\-:]{1,64}$/).openapi({ description: 'engine type or virtual engine id' }),
   prompt: z.string().min(1).max(32768),
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),

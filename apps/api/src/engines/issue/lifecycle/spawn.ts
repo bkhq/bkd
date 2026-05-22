@@ -15,6 +15,7 @@ import {
   getPermissionOptions,
   getProjectExecContext,
   isMissingExternalSessionError,
+  resolveExecEnvVars,
   resolveWorkingDir,
 } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
@@ -189,6 +190,7 @@ export async function spawnRetry(
   const permOptions = getPermissionOptions(engineType)
   const executionId = crypto.randomUUID()
   const projCtx = await getProjectExecContext(issue.projectId)
+  const envVars = await resolveExecEnvVars(issue.engineProfileId, projCtx.envVars)
 
   const spawnOpts = {
     workingDir,
@@ -196,7 +198,7 @@ export async function spawnRetry(
     model: issue.sessionFields.model === 'auto' ? undefined : (issue.sessionFields.model ?? undefined),
     permissionMode: permOptions.permissionMode,
     projectId: issue.projectId,
-    envVars: projCtx.envVars,
+    envVars,
     systemPrompt: projCtx.systemPrompt,
   }
   const spawned = issue.sessionFields.externalSessionId ?
@@ -312,6 +314,7 @@ export async function spawnFollowUpProcess(
 
   const permOptions = getPermissionOptions(engineType, permissionMode)
   const projCtx = await getProjectExecContext(issue.projectId)
+  const envVars = await resolveExecEnvVars(issue.engineProfileId, projCtx.envVars)
 
   let spawned: SpawnedProcess
   try {
@@ -321,7 +324,7 @@ export async function spawnFollowUpProcess(
       model: effectiveModel,
       permissionMode: permOptions.permissionMode,
       projectId: issue.projectId,
-      envVars: projCtx.envVars,
+      envVars,
       systemPrompt: projCtx.systemPrompt,
     }
     spawned = issue.sessionFields.externalSessionId

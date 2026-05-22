@@ -62,6 +62,8 @@ export const issues = sqliteTable(
     keepAlive: integer('keep_alive', { mode: 'boolean' }).notNull().default(false),
     // Session fields (null = no engine session started)
     engineType: text('engine_type'),
+    // Virtual engine id (app setting `engine:virtualEngines`); null for real engines.
+    engineProfileId: text('engine_profile_id'),
     sessionStatus: text('session_status'),
     prompt: text('prompt'),
     externalSessionId: text('external_session_id'),

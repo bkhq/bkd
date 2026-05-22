@@ -26,7 +26,7 @@ export const createIssueSchema = z.object({
   statusId: z.enum(STATUS_IDS),
   useWorktree: z.boolean().optional(),
   keepAlive: z.boolean().optional(),
-  engineType: z.enum(['claude-code', 'codex']).optional(),
+  engineType: z.string().regex(/^[\w.\-:]{1,64}$/).optional(),
   model: z
     .string()
     .regex(/^[\w./:\-[\]]{1,160}$/)
@@ -70,7 +70,7 @@ export const updateIssueSchema = z.object({
 })
 
 export const executeIssueSchema = z.object({
-  engineType: z.enum(['claude-code', 'codex']),
+  engineType: z.string().regex(/^[\w.\-:]{1,64}$/),
   prompt: z.string().min(1).max(32768),
   model: z
     .string()
@@ -106,6 +106,7 @@ export function serializeIssue(row: IssueRow) {
     keepAlive: row.keepAlive,
     // Session fields
     engineType: row.engineType ?? null,
+    engineProfileId: row.engineProfileId ?? null,
     sessionStatus: row.sessionStatus ?? null,
     prompt: row.prompt ?? null,
     externalSessionId: row.externalSessionId ?? null,

@@ -454,7 +454,7 @@ export function ChatBody({
         diffOpen={showDiff}
         onToggleDiff={onToggleDiff}
         scrollRef={scrollRef}
-        engineType={issue.engineType ?? undefined}
+        engineType={issue.engineProfileId ?? issue.engineType ?? undefined}
         model={issue.model ?? undefined}
         sessionStatus={issue.sessionStatus}
         statusId={issue.statusId}

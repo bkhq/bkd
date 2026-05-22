@@ -9,6 +9,7 @@ import { findProject, getDefaultEngine, getEngineDefaultModel, getServerUrl } fr
 import { attachments as attachmentsTable, issues as issuesTable } from '@/db/schema'
 import { engineRegistry } from '@/engines/executors'
 import type { EngineType } from '@/engines/types'
+import { getVirtualEngine } from '@/engines/virtual-engines'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import type { SavedFile } from '@/uploads'
@@ -31,7 +32,8 @@ const createBodySchema = z.object({
   statusId: z.enum(STATUS_IDS),
   useWorktree: z.boolean().optional(),
   keepAlive: z.boolean().optional(),
-  engineType: z.enum(['claude-code', 'codex']).optional(),
+  // Accepts a real engine type or a virtual engine id; resolved server-side.
+  engineType: z.string().regex(/^[\w.\-:]{1,64}$/).optional(),
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
 })
@@ -119,6 +121,7 @@ create.post('/', async (c) => {
   // Resolve engine/model defaults when not explicitly provided
   let resolvedEngine = body.engineType ?? null
   let resolvedModel = body.model ?? null
+  let engineProfileId: string | null = null
 
   if (!resolvedEngine) {
     // Precedence: explicit body > project default > global default > fallback.
@@ -127,10 +130,24 @@ create.post('/', async (c) => {
       || 'claude-code'
     resolvedEngine = defaultEng as EngineType
   }
+
+  // A virtual engine id (from any source: body, project, or global default)
+  // resolves to its base engine + preset model; the virtual id is persisted so
+  // the spawn paths inject its env vars. Must run before the registry coercion
+  // below (which would otherwise drop the unknown virtual id).
+  if (resolvedEngine) {
+    const virtual = await getVirtualEngine(resolvedEngine)
+    if (virtual) {
+      engineProfileId = virtual.id
+      resolvedEngine = virtual.baseEngine
+      if (!resolvedModel && virtual.model) resolvedModel = virtual.model
+    }
+  }
+
   // Coerce a stale/unsupported persisted engine (e.g. a removed engine type
   // still saved as a project/global default) to a supported one. The registry
   // is the source of truth for which engines are actually installed.
-  if (!engineRegistry.get(resolvedEngine)) {
+  if (!engineRegistry.get(resolvedEngine as EngineType)) {
     resolvedEngine = 'claude-code'
   }
   if (!resolvedModel) {
@@ -212,6 +229,7 @@ create.post('/', async (c) => {
           useWorktree: body.useWorktree ?? false,
           keepAlive: body.keepAlive ?? false,
           engineType: resolvedEngine,
+          engineProfileId,
           model: resolvedModel,
           sessionStatus: shouldExecute ? 'pending' : null,
           prompt: issuePrompt,

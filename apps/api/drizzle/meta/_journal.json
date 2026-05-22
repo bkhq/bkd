@@ -148,6 +148,13 @@
       "when": 1778976000001,
       "tag": "0020_sloppy_paibok",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1779410149934,
+      "tag": "0021_flowery_rockslide",
+      "breakpoints": true
     }
   ]
 }

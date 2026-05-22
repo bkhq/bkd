@@ -3,6 +3,8 @@ import { resolve } from 'node:path'
 import { findProject, getAppSetting } from '@/db/helpers'
 import { updateIssueSession } from '@/engines/engine-store'
 import { issueEngine } from '@/engines/issue'
+import type { EngineType } from '@/engines/types'
+import { getVirtualEngine } from '@/engines/virtual-engines'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
@@ -95,11 +97,14 @@ command.openapi(R.executeIssue, async (c) => {
     // Prepend project-level system prompt if configured
     const basePrompt = project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt
     const envVars = parseProjectEnvVars(project.envVars)
+    // A virtual engine id resolves to its base engine; its preset env vars are
+    // injected by the engine layer from the issue's persisted engineProfileId.
+    const virtual = await getVirtualEngine(body.engineType)
     const result = await issueEngine.executeIssue(issueId, {
-      engineType: body.engineType as import('@/engines/types').EngineType,
+      engineType: (virtual ? virtual.baseEngine : body.engineType) as EngineType,
       prompt: basePrompt,
       workingDir: effectiveWorkingDir,
-      model: body.model,
+      model: body.model ?? virtual?.model,
       permissionMode: body.permissionMode,
       envVars,
     })
