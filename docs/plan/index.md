@@ -40,3 +40,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-009 Allow unresolved webhook hostnames on save**](PLAN-009.md) `2026-05-11`
 - [x] [**PLAN-010 Per-project default engine and model**](PLAN-010.md) `2026-05-15`
 - [x] [**PLAN-011 fix-db CLI command on the main bkd entry**](PLAN-011.md) `2026-05-16`
+- [x] [**PLAN-012 Virtual engines (claude-code executor + preset env vars)**](PLAN-012.md) `2026-05-22`
