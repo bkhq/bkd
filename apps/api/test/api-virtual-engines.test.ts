@@ -109,6 +109,33 @@ describe('create issue with a virtual engine', () => {
     expect(issue.engineProfileId).toBe('glm-test')
     expect(issue.model).toBe('glm-4.5')
   })
+
+  test('rejects an explicit unknown engine id (no silent fallback)', async () => {
+    await putVirtual([GLM])
+    const projectId = await createTestProject('Unknown Engine Project')
+    const res = await post(`/api/projects/${projectId}/issues`, {
+      title: 'x',
+      statusId: 'todo',
+      engineType: 'totally-unknown',
+    })
+    expectError(res, 400)
+  })
+
+  test('falls back to the virtual engine saved default model when the profile has none', async () => {
+    await putVirtual([
+      { id: 'glm-nomodel', name: 'GLM', baseEngine: 'claude-code', baseUrl: 'https://example.com', envVars: {} },
+    ])
+    await patch('/api/engines/glm-nomodel/settings', { defaultModel: 'glm-4.6' })
+    const projectId = await createTestProject('Virtual Default Model Project')
+    const issue = expectSuccess(
+      await post<{ engineProfileId: string | null, model: string | null }>(
+        `/api/projects/${projectId}/issues`,
+        { title: 'x', statusId: 'todo', engineType: 'glm-nomodel' },
+      ),
+    )
+    expect(issue.engineProfileId).toBe('glm-nomodel')
+    expect(issue.model).toBe('glm-4.6')
+  })
 })
 
 describe('resolveExecEnvVars', () => {

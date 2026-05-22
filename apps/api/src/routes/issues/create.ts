@@ -119,51 +119,55 @@ create.post('/', async (c) => {
   }
 
   // Resolve engine/model defaults when not explicitly provided
+  const explicitEngine = !!body.engineType
   let resolvedEngine = body.engineType ?? null
   let resolvedModel = body.model ?? null
   let engineProfileId: string | null = null
 
   if (!resolvedEngine) {
     // Precedence: explicit body > project default > global default > fallback.
-    const defaultEng = project.defaultEngine
+    resolvedEngine = (project.defaultEngine
       || (await getDefaultEngine())
-      || 'claude-code'
-    resolvedEngine = defaultEng as EngineType
+      || 'claude-code') as EngineType
   }
 
   // A virtual engine id (from any source: body, project, or global default)
   // resolves to its base engine + preset model; the virtual id is persisted so
-  // the spawn paths inject its env vars. Must run before the registry coercion
-  // below (which would otherwise drop the unknown virtual id).
-  if (resolvedEngine) {
-    const virtual = await getVirtualEngine(resolvedEngine)
-    if (virtual) {
-      engineProfileId = virtual.id
-      resolvedEngine = virtual.baseEngine
-      if (!resolvedModel && virtual.model) resolvedModel = virtual.model
-    }
+  // the spawn paths inject its env vars.
+  const virtual = await getVirtualEngine(resolvedEngine)
+  if (virtual) {
+    engineProfileId = virtual.id
+    resolvedEngine = virtual.baseEngine
+    if (!resolvedModel && virtual.model) resolvedModel = virtual.model
   }
 
-  // Coerce a stale/unsupported persisted engine (e.g. a removed engine type
-  // still saved as a project/global default) to a supported one. The registry
-  // is the source of truth for which engines are actually installed.
+  // Engine identity for per-engine settings + the project-default comparison:
+  // the virtual id when this is a virtual engine, otherwise the real type.
+  const engineId = engineProfileId ?? resolvedEngine
+
   if (!engineRegistry.get(resolvedEngine as EngineType)) {
+    if (explicitEngine && !virtual) {
+      // An explicit, unrecognized engine id is a client error — do not silently
+      // misroute to the fallback engine.
+      return c.json({ success: false, error: `Unknown engine type: ${resolvedEngine}` }, 400 as const)
+    }
+    // A stale/removed project/global default → coerce to a supported engine.
     resolvedEngine = 'claude-code'
   }
   if (!resolvedModel) {
-    // Precedence: explicit body > project default > global engine default.
-    // The project default model only applies when the resolved engine is the
-    // project's default engine — otherwise an explicit engine override would
-    // be paired with a model meant for a different engine.
+    // Precedence: explicit body > project default > saved engine default.
+    // The project default model only applies when the resolved engine matches
+    // the project's default engine (compared by engine identity, so a virtual
+    // default engine still matches its own saved model).
     if (
       project.defaultModel
       && project.defaultModel !== 'auto'
       && project.defaultEngine
-      && resolvedEngine === project.defaultEngine
+      && engineId === project.defaultEngine
     ) {
       resolvedModel = project.defaultModel
     } else {
-      const savedModel = await getEngineDefaultModel(resolvedEngine!)
+      const savedModel = await getEngineDefaultModel(engineId)
       if (savedModel && savedModel !== 'auto') {
         resolvedModel = savedModel
       }
