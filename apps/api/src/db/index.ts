@@ -9,6 +9,7 @@ import { embeddedMigrations } from './embedded-migrations'
 import { ensureSchema } from './ensure-schema'
 import { resolveDbPath, resolveMigrationsDir } from './migrations-source'
 import * as schema from './schema'
+import { expectedSchemaTables } from './schema-introspect'
 
 const dbPath = resolveDbPath()
 
@@ -58,19 +59,8 @@ if (migrations.embedded) {
 // On failure the process exits with a clear message so a process manager can restart it.
 
 function computeMissing(): string[] {
-  // Build expected columns from Drizzle schema definitions.
-  // Each entry: [tableName, [...columnNames]]
-  const expectedTables: Array<[string, string[]]> = []
-  for (const [_key, value] of Object.entries(schema)) {
-    // Drizzle table objects have a Symbol-keyed property; the simplest
-    // reliable check is that the value has a `._.name` (table name) and
-    // `._.columns` (column map).
-    const meta = (value as any)?._
-    if (!meta?.name || !meta?.columns) continue
-    const tableName: string = meta.name
-    const cols = Object.values(meta.columns).map((c: any) => c.name as string)
-    expectedTables.push([tableName, cols])
-  }
+  // Expected [table, columns[]] from the Drizzle schema (via getTableConfig).
+  const expectedTables = expectedSchemaTables()
 
   const missing: string[] = []
   for (const [table, expectedCols] of expectedTables) {
