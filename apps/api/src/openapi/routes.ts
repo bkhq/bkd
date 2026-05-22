@@ -169,6 +169,7 @@ export const updateProject = createRoute({
   },
   responses: {
     200: successResponse(ProjectSchema, 'Updated project'),
+    400: errorResponse('Invalid request'),
     404: errorResponse('Project not found'),
     409: errorResponse('Directory already in use'),
   },

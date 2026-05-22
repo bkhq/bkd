@@ -14,16 +14,59 @@ const ENV_KEY_PATTERN = /^[A-Z_]\w*$/i
 
 export type { VirtualEngine }
 
-/** Read all configured virtual engines. Returns [] when unset or malformed. */
+/**
+ * Coerce one persisted entry into a valid VirtualEngine, or null if it is
+ * unusable. Defends against malformed/partial stored JSON (hand-edited settings,
+ * older shapes) so downstream code never sees a half-formed engine.
+ */
+function sanitizeStored(raw: unknown): VirtualEngine | null {
+  if (!raw || typeof raw !== 'object') return null
+  const e = raw as Record<string, unknown>
+  const id = typeof e.id === 'string' ? e.id : ''
+  if (!ID_PATTERN.test(id) || RESERVED_IDS.has(id)) return null
+  const baseEngine = e.baseEngine as EngineType
+  if (!engineRegistry.get(baseEngine)) return null
+
+  const envVars: Record<string, string> = {}
+  if (e.envVars && typeof e.envVars === 'object' && !Array.isArray(e.envVars)) {
+    for (const [k, v] of Object.entries(e.envVars as Record<string, unknown>)) {
+      if (ENV_KEY_PATTERN.test(k)) envVars[k] = String(v)
+    }
+  }
+  return {
+    id,
+    name: typeof e.name === 'string' && e.name.trim() ? e.name : id,
+    baseEngine,
+    baseUrl: typeof e.baseUrl === 'string' && e.baseUrl ? e.baseUrl : undefined,
+    authToken: typeof e.authToken === 'string' && e.authToken ? e.authToken : undefined,
+    model: typeof e.model === 'string' && e.model ? e.model : undefined,
+    envVars,
+  }
+}
+
+/** Read all configured virtual engines. Drops unset/malformed entries. */
 export async function getVirtualEngines(): Promise<VirtualEngine[]> {
   const raw = await getAppSetting(VIRTUAL_ENGINES_KEY)
   if (!raw) return []
+  let parsed: unknown
   try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? (parsed as VirtualEngine[]) : []
+    parsed = JSON.parse(raw)
   } catch {
     return []
   }
+  if (!Array.isArray(parsed)) return []
+  const out: VirtualEngine[] = []
+  for (const entry of parsed) {
+    const ve = sanitizeStored(entry)
+    if (ve) out.push(ve)
+  }
+  return out
+}
+
+/** An engine id is valid if it is a registered real engine or a configured virtual engine. */
+export async function isKnownEngineId(id: string): Promise<boolean> {
+  if (engineRegistry.get(id as EngineType)) return true
+  return !!(await getVirtualEngine(id))
 }
 
 export async function getVirtualEngine(id: string): Promise<VirtualEngine | undefined> {

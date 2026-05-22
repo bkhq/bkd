@@ -1,7 +1,8 @@
 import type { VirtualEngine } from '@bkd/shared'
 import { afterAll, afterEach, describe, expect, test } from 'bun:test'
+import { setAppSetting } from '@/db/helpers'
 import { resolveExecEnvVars } from '@/engines/issue/utils/helpers'
-import { clearVirtualModelCache, fetchVirtualEngineModels } from '@/engines/virtual-engines'
+import { clearVirtualModelCache, fetchVirtualEngineModels, getVirtualEngines, VIRTUAL_ENGINES_KEY } from '@/engines/virtual-engines'
 import { api, createTestIssue, createTestProject, expectError, expectSuccess, get, patch, post, waitFor } from './helpers'
 /**
  * Virtual engines API + resolution tests.
@@ -215,6 +216,32 @@ describe('project default engine accepts a virtual id (PR #132)', () => {
       }),
     )
     expect(created.defaultEngine).toBe('glm-proj')
+  })
+
+  test('rejects an unknown default engine on project create', async () => {
+    await putVirtual([])
+    const res = await post('/api/projects', {
+      name: `up-${Date.now()}`,
+      defaultEngine: 'no-such-engine',
+    })
+    expectError(res, 400)
+  })
+})
+
+describe('getVirtualEngines sanitization (PR #132)', () => {
+  test('drops malformed stored entries', async () => {
+    await setAppSetting(
+      VIRTUAL_ENGINES_KEY,
+      JSON.stringify([
+        { id: 'ok', name: 'OK', baseEngine: 'codex', envVars: {} },
+        { id: '', baseEngine: 'codex' }, // invalid id
+        { id: 'bad-base', baseEngine: 'does-not-exist' }, // unknown base engine
+        'not-an-object',
+      ]),
+    )
+    const list = await getVirtualEngines()
+    expect(list.map(v => v.id)).toEqual(['ok'])
+    await putVirtual([])
   })
 })
 

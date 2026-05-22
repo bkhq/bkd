@@ -20,18 +20,13 @@ import {
   getVirtualEngine,
   getVirtualEngineProfiles,
   getVirtualEngines,
+  isKnownEngineId,
   setVirtualEngines,
 } from '@/engines/virtual-engines'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 
 const ENGINE_TYPES = ['claude-code', 'codex'] as const
-
-/** An engine id is valid if it is a registered real engine or a configured virtual engine. */
-async function isKnownEngineId(id: string): Promise<boolean> {
-  if (engineRegistry.get(id as EngineType)) return true
-  return !!(await getVirtualEngine(id))
-}
 
 const engines = createOpenAPIRouter()
 

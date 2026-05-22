@@ -9,6 +9,7 @@ import { findProject, invalidateProjectCache } from '@/db/helpers'
 import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
 import type { EngineType } from '@/engines/types'
+import { isKnownEngineId } from '@/engines/virtual-engines'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
@@ -128,6 +129,11 @@ projects.openapi(R.createProject, async (c) => {
     .then(rows => rows[0])
   const sortOrder = generateKeyBetween(lastProject?.sortOrder ?? null, null)
 
+  // A default engine, when set, must be a known engine (real type or virtual id).
+  if (body.defaultEngine && !(await isKnownEngineId(body.defaultEngine))) {
+    return c.json({ success: false, error: `Unknown default engine: ${body.defaultEngine}` }, 400 as const)
+  }
+
   const [row] = await db
     .insert(projectsTable)
     .values({
@@ -201,6 +207,9 @@ projects.openapi(R.updateProject, async (c) => {
     updates.envVars = Object.keys(body.envVars).length > 0 ? JSON.stringify(body.envVars) : null
   }
   if (body.defaultEngine !== undefined) {
+    if (body.defaultEngine && !(await isKnownEngineId(body.defaultEngine))) {
+      return c.json({ success: false, error: `Unknown default engine: ${body.defaultEngine}` }, 400 as const)
+    }
     updates.defaultEngine = body.defaultEngine || null
   }
   if (body.defaultModel !== undefined) {
