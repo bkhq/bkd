@@ -165,6 +165,47 @@ describe('execute with a virtual engine id (PR #132)', () => {
     )
     expect(after.engineProfileId).toBe('gw-codex')
   })
+
+  test('execute with an unknown engine id is a 400 and does not clobber engineProfileId', async () => {
+    await putVirtual([
+      { id: 'gw-codex2', name: 'GW', baseEngine: 'codex', baseUrl: 'https://example.com', envVars: {} },
+    ])
+    const projectId = await createTestProject('Virtual Execute Guard Project')
+    const issue = expectSuccess(
+      await createTestIssue(projectId, { title: 'x', statusId: 'working', engineType: 'gw-codex2' }),
+    ) as { id: string }
+    await waitFor(async () => {
+      const r = await get<{ sessionStatus: string | null }>(`/api/projects/${projectId}/issues/${issue.id}`)
+      return expectSuccess(r).sessionStatus === 'completed'
+    }, 5000)
+
+    const res = await post(`/api/projects/${projectId}/issues/${issue.id}/execute`, {
+      engineType: 'definitely-not-an-engine',
+      prompt: 'go',
+    })
+    expectError(res, 400)
+
+    // engineProfileId must be preserved (not silently cleared by a failed call).
+    const after = expectSuccess(
+      await get<{ engineProfileId: string | null }>(`/api/projects/${projectId}/issues/${issue.id}`),
+    )
+    expect(after.engineProfileId).toBe('gw-codex2')
+  })
+})
+
+describe('project default engine accepts a virtual id (PR #132)', () => {
+  test('create + read round-trips a virtual default engine', async () => {
+    await putVirtual([
+      { id: 'glm-proj', name: 'GLM', baseEngine: 'claude-code', baseUrl: 'https://example.com', envVars: {} },
+    ])
+    const created = expectSuccess(
+      await post<{ id: string, defaultEngine: string | null }>('/api/projects', {
+        name: `vp-${Date.now()}`,
+        defaultEngine: 'glm-proj',
+      }),
+    )
+    expect(created.defaultEngine).toBe('glm-proj')
+  })
 })
 
 describe('resolveExecEnvVars', () => {

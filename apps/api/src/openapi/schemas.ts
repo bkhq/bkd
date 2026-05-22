@@ -65,7 +65,8 @@ export const issueIdParam = {
 const envVarsSchema = z.record(z.string(), z.string().max(10000)).optional()
 
 // Per-project default engine/model overrides. null/'' clears -> inherit global.
-const projectDefaultEngineSchema = z.enum(['claude-code', 'codex']).nullable().optional()
+// Accepts a real engine type or a virtual engine id (resolved at issue create).
+const projectDefaultEngineSchema = z.string().regex(/^[\w.\-:]{1,64}$/).nullable().optional()
 const projectDefaultModelSchema = z.string().max(200).nullable().optional()
 
 export const ProjectSchema = z.object({
@@ -77,7 +78,7 @@ export const ProjectSchema = z.object({
   repositoryUrl: z.string().optional(),
   systemPrompt: z.string().optional(),
   envVars: z.record(z.string(), z.string()).optional(),
-  defaultEngine: z.enum(['claude-code', 'codex']).optional(),
+  defaultEngine: z.string().optional(),
   defaultModel: z.string().optional(),
   sortOrder: z.string(),
   isArchived: z.boolean(),
