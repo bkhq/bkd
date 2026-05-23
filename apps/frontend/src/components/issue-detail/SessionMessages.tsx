@@ -231,7 +231,7 @@ function LegacySessionMessages({
     const el = scrollRef?.current
     if (!el) return
     const handler = () => {
-      nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 150
+      nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
     }
     el.addEventListener('scroll', handler, { passive: true })
     return () => el.removeEventListener('scroll', handler)

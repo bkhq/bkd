@@ -79,7 +79,7 @@ export const executeIssueSchema = z.object({
     val => ['claude-code', 'claude-code-sdk', 'codex', 'acp'].includes(val) || isValidAcpEngineType(val),
     { message: 'Invalid engine type' },
   ),
-  prompt: z.string().min(1).max(32768),
+  prompt: z.string().min(1),
   model: z
     .string()
     .regex(/^[\w./:\-[\]]{1,160}$/)
@@ -88,7 +88,7 @@ export const executeIssueSchema = z.object({
 })
 
 export const followUpSchema = z.object({
-  prompt: z.string().min(1).max(32768),
+  prompt: z.string().min(1),
   model: z
     .string()
     .regex(/^[\w./:\-[\]]{1,160}$/)

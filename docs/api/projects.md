@@ -23,7 +23,7 @@ Create a new project. Auto-generates alias from name if not provided. Alias is d
 | `description` | `string` (0-5000) | No | Project description |
 | `directory` | `string` (0-1000) | No | Working directory path (normalized via `path.resolve`) |
 | `repositoryUrl` | `string` (URL or empty) | No | Git repository URL |
-| `systemPrompt` | `string` (0-32768) | No | Default system prompt for agents |
+| `systemPrompt` | `string` | No | Default system prompt for agents |
 | `envVars` | `Record<string, string>` | No | Environment variables (max 10000 chars per value) |
 
 **Response:** `201` with `Project`

@@ -11,7 +11,7 @@ Start execution with a new prompt. Validates working directory against workspace
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `engineType` | `string` | Yes | Engine type (e.g. `claude-code`, `codex`, `acp`, `acp:gemini`) |
-| `prompt` | `string` (1-32768) | Yes | Task prompt |
+| `prompt` | `string` (min 1) | Yes | Task prompt |
 | `model` | `string` (regex: `/^[\w./:\-[\]]{1,160}$/`) | No | Model identifier |
 | `permissionMode` | `"auto" \| "supervised" \| "plan"` | No | Permission mode |
 
@@ -34,7 +34,7 @@ Send a follow-up message. Accepts `application/json` or `multipart/form-data`.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `prompt` | `string` (1-32768) | Yes | Follow-up message |
+| `prompt` | `string` (min 1) | Yes | Follow-up message |
 | `model` | `string` (regex: `/^[\w./:\-[\]]{1,160}$/`) | No | Model override |
 | `permissionMode` | `"auto" \| "supervised" \| "plan"` | No | Permission mode |
 | `busyAction` | `"queue" \| "cancel"` | No | What to do if agent is busy |

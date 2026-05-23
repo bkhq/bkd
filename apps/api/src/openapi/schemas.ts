@@ -86,7 +86,7 @@ export const CreateProjectSchema = z.object({
   description: z.string().max(5000).optional(),
   directory: z.string().max(1000).optional(),
   repositoryUrl: z.string().url().optional().or(z.literal('')),
-  systemPrompt: z.string().max(32768).optional(),
+  systemPrompt: z.string().optional(),
   envVars: envVarsSchema,
 }).openapi('CreateProject')
 
@@ -96,7 +96,7 @@ export const UpdateProjectSchema = z.object({
   description: z.string().max(5000).optional(),
   directory: z.string().max(1000).optional(),
   repositoryUrl: z.string().url().optional().or(z.literal('')),
-  systemPrompt: z.string().max(32768).optional(),
+  systemPrompt: z.string().optional(),
   envVars: envVarsSchema,
   sortOrder: z.string().min(1).max(50).regex(/^[a-z0-9]+$/i).optional(),
 }).openapi('UpdateProject')
@@ -200,13 +200,13 @@ export const BulkUpdateSchema = z.object({
 
 export const ExecuteIssueSchema = z.object({
   engineType: z.string().regex(/^(claude-code|claude-code-sdk|codex|acp(:.+)?)$/).openapi({ description: 'claude-code | claude-code-sdk | codex | acp | acp:<agent>:<model>' }),
-  prompt: z.string().min(1).max(32768),
+  prompt: z.string().min(1),
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
 }).openapi('ExecuteIssue')
 
 export const FollowUpSchema = z.object({
-  prompt: z.string().min(1).max(32768),
+  prompt: z.string().min(1),
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
   busyAction: z.enum(['queue', 'cancel']).optional(),
@@ -538,7 +538,7 @@ export const WhiteboardAskSchema = z.object({
   // Optional "active" node — provides focal context for the user's request.
   // If omitted, the AI operates on the whole tree without a specific focus.
   nodeId: z.string().optional(),
-  prompt: z.string().min(1).max(32768),
+  prompt: z.string().min(1),
   engineType: z.string().regex(/^(claude-code|claude-code-sdk|codex|acp(:.+)?)$/).optional(),
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
 }).openapi('WhiteboardAsk')

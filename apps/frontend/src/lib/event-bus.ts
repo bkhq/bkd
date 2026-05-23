@@ -26,10 +26,10 @@ const BASE_RECONNECT_DELAY = 1_000
 // Fast fixed-interval retry until first successful connection
 const INITIAL_RETRY_DELAY = 1_500
 // Watchdog fires if no heartbeat received within 2x server interval + buffer
-const HEARTBEAT_WATCHDOG_MS = 35_000
+const HEARTBEAT_WATCHDOG_MS = 20_000
 // On wake-up, treat the connection as stale if last heartbeat was > this long ago
 // (mobile browsers freeze SSE while backgrounded — we can't trust the existing socket)
-const STALE_AFTER_MS = 20_000
+const STALE_AFTER_MS = 12_000
 // Stop reconnecting after this many consecutive failures without a successful connection
 const MAX_INITIAL_FAILURES = 5
 

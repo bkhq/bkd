@@ -22,7 +22,7 @@ import {
   Timer,
   Wrench,
 } from 'lucide-react'
-import { memo, useState } from 'react'
+import { Component, memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import { useFilePreview } from '@/hooks/use-file-preview'
@@ -572,6 +572,35 @@ export const LogEntry = memo(LogEntryImpl, (prev, next) => {
   )
 })
 
+// ── MarkdownErrorBoundary ──────────────────────────────────────────
+// react-markdown is tolerant of incomplete input, but certain edge cases
+// (e.g. malformed GFM tables, nested inline syntax at chunk boundaries)
+// can throw during streaming. Without this boundary, the error propagates
+// to the route-level ErrorBoundary, unmounting the entire chat, killing
+// the SSE subscription, and silently truncating the response.
+class MarkdownErrorBoundary extends Component<
+  { fallbackContent: string, className?: string, children?: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { fallbackContent: string, className?: string }) {
+    super(props)
+    this.state = { hasError: false }
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className={`${this.props.className ?? ''} whitespace-pre-wrap break-words`}>
+          {this.props.fallbackContent}
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 export function AssistantMessage({
   content,
   timestamp,
@@ -681,26 +710,23 @@ export function AssistantMessage({
 
         {reply
           ? (
-              isStreaming
-                ? (
-                    <div className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65] whitespace-pre-wrap break-words">
-                      {reply}
-                    </div>
-                  )
-                : (
-                    <MarkdownContent
-                      content={reply}
-                      className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65]"
-                      knownPaths={hasPreview ? knownPaths : undefined}
-                      onPathClick={hasPreview ? openPreview : undefined}
-                    />
-                  )
+              <MarkdownErrorBoundary fallbackContent={reply} className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65]">
+                <MarkdownContent
+                  content={reply}
+                  className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65]"
+                  knownPaths={hasPreview ? knownPaths : undefined}
+                  onPathClick={hasPreview ? openPreview : undefined}
+                />
+              </MarkdownErrorBoundary>
             )
           : streamingPreview
             ? (
-                <div className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65] whitespace-pre-wrap break-words animate-pulse">
-                  {streamingPreview}
-                </div>
+                <MarkdownErrorBoundary fallbackContent={streamingPreview} className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65] animate-pulse">
+                  <MarkdownContent
+                    content={streamingPreview}
+                    className="text-[15px] leading-[1.7] md:text-[14px] md:leading-[1.65] animate-pulse"
+                  />
+                </MarkdownErrorBoundary>
               )
             : null}
       </div>

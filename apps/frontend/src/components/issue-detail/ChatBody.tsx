@@ -339,7 +339,7 @@ export function ChatBody({
         rafId = 0
         const { scrollTop, scrollHeight, clientHeight } = el
         setShowScrollTop(scrollTop > 200)
-        setShowScrollBottom(scrollHeight - scrollTop - clientHeight > 200)
+        setShowScrollBottom(scrollHeight - scrollTop - clientHeight > 80)
         // Save scroll position only when there's real content to scroll
         // and we're not in the middle of prepending older logs. Without
         // these guards we'd persist the transient scrollTop=0 captured on
