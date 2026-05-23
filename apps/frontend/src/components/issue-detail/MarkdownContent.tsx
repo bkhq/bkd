@@ -121,7 +121,7 @@ export function MarkdownContent({
 
       return (
         <code
-          className="rounded bg-muted/80 px-1.5 py-0.5 text-[0.9em] font-mono ring-1 ring-border/50"
+          className="rounded bg-muted/80 px-1.5 py-0.5 text-[0.9em] font-mono ring-1 ring-border/50 whitespace-nowrap"
           {...rest}
         >
           {children}

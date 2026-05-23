@@ -120,6 +120,10 @@ describe('acpTimeline', () => {
     // Should have exactly ONE assistant message rendered
     expect(screen.getByText(finalContent)).toBeInTheDocument()
 
+    // Tool call body is collapsed by default — expand it first
+    const toolHeader = screen.getByRole('button', { expanded: false })
+    fireEvent.click(toolHeader)
+
     // Tool call should be present
     expect(screen.queryAllByText('Read src/config.ts').length).toBeGreaterThanOrEqual(1)
   })

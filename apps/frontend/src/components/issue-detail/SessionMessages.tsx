@@ -384,7 +384,7 @@ function LegacySessionMessages({
   if (messages.length === 0 && pendingMessages.length === 0 && !isRunning) return null
 
   return (
-    <div className={`flex flex-col py-3 px-4 max-md:gap-3 md:py-2 md:px-5${fullWidthChat ? '' : ' max-w-4xl'}`}>
+    <div className={`flex flex-col py-3 px-4 gap-3 md:py-2 md:px-5${fullWidthChat ? '' : ' max-w-4xl'}`}>
       {/* IntersectionObserver sentinel — auto-loads older history when
           the top of the list nears the viewport. Replaces the previous
           explicit "Load earlier messages" button (universal mobile chat
@@ -467,6 +467,7 @@ function VirtualMessageList({
             key={msg.id}
             data-index={item.index}
             ref={virtualizer.measureElement}
+            className="pb-3"
             style={{
               position: 'absolute',
               top: 0,

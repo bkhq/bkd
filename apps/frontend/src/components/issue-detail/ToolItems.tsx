@@ -385,7 +385,7 @@ export function CommandToolItem({ item }: { item: ToolGroupItem }) {
         {(() => {
           const resultContent = item.result?.content || item.action.content || '(empty)'
           return (
-            <div className="relative group/result">
+            <div className="relative group/result max-h-60 overflow-y-auto">
               <CodeBlock
                 content={resultContent}
                 collapsible={false}
@@ -864,7 +864,7 @@ function ToolGroupMessageImpl({ message }: { message: ToolGroupChatMessage }) {
 
   // isOpen: controls body visibility after streaming ends (header click)
   // expanded: controls item truncation (show more/less) within the body
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
   // isActive is set by useChatMessages — true when this group is the trailing
