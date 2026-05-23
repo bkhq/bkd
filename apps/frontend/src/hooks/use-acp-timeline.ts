@@ -196,6 +196,8 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
       const callId = entry.metadata?.toolCallId as string | undefined
       const result = callId ? resultMap.get(callId) ?? null : null
       toolBuffer.push({ action: entry, result })
+      // Flush immediately so tools appear as they start executing
+      flushToolBuffer()
       continue
     }
 

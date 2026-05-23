@@ -220,6 +220,10 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
         if (result) pairedResultCallIds.add(callId)
       }
       toolBuffer.push({ action: entry, result })
+      // Flush immediately so the tool appears as soon as it starts executing,
+      // not only when its result arrives. The result replaces the entry on the
+      // next render via the same message id.
+      flushToolBuffer()
       continue
     }
 
