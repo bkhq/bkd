@@ -156,6 +156,10 @@ export interface ClaudeMessage {
 
 export type ClaudeContentItem =
   | { type: 'text', text: string, citations?: unknown[] | null } |
+  {
+    type: 'image'
+    source?: { type?: string, media_type?: string, data?: string }
+  } |
   { type: 'thinking', thinking: string } |
   { type: 'redacted_thinking', data: string } |
   {

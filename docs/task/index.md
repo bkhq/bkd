@@ -63,3 +63,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-016 Fix: startup schema self-heal never fires (computeMissing detects 0 tables)**](ENG-016.md) `P1`
 - [x] [**ENG-017 Fix PID-lock false "another instance running" on PID reuse**](ENG-017.md) `P1`
 - [x] [**ENG-018 Extract base64 image data-URIs from engine messages to attachments**](ENG-018.md) `P1`
+- [x] [**ENG-019 Normalize assistant image content blocks (Bifrost) to attachments**](ENG-019.md) `P1`

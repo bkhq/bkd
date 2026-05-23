@@ -65,6 +65,29 @@ describe('ClaudeLogNormalizer', () => {
       expect(entries[1]!.toolDetail?.isResult).toBe(false)
     })
 
+    test('assistant image block → assistant-message carrying metadata.imageData (ENG-019)', () => {
+      const entries = parseAll(
+        normalizer,
+        line({
+          type: 'assistant',
+          timestamp: '2025-01-01T00:00:00Z',
+          message: {
+            id: 'msg_img',
+            content: [
+              {
+                type: 'image',
+                source: { type: 'base64', media_type: 'image/jpeg', data: 'QUJD' },
+              },
+            ],
+          },
+        }),
+      )
+      expect(entries).toHaveLength(1)
+      expect(entries[0]!.entryType).toBe('assistant-message')
+      expect(entries[0]!.content).toBe('')
+      expect(entries[0]!.metadata?.imageData).toEqual({ mediaType: 'image/jpeg', base64: 'QUJD' })
+    })
+
     test('standalone tool_use', () => {
       const entries = parseAll(
         normalizer,

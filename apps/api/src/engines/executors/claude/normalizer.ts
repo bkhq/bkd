@@ -197,6 +197,29 @@ export class ClaudeLogNormalizer {
       })
     }
 
+    // Image blocks: image-generating models return the image as a base64
+    // `image` content block. Carry the bytes on metadata.imageData (no string
+    // round-trip); the extract-images pipeline stage writes the attachment and
+    // fills in the small served URL before persist/SSE.
+    if (contentBlocks) {
+      for (const block of contentBlocks) {
+        if (block.type === 'image' && block.source?.type === 'base64' && block.source.data) {
+          entries.push({
+            entryType: 'assistant-message',
+            content: '',
+            timestamp: data.timestamp,
+            metadata: {
+              messageId: data.message.id,
+              imageData: {
+                mediaType: block.source.media_type ?? 'image/png',
+                base64: block.source.data,
+              },
+            },
+          })
+        }
+      }
+    }
+
     // Thinking blocks (including redacted)
     if (contentBlocks) {
       for (const block of contentBlocks) {
