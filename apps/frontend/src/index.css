@@ -456,17 +456,15 @@
    On mobile we add a horizontal-scroll container with a sticky first column
    and edge fade so wide tables stay readable on a 400px screen. */
 .markdown-chat table {
-  border-collapse: separate; /* required for sticky first column to render its border correctly */
+  border-collapse: separate;
   border-spacing: 0;
-  margin: 0.6em 0;
-  font-size: 0.95em;
+  margin: 0.75em 0;
+  font-size: 0.9em;
   display: block;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  /* Right-edge fade — only paints when there's content scrolled off to the
-     right. Uses background-attachment: local for the base white layer and
-     scroll for the gradient masks so the shadow disappears at the table's
-     ends. */
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   background:
     linear-gradient(to right, var(--background) 30%, color-mix(in oklab, var(--background) 0%, transparent)) left center / 24px 100% no-repeat local,
     linear-gradient(to left, var(--background) 30%, color-mix(in oklab, var(--background) 0%, transparent)) right center / 24px 100% no-repeat local,
@@ -475,21 +473,25 @@
 }
 .markdown-chat th,
 .markdown-chat td {
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
-  border-right: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
-  padding: 0.4em 0.7em;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  border-right: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  padding: 0.5em 0.85em;
   text-align: left;
   vertical-align: top;
 }
+.markdown-chat tr:last-child td {
+  border-bottom: none;
+}
 .markdown-chat tr > :first-child {
-  border-left: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-left: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
 }
 .markdown-chat tr:first-child > * {
-  border-top: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
 }
 .markdown-chat th {
   background: color-mix(in oklab, var(--muted) 60%, transparent);
   font-weight: 600;
+  font-size: 0.92em;
 }
 
 /* Mobile: tighter typography + sticky first column so the row label stays

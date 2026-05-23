@@ -517,15 +517,15 @@ function LogEntryImpl({
     case 'thinking': {
       const preview = entry.content.length > 80 ? `${entry.content.slice(0, 80)}…` : entry.content
       return (
-        <div className="my-0.5 animate-message-enter">
-          <details className="bg-violet-500/[0.04] border border-violet-300/20 dark:border-violet-500/15 transition-all duration-200 open:bg-violet-500/[0.06]">
-            <summary className="cursor-pointer list-none px-3 py-1.5 text-xs text-violet-500/70 dark:text-violet-400/70 hover:bg-violet-500/[0.06] transition-colors">
+        <div className="my-1 animate-message-enter">
+          <details className="rounded-lg bg-violet-500/[0.04] border border-violet-300/15 dark:border-violet-500/12 transition-all duration-200 open:bg-violet-500/[0.06]">
+            <summary className="cursor-pointer list-none px-3 py-2 text-xs text-violet-500/70 dark:text-violet-400/70 hover:bg-violet-500/[0.05] transition-colors rounded-lg open:rounded-b-none">
               <span className="italic">
                 Thinking:
                 {preview}
               </span>
             </summary>
-            <div className="px-3 pb-2 pt-1 border-t border-violet-300/15 dark:border-violet-500/10">
+            <div className="px-3 pb-2.5 pt-1.5 border-t border-violet-300/10 dark:border-violet-500/8">
               <pre className="text-xs text-violet-600/70 dark:text-violet-300/60 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
                 {entry.content}
               </pre>
