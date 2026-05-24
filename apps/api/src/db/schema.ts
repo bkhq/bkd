@@ -153,6 +153,28 @@ export const issueLogs = sqliteTable(
   ],
 )
 
+export const rolesTable = sqliteTable(
+  'roles',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id').notNull(),
+    name: text('name').notNull(),
+    displayName: text('display_name').notNull(),
+    description: text('description'),
+    avatar: text('avatar'),
+    type: text('type', { enum: ['internal', 'external'] }).notNull(),
+    issueId: text('issue_id'),
+    endpoint: text('endpoint'),
+    protocol: text('protocol', { enum: ['http', 'mcp'] }),
+    ...commonFields,
+  },
+  table => [
+    uniqueIndex('roles_project_name_idx').on(table.projectId, table.name),
+    index('roles_project_id_idx').on(table.projectId),
+    index('roles_issue_id_idx').on(table.issueId),
+  ],
+)
+
 export const attachments = sqliteTable(
   'attachments',
   {

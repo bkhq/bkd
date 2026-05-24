@@ -183,6 +183,13 @@
       "when": 1779325149069,
       "tag": "0025_early_morg",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1779605416204,
+      "tag": "0026_yellow_black_queen",
+      "breakpoints": true
     }
   ]
 }
