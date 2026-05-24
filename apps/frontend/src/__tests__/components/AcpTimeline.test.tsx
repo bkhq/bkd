@@ -181,10 +181,12 @@ describe('acpTimeline', () => {
     expect(screen.getByText(/Analyzing the codebase/)).toBeInTheDocument()
   })
 
-  it('deduplicates thinking when assistant repeats the same content', () => {
-    // Regression: OpenCode sends thinking that is a prefix of the assistant
-    // message. Without dedup, users see the same text in both thinking block
-    // and assistant reply.
+  it('keeps thinking block even when assistant repeats the same prefix', () => {
+    // Models commonly open the reply with the same opening sentence as the
+    // reasoning. The old startsWith-dedup silently dropped the thinking
+    // block in that case — users perceived it as "thinking disappeared
+    // after refresh". Now thinking is its own surface; collapse it via the
+    // <details> element if visual duplication bothers you.
     const logs: NormalizedLogEntry[] = [
       {
         entryType: 'thinking',
@@ -204,15 +206,10 @@ describe('acpTimeline', () => {
 
     render(<AcpTimeline logs={toTimeline(logs)} />, { wrapper: createWrapper() })
 
-    // Should NOT show the thinking block — it's deduplicated
-    expect(screen.queryByText('session.thoughtProcess')).not.toBeInTheDocument()
-
-    // Should show the assistant message
+    // Thinking block is rendered (i18n label visible).
+    expect(screen.getByText('session.thoughtProcess')).toBeInTheDocument()
+    // Assistant body is rendered.
     expect(screen.getByText(/答案是42/)).toBeInTheDocument()
-
-    // Only one message should contain the thinking text
-    const thinkingTexts = screen.queryAllByText(/让我分析这个问题/)
-    expect(thinkingTexts.length).toBe(1)
   })
 
   it('preserves thinking block when assistant has different content', () => {

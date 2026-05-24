@@ -159,20 +159,19 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
   function flushToolBuffer(): void {
     if (toolBuffer.length === 0) return
 
+    // Always flush thinking BEFORE the tool group/task-plan so it renders
+    // as its own block above the burst it explains. Folding it into the
+    // group's description used to collapse long thinking into a single
+    // truncated header line — visually equivalent to "thinking disappeared".
+    flushPendingThinking()
+
     const todoItems = toolBuffer.filter(item => isTodoWriteEntry(item.action))
     const nonTodoItems = toolBuffer.filter(item => !isTodoWriteEntry(item.action))
-
-    // Save thinking before task-plan flush so non-todo tools can still use it
-    const savedThinking = pendingThinking
 
     if (todoItems.length > 0) {
       const lastTodo = todoItems.at(-1)!
       const todos = extractTodos(lastTodo.action)
       if (todos) {
-        if (nonTodoItems.length === 0) {
-          // No other tools to absorb thinking — flush it as standalone
-          flushPendingThinking()
-        }
         messages.push({
           type: 'task-plan',
           id: entryId(lastTodo.action, nextId('tp')),
@@ -184,13 +183,7 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
     }
 
     if (nonTodoItems.length > 0) {
-      // Consume deferred thinking as tool group description
-      const desc = savedThinking?.content
-      pendingThinking = null
-      messages.push(buildToolGroup(nonTodoItems, desc))
-    } else if (pendingThinking) {
-      // No tool items consumed the thinking — flush it as standalone
-      flushPendingThinking()
+      messages.push(buildToolGroup(nonTodoItems))
     }
 
     toolBuffer = []
@@ -220,10 +213,11 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
         if (result) pairedResultCallIds.add(callId)
       }
       toolBuffer.push({ action: entry, result })
-      // Flush immediately so the tool appears as soon as it starts executing,
-      // not only when its result arrives. The result replaces the entry on the
-      // next render via the same message id.
-      flushToolBuffer()
+      // Don't flush yet — adjacent tool actions accumulate into one group
+      // so a burst of 5 reads renders as one card with 5 items instead of
+      // 5 orphaned cards. Streaming still feels real-time because rebuild
+      // runs on every log change and the end-of-loop flushToolBuffer()
+      // emits the in-flight group with its current items on every render.
       continue
     }
 

@@ -90,13 +90,12 @@ function rebuildAcpTimeline(logs: NormalizedLogEntry[]) {
 }
 
 describe('useAcpTimeline rendering', () => {
-  it('deduplicates adjacent thinking when assistant repeats the same prefix', () => {
-    // When OpenCode streams thinking and then sends an assistant message that
-    // starts with the exact same text, the thinking block is redundant — the
-    // user sees the same content twice. Remove the standalone thinking entry
-    // so only the assistant message (with its richer formatting) remains.
-    // This only applies when thinking and assistant are adjacent; thinking
-    // blocks separated by tool calls are preserved.
+  it('keeps thinking when assistant starts with the same prefix (no startsWith dedup)', () => {
+    // Models routinely open the reply with the same sentence as the reasoning
+    // ("让我看看 X" → "让我看看 X，发现..."). The old startsWith-based dedup
+    // silently removed the thinking block in that case, which users perceived
+    // as "刷新后思考没了". Thinking is its own surface — keep it. If users
+    // dislike the duplicated opener they can collapse the thinking <details>.
     const logs: NormalizedLogEntry[] = [
       {
         entryType: 'thinking',
@@ -116,10 +115,7 @@ describe('useAcpTimeline rendering', () => {
 
     const { items } = rebuildAcpTimeline(logs)
 
-    // Only the assistant message remains — thinking deduplicated.
-    expect(items).toHaveLength(1)
-    expect(items[0]!.type).toBe('entry')
-    expect((items[0] as { entry: NormalizedLogEntry }).entry.entryType).toBe('assistant-message')
+    expect(items.map(i => i.type)).toEqual(['thinking', 'entry'])
   })
 
   it('keeps thinking across tool groups when assistant has different content', () => {
@@ -191,11 +187,10 @@ describe('useAcpTimeline rendering', () => {
     expect((items[1] as { entry: NormalizedLogEntry }).entry.entryType).toBe('assistant-message')
   })
 
-  it('deduplicates thinking across tool groups when assistant repeats the same prefix', () => {
-    // OpenCode often sends thinking → tool → assistant where the assistant
-    // starts with the exact same text as the thinking. Without dedup, users
-    // see the same content twice — once in the thinking block and again in
-    // the assistant reply — which feels like "thinking and reply merged".
+  it('keeps thinking across tool groups when assistant starts with same prefix', () => {
+    // Same scenario as above but with a tool burst between thinking and the
+    // assistant reply. Thinking still preserved — see the no-startsWith-dedup
+    // rationale above.
     const logs: NormalizedLogEntry[] = [
       {
         entryType: 'thinking',
@@ -224,12 +219,46 @@ describe('useAcpTimeline rendering', () => {
 
     const { items } = rebuildAcpTimeline(logs)
 
-    // 2 items: tool-group + assistant — thinking deduplicated.
-    expect(items).toHaveLength(2)
-    expect(items[0]!.type).toBe('tool-group')
-    expect(items[1]!.type).toBe('entry')
-    const assistantItem = items[1] as { entry: NormalizedLogEntry }
-    expect(assistantItem.entry.entryType).toBe('assistant-message')
+    expect(items.map(i => i.type)).toEqual(['thinking', 'tool-group', 'entry'])
+  })
+})
+
+describe('useAcpTimeline — thinking preservation', () => {
+  // Regression guard for the startsWith-dedup bug: models routinely open the
+  // reply with the same sentence as the reasoning, so a heuristic that drops
+  // thinking whenever assistant.startsWith(thinking) silently killed the
+  // thinking block in real-world conversations. Now thinking is always kept.
+  it('keeps short thinking when assistant happens to start with the same opening sentence', () => {
+    const logs: NormalizedLogEntry[] = [
+      {
+        // Short thinking burst — engine emits one chunk before transitioning
+        // to the actual reply. Common with OpenCode / Codex reasoning items.
+        entryType: 'thinking',
+        content: '让我看看这个 SQL 查询',
+        timestamp: '2026-01-01T00:00:00Z',
+        turnIndex: 0,
+      },
+      {
+        entryType: 'tool-use',
+        content: 'Read db/schema.ts',
+        timestamp: '2026-01-01T00:00:01Z',
+        turnIndex: 0,
+        messageId: 't1',
+        metadata: { toolCallId: 't1', isResult: false },
+        toolDetail: { kind: 'file-read', toolName: 'Read', toolCallId: 't1', isResult: false },
+      },
+      {
+        // Final assistant content happens to lead with the same opener.
+        // After this entry arrives (live tail OR /logs refresh), dedup fires.
+        entryType: 'assistant-message',
+        content: '让我看看这个 SQL 查询的具体问题。JOIN 条件写反了，应该用 inner join',
+        timestamp: '2026-01-01T00:00:02Z',
+        turnIndex: 0,
+      },
+    ]
+
+    const { items } = rebuildAcpTimeline(logs)
+    expect(items.map(i => i.type)).toEqual(['thinking', 'tool-group', 'entry'])
   })
 })
 

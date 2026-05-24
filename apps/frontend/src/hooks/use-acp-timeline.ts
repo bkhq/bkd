@@ -153,12 +153,6 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
   }
 
   let toolBuffer: ToolGroupItem[] = []
-  // Track the most recent thinking entry for deduplication. OpenCode sometimes
-  // sends thinking chunks whose content is a prefix of the subsequent assistant
-  // message. Without this, users see the same text twice — once as a thinking
-  // block and again inside the assistant reply.
-  let lastThinkingEntry: TimelineEntry | null = null
-  let lastThinkingItemIndex = -1
 
   function flushToolBuffer() {
     if (toolBuffer.length === 0) return
@@ -177,8 +171,6 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
 
     if (entry.type === 'thinking') {
       flushToolBuffer()
-      lastThinkingEntry = entry
-      lastThinkingItemIndex = items.length
       items.push({
         type: 'thinking',
         id: entry.id,
@@ -196,8 +188,11 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
       const callId = entry.metadata?.toolCallId as string | undefined
       const result = callId ? resultMap.get(callId) ?? null : null
       toolBuffer.push({ action: entry, result })
-      // Flush immediately so tools appear as they start executing
-      flushToolBuffer()
+      // Don't flush yet — adjacent tools accumulate into one group so a
+      // burst of N actions renders as one card with N items. Streaming
+      // still feels real-time because rebuild runs on every log change
+      // and the end-of-loop flushToolBuffer() emits the in-flight group
+      // on every render.
       continue
     }
 
@@ -218,25 +213,14 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
 
     flushToolBuffer()
 
-    // If the next message is an assistant that already contains the thinking
-    // content, skip the standalone thinking display. OpenCode sometimes repeats
-    // the entire thinking text inside the assistant message (even after tool
-    // calls), which makes the UI feel like "thinking and reply merged together".
-    // We remove the thinking block so only the formatted assistant reply remains.
-    if (entry.type === 'assistant' && lastThinkingEntry) {
-      if (entry.content.startsWith(lastThinkingEntry.content)) {
-        // Remove the previous thinking item if it's still in items
-        if (
-          lastThinkingItemIndex >= 0
-          && lastThinkingItemIndex < items.length
-          && items[lastThinkingItemIndex]?.type === 'thinking'
-        ) {
-          items.splice(lastThinkingItemIndex, 1)
-        }
-      }
-      lastThinkingEntry = null
-      lastThinkingItemIndex = -1
-    }
+    // Note: previously we deleted a preceding thinking block when the
+    // assistant content started with the same text, on the assumption that
+    // the assistant was just a richer repeat of the thinking. That heuristic
+    // fires constantly because models commonly open the reply with the same
+    // sentence as the reasoning ("让我看看 X" → "让我看看 X，发现..."),
+    // so the whole thinking block silently vanished. Thinking is its own
+    // surface — keep it; if the duplication bothers users, they can collapse
+    // the thinking <details> block.
 
     items.push({ type: 'entry', id: entry.id, entry })
   }
