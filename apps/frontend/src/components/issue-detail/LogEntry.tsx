@@ -279,6 +279,47 @@ function LogEntryImpl({
   const projectId = params.projectId || params.projectAlias || ''
   const issueId = params.issueId || ''
 
+  // Role reply message rendering
+  const isRoleMessage = entry.metadata?.isRoleReply === true
+  if (isRoleMessage) {
+    const roleName = (entry.metadata?.roleDisplayName as string) || (entry.metadata?.role as string) || t('role.unknown', 'Unknown')
+    const roleColor = (entry.metadata?.roleColor as string) || '#3b82f6'
+    const roleAvatar = (entry.metadata?.roleAvatar as string) || '🤖'
+    return (
+      <div className="group py-1.5 animate-message-enter">
+        <div
+          className="relative px-3 py-2 border-l-[3px] rounded-r-md bg-muted"
+          style={{ borderLeftColor: roleColor }}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">{roleAvatar}</span>
+            <span className="font-medium text-sm">{roleName}</span>
+            <span className="text-xs bg-muted-foreground/10 px-2 py-0.5 rounded">
+              {t('role.reply', 'Reply')}
+            </span>
+          </div>
+          <div className="pl-7">
+            {entry.entryType === 'assistant-message' ? (
+              <AssistantMessage
+                content={entry.content}
+                timestamp={entry.timestamp}
+                durationMs={durationMs}
+                isStreaming={entry.metadata?.streaming === true}
+                messageId={entry.messageId}
+                projectId={projectId}
+                issueId={issueId}
+              />
+            ) : (
+              <div className="text-[15px] whitespace-pre-wrap break-words text-foreground leading-[1.7]">
+                {entry.content}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   switch (entry.entryType) {
     case 'user-message': {
       const isPending = entry.metadata?.type === 'pending'

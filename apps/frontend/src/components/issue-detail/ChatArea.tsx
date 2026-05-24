@@ -11,6 +11,8 @@ import { useFileBrowserStore } from '@/stores/file-browser-store'
 import { getIssueUrl } from '@/stores/server-store'
 import { MiniMatrix } from '@/components/cockpit/MiniMatrix'
 import { ChatBody } from './ChatBody'
+import { ParticipantPanel } from './ParticipantPanel'
+import { RoleCreatorModal } from './RoleCreatorModal'
 import {
   createAutoHideState,
   DEFAULT_AUTO_HIDE_THRESHOLDS,
@@ -76,6 +78,7 @@ export function ChatArea({
   const [copied, setCopied] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
+  const [showRoleCreator, setShowRoleCreator] = useState(false)
   const isMobile = useIsMobile()
   const showFileBrowser = useFileBrowserStore(s => s.isOpen && !s.isDrawer && s.issueId === issueId)
   const closeFileBrowser = useFileBrowserStore(s => s.close)
@@ -373,17 +376,36 @@ export function ChatArea({
         {!isMobile ? <MiniMatrix /> : null}
 
         {/* Shared chat body: messages + metadata bar + input */}
-        <ChatBody
+        <div className="flex flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden">
+            <ChatBody
+              projectId={projectId}
+              issueId={issueId}
+              issue={issue}
+              showDiff={showDiff}
+              onToggleDiff={onToggleDiff}
+              scrollRef={scrollRef}
+              onAfterDelete={handleAfterDelete}
+              titleVisible={titleVisible}
+              searchOpen={searchOpen}
+              onCloseSearch={() => setSearchOpen(false)}
+            />
+          </div>
+          {/* Participant panel — desktop only */}
+          {!isMobile && (
+            <ParticipantPanel
+              projectId={projectId}
+              issueId={issueId}
+              onCreateRole={() => setShowRoleCreator(true)}
+            />
+          )}
+        </div>
+
+        {/* Role creator modal */}
+        <RoleCreatorModal
           projectId={projectId}
-          issueId={issueId}
-          issue={issue}
-          showDiff={showDiff}
-          onToggleDiff={onToggleDiff}
-          scrollRef={scrollRef}
-          onAfterDelete={handleAfterDelete}
-          titleVisible={titleVisible}
-          searchOpen={searchOpen}
-          onCloseSearch={() => setSearchOpen(false)}
+          isOpen={showRoleCreator}
+          onClose={() => setShowRoleCreator(false)}
         />
       </div>
 
