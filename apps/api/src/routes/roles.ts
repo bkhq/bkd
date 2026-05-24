@@ -10,11 +10,10 @@ const roles = createOpenAPIRouter()
 // GET /api/projects/:projectId/roles
 roles.openapi(R.listRoles, async (c) => {
   const projectId = c.req.param('projectId')
-  const list = await db.select().from(rolesTable)
-    .where(and(
-      eq(rolesTable.projectId, projectId),
-      eq(rolesTable.isDeleted, 0),
-    ))
+  const list = await db.select().from(rolesTable).where(and(
+    eq(rolesTable.projectId, projectId),
+    eq(rolesTable.isDeleted, 0),
+  ))
   return c.json({ success: true, data: list }, 200)
 })
 
@@ -23,12 +22,11 @@ roles.openapi(R.createRole, async (c) => {
   const projectId = c.req.param('projectId')
   const body = c.req.valid('json')
 
-  const [existing] = await db.select().from(rolesTable)
-    .where(and(
-      eq(rolesTable.projectId, projectId),
-      eq(rolesTable.name, body.name),
-      eq(rolesTable.isDeleted, 0),
-    ))
+  const [existing] = await db.select().from(rolesTable).where(and(
+    eq(rolesTable.projectId, projectId),
+    eq(rolesTable.name, body.name),
+    eq(rolesTable.isDeleted, 0),
+  ))
 
   if (existing) {
     return c.json({ success: false, error: 'Role name already exists' }, 409)
@@ -50,12 +48,11 @@ roles.openapi(R.createRole, async (c) => {
 // GET /api/projects/:projectId/roles/:roleId
 roles.openapi(R.getRole, async (c) => {
   const { projectId, roleId } = c.req.param()
-  const [role] = await db.select().from(rolesTable)
-    .where(and(
-      eq(rolesTable.id, roleId),
-      eq(rolesTable.projectId, projectId),
-      eq(rolesTable.isDeleted, 0),
-    ))
+  const [role] = await db.select().from(rolesTable).where(and(
+    eq(rolesTable.id, roleId),
+    eq(rolesTable.projectId, projectId),
+    eq(rolesTable.isDeleted, 0),
+  ))
 
   if (!role) {
     return c.json({ success: false, error: 'Role not found' }, 404)
@@ -69,12 +66,11 @@ roles.openapi(R.updateRole, async (c) => {
   const { projectId, roleId } = c.req.param()
   const body = c.req.valid('json')
 
-  const [existing] = await db.select().from(rolesTable)
-    .where(and(
-      eq(rolesTable.id, roleId),
-      eq(rolesTable.projectId, projectId),
-      eq(rolesTable.isDeleted, 0),
-    ))
+  const [existing] = await db.select().from(rolesTable).where(and(
+    eq(rolesTable.id, roleId),
+    eq(rolesTable.projectId, projectId),
+    eq(rolesTable.isDeleted, 0),
+  ))
 
   if (!existing) {
     return c.json({ success: false, error: 'Role not found' }, 404)
@@ -84,8 +80,7 @@ roles.openapi(R.updateRole, async (c) => {
     .set({ ...body, updatedAt: new Date() })
     .where(eq(rolesTable.id, roleId))
 
-  const [updated] = await db.select().from(rolesTable)
-    .where(eq(rolesTable.id, roleId))
+  const [updated] = await db.select().from(rolesTable).where(eq(rolesTable.id, roleId))
 
   return c.json({ success: true, data: updated }, 200)
 })
@@ -94,12 +89,11 @@ roles.openapi(R.updateRole, async (c) => {
 roles.openapi(R.deleteRole, async (c) => {
   const { projectId, roleId } = c.req.param()
 
-  const [existing] = await db.select().from(rolesTable)
-    .where(and(
-      eq(rolesTable.id, roleId),
-      eq(rolesTable.projectId, projectId),
-      eq(rolesTable.isDeleted, 0),
-    ))
+  const [existing] = await db.select().from(rolesTable).where(and(
+    eq(rolesTable.id, roleId),
+    eq(rolesTable.projectId, projectId),
+    eq(rolesTable.isDeleted, 0),
+  ))
 
   if (!existing) {
     return c.json({ success: false, error: 'Role not found' }, 404)

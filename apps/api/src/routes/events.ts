@@ -33,7 +33,9 @@ events.get('/', (c) => {
       const stop = () => {
         if (done) return
         done = true
-        try { controller.close() } catch { /* already closed */ }
+        try {
+          controller.close()
+        } catch { /* already closed */ }
       }
 
       c.req.raw.signal.addEventListener('abort', stop)

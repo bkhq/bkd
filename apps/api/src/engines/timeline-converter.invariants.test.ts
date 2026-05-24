@@ -4,6 +4,10 @@ import { describe, expect, it } from 'bun:test'
 import { TimelineConverter, toTimeline } from './timeline-converter'
 import type { NormalizedLogEntry, TimelineEntry } from './types'
 
+// ─── Regression: mergeStreamingParts identical-content guard ─────────────────
+
+import { mergeStreamingParts } from '@/engines/executors/acp/normalizer'
+
 // ────────────────────────────────────────────────────────────────────────────
 // Invariants — properties that must hold for ANY input sequence.
 //
@@ -525,10 +529,6 @@ describe('invariant: real-data shape integrity', () => {
     }
   })
 })
-
-// ─── Regression: mergeStreamingParts identical-content guard ─────────────────
-
-import { mergeStreamingParts } from '@/engines/executors/acp/normalizer'
 
 describe('mergeStreamingParts — identical-content guard', () => {
   it('skips identical parts (prevents doubling)', () => {

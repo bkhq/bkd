@@ -45,8 +45,8 @@ import {
   successResponse,
   UpdateIssueSchema,
   UpdateNoteSchema,
-  UpdateRoleSchema,
   UpdateProjectSchema,
+  UpdateRoleSchema,
   UpdateWebhookSchema,
   UpdateWhiteboardNodeSchema,
   WebhookDeliverySchema,
@@ -375,6 +375,37 @@ export const deleteIssue = createRoute({
   responses: {
     200: successResponse(z.object({ id: z.string() }), 'Deleted'),
     404: errorResponse('Issue not found'),
+  },
+})
+
+export const invokeRole = createRoute({
+  method: 'post',
+  path: '/{issueId}/roles/{roleId}/invoke',
+  tags: ['Issues'],
+  summary: 'Invoke a role',
+  operationId: 'invokeRole',
+  request: {
+    params: z.object({ projectId: z.string(), issueId: z.string(), roleId: z.string() }),
+    body: { content: { 'application/json': { schema: z.object({ roleName: z.string(), message: z.string(), context: z.string().optional() }) } }, required: true },
+  },
+  responses: {
+    200: successResponse(z.object({ type: z.string(), roleId: z.string(), executionId: z.string().optional() }), 'Role invoked'),
+    400: errorResponse('Failed to invoke role'),
+  },
+})
+
+export const roleReply = createRoute({
+  method: 'post',
+  path: '/{issueId}/roles/reply',
+  tags: ['Issues'],
+  summary: 'Role reply callback',
+  operationId: 'roleReply',
+  request: {
+    params: z.object({ projectId: z.string(), issueId: z.string() }),
+    body: { content: { 'application/json': { schema: z.object({ role: z.string(), message: z.string() }) } }, required: true },
+  },
+  responses: {
+    200: successResponse(z.object({ id: z.string() }), 'Reply recorded'),
   },
 })
 

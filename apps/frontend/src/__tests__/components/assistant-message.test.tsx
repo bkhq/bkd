@@ -37,7 +37,7 @@ vi.mock('sonner', () => ({
   toast: { error: vi.fn() },
 }))
 
-describe('AssistantMessage — streaming display', () => {
+describe('assistantMessage — streaming display', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })

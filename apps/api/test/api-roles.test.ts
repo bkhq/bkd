@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
-import { createTestProject, expectSuccess, get, post, patch, del } from './helpers'
+import { createTestProject, del, expectSuccess, get, patch, post } from './helpers'
 import './setup'
 
 let projectId: string
