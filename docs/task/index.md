@@ -67,3 +67,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**UPGRADE-001 Graceful drain before upgrade restart**](UPGRADE-001.md) `P1`
 - [x] [**UPGRADE-002 Apply a locally-installed app package via the graceful drain path**](UPGRADE-002.md) `P1`
 - [-] [**COCKPIT-008 Cockpit secretary — AI-enriched decision cards + decision-stream UI**](COCKPIT-008.md) `P1`
+- [x] [**BUG-003 Fix create issue and process manager access in cockpit (ReviewPage)**](BUG-003.md) `P0`

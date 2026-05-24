@@ -132,7 +132,7 @@ export function IssueListPanel({
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            onClick={() => openCreateDialog()}
+            onClick={() => openCreateDialog(undefined, projectId)}
           >
             <Plus className="h-3.5 w-3.5" />
           </Button>

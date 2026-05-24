@@ -24,11 +24,12 @@ interface PanelStore {
   // Create dialog (centered modal)
   createDialogOpen: boolean
   createDialogStatusId: string | undefined
+  createDialogProjectId: string | undefined
 
   openView: (issueId: string) => void
   close: () => void
   setWidth: (w: number) => void
-  openCreateDialog: (statusId?: string) => void
+  openCreateDialog: (statusId?: string, projectId?: string) => void
   closeCreateDialog: () => void
 }
 
@@ -41,6 +42,7 @@ export const usePanelStore = create<PanelStore>(set => ({
 
   createDialogOpen: false,
   createDialogStatusId: undefined,
+  createDialogProjectId: undefined,
 
   openView: issueId =>
     set({
@@ -54,9 +56,11 @@ export const usePanelStore = create<PanelStore>(set => ({
 
   setWidth: w => set({ width: clampWidth(w) }),
 
-  openCreateDialog: statusId => set({ createDialogOpen: true, createDialogStatusId: statusId }),
+  openCreateDialog: (statusId, projectId) =>
+    set({ createDialogOpen: true, createDialogStatusId: statusId, createDialogProjectId: projectId }),
 
-  closeCreateDialog: () => set({ createDialogOpen: false, createDialogStatusId: undefined }),
+  closeCreateDialog: () =>
+    set({ createDialogOpen: false, createDialogStatusId: undefined, createDialogProjectId: undefined }),
 }))
 
 // Derived selectors

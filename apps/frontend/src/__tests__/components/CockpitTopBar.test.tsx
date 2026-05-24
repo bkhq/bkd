@@ -28,6 +28,12 @@ vi.mock('@/stores/panel-store', () => ({
     selector({ openCreateDialog: openCreateMock }),
 }))
 
+const toggleProcessManagerMock = vi.fn()
+vi.mock('@/stores/process-manager-store', () => ({
+  useProcessManagerStore: (selector: (s: { toggle: () => void }) => unknown) =>
+    selector({ toggle: toggleProcessManagerMock }),
+}))
+
 const navigateMock = vi.fn()
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
@@ -61,6 +67,7 @@ describe('cockpitTopBar', () => {
     clearRecentIssues()
     navigateMock.mockReset()
     openCreateMock.mockReset()
+    toggleProcessManagerMock.mockReset()
     updateIssueMutate.mockReset()
   })
   afterEach(() => clearRecentIssues())
@@ -109,10 +116,27 @@ describe('cockpitTopBar', () => {
     expect(screen.getByText(/12/)).toBeDefined()
   })
 
-  it('+ button opens the create dialog', () => {
+  it('+ button opens the create dialog with projectId when in project context', () => {
+    render(<Wrap initialPath="/review/alpha/i1"><CockpitTopBar /></Wrap>)
+    fireEvent.click(screen.getByTestId('cockpit-topbar-new'))
+    expect(openCreateMock).toHaveBeenCalledWith(undefined, 'p1')
+  })
+
+  it('+ button opens the create dialog without projectId when no project context', () => {
     render(<Wrap><CockpitTopBar /></Wrap>)
     fireEvent.click(screen.getByTestId('cockpit-topbar-new'))
-    expect(openCreateMock).toHaveBeenCalled()
+    expect(openCreateMock).toHaveBeenCalledWith(undefined, undefined)
+  })
+
+  it('renders the process manager button', () => {
+    render(<Wrap><CockpitTopBar /></Wrap>)
+    expect(screen.getByTestId('cockpit-topbar-processes')).toBeDefined()
+  })
+
+  it('process manager button toggles the process manager drawer', () => {
+    render(<Wrap><CockpitTopBar /></Wrap>)
+    fireEvent.click(screen.getByTestId('cockpit-topbar-processes'))
+    expect(toggleProcessManagerMock).toHaveBeenCalled()
   })
 
   // ── inline title edit (moved from ChatArea's title bar) ─────────────

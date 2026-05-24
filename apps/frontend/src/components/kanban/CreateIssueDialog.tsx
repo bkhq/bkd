@@ -22,6 +22,7 @@ import {
   useEngineSettings,
   useOmitModel,
   useProject,
+  useProjects,
 } from '@/hooks/use-kanban'
 import { formatModelName } from '@/lib/format'
 import { tStatus } from '@/lib/i18n-utils'
@@ -41,7 +42,7 @@ type PermissionId = (typeof PERMISSIONS)[number]['id']
 // ── Shared form body ─────────────────────────────────
 
 export function CreateIssueForm({
-  projectId,
+  projectId: propProjectId,
   initialStatusId,
   autoFocus,
   onCreated,
@@ -54,8 +55,15 @@ export function CreateIssueForm({
   onCancel?: () => void
 }) {
   const { t } = useTranslation()
-  const createIssue = useCreateIssue(projectId)
-  const { data: project } = useProject(projectId)
+  const { data: projects } = useProjects()
+  const [selectedProjectId, setSelectedProjectId] = useState(propProjectId)
+
+  // If prop provides a projectId, use it. Otherwise let user pick.
+  const effectiveProjectId = propProjectId || selectedProjectId
+  const showProjectSelector = !propProjectId
+
+  const createIssue = useCreateIssue(effectiveProjectId || 'default')
+  const { data: project } = useProject(effectiveProjectId)
   const projectIsGitRepo = project?.isGitRepo ?? false
 
   // Engine discovery data
@@ -141,7 +149,7 @@ export function CreateIssueForm({
 
   const handleSubmit = useCallback(() => {
     const trimmed = input.trim()
-    if (!trimmed || !statusId) return
+    if (!trimmed || !statusId || !effectiveProjectId) return
     const permissionMap: Record<PermissionId, string | undefined> = {
       auto: 'auto',
       ask: 'supervised',
@@ -173,6 +181,7 @@ export function CreateIssueForm({
           setUseWorktree(false)
           setTemplateId('')
           setTemplatePrefix('')
+          setSelectedProjectId('')
           onCreated?.()
         },
       },
@@ -188,6 +197,7 @@ export function CreateIssueForm({
     createIssue,
     onCreated,
     templatePrefix,
+    effectiveProjectId,
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -206,6 +216,24 @@ export function CreateIssueForm({
 
   return (
     <div onKeyDown={handleKeyDown}>
+      {/* ─── Project selector (cockpit only) ────── */}
+      {showProjectSelector ? (
+        <div className="mb-2.5">
+          <PropertyRow label={t('cockpit.quickCreate.project', 'Project')}>
+            <select
+              value={selectedProjectId}
+              onChange={e => setSelectedProjectId(e.target.value)}
+              className="w-full bg-transparent text-sm outline-none"
+            >
+              <option value="">{t('issue.selectProject', 'Select project')}</option>
+              {projects?.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </PropertyRow>
+        </div>
+      ) : null}
+
       {/* ─── Template select ────────────────────── */}
       <div className="mb-2.5">
         <IssueTemplateSelect value={templateId} onChange={handleTemplateChange} />
@@ -283,7 +311,7 @@ export function CreateIssueForm({
                 </Button>
               ) :
             null}
-          <Button onClick={handleSubmit} disabled={createIssue.isPending || !input.trim()}>
+          <Button onClick={handleSubmit} disabled={createIssue.isPending || !input.trim() || !effectiveProjectId}>
             {createIssue.isPending ? t('createIssue.creating') : t('createIssue.create')}
           </Button>
         </div>
@@ -296,8 +324,11 @@ export function CreateIssueForm({
 
 export function CreateIssueDialog() {
   const { t } = useTranslation()
-  const { projectId = 'default' } = useParams<{ projectId: string }>()
-  const { createDialogOpen, createDialogStatusId, closeCreateDialog } = usePanelStore()
+  const { projectId: urlProjectId } = useParams<{ projectId: string }>()
+  const { createDialogOpen, createDialogStatusId, createDialogProjectId, closeCreateDialog } = usePanelStore()
+
+  // Priority: explicit store value > URL param
+  const resolvedProjectId = createDialogProjectId || urlProjectId || ''
 
   return (
     <Dialog
@@ -313,7 +344,7 @@ export function CreateIssueDialog() {
       >
         <DialogTitle>{t('issue.createTask')}</DialogTitle>
         <CreateIssueForm
-          projectId={projectId}
+          projectId={resolvedProjectId}
           initialStatusId={createDialogStatusId}
           autoFocus={createDialogOpen}
           onCreated={closeCreateDialog}

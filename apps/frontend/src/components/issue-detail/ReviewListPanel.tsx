@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronsLeft, ChevronUp, Search } from 'lucide-react'
+import { Activity, ChevronDown, ChevronsLeft, ChevronUp, Search } from 'lucide-react'
 import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -6,6 +6,7 @@ import { BulkOperationsBar } from '@/components/issue-detail/BulkOperationsBar'
 import { useReviewIssues } from '@/hooks/use-kanban'
 import { useReviewReadStatus } from '@/hooks/use-review-read-status'
 import { useBulkSelectionStore } from '@/stores/bulk-selection-store'
+import { useProcessManagerStore } from '@/stores/process-manager-store'
 import type { Issue } from '@/types/kanban'
 
 type ReviewIssue = Issue & { projectName: string, projectAlias: string }
@@ -42,6 +43,7 @@ export function ReviewListPanel({
   const effectiveStatuses = statuses ?? ['review']
   const { data: issues, isLoading } = useReviewIssues(effectiveStatuses)
   const { markAsRead, isRead } = useReviewReadStatus()
+  const toggleProcessManager = useProcessManagerStore(s => s.toggle)
   const [search, setSearch] = useState('')
   const searchTerm = search.trim().toLowerCase()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -125,6 +127,15 @@ export function ReviewListPanel({
               {allExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </button>
           )}
+          <button
+            type="button"
+            onClick={toggleProcessManager}
+            className="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+            aria-label={t('processManager.title')}
+            title={t('processManager.title')}
+          >
+            <Activity className="h-3.5 w-3.5" />
+          </button>
           {issues ?
               (
                 <span className="text-[10px] font-medium text-muted-foreground/50 shrink-0 tabular-nums">

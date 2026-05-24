@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Home, LayoutGrid, Link as LinkIcon, Plus, Search, Settings } from 'lucide-react'
+import { Activity, Check, ChevronRight, Home, LayoutGrid, Link as LinkIcon, Plus, Search, Settings } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -6,6 +6,7 @@ import { useIssue, useProjects, useUpdateIssue } from '@/hooks/use-kanban'
 import { useRecentIssues } from '@/hooks/use-recent-issues'
 import { getIssueUrl } from '@/stores/server-store'
 import { usePanelStore } from '@/stores/panel-store'
+import { useProcessManagerStore } from '@/stores/process-manager-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
 
 const LazyProjectSettings = lazy(() =>
@@ -32,6 +33,7 @@ export function CockpitTopBar() {
   const { data: projects } = useProjects()
   const recent = useRecentIssues()
   const openCreate = usePanelStore(s => s.openCreateDialog)
+  const toggleProcessManager = useProcessManagerStore(s => s.toggle)
   const toggleMatrix = useViewModeStore(s => s.toggleMiniMatrix)
   const matrixCollapsed = useViewModeStore(s => s.miniMatrixCollapsed)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -105,11 +107,10 @@ export function CockpitTopBar() {
   }
 
   // ⌘N already triggers QuickCreate globally (CockpitQuickCreate listens).
-  // The + button here also opens the kanban-style CreateIssueDialog when a
-  // project is active. When no project context, we fall back to the global
-  // panel-store create dialog (defaults to "default" project per existing
-  // CreateIssueDialog behavior).
-  const openNew = () => openCreate()
+  // The + button here opens the kanban-style CreateIssueDialog, passing the
+  // current project context so the issue lands in the right project.
+  // When no project context, the dialog shows a project selector.
+  const openNew = () => openCreate(undefined, projectId)
 
   // Keyboard alt-arrow back/forward through recent tabs — light convenience
   // for keyboard users. ⌥← goes one back in recent (relative to current),
@@ -245,6 +246,16 @@ export function CockpitTopBar() {
         >
           <Plus className="h-3.5 w-3.5" />
           <span className="hidden md:inline">{t('cockpit.topbar.newShort', 'New')}</span>
+        </button>
+        <button
+          type="button"
+          data-testid="cockpit-topbar-processes"
+          onClick={toggleProcessManager}
+          aria-label={t('processManager.title', 'Processes')}
+          title={t('processManager.title', 'Processes')}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+        >
+          <Activity className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
