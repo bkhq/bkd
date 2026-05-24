@@ -1,6 +1,22 @@
-import { beforeAll, describe, expect, test } from 'bun:test'
-import { createTestProject, createTestIssue, expectError, expectSuccess, post } from './helpers'
+import { beforeAll, describe, expect, test, mock } from 'bun:test'
+import { createTestProject, expectSuccess, post } from './helpers'
 import './setup'
+
+// Mock issueEngine.executeIssue to avoid spawning real AI processes
+const mockExecuteIssue = mock((issueId: string, _opts: any) => ({
+  executionId: `mock-exec-${issueId}`,
+  messageId: `mock-msg-${issueId}`,
+}))
+
+mock.module("@/engines/issue", () => ({
+  issueEngine: {
+    executeIssue: mockExecuteIssue,
+    isTurnInFlight: mock(() => false),
+    getLogs: mock(() => ({ entries: [], hasMore: false })),
+    getMaxTurnIndex: mock(() => 0),
+    getLogsAround: mock(() => ({ entries: [], hasMore: false })),
+  },
+}))
 
 let projectId: string
 let issueId: string
@@ -100,7 +116,7 @@ describe('Role Invocation', () => {
     ).rejects.toThrow("External role 'no-endpoint' has no endpoint")
   })
 
-  test('invokeRole triggers internal role successfully', async () => {
+  test('invokeRole triggers internal role with mocked engine', async () => {
     const { invokeRole } = await import('@/engines/issue/role-invoke')
 
     const result = await invokeRole({
@@ -113,13 +129,15 @@ describe('Role Invocation', () => {
 
     expect(result.type).toBe('internal')
     expect(result.roleId).toBeDefined()
-    expect(result.executionId).toBeDefined()
+    expect(result.executionId).toBe(`mock-exec-${roleIssueId}`)
+
+    // Verify mock was called
+    expect(mockExecuteIssue).toHaveBeenCalled()
   })
 
   test('invokeRole handles context correctly', async () => {
     const { invokeRole } = await import('@/engines/issue/role-invoke')
 
-    // This should not throw — the role exists and has an issueId
     const result = await invokeRole({
       projectId,
       issueId,
@@ -129,5 +147,46 @@ describe('Role Invocation', () => {
     })
 
     expect(result.type).toBe('internal')
+    expect(mockExecuteIssue).toHaveBeenCalledTimes(2) // Called once in previous test + once here
+  })
+
+  test('invokeRole triggers external role via HTTP', async () => {
+    // Mock fetch for external role
+    const mockFetch = mock(() => Promise.resolve({ ok: true, status: 200 } as Response))
+    globalThis.fetch = mockFetch as any
+
+    const { invokeRole } = await import('@/engines/issue/role-invoke')
+
+    const result = await invokeRole({
+      projectId,
+      issueId,
+      roleName: 'designer',
+      message: '帮我看看配色',
+    })
+
+    expect(result.type).toBe('external')
+    expect(result.roleId).toBeDefined()
+    expect(mockFetch).toHaveBeenCalled()
+
+    // Verify fetch was called with correct endpoint
+    const callArgs = mockFetch.mock.calls[0]
+    expect(callArgs[0]).toBe('http://localhost:3001/invoke')
+    expect(callArgs[1].method).toBe('POST')
+  })
+
+  test('invokeRole handles external role HTTP failure', async () => {
+    // Mock fetch to return error
+    globalThis.fetch = mock(() => Promise.resolve({ ok: false, status: 500 } as Response)) as any
+
+    const { invokeRole } = await import('@/engines/issue/role-invoke')
+
+    await expect(
+      invokeRole({
+        projectId,
+        issueId,
+        roleName: 'designer',
+        message: 'test',
+      }),
+    ).rejects.toThrow("External role 'designer' returned 500")
   })
 })

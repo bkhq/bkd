@@ -39,6 +39,10 @@ vi.mock('@/hooks/use-kanban', () => ({
   useFollowUpIssue: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useClearIssueSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRestartIssue: () => ({ mutate: vi.fn(), isPending: false }),
+  useRoles: () => ({ data: [], isLoading: false }),
+  useCreateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useEngineAvailability: () => ({
     data: {
       models: {

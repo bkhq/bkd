@@ -45,11 +45,15 @@ describe('Role Reply Callback', () => {
       message: '测试回复消息',
     })
 
-    // Then fetch logs
-    const logsResult = await get(`/api/projects/${projectId}/issues/${issueId}/logs`)
-    const logs = expectSuccess(logsResult)
+    // Verify by querying the database directly
+    const { db } = await import('@/db')
+    const { issueLogs } = await import('@/db/schema')
+    const { eq } = await import('drizzle-orm')
 
-    const hasRoleReply = logs.entries?.some((entry: any) =>
+    const logs = await db.select().from(issueLogs)
+      .where(eq(issueLogs.issueId, issueId))
+
+    const hasRoleReply = logs.some((entry: any) =>
       entry.content === '测试回复消息' && entry.entryType === 'assistant-message',
     )
 
