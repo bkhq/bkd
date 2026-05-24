@@ -220,6 +220,46 @@ export const ExecuteIssueResponseSchema = z.object({
   queued: z.boolean().optional(),
 }).openapi('ExecuteIssueResponse')
 
+// ── Role schemas ───────────────────────────────────────
+
+export const RoleSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  name: z.string(),
+  displayName: z.string(),
+  description: z.string().optional(),
+  avatar: z.string().optional(),
+  type: z.enum(['internal', 'external']),
+  issueId: z.string().optional(),
+  endpoint: z.string().optional(),
+  protocol: z.enum(['http', 'mcp']).optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+}).openapi('Role')
+
+export const CreateRoleSchema = z.object({
+  name: z.string().min(1).max(50),
+  displayName: z.string().min(1).max(100),
+  description: z.string().optional(),
+  avatar: z.string().optional(),
+  type: z.enum(['internal', 'external']),
+  issueId: z.string().optional(),
+  endpoint: z.string().optional(),
+  protocol: z.enum(['http', 'mcp']).optional(),
+}).openapi('CreateRole')
+
+export const UpdateRoleSchema = CreateRoleSchema.partial().openapi('UpdateRole')
+
+export const RoleListResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.array(RoleSchema),
+}).openapi('RoleListResponse')
+
+export const RoleResponseSchema = z.object({
+  success: z.literal(true),
+  data: RoleSchema,
+}).openapi('RoleResponse')
+
 // ── Log schemas ────────────────────────────────────────
 
 export const NormalizedLogEntrySchema = z.object({
