@@ -9,7 +9,7 @@ const roles = createOpenAPIRouter()
 
 // GET /api/projects/:projectId/roles
 roles.openapi(R.listRoles, async (c) => {
-  const projectId = c.req.param('projectId')
+  const projectId = c.req.param('projectId')!
   const list = await db.select().from(rolesTable).where(and(
     eq(rolesTable.projectId, projectId),
     eq(rolesTable.isDeleted, 0),
@@ -19,7 +19,7 @@ roles.openapi(R.listRoles, async (c) => {
 
 // POST /api/projects/:projectId/roles
 roles.openapi(R.createRole, async (c) => {
-  const projectId = c.req.param('projectId')
+  const projectId = c.req.param('projectId')!
   const body = c.req.valid('json')
 
   const [existing] = await db.select().from(rolesTable).where(and(
@@ -47,7 +47,8 @@ roles.openapi(R.createRole, async (c) => {
 
 // GET /api/projects/:projectId/roles/:roleId
 roles.openapi(R.getRole, async (c) => {
-  const { projectId, roleId } = c.req.param()
+  const projectId = c.req.param('projectId')!
+  const roleId = c.req.param('roleId')!
   const [role] = await db.select().from(rolesTable).where(and(
     eq(rolesTable.id, roleId),
     eq(rolesTable.projectId, projectId),
@@ -63,7 +64,8 @@ roles.openapi(R.getRole, async (c) => {
 
 // PATCH /api/projects/:projectId/roles/:roleId
 roles.openapi(R.updateRole, async (c) => {
-  const { projectId, roleId } = c.req.param()
+  const projectId = c.req.param('projectId')!
+  const roleId = c.req.param('roleId')!
   const body = c.req.valid('json')
 
   const [existing] = await db.select().from(rolesTable).where(and(
@@ -87,7 +89,8 @@ roles.openapi(R.updateRole, async (c) => {
 
 // DELETE /api/projects/:projectId/roles/:roleId
 roles.openapi(R.deleteRole, async (c) => {
-  const { projectId, roleId } = c.req.param()
+  const projectId = c.req.param('projectId')!
+  const roleId = c.req.param('roleId')!
 
   const [existing] = await db.select().from(rolesTable).where(and(
     eq(rolesTable.id, roleId),

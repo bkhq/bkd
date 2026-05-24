@@ -8,7 +8,8 @@ const issueRoles = createOpenAPIRouter()
 
 // POST /api/projects/:projectId/issues/:issueId/roles/:roleId/invoke
 issueRoles.openapi(R.invokeRole, async (c) => {
-  const { projectId, issueId } = c.req.param()
+  const projectId = c.req.param('projectId')!
+  const issueId = c.req.param('issueId')!
   const body = c.req.valid('json')
 
   try {
