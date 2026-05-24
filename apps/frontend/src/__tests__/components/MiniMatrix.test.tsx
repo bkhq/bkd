@@ -14,6 +14,10 @@ vi.mock('react-i18next', () => ({
 
 const useIssueStatsMock = vi.fn()
 vi.mock('@/hooks/use-kanban', () => ({
+  useRoles: () => ({ data: [], isLoading: false }),
+  useCreateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useIssueStats: () => useIssueStatsMock(),
 }))
 

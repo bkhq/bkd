@@ -30,6 +30,10 @@ vi.mock('@/hooks/use-mobile', () => ({
 }))
 
 vi.mock('@/hooks/use-kanban', () => ({
+  useRoles: () => ({ data: [], isLoading: false }),
+  useCreateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useReviewIssues: () => ({ data: [], isLoading: false }),
   useIssueStats: () => ({
     data: [

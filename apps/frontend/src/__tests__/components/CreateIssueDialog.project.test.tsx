@@ -19,6 +19,10 @@ vi.mock('react-i18next', () => ({
 
 const createIssueMutate = vi.fn()
 vi.mock('@/hooks/use-kanban', () => ({
+  useRoles: () => ({ data: [], isLoading: false }),
+  useCreateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCreateIssue: () => ({ mutate: createIssueMutate, isPending: false }),
   useProject: () => ({ data: { id: 'p1', name: 'Alpha', isGitRepo: true } }),
   useProjects: () => ({

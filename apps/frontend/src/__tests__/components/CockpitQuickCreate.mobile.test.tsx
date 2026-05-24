@@ -12,6 +12,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@/hooks/use-kanban', () => ({
+  useRoles: () => ({ data: [], isLoading: false }),
+  useCreateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useProjects: () => ({ data: [{ id: 'p1', name: 'Alpha', alias: 'alpha' }] }),
   queryKeys: { issues: () => ['x'], issueStats: () => ['y'] },
 }))

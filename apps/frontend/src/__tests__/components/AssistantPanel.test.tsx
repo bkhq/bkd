@@ -43,6 +43,10 @@ vi.mock('@/components/issue-detail/ChatBody', () => ({
 }))
 
 vi.mock('@/hooks/use-kanban', () => ({
+  useRoles: () => ({ data: [], isLoading: false }),
+  useCreateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useEngineAvailability: () => ({
     data: {
       engines: [

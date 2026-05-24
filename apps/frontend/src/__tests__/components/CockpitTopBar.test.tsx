@@ -17,6 +17,10 @@ const useProjectsMock = vi.fn(() => ({
 }))
 const updateIssueMutate = vi.fn()
 vi.mock('@/hooks/use-kanban', () => ({
+  useRoles: () => ({ data: [], isLoading: false }),
+  useCreateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useProjects: () => useProjectsMock(),
   useIssue: () => ({ data: undefined }),
   useUpdateIssue: () => ({ mutate: updateIssueMutate, isPending: false }),

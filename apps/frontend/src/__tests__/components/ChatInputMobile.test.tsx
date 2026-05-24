@@ -19,6 +19,10 @@ vi.mock('@/components/EngineIcons', () => ({
 }))
 
 vi.mock('@/hooks/use-kanban', () => ({
+  useRoles: () => ({ data: [], isLoading: false }),
+  useCreateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useFollowUpIssue: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useClearIssueSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRestartIssue: () => ({ mutate: vi.fn(), isPending: false }),
