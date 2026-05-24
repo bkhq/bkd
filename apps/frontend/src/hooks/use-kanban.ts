@@ -3,6 +3,7 @@ import { ApiError, kanbanApi } from '@/lib/kanban-api'
 import { STALE_TIME } from '@/lib/query-config'
 import { useBoardStore } from '@/stores/board-store'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
+import type { CreateRolePayload } from '@/lib/kanban-api'
 import type { ExecuteIssueRequest, ForkIssuePayload, Issue, WebhookEventType } from '@/types/kanban'
 
 export const queryKeys = {
@@ -63,6 +64,7 @@ export const queryKeys = {
   cronJobLogs: (jobId: string) => ['cron', 'jobs', jobId, 'logs'] as const,
   pendingMessages: (projectId: string, issueId: string) =>
     ['projects', projectId, 'issues', issueId, 'pending'] as const,
+  roles: (projectId: string) => ['projects', projectId, 'roles'] as const,
 }
 
 export function useProjects() {
@@ -1145,5 +1147,47 @@ export function useCronJobLogs(jobId: string | null, opts?: { limit?: number }) 
     queryFn: () => kanbanApi.getCronJobLogs(jobId!, { limit: opts?.limit }),
     enabled: !!jobId,
     staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+// --- Role hooks ---
+
+export function useRoles(projectId: string) {
+  return useQuery({
+    queryKey: queryKeys.roles(projectId),
+    queryFn: () => kanbanApi.getRoles(projectId),
+    enabled: !!projectId,
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useCreateRole(projectId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateRolePayload) => kanbanApi.createRole(projectId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.roles(projectId) })
+    },
+  })
+}
+
+export function useUpdateRole(projectId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ roleId, ...data }: { roleId: string } & Partial<CreateRolePayload>) =>
+      kanbanApi.updateRole(projectId, roleId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.roles(projectId) })
+    },
+  })
+}
+
+export function useDeleteRole(projectId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (roleId: string) => kanbanApi.deleteRole(projectId, roleId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.roles(projectId) })
+    },
   })
 }

@@ -97,6 +97,32 @@ export interface CronJobLogsResponse {
   nextCursor: string | null
 }
 
+export interface Role {
+  id: string
+  projectId: string
+  name: string
+  displayName: string
+  description?: string
+  avatar?: string
+  type: 'internal' | 'external'
+  issueId?: string
+  endpoint?: string
+  protocol?: 'http' | 'mcp'
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface CreateRolePayload {
+  name: string
+  displayName: string
+  description?: string
+  avatar?: string
+  type: 'internal' | 'external'
+  issueId?: string
+  endpoint?: string
+  protocol?: 'http' | 'mcp'
+}
+
 function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   const token = getToken()
@@ -661,6 +687,22 @@ export const kanbanApi = {
     get<IssueFilePatchResponse>(
       `/api/projects/${projectId}/issues/${issueId}/changes/file?path=${encodeURIComponent(path)}`,
     ),
+
+  // Role API
+  getRoles: (projectId: string) =>
+    get<Role[]>(`/api/projects/${projectId}/roles`),
+
+  createRole: (projectId: string, data: CreateRolePayload) =>
+    post<Role>(`/api/projects/${projectId}/roles`, data),
+
+  updateRole: (projectId: string, roleId: string, data: Partial<CreateRolePayload>) =>
+    patch<Role>(`/api/projects/${projectId}/roles/${roleId}`, data),
+
+  deleteRole: (projectId: string, roleId: string) =>
+    del<void>(`/api/projects/${projectId}/roles/${roleId}`),
+
+  invokeRole: (projectId: string, issueId: string, roleId: string, data: { roleName: string, message: string, context?: string }) =>
+    post<{ type: string, roleId: string, executionId?: string }>(`/api/projects/${projectId}/issues/${issueId}/roles/${roleId}/invoke`, data),
 
   // Engines
   getEngineAvailability: () => get<EngineDiscoveryResult>('/api/engines/available'),
