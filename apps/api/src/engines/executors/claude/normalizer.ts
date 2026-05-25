@@ -220,7 +220,9 @@ export class ClaudeLogNormalizer {
       }
     }
 
-    // Thinking blocks (including redacted)
+    // Thinking blocks. redacted_thinking carries only an opaque encrypted blob
+    // (no readable content), so it is skipped — emitting it just produced a
+    // noise "[Thinking redacted]" entry.
     if (contentBlocks) {
       for (const block of contentBlocks) {
         if (block.type === 'thinking' && block.thinking) {
@@ -228,13 +230,6 @@ export class ClaudeLogNormalizer {
             entryType: 'thinking',
             content: block.thinking,
             timestamp: data.timestamp,
-          })
-        } else if (block.type === 'redacted_thinking') {
-          entries.push({
-            entryType: 'thinking',
-            content: '[Thinking redacted]',
-            timestamp: data.timestamp,
-            metadata: { redacted: true },
           })
         }
       }
