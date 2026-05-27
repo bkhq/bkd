@@ -316,6 +316,12 @@ message.post('/:id/follow-up', async (c) => {
           logger.warn({ roleName, issueId, error: err.message }, 'role_invocation_failed')
         }),
       ))
+    } else {
+      // No @mention - trigger host
+      const { invokeHost } = await import('@/engines/issue/role-host')
+      invokeHost(issueId, prompt).catch((err) => {
+        logger.warn({ issueId, error: err.message }, 'host_invocation_failed')
+      })
     }
 
     return c.json({
