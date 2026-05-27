@@ -1191,3 +1191,43 @@ export function useDeleteRole(projectId: string) {
     },
   })
 }
+
+export function useIssueRoles(projectId: string, issueId: string) {
+  return useQuery({
+    queryKey: ['projects', projectId, 'issues', issueId, 'roles'],
+    queryFn: () => kanbanApi.getIssueRoles(projectId, issueId),
+    enabled: !!(projectId && issueId),
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useAssignRole(projectId: string, issueId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (roleId: string) => kanbanApi.assignRole(projectId, issueId, roleId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'issues', issueId, 'roles'] })
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'issues', issueId, 'participants'] })
+    },
+  })
+}
+
+export function useRemoveRole(projectId: string, issueId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (roleId: string) => kanbanApi.removeRole(projectId, issueId, roleId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'issues', issueId, 'roles'] })
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'issues', issueId, 'participants'] })
+    },
+  })
+}
+
+export function useIssueParticipants(projectId: string, issueId: string) {
+  return useQuery({
+    queryKey: ['projects', projectId, 'issues', issueId, 'participants'],
+    queryFn: () => kanbanApi.getIssueParticipants(projectId, issueId),
+    enabled: !!(projectId && issueId),
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
