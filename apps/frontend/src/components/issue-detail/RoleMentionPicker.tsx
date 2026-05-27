@@ -8,12 +8,15 @@ interface RoleMentionPickerProps {
   query: string
   onSelect: (role: Role | null) => void
   onCreateNew: () => void
+  allowedRoles?: Role[]
 }
 
-export function RoleMentionPicker({ projectId, query, onSelect, onCreateNew }: RoleMentionPickerProps) {
+export function RoleMentionPicker({ projectId, query, onSelect, onCreateNew, allowedRoles }: RoleMentionPickerProps) {
   const { t } = useTranslation()
-  const { data: roles, isLoading } = useRoles(projectId)
+  const { data: allRoles, isLoading } = useRoles(projectId)
   const [selectedIndex, setSelectedIndex] = useState(0)
+
+  const roles = allowedRoles || allRoles
 
   const filteredRoles = useMemo(
     () => roles?.filter(role =>
@@ -87,7 +90,7 @@ export function RoleMentionPicker({ projectId, query, onSelect, onCreateNew }: R
             }
           }}
         >
-          <span className="text-lg">{item.id === 'create' ? '+' : (item.avatar || '🤖')}</span>
+          <span className="text-lg">{item.id === 'create' ? '+' : ((item as Role).avatar || '🤖')}</span>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium truncate">{item.displayName}</div>
             {item.id !== 'create' && (

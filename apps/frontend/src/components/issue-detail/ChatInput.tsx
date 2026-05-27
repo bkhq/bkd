@@ -46,7 +46,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
-import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue, useOmitModel, useRestartIssue } from '@/hooks/use-kanban'
+import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue, useOmitModel, useRestartIssue, useIssueRoles } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { apiErrorMessage } from '@/lib/api-error'
 import { formatFileSize, formatModelName } from '@/lib/format'
@@ -199,6 +199,7 @@ export function ChatInput({
   const followUp = useFollowUpIssue(projectId ?? '')
   const clearSession = useClearIssueSession(projectId ?? '')
   const restartIssue = useRestartIssue(projectId ?? '')
+  const { data: issueRoles } = useIssueRoles(projectId ?? '', issueId ?? '')
   const [clearSessionOpen, setClearSessionOpen] = useState(false)
   const changesSummary = useChangesSummary(projectId, issueId ?? undefined)
   const changedCount = changesSummary?.fileCount ?? 0
@@ -782,6 +783,7 @@ export function ChatInput({
               query={mentionQuery}
               onSelect={handleMentionSelect}
               onCreateNew={handleMentionCreateNew}
+              allowedRoles={issueRoles}
             />
           </div>
         ) : null}
