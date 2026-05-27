@@ -115,7 +115,10 @@ describe('useAcpTimeline rendering', () => {
 
     const { items } = rebuildAcpTimeline(logs)
 
-    expect(items.map(i => i.type)).toEqual(['thinking', 'entry'])
+    expect(items).toHaveLength(1)
+    expect(items[0]!.type).toBe('entry')
+    expect((items[0] as any).thinking).toBeDefined()
+    expect((items[0] as any).thinking!.content).toBe('用户问为什么测试兜不住')
   })
 
   it('keeps thinking across tool groups when assistant has different content', () => {
@@ -150,11 +153,12 @@ describe('useAcpTimeline rendering', () => {
 
     const { items } = rebuildAcpTimeline(logs)
 
-    // 3 items: thinking + tool-group + assistant — all preserved.
-    expect(items).toHaveLength(3)
-    expect(items[0]!.type).toBe('thinking')
-    expect(items[1]!.type).toBe('tool-group')
-    expect(items[2]!.type).toBe('entry')
+    // 2 items: tool-group (with attached thinking) + assistant
+    expect(items).toHaveLength(2)
+    expect(items[0]!.type).toBe('tool-group')
+    expect((items[0] as any).thinking).toBeDefined()
+    expect(items[1]!.type).toBe('entry')
+    expect((items[1] as any).thinking).toBeUndefined()
   })
 
   it('keeps standalone thinking when assistant does NOT overlap', () => {
@@ -177,14 +181,13 @@ describe('useAcpTimeline rendering', () => {
 
     const { items } = rebuildAcpTimeline(logs)
 
-    // Thinking comes before assistant in items
-    expect(items).toHaveLength(2)
-    expect(items[0]!.type).toBe('thinking')
-    expect((items[0] as { entry: NormalizedLogEntry }).entry.entryType).toBe('thinking')
-    expect((items[0] as { entry: NormalizedLogEntry }).entry.content).toBe('Let me check the imports first')
+    // 1 item: entry with attached thinking
+    expect(items).toHaveLength(1)
+    expect(items[0]!.type).toBe('entry')
+    expect((items[0] as any).thinking).toBeDefined()
+    expect((items[0] as any).thinking!.content).toBe('Let me check the imports first')
 
-    expect(items[1]!.type).toBe('entry')
-    expect((items[1] as { entry: NormalizedLogEntry }).entry.entryType).toBe('assistant-message')
+    expect((items[0] as { entry: NormalizedLogEntry }).entry.entryType).toBe('assistant-message')
   })
 
   it('keeps thinking across tool groups when assistant starts with same prefix', () => {
@@ -219,7 +222,11 @@ describe('useAcpTimeline rendering', () => {
 
     const { items } = rebuildAcpTimeline(logs)
 
-    expect(items.map(i => i.type)).toEqual(['thinking', 'tool-group', 'entry'])
+    // 2 items: tool-group (with attached thinking) + entry
+    expect(items).toHaveLength(2)
+    expect(items[0]!.type).toBe('tool-group')
+    expect((items[0] as any).thinking).toBeDefined()
+    expect(items[1]!.type).toBe('entry')
   })
 })
 
@@ -258,7 +265,10 @@ describe('useAcpTimeline — thinking preservation', () => {
     ]
 
     const { items } = rebuildAcpTimeline(logs)
-    expect(items.map(i => i.type)).toEqual(['thinking', 'tool-group', 'entry'])
+    expect(items).toHaveLength(2)
+    expect(items[0]!.type).toBe('tool-group')
+    expect((items[0] as any).thinking).toBeDefined()
+    expect(items[1]!.type).toBe('entry')
   })
 })
 
@@ -341,10 +351,10 @@ describe('useAcpTimeline streaming merge regression', () => {
     const { items } = rebuildAcpTimeline(logs)
 
     // Both thinking and assistant should be present
-    expect(items).toHaveLength(2)
-    expect(items[0]!.type).toBe('thinking')
-    expect(items[1]!.type).toBe('entry')
-    const assistant = items[1] as { entry: NormalizedLogEntry }
+    expect(items).toHaveLength(1)
+    expect(items[0]!.type).toBe('entry')
+    expect((items[0] as any).thinking).toBeDefined()
+    const assistant = items[0] as { entry: NormalizedLogEntry }
     expect(assistant.entry.entryType).toBe('assistant-message')
   })
 
@@ -376,13 +386,13 @@ describe('useAcpTimeline streaming merge regression', () => {
 
     const { items } = rebuildAcpTimeline(logs)
 
-    // Should have 3 items: 2 thinking + 1 assistant
-    expect(items).toHaveLength(3)
+    // Should have 2 items: 1 thinking (orphan flushed) + 1 entry (with second thinking attached)
+    expect(items).toHaveLength(2)
     expect(items[0]!.type).toBe('thinking')
     expect((items[0] as { entry: NormalizedLogEntry }).entry.content).toBe('Let me check the imports first')
-    expect(items[1]!.type).toBe('thinking')
-    expect((items[1] as { entry: NormalizedLogEntry }).entry.content).toBe('Now let me read the actions file')
-    expect(items[2]!.type).toBe('entry')
+    expect(items[1]!.type).toBe('entry')
+    expect((items[1] as any).thinking).toBeDefined()
+    expect((items[1] as any).thinking!.content).toBe('Now let me read the actions file')
   })
 
   it('stable order regardless of event arrival order', () => {
@@ -422,5 +432,46 @@ describe('useAcpTimeline streaming merge regression', () => {
     const order2 = rebuildAcpTimeline(shuffled).items.map(i => i.type)
 
     expect(order1).toEqual(order2)
+  })
+})
+
+describe('useAcpTimeline — thinking attachment edge cases', () => {
+  it('flushes orphan thinking as standalone when no subsequent item', () => {
+    const logs: NormalizedLogEntry[] = [
+      {
+        entryType: 'thinking',
+        content: 'Orphan thought',
+        timestamp: '2026-01-01T00:00:00Z',
+        turnIndex: 0,
+      },
+    ]
+    const { items } = rebuildAcpTimeline(logs)
+    expect(items).toHaveLength(1)
+    expect(items[0]!.type).toBe('thinking')
+  })
+
+  it('attaches thinking to tool-group when followed by tools', () => {
+    const logs: NormalizedLogEntry[] = [
+      {
+        entryType: 'thinking',
+        content: 'Let me read the file',
+        timestamp: '2026-01-01T00:00:00Z',
+        turnIndex: 0,
+      },
+      {
+        entryType: 'tool-use',
+        content: 'Read src/app.ts',
+        timestamp: '2026-01-01T00:00:01Z',
+        turnIndex: 0,
+        messageId: 't1',
+        metadata: { toolCallId: 't1', isResult: false },
+        toolDetail: { kind: 'file-read', toolName: 'Read', toolCallId: 't1', isResult: false },
+      },
+    ]
+    const { items } = rebuildAcpTimeline(logs)
+    expect(items).toHaveLength(1)
+    expect(items[0]!.type).toBe('tool-group')
+    expect((items[0] as any).thinking).toBeDefined()
+    expect((items[0] as any).thinking!.content).toBe('Let me read the file')
   })
 })

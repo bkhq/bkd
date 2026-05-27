@@ -12,6 +12,7 @@ export interface AcpTimelineEntryItem {
   type: 'entry'
   id: string
   entry: NormalizedLogEntry
+  thinking?: NormalizedLogEntry  // Attached preceding thinking
 }
 
 export interface AcpTimelinePlanItem {
@@ -26,6 +27,7 @@ export interface AcpTimelineToolGroupItem {
   type: 'tool-group'
   id: string
   message: ToolGroupChatMessage
+  thinking?: NormalizedLogEntry  // Attached preceding thinking
 }
 
 export interface AcpTimelineThinkingItem {
@@ -153,11 +155,25 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
   }
 
   let toolBuffer: ToolGroupItem[] = []
+  let pendingThinking: NormalizedLogEntry | null = null
 
-  function flushToolBuffer() {
+  function flushPendingThinking(): void {
+    if (!pendingThinking) return
+    items.push({
+      type: 'thinking',
+      id: pendingThinking.id,
+      entry: pendingThinking,
+      isStreaming: pendingThinking.metadata?.streaming === true,
+    })
+    pendingThinking = null
+  }
+
+  function flushToolBuffer(): void {
     if (toolBuffer.length === 0) return
+    const toolGroupThinking = pendingThinking ?? undefined
+    if (toolGroupThinking) pendingThinking = null
     const group = buildToolGroup(toolBuffer)
-    items.push({ type: 'tool-group', id: group.id, message: group })
+    items.push({ type: 'tool-group', id: group.id, message: group, thinking: toolGroupThinking })
     toolBuffer = []
   }
 
@@ -171,12 +187,10 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
 
     if (entry.type === 'thinking') {
       flushToolBuffer()
-      items.push({
-        type: 'thinking',
-        id: entry.id,
-        entry,
-        isStreaming: entry.metadata?.streaming === true,
-      })
+      if (pendingThinking) {
+        flushPendingThinking()
+      }
+      pendingThinking = entry
       continue
     }
 
@@ -222,10 +236,13 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
     // surface — keep it; if the duplication bothers users, they can collapse
     // the thinking <details> block.
 
-    items.push({ type: 'entry', id: entry.id, entry })
+    const attachedThinking = pendingThinking ?? undefined
+    pendingThinking = null
+    items.push({ type: 'entry', id: entry.id, entry, thinking: attachedThinking })
   }
 
   flushToolBuffer()
+  flushPendingThinking()
   return { items, pendingMessages }
 }
 
