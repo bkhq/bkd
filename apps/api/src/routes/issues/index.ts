@@ -11,6 +11,7 @@ import logs from './logs'
 import message from './message'
 import query from './query'
 import issueRoles from './roles'
+import issueRolesAssignment from '../issue-roles'
 import summarize from './summarize'
 import update from './update'
 
@@ -28,6 +29,7 @@ issues.route('/', attachments)
 issues.route('/', logs)
 issues.route('/', changes)
 issues.route('/', issueRoles)
+issues.route('/', issueRolesAssignment)
 issues.route('/', summarize)
 
 export default issues
