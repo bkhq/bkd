@@ -279,6 +279,33 @@ function LogEntryImpl({
   const projectId = params.projectId || params.projectAlias || ''
   const issueId = params.issueId || ''
 
+  // Role message rendering (execution context)
+  if (entry.metadata?.role) {
+    const role = entry.metadata.role as string
+    const roleColors: Record<string, string> = {
+      frontend: 'bg-blue-50/80 border-l-2 border-blue-400',
+      backend: 'bg-green-50/80 border-l-2 border-green-400',
+      host: 'bg-purple-50/80 border-l-2 border-purple-400',
+    }
+
+    return (
+      <div className={`p-3 rounded-lg my-2 ${roleColors[role] || 'bg-gray-50/80 border-l-2 border-gray-400'}`}>
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="text-base">{(entry.metadata.roleAvatar as string) || '🤖'}</span>
+          <span className="text-sm font-semibold text-foreground/90">{role}</span>
+          {entry.metadata.isRunning === true && (
+            <span className="text-xs text-muted-foreground animate-pulse ml-1">
+              {'[正在执行...]'}
+            </span>
+          )}
+        </div>
+        <div className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+          {entry.content}
+        </div>
+      </div>
+    )
+  }
+
   // Role reply message rendering
   const isRoleMessage = entry.metadata?.isRoleReply === true
   if (isRoleMessage) {
