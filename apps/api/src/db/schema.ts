@@ -175,6 +175,25 @@ export const rolesTable = sqliteTable(
   ],
 )
 
+export const issueRoles = sqliteTable(
+  'issue_roles',
+  {
+    id: id(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => rolesTable.id),
+    ...commonFields,
+  },
+  table => [
+    uniqueIndex('issue_roles_issue_id_role_id_uniq').on(table.issueId, table.roleId),
+    index('issue_roles_issue_id_idx').on(table.issueId),
+    index('issue_roles_role_id_idx').on(table.roleId),
+  ],
+)
+
 export const attachments = sqliteTable(
   'attachments',
   {

@@ -28,7 +28,7 @@ sqlite.run('PRAGMA mmap_size = 268435456')
 
 export const db = drizzle({ client: sqlite, schema })
 export { dbPath, sqlite }
-export { rolesTable } from './schema'
+export { issueRoles, rolesTable } from './schema'
 
 // In package mode, migrations live inside APP_DIR/migrations/.
 // In dev mode, they live in apps/api/drizzle/.
