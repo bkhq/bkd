@@ -19,3 +19,7 @@ export function emitIssueLogRemoved(issueId: string, messageIds: string[]): void
   if (messageIds.length === 0) return
   appEvents.emit('log-removed', { issueId, messageIds })
 }
+
+export function emitIssueLogAdded(issueId: string, logId: string): void {
+  appEvents.emit('log-added', { issueId, logId })
+}

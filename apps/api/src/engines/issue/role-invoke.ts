@@ -1,7 +1,8 @@
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/db'
-import { issues, rolesTable } from '@/db/schema'
+import { issueRoles, issues, rolesTable } from '@/db/schema'
 import type { EngineType } from '@/engines/types'
+import { logger } from '@/logger'
 import { issueEngine } from './engine'
 
 interface InvokeRoleOptions {
@@ -46,6 +47,18 @@ export async function invokeRole({ projectId, issueId, roleName, message, contex
       prompt,
     })
 
+    // Async: write back result + recursive trigger
+    const { writeBackResult } = await import('./role-callback')
+    writeBackResult({
+      sourceIssueId: role.issueId,
+      targetIssueId: issueId,
+      roleName,
+      executionId: result.executionId,
+      projectId,
+    }).catch((err) => {
+      logger.warn({ roleName, issueId, error: err.message }, 'write_back_failed')
+    })
+
     return {
       type: 'internal' as const,
       roleId: role.id,
@@ -87,4 +100,21 @@ export function parseMentions(message: string): string[] {
     mentions.push(match[1])
   }
   return [...new Set(mentions)]
+}
+
+export async function isRoleAssigned(issueId: string, roleName: string): Promise<boolean> {
+  const [role] = await db.select().from(rolesTable).where(and(
+    eq(rolesTable.name, roleName),
+    eq(rolesTable.isDeleted, 0),
+  ))
+
+  if (!role) return false
+
+  const [assignment] = await db.select().from(issueRoles).where(and(
+    eq(issueRoles.issueId, issueId),
+    eq(issueRoles.roleId, role.id),
+    eq(issueRoles.isDeleted, 0),
+  ))
+
+  return !!assignment
 }

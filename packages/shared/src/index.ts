@@ -551,6 +551,7 @@ export interface AppEventMap {
   }
   'log-updated': { issueId: string, entry: NormalizedLogEntry }
   'log-removed': { issueId: string, messageIds: string[] }
+  'log-added': { issueId: string, logId: string }
   /**
    * Emitted by the timeline-emit pipeline stage (order 90) after running the
    * raw NormalizedLogEntry through the per-issue stateful TimelineConverter.
