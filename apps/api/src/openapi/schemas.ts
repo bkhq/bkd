@@ -237,6 +237,18 @@ export const RoleSchema = z.object({
   updatedAt: z.string().optional(),
 }).openapi('Role')
 
+export const IssueRoleSchema = z.object({
+  id: z.string(),
+  issueId: z.string(),
+  roleId: z.string(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+}).openapi('IssueRole')
+
+export const AssignRoleSchema = z.object({
+  roleId: z.string(),
+}).openapi('AssignRole')
+
 export const CreateRoleSchema = z.object({
   name: z.string().min(1).max(50),
   displayName: z.string().min(1).max(100),

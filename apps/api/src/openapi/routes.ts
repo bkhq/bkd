@@ -7,6 +7,7 @@
 import { createRoute } from '@hono/zod-openapi'
 import * as z from 'zod'
 import {
+  AssignRoleSchema,
   BulkUpdateSchema,
   BulkUpdateWhiteboardNodeSchema,
   CategorizedCommandsSchema,
@@ -32,6 +33,7 @@ import {
   GenerateIssuesFromNodesSchema,
   IssueChangesResponseSchema,
   IssueLogsResponseSchema,
+  IssueRoleSchema,
   IssueSchema,
   NoteSchema,
   ParseWhiteboardResponseSchema,
@@ -297,6 +299,54 @@ export const deleteRole = createRoute({
   responses: {
     200: successResponse(z.null(), 'Role deleted'),
     404: errorResponse('Role not found'),
+  },
+})
+
+export const assignRole = createRoute({
+  method: 'post',
+  path: '/{issueId}/roles',
+  tags: ['Issues'],
+  summary: 'Assign role to issue',
+  operationId: 'assignRole',
+  request: {
+    params: z.object({ projectId: z.string(), issueId: z.string() }),
+    body: {
+      content: { 'application/json': { schema: AssignRoleSchema } },
+      required: true,
+    },
+  },
+  responses: {
+    201: successResponse(IssueRoleSchema, 'Role assigned'),
+    409: errorResponse('Role already assigned'),
+  },
+})
+
+export const removeRole = createRoute({
+  method: 'delete',
+  path: '/{issueId}/roles/{roleId}',
+  tags: ['Issues'],
+  summary: 'Remove role from issue',
+  operationId: 'removeRole',
+  request: {
+    params: z.object({ projectId: z.string(), issueId: z.string(), roleId: z.string() }),
+  },
+  responses: {
+    200: successResponse(z.null(), 'Role removed'),
+    404: errorResponse('Role not assigned'),
+  },
+})
+
+export const listIssueRoles = createRoute({
+  method: 'get',
+  path: '/{issueId}/roles',
+  tags: ['Issues'],
+  summary: 'List roles assigned to issue',
+  operationId: 'listIssueRoles',
+  request: {
+    params: z.object({ projectId: z.string(), issueId: z.string() }),
+  },
+  responses: {
+    200: successResponse(z.array(RoleSchema), 'List of roles'),
   },
 })
 
