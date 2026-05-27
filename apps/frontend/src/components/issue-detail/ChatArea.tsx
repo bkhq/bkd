@@ -375,9 +375,15 @@ export function ChatArea({
             the TopBar ⊞ button (toggleMiniMatrix). */}
         {!isMobile ? <MiniMatrix /> : null}
 
-        {/* Shared chat body: messages + metadata bar + input */}
+        {/* Shared chat body: messages + metadata bar + input.
+            Inner wrapper MUST be `flex flex-col` — ChatBody returns a fragment
+            of three siblings (messages, metadata bar, input) that rely on a
+            flex column parent so the messages region takes `flex-1` and the
+            input stays pinned at the bottom. Without `flex flex-col` here,
+            the messages region collapses to content height and the input is
+            clipped off-screen by the wrapper's overflow-hidden. */}
         <div className="flex flex-1 overflow-hidden">
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden">
             <ChatBody
               projectId={projectId}
               issueId={issueId}
@@ -396,7 +402,6 @@ export function ChatArea({
             <ParticipantPanel
               projectId={projectId}
               issueId={issueId}
-              onCreateRole={() => setShowRoleCreator(true)}
             />
           )}
         </div>
