@@ -276,11 +276,11 @@ export function AcpTimeline({
         switch (item.type) {
           case 'tool-group':
             return (
-              <div key={item.id} className="group space-y-1.5">
+              <div key={item.id} className="group">
                 {item.thinking && (
-                  <div className="flex items-center gap-1.5 text-xs text-violet-500/50 dark:text-violet-400/50">
-                    <Lightbulb className="h-3 w-3" />
-                    <span className="truncate">
+                  <div className="mb-2 flex items-center gap-1.5 text-xs text-violet-500/50 dark:text-violet-400/50 px-1">
+                    <Lightbulb className="h-3 w-3 shrink-0" />
+                    <span className="truncate font-mono">
                       {item.thinking.content.slice(0, 80)}
                       {item.thinking.content.length > 80 ? '...' : ''}
                     </span>
@@ -304,9 +304,11 @@ export function AcpTimeline({
                 <CompletedThinking key={item.id} entry={item.entry} />
           case 'entry':
             return (
-              <div key={item.id} className="group space-y-1">
+              <div key={item.id} className="group">
                 {item.thinking && (
-                  <CompletedThinking entry={item.thinking} />
+                  <div className="mb-1.5">
+                    <CompletedThinking entry={item.thinking} />
+                  </div>
                 )}
                 <LogEntry entry={item.entry} />
               </div>
