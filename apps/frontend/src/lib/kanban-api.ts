@@ -704,6 +704,18 @@ export const kanbanApi = {
   invokeRole: (projectId: string, issueId: string, roleId: string, data: { roleName: string, message: string, context?: string }) =>
     post<{ type: string, roleId: string, executionId?: string }>(`/api/projects/${projectId}/issues/${issueId}/roles/${roleId}/invoke`, data),
 
+  getIssueRoles: (projectId: string, issueId: string) =>
+    get<Role[]>(`/api/projects/${projectId}/issues/${issueId}/roles`),
+
+  assignRole: (projectId: string, issueId: string, roleId: string) =>
+    post<{ id: string }>(`/api/projects/${projectId}/issues/${issueId}/roles`, { roleId }),
+
+  removeRole: (projectId: string, issueId: string, roleId: string) =>
+    del<void>(`/api/projects/${projectId}/issues/${issueId}/roles/${roleId}`),
+
+  getIssueParticipants: (projectId: string, issueId: string) =>
+    get<{ humans: unknown[], roles: Role[] }>(`/api/projects/${projectId}/issues/${issueId}/participants`),
+
   // Engines
   getEngineAvailability: () => get<EngineDiscoveryResult>('/api/engines/available'),
   getEngineProfiles: () => get<EngineProfile[]>('/api/engines/profiles'),
