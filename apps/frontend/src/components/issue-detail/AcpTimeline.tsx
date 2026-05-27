@@ -275,7 +275,20 @@ export function AcpTimeline({
       {items.map((item) => {
         switch (item.type) {
           case 'tool-group':
-            return <ToolGroupMessage key={item.id} message={item.message} />
+            return (
+              <div key={item.id} className="group space-y-1.5">
+                {item.thinking && (
+                  <div className="flex items-center gap-1.5 text-xs text-violet-500/50 dark:text-violet-400/50">
+                    <Lightbulb className="h-3 w-3" />
+                    <span className="truncate">
+                      {item.thinking.content.slice(0, 80)}
+                      {item.thinking.content.length > 80 ? '...' : ''}
+                    </span>
+                  </div>
+                )}
+                <ToolGroupMessage message={item.message} />
+              </div>
+            )
           case 'plan':
             return (
               <AcpPlanCard
@@ -290,7 +303,14 @@ export function AcpTimeline({
                 <StreamingThinking key={item.id} entry={item.entry} /> :
                 <CompletedThinking key={item.id} entry={item.entry} />
           case 'entry':
-            return <LogEntry key={item.id} entry={item.entry} />
+            return (
+              <div key={item.id} className="group space-y-1">
+                {item.thinking && (
+                  <CompletedThinking entry={item.thinking} />
+                )}
+                <LogEntry entry={item.entry} />
+              </div>
+            )
           default:
             return null
         }
