@@ -828,6 +828,23 @@ describe('ClaudeLogNormalizer', () => {
       expect(result).toBeNull()
     })
 
+    test('streaming telemetry subtypes with no content are suppressed', () => {
+      for (const subtype of ['thinking_tokens', 'task_notification', 'task_updated', 'hook_started', 'api_retry']) {
+        const result = normalizer.parse(line({ type: 'system', subtype }))
+        expect(result).toBeNull()
+      }
+    })
+
+    test('unknown system subtype still surfaces when it carries content', () => {
+      const entries = parseAll(
+        normalizer,
+        line({ type: 'system', subtype: 'some_future_event', message: 'hello' }),
+      )
+      expect(entries).toHaveLength(1)
+      expect(entries[0]!.content).toBe('hello')
+      expect(entries[0]!.metadata?.subtype).toBe('some_future_event')
+    })
+
     test('status with text', () => {
       const entries = parseAll(
         normalizer,

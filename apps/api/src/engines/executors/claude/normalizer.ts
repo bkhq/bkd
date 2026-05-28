@@ -156,7 +156,12 @@ export class ClaudeLogNormalizer {
         }
         return null
       default: {
-        const msg = data.message ?? data.content ?? data.subtype ?? ''
+        // Unknown system subtypes with no message/content are streaming
+        // lifecycle/telemetry events the CLI emits during a turn
+        // (thinking_tokens, task_notification, task_updated, hook_started,
+        // api_retry, …). They carry no user-facing text, so the bare subtype
+        // identifier must not be surfaced as a chat message.
+        const msg = data.message ?? data.content ?? ''
         if (!msg) return null
         return {
           entryType: 'system-message',
