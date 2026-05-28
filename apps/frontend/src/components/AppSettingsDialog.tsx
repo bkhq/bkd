@@ -943,7 +943,7 @@ function ModelsSection({ open }: { open: boolean }) {
   const engines = discovery?.engines
   const models = discovery?.models
   const availableEngines = useMemo(
-    () => engines?.filter(e => e.installed && e.authStatus !== 'unauthenticated') ?? [],
+    () => engines?.filter(e => e.installed) ?? [],
     [engines],
   )
   const { data: profiles } = useEngineProfiles(open)
