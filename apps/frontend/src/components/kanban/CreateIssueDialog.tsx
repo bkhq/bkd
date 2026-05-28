@@ -65,7 +65,7 @@ export function CreateIssueForm({
   const { data: engineSettings } = useEngineSettings(true)
 
   const installedEngines = useMemo(
-    () => discovery?.engines.filter(a => a.installed && a.executable !== false && a.authStatus !== 'unauthenticated') ?? [],
+    () => discovery?.engines.filter(a => a.installed && a.authStatus !== 'unauthenticated') ?? [],
     [discovery],
   )
   const textareaRef = useRef<HTMLTextAreaElement>(null)
