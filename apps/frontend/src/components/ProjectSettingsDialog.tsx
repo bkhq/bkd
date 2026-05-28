@@ -621,7 +621,7 @@ function EngineModelSection({
   const { data: engineSettings } = useEngineSettings(true)
 
   const installedEngines = useMemo(
-    () => discovery?.engines.filter(a => a.installed && a.executable !== false) ?? [],
+    () => discovery?.engines.filter(a => a.installed && a.executable !== false && a.authStatus !== 'unauthenticated') ?? [],
     [discovery],
   )
 
