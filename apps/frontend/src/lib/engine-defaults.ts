@@ -1,13 +1,13 @@
 /**
- * Single front-end authority for resolving the *effective* default engine,
- * mirroring the server precedence in `routes/issues/create.ts`:
+ * Single front-end authority for resolving the *effective* engine to display:
  *
- *   explicit user selection → project default → global default → first
- *   installed engine.
+ *   explicit user selection → project default → global default.
  *
- * Used for display only. The request must still send the raw user selection
- * (empty → omitted) so the server stays the authority for what gets
- * persisted; this just shows the user which engine will actually be used.
+ * No engine is auto-preset: when the user has made no selection and no
+ * project/global default applies, this returns '' so the picker shows the
+ * neutral "default" option and the user chooses manually. Used for display
+ * only — the request sends the raw user selection (empty → omitted) so the
+ * server stays the authority for what gets persisted.
  */
 
 interface InstalledEngine {
@@ -27,5 +27,5 @@ export function resolveDefaultEngine(
 
   if (isInstalled(projectDefault)) return projectDefault
   if (isInstalled(globalDefault)) return globalDefault
-  return installed[0]?.engineType ?? ''
+  return ''
 }

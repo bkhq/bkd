@@ -16,8 +16,8 @@ describe('resolveDefaultEngine', () => {
     expect(resolveDefaultEngine('', null, 'codex', installed)).toBe('codex')
   })
 
-  it('falls back to the first installed engine when nothing else applies', () => {
-    expect(resolveDefaultEngine('', null, null, installed)).toBe('claude-code')
+  it('presets no engine when nothing else applies — user picks manually', () => {
+    expect(resolveDefaultEngine('', null, null, installed)).toBe('')
   })
 
   it('skips a project default that is not installed', () => {
