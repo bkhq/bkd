@@ -3,11 +3,13 @@
  *
  *   explicit user selection → project default → global default.
  *
- * No engine is auto-preset: when the user has made no selection and no
- * project/global default applies, this returns '' so the picker shows the
- * neutral "default" option and the user chooses manually. Used for display
- * only — the request sends the raw user selection (empty → omitted) so the
- * server stays the authority for what gets persisted.
+ * No engine is auto-preset across *multiple* choices: when the user has made
+ * no selection and no project/global default applies, this returns '' so the
+ * picker shows the neutral "default" option and the user chooses manually.
+ * The sole exception is a single installed engine — there is nothing to pick,
+ * so it resolves to that engine to keep its model list configurable. Used for
+ * display only — the request sends the raw user selection (empty → omitted)
+ * so the server stays the authority for what gets persisted.
  */
 
 interface InstalledEngine {
@@ -27,5 +29,6 @@ export function resolveDefaultEngine(
 
   if (isInstalled(projectDefault)) return projectDefault
   if (isInstalled(globalDefault)) return globalDefault
+  if (installed.length === 1) return installed[0]?.engineType ?? ''
   return ''
 }
