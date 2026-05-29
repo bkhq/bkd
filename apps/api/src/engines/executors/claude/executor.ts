@@ -91,7 +91,13 @@ const CLAUDE_MODELS: EngineModel[] = [
     name: 'Claude Sonnet 4.6 (1M)',
     isDefault: false,
   },
-  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', isDefault: true },
+  { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', isDefault: true },
+  {
+    id: 'claude-opus-4-8[1m]',
+    name: 'Claude Opus 4.8 (1M)',
+    isDefault: false,
+  },
+  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', isDefault: false },
   {
     id: 'claude-opus-4-7[1m]',
     name: 'Claude Opus 4.7 (1M)',
