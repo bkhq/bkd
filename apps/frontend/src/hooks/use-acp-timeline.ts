@@ -155,7 +155,7 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
   }
 
   let toolBuffer: ToolGroupItem[] = []
-  let pendingThinking: NormalizedLogEntry | null = null
+  let pendingThinking: TimelineEntry | null = null
 
   function flushPendingThinking(): void {
     if (!pendingThinking) return
@@ -187,9 +187,14 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
 
     if (entry.type === 'thinking') {
       flushToolBuffer()
-      if (pendingThinking) {
-        flushPendingThinking()
+      // Skip empty thinking chunks (Claude/ACP adapter sometimes emits
+      // agent_thought_chunk with no content). Backend filter is the
+      // primary guard; this is a safety net for edge cases.
+      if (entry.content.trim().length > 0) {
+        pendingThinking = entry
       }
+      continue
+    }
       pendingThinking = entry
       continue
     }

@@ -251,6 +251,11 @@ export class TimelineConverter {
     state.currentTurn = turn
 
     if (type === 'thinking') {
+      // Drop empty thinking chunks — some engines (Claude via ACP) emit
+      // agent_thought_chunk entries with no content. Without this filter
+      // they create empty thinking segments that clutter the timeline.
+      if (!entry.content.trim()) return []
+
       // Thinking after assistant in same turn → close assistant segment first,
       // bump assistantFlushCount so the NEXT assistant chunk opens a new segment.
       if (state.assistantBuffer) {

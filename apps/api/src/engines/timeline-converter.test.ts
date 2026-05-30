@@ -67,6 +67,20 @@ describe('toTimeline', () => {
     })
   })
 
+  it('drops empty thinking chunks', () => {
+    const entries: NormalizedLogEntry[] = [
+      { entryType: 'thinking', content: '', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z' },
+      { entryType: 'thinking', content: '   ', turnIndex: 0, timestamp: '2026-01-01T00:00:01Z' },
+      { entryType: 'assistant-message', content: 'Hello', turnIndex: 0, timestamp: '2026-01-01T00:00:02Z' },
+    ]
+
+    const result = toTimeline(entries)
+
+    expect(result).toHaveLength(1)
+    expect(result[0].type).toBe('assistant')
+    expect(result[0].content).toBe('Hello')
+  })
+
   it('handles full-content replacement for assistant', () => {
     const entries: NormalizedLogEntry[] = [
       { entryType: 'assistant-message', content: 'Hello', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z', metadata: { streaming: true } },
@@ -114,14 +128,12 @@ describe('toTimeline', () => {
 
   it('handles empty content without crashing', () => {
     const entries: NormalizedLogEntry[] = [
-      { entryType: 'thinking', content: '', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z' },
-      { entryType: 'assistant-message', content: '', turnIndex: 0, timestamp: '2026-01-01T00:00:01Z' },
+      { entryType: 'assistant-message', content: '', turnIndex: 0, timestamp: '2026-01-01T00:00:00Z' },
     ]
 
     const result = toTimeline(entries)
-    expect(result).toHaveLength(2)
+    expect(result).toHaveLength(1)
     expect(result[0].content).toBe('')
-    expect(result[1].content).toBe('')
   })
 
   it('accumulates assistant per turn, not globally', () => {
