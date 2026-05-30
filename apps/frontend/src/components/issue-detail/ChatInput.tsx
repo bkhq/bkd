@@ -865,8 +865,11 @@ export function ChatInput({
             ) :
           null}
 
-        {/* Hidden file input */}
+        {/* Hidden file input — id="chat-file-input" is used by the label below so
+            the file picker opens on HarmonyOS / iOS Safari without relying on
+            programmatic element.click() which those browsers block. */}
         <input
+          id="chat-file-input"
           ref={fileInputRef}
           type="file"
           multiple
@@ -925,6 +928,7 @@ export function ChatInput({
                   type="button"
                   size="icon"
                   disabled={isCancelling}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={onCancel}
                   title={isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
                   className="rounded-full size-8 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -936,6 +940,7 @@ export function ChatInput({
                   type="button"
                   size="icon"
                   disabled={!canSend || followUp.isPending}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={handleSend}
                   title={t('chat.send')}
                   className="rounded-full size-8 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"
@@ -946,6 +951,7 @@ export function ChatInput({
                 <Button
                   type="button"
                   size="icon"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => textareaRef.current?.focus()}
                   title={t('chat.placeholder')}
                   className="rounded-full size-8 opacity-60 hover:opacity-100 bg-muted text-muted-foreground hover:bg-muted/80"
@@ -964,18 +970,19 @@ export function ChatInput({
             Hidden in mobile collapsed reading mode (mobileCollapsed). */}
         <div data-testid="chat-toolbar" className={`flex flex-wrap items-center gap-1 px-2 pb-2 pt-0.5 ${mobileCollapsed ? 'hidden' : ''}`}>
           {/* Left group */}
-          <Button
-            variant="ghost"
-            size="icon"
-            // Surface the seed-capable hint on hover. The button label
-            // stays short ('chat.attach'); the longer copy lives in
-            // `chat.attachHint` and renders as a multi-line tooltip.
+          {/* Use <label htmlFor> instead of Button + element.click() so the
+              file picker works on HarmonyOS and iOS Safari where programmatic
+              clicks on file inputs are blocked. onMouseDown preventsDefault
+              stops the textarea from losing focus (which would collapse the
+              toolbar and hide the virtual keyboard). */}
+          <label
+            htmlFor="chat-file-input"
             title={`${t('chat.attach')} — ${t('chat.attachHint')}`}
-            onClick={() => fileInputRef.current?.click()}
-            className="size-11"
+            onMouseDown={(e) => e.preventDefault()}
+            className="inline-flex items-center justify-center size-11 rounded-md hover:bg-accent cursor-pointer"
           >
             <Paperclip className="size-5" />
-          </Button>
+          </label>
           {normalizedSlashCommands.length > 0 ?
               (
                 <div className="max-md:hidden">
@@ -1055,6 +1062,7 @@ export function ChatInput({
                 (
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={onToggleDiff}
                     data-active={diffOpen || undefined}
                     className="chip-surface px-2 mr-0.5"
@@ -1079,6 +1087,7 @@ export function ChatInput({
                     type="button"
                     size="icon"
                     disabled={!issueId || restartIssue.isPending || isSendingRef.current || !input.trim()}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       if (!issueId) return
                       restartIssue.mutate(issueId)
@@ -1098,6 +1107,7 @@ export function ChatInput({
                     type="button"
                     size="icon"
                     disabled={isCancelling}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={onCancel}
                     title={isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
                     className="rounded-full size-9 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -1112,6 +1122,7 @@ export function ChatInput({
                     type="button"
                     size="icon"
                     disabled={!canSend || followUp.isPending}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={handleSend}
                     title={t('chat.send')}
                     className="rounded-full size-9 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"
