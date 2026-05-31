@@ -98,14 +98,6 @@ export function CockpitTopBar() {
       .catch(() => {})
   }, [projectId, issue])
 
-  // ⌘K opens the command palette (already wired globally by
-  // GlobalCommandPalette). We just need a visible button as an entry point;
-  // dispatching a keydown is cheap + decoupled.
-  const openCommandPalette = () => {
-    const evt = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true })
-    document.dispatchEvent(evt)
-  }
-
   // ⌘N already triggers QuickCreate globally (CockpitQuickCreate listens).
   // The + button here opens the kanban-style CreateIssueDialog, passing the
   // current project context so the issue lands in the right project.
@@ -260,7 +252,7 @@ export function CockpitTopBar() {
         <button
           type="button"
           data-testid="cockpit-topbar-search"
-          onClick={openCommandPalette}
+          onClick={() => navigate('/search')}
           aria-label={t('cockpit.topbar.search', 'Search / jump (⌘K)')}
           title={t('cockpit.topbar.search', 'Search / jump (⌘K)')}
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"

@@ -27,6 +27,8 @@
     "review": "待 Review",
     "gotoHome": "首页",
     "gotoReview": "Review 页面",
+    "typeToSearch": "输入关键词搜索所有项目中的对话日志",
+    "foundNResults": "找到 {{count}} 条结果",
     "openTerminal": "终端",
     "gotoCron": "定时任务"
   },

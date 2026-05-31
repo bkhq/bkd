@@ -2,21 +2,26 @@
 // Extracted so the decision logic can be regression-tested without a DOM /
 // React harness.
 //
-// Semantics: the chat lands at the bottom by default, so "scroll up to read
-// history" means scrollTop ↓ (HIDE — give history maximum vertical space),
-// and "scroll down toward latest" means scrollTop ↑ (SHOW — re-anchor as
-// the reader returns). Always reveal near the top or within BOTTOM_ANCHOR
-// pixels of the bottom so the user has a "home" indicator at either end.
+// Semantics align with mainstream apps (Safari, Twitter, Instagram, etc.):
+//   – scroll DOWN (toward bottom/latest, scrollTop ↑) → HIDE  (reading,
+//     the bar is just chrome — give it up for more vertical space)
+//   – scroll UP   (back toward history,  scrollTop ↓) → SHOW  (navigating,
+//     the user wants controls back)
+//   – at the top OR near bottom anchor → always SHOW ("home" indicator)
+//
+// Hysteresis: accumulate per-direction distance and only flip once a
+// minimum continuous scroll is reached. Resets the opposite accumulator
+// on every direction change so a hesitant nudge doesn't flap the bar.
 
 export interface AutoHideThresholds {
-  hide: number
   show: number
+  hide: number
   bottomAnchor: number
 }
 
 export const DEFAULT_AUTO_HIDE_THRESHOLDS: AutoHideThresholds = {
-  hide: 40,
-  show: 60,
+  show: 16,
+  hide: 20,
   bottomAnchor: 80,
 }
 
@@ -55,15 +60,17 @@ export function nextAutoHideState(
     return { visible: true, upAccum: 0, downAccum: 0 }
   }
 
+  // delta < 0: scrollTop ↓ — scrolling UP, user wants controls → SHOW
   if (delta < 0) {
     const upAccum = state.upAccum + -delta
-    const visible = upAccum > thresholds.hide ? false : state.visible
+    const visible = upAccum > thresholds.show ? true : state.visible
     return { visible, upAccum, downAccum: 0 }
   }
 
+  // delta > 0: scrollTop ↑ — scrolling DOWN, user is reading → HIDE
   if (delta > 0) {
     const downAccum = state.downAccum + delta
-    const visible = downAccum > thresholds.show ? true : state.visible
+    const visible = downAccum > thresholds.hide ? false : state.visible
     return { visible, upAccum: 0, downAccum }
   }
 

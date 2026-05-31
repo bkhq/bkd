@@ -308,24 +308,35 @@ export function ChatBody({
   // the bottom-anchored content slides down by the same amount, which
   // reads as a jarring re-layout. We watch clientHeight via ResizeObserver
   // and counter-scroll by the delta so the same row stays under the
-  // user's eye. Skipped while prepending older logs (the existing
-  // anchoring path in SessionMessages handles that case).
+  // user's eye.
+  //
+  // CSS transitions on chrome elements fire many small resize events over
+  // ~200ms. Immediate counter-scrolling on each tick "fights" the transition
+  // and produces visible jumping. We debounce by 250ms so only the total
+  // delta is applied, after the transition settles.
   useLayoutEffect(() => {
     const el = scrollRef.current
     if (!el || typeof ResizeObserver === 'undefined') return
-    let prevClientHeight = el.clientHeight
+    let stableHeight = el.clientHeight
+    let timer: ReturnType<typeof setTimeout> | null = null
     const ro = new ResizeObserver(() => {
-      const next = el.clientHeight
-      const delta = next - prevClientHeight
-      if (delta !== 0) {
-        if (!isLoadingOlderRef.current && el.scrollTop > 0) {
+      if (timer) {
+        clearTimeout(timer)
+      }
+      timer = setTimeout(() => {
+        const delta = el.clientHeight - stableHeight
+        if (delta !== 0 && !isLoadingOlderRef.current && el.scrollTop > 0) {
           el.scrollTop = Math.max(0, el.scrollTop - delta)
         }
-        prevClientHeight = next
-      }
+        stableHeight = el.clientHeight
+        timer = null
+      }, 250)
     })
     ro.observe(el)
-    return () => ro.disconnect()
+    return () => {
+      ro.disconnect()
+      if (timer) clearTimeout(timer)
+    }
   }, [scrollRef])
 
   useEffect(() => {

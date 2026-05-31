@@ -97,10 +97,11 @@ const StreamingThinking = memo(({ entry }: { entry: NormalizedLogEntry }) => {
   )
 })
 
-/** Completed thinking block — collapsed by default, click to expand. */
+/** Completed thinking block — expanded by default so switching out of
+ *  streaming mode doesn't visually collapse all thinking content. */
 const CompletedThinking = memo(({ entry }: { entry: NormalizedLogEntry }) => {
   const { t } = useTranslation()
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(true)
 
   return (
     <div className="animate-message-enter my-1">
@@ -192,6 +193,10 @@ export function AcpTimeline({
     if (wasOlderPrepend && prevScrollHeightRef.current > 0) {
       const delta = el.scrollHeight - prevScrollHeightRef.current
       if (delta > 0) el.scrollTop = el.scrollTop + delta
+      requestAnimationFrame(() => {
+        const finalDelta = el.scrollHeight - prevScrollHeightRef.current
+        if (finalDelta > 0) el.scrollTop = el.scrollTop + (finalDelta - delta)
+      })
     }
     prevScrollHeightRef.current = el.scrollHeight
   }, [firstItemId, items.length, scrollRef])
@@ -278,12 +283,8 @@ export function AcpTimeline({
             return (
               <div key={item.id} className="group">
                 {item.thinking && (
-                  <div className="mb-2 flex items-center gap-1.5 text-xs text-violet-500/50 dark:text-violet-400/50 px-1">
-                    <Lightbulb className="h-3 w-3 shrink-0" />
-                    <span className="truncate font-mono">
-                      {item.thinking.content.slice(0, 80)}
-                      {item.thinking.content.length > 80 ? '...' : ''}
-                    </span>
+                  <div className="mb-1.5">
+                    <CompletedThinking entry={item.thinking} />
                   </div>
                 )}
                 <ToolGroupMessage message={item.message} />

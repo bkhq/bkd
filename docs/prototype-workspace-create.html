@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BKD — 创建 Workspace</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, 'Segoe UI', sans-serif; background:#f0f2f5; color:#1a1a2e; font-size:14px; padding:20px; max-width:600px; margin:0 auto; }
+.card { background:#fff; border-radius:12px; padding:24px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+.card h2 { font-size:16px; margin-bottom:16px; }
+label { display:block; font-size:12px; color:#6b7280; margin-bottom:4px; margin-top:12px; }
+input, textarea { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; }
+textarea { min-height:80px; resize:vertical; }
+.repo-row { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+.repo-row input { flex:1; }
+.repo-row button { padding:6px 12px; border:1px solid #ef4444; color:#ef4444; background:#fff; border-radius:6px; cursor:pointer; font-size:12px; }
+.add-btn { margin-top:8px; padding:8px 16px; border:1px dashed #3b82f6; color:#3b82f6; background:#fff; border-radius:6px; cursor:pointer; font-size:12px; width:100%; }
+.submit-btn { padding:12px 24px; background:#3b82f6; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; width:100%; margin-top:8px; font-size:14px; }
+.secondary-btn { padding:12px 24px; border:1px solid #d1d5db; color:#374151; background:#fff; border-radius:8px; cursor:pointer; width:100%; margin-top:8px; font-size:14px; }
+.result { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:16px; margin-top:16px; }
+.result h4 { color:#166534; margin-bottom:8px; }
+.result .issue-list { font-size:12px; color:#374151; }
+.result .issue-list div { padding:3px 0; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h2>🚀 新建 Workspace</h2>
+
+  <label>名称</label>
+  <input value="支付系统重构">
+
+  <label>描述</label>
+  <textarea placeholder="这个 workspace 要做什么...">将旧的 v1 支付接口迁移到 v2，支持多币种（CNY/USD/JPY），涵盖后端、前端、SDK 全链路。</textarea>
+
+  <label>关联仓库</label>
+  <div class="repo-row">
+    <span style="font-size:11px;color:#6b7280;width:50px">后端</span>
+    <input value="git@github.com:org/payment-backend.git" style="flex:2">
+    <input value="main" placeholder="分支" style="flex:1">
+    <button>移除</button>
+  </div>
+  <div class="repo-row">
+    <span style="font-size:11px;color:#6b7280;width:50px">前端</span>
+    <input value="git@github.com:org/payment-frontend.git" style="flex:2">
+    <input value="main" placeholder="分支" style="flex:1">
+    <button>移除</button>
+  </div>
+  <div class="repo-row">
+    <span style="font-size:11px;color:#6b7280;width:50px">SDK</span>
+    <input value="git@github.com:org/payment-sdk.git" style="flex:2">
+    <input value="main" placeholder="分支" style="flex:1">
+    <button>移除</button>
+  </div>
+  <button class="add-btn">+ 添加仓库</button>
+
+  <label>需求描述 (AI 拆解用)</label>
+  <textarea placeholder="把需求文档粘这里，或者用自然语言写...">1. 后端定义新的 /api/pay/v2 接口，支持多币种参数
+2. 废弃旧的 v1 接口，保留兼容层过渡
+3. 前端接入新接口，表单新增币种选择
+4. SDK 更新类型定义
+5. 端到端回归测试
+6. 灰度发布后合入主干</textarea>
+
+  <div style="display:flex; gap:8px; margin-top:12px">
+    <button class="secondary-btn" style="flex:1">仅创建</button>
+    <button class="submit-btn" style="flex:2">AI 拆解 →</button>
+  </div>
+</div>
+
+<!-- After AI decomposition -->
+<div class="card result">
+  <h4>✅ 已拆解 8 个任务</h4>
+  <div class="issue-list">
+    <div>📦 阶段 1: 接口改造</div>
+    <div style="margin-left:16px">├── @pay-42 定义新接口 schema · 估1d · @backend</div>
+    <div style="margin-left:16px">├── @pay-43 实现 /api/pay/v2/charge · 估2d · @backend</div>
+    <div style="margin-left:16px">└── @pay-44 兼容层 + 废弃旧接口 · 估1d · @backend</div>
+    <div>📦 阶段 2: 联调</div>
+    <div style="margin-left:16px">├── @fe-31 前端接入 · 估2d · @frontend · 等 pay-44</div>
+    <div style="margin-left:16px">├── @sdk-5 SDK 类型更新 · 估1d · @sdk · 等 pay-42</div>
+    <div style="margin-left:16px">└── @test-8 端到端回归 · 估2d · @test · 等 fe-31</div>
+    <div>📦 阶段 3: 收尾</div>
+    <div style="margin-left:16px">└── @merge-1 合并+发布 · 等全部完成</div>
+  </div>
+
+  <div style="margin-top:12px; display:flex; gap:8px;">
+    <button class="secondary-btn" style="flex:1">修改</button>
+    <button class="submit-btn" style="flex:1">确认并执行 →</button>
+  </div>
+</div>
+
+</body>
+</html>

@@ -880,10 +880,12 @@ function ToolGroupMessageImpl({ message }: { message: ToolGroupChatMessage }) {
   if (isActive) wasEverActiveRef.current = true
 
   // When the group is no longer active (assistant message arrived),
-  // reset expanded so items truncate back to DEFAULT_VISIBLE_COUNT.
+  // reset expanded so items truncate back to DEFAULT_VISIBLE_COUNT,
+  // but keep the body open so the user can still see what executed.
   useEffect(() => {
     if (!isActive && wasEverActiveRef.current) {
       setExpanded(false)
+      setIsOpen(true)
     }
   }, [isActive])
 

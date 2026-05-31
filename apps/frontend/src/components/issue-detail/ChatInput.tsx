@@ -1377,6 +1377,7 @@ function MobileMoreMenu({
           <button
             type="button"
             className={`inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors ${compact ? 'size-8' : 'size-11'}`}
+            onMouseDown={e => e.preventDefault()}
           >
             <MoreHorizontal className={compact ? 'size-4' : 'size-5'} />
           </button>
@@ -1547,7 +1548,7 @@ function DesktopMoreMenu({
     <Popover>
       <PopoverTrigger
         render={(
-          <IconButton size="sm" title={t('chat.more')} aria-label={t('chat.more')} />
+          <IconButton size="sm" title={t('chat.more')} aria-label={t('chat.more')} onMouseDown={e => e.preventDefault()} />
         )}
       >
         <MoreHorizontal className="size-3.5" />

@@ -116,6 +116,7 @@ export class ClaudeLogNormalizer {
       case 'task_started':
       case 'task_progress':
       case 'stop_hook_summary':
+      case 'thinking_tokens':
         // Suppress — no user-facing value
         return null
       case 'session_state_changed':

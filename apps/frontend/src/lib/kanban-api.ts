@@ -529,6 +529,7 @@ export const kanbanApi = {
       issueId: string
       issueTitle: string
       projectAlias: string
+      projectName: string
       entryType: string
       content: string
       createdAt: string

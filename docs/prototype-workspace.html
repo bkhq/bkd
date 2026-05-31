@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BKD Workspace — 交互原型</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;font-size:13px;overflow:hidden}
+#app{display:flex;height:100vh}
+/* sidebar */
+.sidebar{width:220px;background:#1e293b;display:flex;flex-direction:column;border-right:1px solid #334155}
+.sidebar h2{padding:16px;font-size:14px;color:#94a3b8}
+.room-list{flex:1;overflow-y:auto}
+.room-item{padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;border-left:3px solid transparent}
+.room-item:hover{background:#334155}
+.room-item.active{background:#1e3a5f;border-left-color:#3b82f6}
+.room-item .badge{background:#ef4444;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:auto}
+.room-item .room-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.room-dot.red{background:#ef4444}.room-dot.green{background:#22c55e}.room-dot.yellow{background:#eab308}
+.new-room-btn{margin:12px;padding:10px;border:1px dashed #475569;border-radius:8px;color:#94a3b8;cursor:pointer;text-align:center;font-size:12px}
+/* main */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:#1e293b;padding:10px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #334155}
+.topbar .ws-name{font-weight:600;font-size:14px}
+.view-tabs{display:flex;gap:4px;margin-left:auto}
+.view-tab{padding:6px 14px;border-radius:6px;cursor:pointer;color:#94a3b8;font-size:12px}
+.view-tab:hover{background:#334155}
+.view-tab.active{background:#3b82f6;color:#fff}
+.content{flex:1;display:flex;overflow:hidden}
+/* gantt */
+.gantt{flex:1;overflow-y:auto;padding:24px;display:none}
+.gantt.show{display:block}
+.gantt h3{font-size:12px;color:#64748b;text-transform:uppercase;margin-bottom:16px}
+.gantt-group{margin-bottom:20px}
+.phase-row{display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer;border-radius:4px}
+.phase-row:hover{background:#1e293b}
+.phase-row .phase-name{font-weight:600;font-size:13px;min-width:180px}
+.phase-row .phase-bar{flex:1;height:8px;background:#334155;border-radius:4px;overflow:hidden}
+.phase-row .phase-bar span{display:block;height:100%;border-radius:4px;transition:width .5s}
+.phase-pct{font-size:12px;color:#94a3b8;min-width:40px;text-align:right}
+.issue-row{display:flex;align-items:center;gap:10px;padding:4px 0 4px 28px;cursor:pointer;font-size:12px;border-radius:4px}
+.issue-row:hover{background:#1e293b}
+.issue-row .status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.status-done{background:#22c55e}.status-working{background:#3b82f6}.status-slow{background:#eab308}.status-todo{background:#475569}.status-blocked{background:#ef4444}
+.issue-row .bar-wrap{width:80px;height:4px;background:#334155;border-radius:2px;overflow:hidden;margin-left:auto}
+.issue-row .bar-wrap span{display:block;height:100%;border-radius:2px;transition:width .5s}
+.dep-line{color:#64748b;font-size:11px;padding:2px 0 2px 50px}
+/* room */
+.room-panel{width:380px;background:#1e293b;display:flex;flex-direction:column;border-left:1px solid #334155;display:none}
+.room-panel.show{display:flex}
+.room-panel-header{padding:12px 16px;border-bottom:1px solid #334155;display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px}
+.room-panel-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:90%;padding:10px 14px;border-radius:10px;font-size:12px;line-height:1.6;white-space:pre-wrap;animation:fadeIn .3s}
+.msg.user{align-self:flex-end;background:#3b82f6;color:#fff}
+.msg.agent{align-self:flex-start;background:#334155}
+.msg.agent .meta{font-size:10px;color:#94a3b8;margin-bottom:4px}
+.msg.agent .ref{display:inline-block;background:#475569;padding:1px 6px;border-radius:4px;font-size:11px;margin:2px 0;color:#93c5fd}
+.room-input-bar{padding:12px 16px;border-top:1px solid #334155;display:flex;gap:8px}
+.room-input-bar input{flex:1;padding:10px;background:#0f172a;border:1px solid #475569;border-radius:8px;color:#e2e8f0;font-size:13px}
+.room-input-bar button{padding:10px 16px;background:#3b82f6;border:none;border-radius:8px;color:#fff;font-weight:600;cursor:pointer;font-size:13px}
+.room-input-bar button:hover{background:#2563eb}
+/* kanban */
+.kanban{flex:1;overflow-x:auto;padding:24px;display:none}
+.kanban.show{display:flex;gap:16px}
+.kanban-col{min-width:220px;background:#1e293b;border-radius:8px;padding:12px}
+.kanban-col h4{font-size:12px;color:#94a3b8;margin-bottom:10px;text-transform:uppercase}
+.kanban-card{background:#334155;padding:10px;border-radius:6px;margin-bottom:6px;font-size:12px;cursor:pointer;border-left:3px solid #3b82f6}
+.kanban-card:hover{background:#475569}
+.kanban-card.done{border-left-color:#22c55e}
+.kanban-card.blocked{border-left-color:#ef4444}
+/* bottom bar */
+.bottombar{background:#1e293b;padding:8px 20px;border-top:1px solid #334155;display:flex;gap:10px;align-items:center;min-height:36px}
+.bottombar .bubble{font-size:11px;padding:4px 10px;border-radius:12px;cursor:pointer;animation:pulse 2s infinite}
+.bubble.alert{background:#450a0a;border:1px solid #7f1d1d;color:#fca5a5}
+.bubble.info{background:#0c4a6e;border:1px solid #0e7490;color:#7dd3fc}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
+/* Mobile */
+@media(max-width:768px){
+  .sidebar{display:none}
+  .mobile-sidebar{display:flex!important}
+  .room-panel{position:fixed;top:0;left:0;right:0;bottom:56px;z-index:100;border-left:none}
+  .room-panel:not(.show){display:none!important}
+  .bottombar{overflow-x:auto;white-space:nowrap;padding:6px 10px}
+  .main{flex-direction:column}
+  .content{flex:1}
+  .gantt{padding:12px}
+  .kanban{flex-direction:column;gap:8px;padding:12px}
+  .kanban-col{min-width:auto}
+  .topbar{padding:8px 12px}
+  .view-tab{padding:4px 10px;font-size:11px}
+  .phase-row .phase-name{min-width:auto;font-size:11px}
+  .phase-bar{display:none}
+  .phase-pct{font-size:10px}
+  .issue-row{font-size:11px;padding:6px 4px 6px 20px}
+  .issue-row .bar-wrap{width:50px}
+  .mobile-nav{display:flex!important}
+  .room-panel-header .back-btn{display:inline-block!important}
+  .ws-create .form-card{max-width:100%;margin:0;border-radius:0}
+}
+.mobile-nav{display:none;background:#1e293b;border-top:1px solid #334155;justify-content:space-around;padding:6px 0;flex-shrink:0}
+.mobile-nav button{background:none;border:none;color:#94a3b8;font-size:11px;padding:4px 0;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+.mobile-nav button .nav-icon{font-size:18px}
+.mobile-nav button.active{color:#3b82f6}
+.back-btn{display:none;margin-right:8px;cursor:pointer;font-size:16px}
+.mobile-sidebar{display:none!important}
+/* ws create */
+.ws-create{flex:1;overflow-y:auto;padding:24px;display:none}
+.ws-create.show{display:block}
+.ws-create .form-card{background:#1e293b;border-radius:12px;padding:24px;max-width:600px;margin:0 auto}
+.ws-create h3{font-size:16px;margin-bottom:16px}
+.ws-create label{display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;margin-top:14px}
+.ws-create input,.ws-create textarea{width:100%;padding:10px;background:#0f172a;border:1px solid #475569;border-radius:8px;color:#e2e8f0;font-size:13px}
+.ws-create textarea{min-height:100px;resize:vertical;font-family:monospace;font-size:12px}
+.ws-create .btn-row{display:flex;gap:8px;margin-top:16px}
+.btn{padding:10px 20px;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;border:none}
+.btn-primary{background:#3b82f6;color:#fff}
+.btn-secondary{background:#334155;color:#e2e8f0;border:1px solid #475569}
+.template-hint{font-size:11px;color:#64748b;margin-top:6px}
+.template-hint code{background:#334155;padding:1px 4px;border-radius:3px;font-size:10px}
+.creation-result{background:#052e16;border:1px solid #166534;border-radius:8px;padding:16px;margin-top:16px;display:none}
+.creation-result.show{display:block}
+.creation-result h4{color:#22c55e;margin-bottom:8px}
+.creation-result pre{font-size:11px;color:#86efac;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <h2>🐱 BKD</h2>
+  <div class="room-list" id="roomList">
+    <div class="room-item active" data-room="ws-pay">
+      <span class="room-dot green"></span> 🔷 支付重构
+    </div>
+    <div class="room-item" data-room="ws-notify">
+      <span class="room-dot yellow"></span> 🔷 通知系统
+    </div>
+    <div class="room-item" data-room="ws-devops">
+      <span class="room-dot green"></span> 🔧 DevOps 日常
+    </div>
+    <div class="room-item" data-room="huddle-pay">
+      <span class="room-dot green"></span> 联调·支付
+    </div>
+    <div class="room-item" data-room="huddle-notify">
+      <span class="room-dot yellow"></span> 联调·通知
+    </div>
+  </div>
+  <div class="new-room-btn" onclick="showCreate()">+ 新建 Workspace</div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <div class="topbar">
+    <span class="ws-name" id="wsTitle">🔷 支付系统重构</span>
+    <div class="view-tabs">
+      <div class="view-tab active" data-view="gantt" onclick="switchView('gantt')">📊 甘特图</div>
+      <div class="view-tab" data-view="kanban" onclick="switchView('kanban')">📋 看板</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- Gantt -->
+    <div class="gantt show" id="ganttView">
+      <h3>进度概览 · 3 阶段 / 8 个 issue</h3>
+
+      <div class="gantt-group" id="phase1">
+        <div class="phase-row" onclick="clickIssue('pay-44')">
+          <span class="phase-name">📦 阶段 1: 接口改造</span>
+          <span class="phase-bar"><span style="width:100%;background:#22c55e"></span></span>
+          <span class="phase-pct">100%</span>
+        </div>
+        <div class="issue-row" onclick="clickIssue('pay-42')"><span class="status-dot status-done"></span> @pay-42 定义接口 schema <span class="bar-wrap"><span style="width:100%;background:#22c55e"></span></span></div>
+        <div class="issue-row" onclick="clickIssue('pay-43')"><span class="status-dot status-done"></span> @pay-43 实现 v2/charge <span class="bar-wrap"><span style="width:100%;background:#22c55e"></span></span></div>
+        <div class="issue-row" onclick="clickIssue('pay-44')"><span class="status-dot status-done"></span> @pay-44 兼容层 + 废弃 <span class="bar-wrap"><span style="width:100%;background:#22c55e"></span></span></div>
+      </div>
+
+      <div class="gantt-group" id="phase2">
+        <div class="phase-row" onclick="clickIssue('fe-31')">
+          <span class="phase-name">📦 阶段 2: 联调</span>
+          <span class="phase-bar"><span style="width:55%;background:#eab308"></span></span>
+          <span class="phase-pct">55%</span>
+        </div>
+        <div class="issue-row" onclick="clickIssue('fe-31')"><span class="status-dot status-slow"></span> @fe-31 前端接入 v2 <span class="bar-wrap"><span style="width:55%;background:#eab308"></span></span></div>
+        <div class="dep-line">↳ 依赖 @pay-44</div>
+        <div class="issue-row" onclick="clickIssue('sdk-5')"><span class="status-dot status-working"></span> @sdk-5 SDK 类型更新 <span class="bar-wrap"><span style="width:30%;background:#3b82f6"></span></span></div>
+        <div class="issue-row" onclick="clickIssue('test-8')"><span class="status-dot status-todo"></span> @test-8 端到端回归 <span class="bar-wrap"><span style="width:0%"></span></span></div>
+      </div>
+
+      <div class="gantt-group" id="phase3">
+        <div class="phase-row">
+          <span class="phase-name">📦 阶段 3: 收尾</span>
+          <span class="phase-bar"><span style="width:0%"></span></span>
+          <span class="phase-pct">0%</span>
+        </div>
+        <div class="issue-row" onclick="clickIssue('merge-1')"><span class="status-dot status-todo"></span> @merge-1 合入 + 灰度 <span class="bar-wrap"><span style="width:0%"></span></span></div>
+      </div>
+    </div>
+
+    <!-- Kanban -->
+    <div class="kanban" id="kanbanView">
+      <div class="kanban-col"><h4>📝 Todo</h4>
+        <div class="kanban-card" onclick="clickIssue('test-8')">@test-8 端到端回归</div>
+        <div class="kanban-card" onclick="clickIssue('merge-1')">@merge-1 合入发布</div>
+      </div>
+      <div class="kanban-col"><h4>⚙️ Working</h4>
+        <div class="kanban-card blocked" onclick="clickIssue('fe-31')">⚠️ @fe-31 前端接入</div>
+        <div class="kanban-card" onclick="clickIssue('sdk-5')">@sdk-5 SDK更新</div>
+      </div>
+      <div class="kanban-col"><h4>👁 Review</h4></div>
+      <div class="kanban-col"><h4>✅ Done</h4>
+        <div class="kanban-card done" onclick="clickIssue('pay-42')">@pay-42 接口schema</div>
+        <div class="kanban-card done" onclick="clickIssue('pay-43')">@pay-43 实现v2</div>
+        <div class="kanban-card done" onclick="clickIssue('pay-44')">@pay-44 兼容层</div>
+      </div>
+    </div>
+
+    <!-- Workspace Create -->
+    <div class="ws-create" id="createView">
+      <div class="form-card">
+        <h3>🚀 新建 Workspace</h3>
+        <label>名称</label>
+        <input id="wsName" placeholder="例如: 支付系统重构 / DevOps 日常 / Bug 修复">
+        <label>仓库 (一行一个, 格式: 标签 | URL | 默认分支)</label>
+        <textarea id="wsRepos" placeholder="后端 | git@github.com:org/backend.git | main
+前端 | git@github.com:org/frontend.git | main
+SDK  | git@github.com:org/sdk.git | dev"></textarea>
+        <div class="template-hint">格式: <code>标签 | URL | 分支</code>。标签用于 AI 生成 issue 时自动选择仓库。</div>
+        <label>需求描述 / 上下文 (可选, AI 用来拆解)</label>
+        <textarea id="wsContext" placeholder="直接粘 PRD，或写自然语言:
+1. 后端定义新 API，支持多币种
+2. 前端接入新接口
+3. SDK 更新类型
+4. 端到端测试
+
+——不写也行，后面再手动加 issue"></textarea>
+        <div class="template-hint">不写也没关系，创建后可以在指挥室里随时让 AI 拆解。</div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="hideCreate()">取消</button>
+          <button class="btn btn-primary" onclick="doCreate()">AI 拆解并创建 →</button>
+        </div>
+        <div class="creation-result" id="createResult">
+          <h4 id="createResultTitle"></h4>
+          <pre id="createResultBody"></pre>
+          <div class="btn-row" style="margin-top:12px">
+            <button class="btn btn-secondary" onclick="hideCreate()">修改</button>
+            <button class="btn btn-primary" onclick="confirmCreate()">确认创建</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Room Panel (right) -->
+    <div class="room-panel show" id="roomPanel">
+      <div class="room-panel-header"><span class="back-btn" onclick="closeRoom()">←</span> <span class="room-dot green"></span> 指挥室</div>
+      <div class="room-panel-body" id="roomMessages">
+        <div class="msg agent">
+          <div class="meta">秘书 · 5分钟前</div>
+          ⚠️ <span class="ref">@fe-31</span> 进度偏慢：多币种退款兼容层未通过，已通知 <span class="ref">@pay-44</span> 修复中。
+        </div>
+        <div class="msg user">@pay-44 修好了吗？</div>
+        <div class="msg agent">
+          <div class="meta">秘书 · 刚刚</div>
+          <span class="ref">@pay-44</span> 已推送修复，阻塞解除。<br>
+          ✅ <span class="ref">@fe-31</span> 可继续<br>
+          📌 <span class="ref">@sdk-5</span> <span class="ref">@test-8</span> 尚未派发，是否现在执行？
+        </div>
+      </div>
+      <div class="room-input-bar">
+        <input id="msgInput" placeholder="@issue-name 或输入消息..." onkeydown="if(event.key==='Enter')sendMsg()">
+        <button onclick="sendMsg()">发送</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="bottombar" id="bottomBar">
+    <span class="bubble alert" onclick="clickIssue('fe-31')">⚠️ @fe-31 阻塞</span>
+    <span class="bubble info" onclick="clickIssue('pay-44')">✅ @pay-44 done</span>
+    <span class="bubble info" onclick="clickIssue('pay-43')">✅ @pay-43 done</span>
+  </div>
+</div>
+</div>
+<!-- Mobile nav -->
+<div class="mobile-nav">
+  <button id="mNavGantt" class="active" onclick="switchView('gantt')"><span class="nav-icon">📊</span>甘特</button>
+  <button id="mNavRoom" onclick="openRoom()"><span class="nav-icon">💬</span>指挥室</button>
+  <button id="mNavKanban" onclick="switchView('kanban')"><span class="nav-icon">📋</span>看板</button>
+  <button onclick="showCreate()"><span class="nav-icon">➕</span>新建</button>
+</div>
+
+<script>
+let currentRoom = 'ws-pay'
+const rooms = {
+  'ws-pay': { title:'🔷 支付系统重构', phase1:100, phase2:55, phase3:0 },
+  'ws-notify': { title:'🔷 通知系统重构', phase1:80, phase2:20, phase3:0 },
+  'ws-devops': { title:'🔧 DevOps 日常运维', phase1:50, phase2:50, phase3:0 },
+  'huddle-pay': { title:'联调 · 支付重构 (多 issue)', phase1:100, phase2:100, phase3:0 },
+  'huddle-notify': { title:'联调 · 通知系统', phase1:100, phase2:100, phase3:0 },
+}
+
+function switchRoom(roomId) {
+  currentRoom = roomId
+  document.querySelectorAll('.room-item').forEach(e => e.classList.remove('active'))
+  document.querySelector(`[data-room="${roomId}"]`).classList.add('active')
+  document.getElementById('wsTitle').textContent = rooms[roomId]?.title || roomId
+}
+
+document.querySelectorAll('.room-item').forEach(el => {
+  el.addEventListener('click', () => switchRoom(el.dataset.room))
+})
+
+function switchView(view) {
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'))
+  document.querySelector(`[data-view="${view}"]`).classList.add('active')
+  document.getElementById('ganttView').classList.toggle('show', view==='gantt')
+  document.getElementById('kanbanView').classList.toggle('show', view==='kanban')
+  document.getElementById('createView').classList.remove('show')
+  // mobile nav
+  document.getElementById('mNavGantt').classList.toggle('active', view==='gantt')
+  document.getElementById('mNavKanban').classList.toggle('active', view==='kanban')
+}
+
+function openRoom() {
+  document.getElementById('roomPanel').classList.add('show')
+  document.getElementById('mNavRoom').classList.add('active')
+  document.getElementById('msgInput').focus()
+}
+
+function closeRoom() {
+  document.getElementById('roomPanel').classList.remove('show')
+  document.getElementById('mNavRoom').classList.remove('active')
+}
+
+function clickIssue(id) {
+  const input = document.getElementById('msgInput')
+  input.value = `@${id} `
+  input.focus()
+  document.getElementById('roomPanel').classList.add('show')
+  document.getElementById('mNavRoom').classList.add('active')
+}
+
+function sendMsg() {
+  const input = document.getElementById('msgInput')
+  const text = input.value.trim()
+  if(!text) return
+  const body = document.getElementById('roomMessages')
+  const userMsg = document.createElement('div')
+  userMsg.className = 'msg user'
+  userMsg.textContent = text
+  body.appendChild(userMsg)
+
+  // simulate agent reply
+  setTimeout(() => {
+    const reply = document.createElement('div')
+    reply.className = 'msg agent'
+    reply.innerHTML = `<div class="meta">秘书 · 刚刚</div>`
+    if(text.includes('@pay-44')) {
+      reply.innerHTML += `<span class="ref">@pay-44</span> 已于 1 分钟前推送修复，状态变为 done。阻塞解除。<br>✅ <span class="ref">@fe-31</span> 可继续。<br>📌 <span class="ref">@test-8</span> 未派发，需要现在触发吗？`
+    } else if(text.includes('@fe-31')) {
+      reply.innerHTML += `<span class="ref">@fe-31</span> 当前进度 55%，阻塞原因：等待 <span class="ref">@pay-44</span> 的兼容层。预计完成后 1 天可完成联调。`
+    } else if(text.includes('@test-8')) {
+      reply.innerHTML += `已下发任务给 <span class="ref">@test-8</span>，将在 <span class="ref">@fe-31</span> 完成后自动开始端到端回归测试。`
+    } else {
+      reply.innerHTML += `收到。需要我查询具体 issue 状态吗？可用 <span class="ref">@issue-name</span> 指定。`
+    }
+    body.appendChild(reply)
+    body.scrollTop = body.scrollHeight
+  }, 600)
+
+  input.value = ''
+  body.scrollTop = body.scrollHeight
+}
+
+function showCreate() {
+  document.getElementById('ganttView').classList.remove('show')
+  document.getElementById('kanbanView').classList.remove('show')
+  document.getElementById('createView').classList.add('show')
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'))
+  document.getElementById('createResult').classList.remove('show')
+  document.getElementById('roomPanel').classList.remove('show')
+}
+
+function hideCreate() {
+  document.getElementById('createView').classList.remove('show')
+  document.getElementById('ganttView').classList.add('show')
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'))
+  document.querySelector('[data-view="gantt"]').classList.add('active')
+  document.getElementById('roomPanel').classList.add('show')
+  document.getElementById('mNavGantt').classList.add('active')
+}
+
+function doCreate() {
+  const name = document.getElementById('wsName').value || '未命名 Workspace'
+  const repos = document.getElementById('wsRepos').value
+  const ctx = document.getElementById('wsContext').value
+
+  const result = document.getElementById('createResult')
+  result.classList.add('show')
+  document.getElementById('createResultTitle').textContent = '✅ AI 已拆解'
+
+  let issues = ''
+  if(ctx.includes('后端')||ctx.includes('API')||ctx.includes('接口')) {
+    issues += '📦 阶段 1: 接口改造\n  ├── @xxx-01 定义接口 schema · 估1d · @后端仓库\n  ├── @xxx-02 实现核心逻辑 · 估2d · @后端仓库\n  └── @xxx-03 兼容层 · 估1d · @后端仓库\n'
+  }
+  if(ctx.includes('前端')||ctx.includes('SDK')) {
+    issues += '📦 阶段 2: 联调\n  ├── @xxx-04 前端接入 · 估2d · @前端仓库\n  ├── @xxx-05 SDK 更新 · 估1d · @SDK仓库\n  └── @xxx-06 端到端测试 · 估2d · @测试仓库\n'
+  }
+  issues += '📦 阶段 3: 收尾\n  └── @xxx-07 合并 + 灰度发布'
+
+  if(!issues) issues = '📦 (未指定需求，创建空 workspace，后续在指挥室里拆解)'
+
+  document.getElementById('createResultBody').textContent = issues
+}
+
+function confirmCreate() {
+  alert('已创建 Workspace！切换到甘特图视图。')
+  hideCreate()
+}
+
+// init
+switchRoom('ws-pay')
+</script>
+</body>
+</html>

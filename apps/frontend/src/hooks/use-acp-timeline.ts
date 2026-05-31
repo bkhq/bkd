@@ -51,6 +51,23 @@ export interface AcpTimelineResult {
 function isHiddenEntry(entry: TimelineEntry): boolean {
   if (entry.entryType === 'loading' || entry.entryType === 'token-usage') return true
   if (entry.entryType === 'user-message' && entry.metadata?.type === 'system') return true
+  if (entry.entryType === 'system-message' && entry.metadata?.subtype === 'thinking_tokens') return true
+  return false
+}
+
+export const SKILL_PATH_PATTERNS = ['.agents/skills/', '.claude/skills/', 'superpowers']
+
+function isSkillTool(entry: TimelineEntry): boolean {
+  if (entry.type !== 'tool') return false
+  return isSkillEntry(entry)
+}
+
+export function isSkillEntry(entry: { metadata?: Record<string, unknown> | null, toolDetail?: { toolName?: string, raw?: Record<string, unknown> } | null }): boolean {
+  const locations = (entry.metadata?.locations ?? entry.toolDetail?.raw?.locations) as Array<{ path?: string }> | undefined
+  const firstPath = locations?.[0]?.path
+  if (firstPath && SKILL_PATH_PATTERNS.some(p => firstPath.includes(p))) return true
+  const toolName = entry.toolDetail?.toolName
+  if (toolName && SKILL_PATH_PATTERNS.some(p => toolName.includes(p))) return true
   return false
 }
 
@@ -195,15 +212,12 @@ function rebuildAcpTimeline(entries: TimelineEntry[]): AcpTimelineResult {
       }
       continue
     }
-      pendingThinking = entry
-      continue
-    }
 
     if (entry.type === 'tool') {
       if (entry.metadata?.isResult) {
-        // Results are attached to actions in the action branch below.
         continue
       }
+      if (isSkillTool(entry)) continue
       const callId = entry.metadata?.toolCallId as string | undefined
       const result = callId ? resultMap.get(callId) ?? null : null
       toolBuffer.push({ action: entry, result })

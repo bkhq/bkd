@@ -296,6 +296,11 @@ function LegacySessionMessages({
     if (wasOlderPrepend && prevScrollHeightRef.current > 0) {
       const delta = el.scrollHeight - prevScrollHeightRef.current
       if (delta > 0) el.scrollTop = el.scrollTop + delta
+      // Correct after virtualizer finishes measuring in the next frame
+      requestAnimationFrame(() => {
+        const finalDelta = el.scrollHeight - prevScrollHeightRef.current
+        if (finalDelta > 0) el.scrollTop = el.scrollTop + (finalDelta - delta)
+      })
     }
     prevScrollHeightRef.current = el.scrollHeight
   }, [firstMessageId, messages.length, scrollRef])

@@ -11,6 +11,7 @@ import type {
   UserChatMessage,
 } from '@bkd/shared'
 import { useMemo } from 'react'
+import { isSkillEntry } from './use-acp-timeline'
 
 // ---------- Helpers ----------
 
@@ -205,6 +206,7 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
     }
 
     if (isToolUseAction(entry)) {
+      if (isSkillEntry(entry)) continue
       const callId =
         entry.toolDetail?.toolCallId ?? (entry.metadata?.toolCallId as string | undefined)
       let result: NormalizedLogEntry | null = null
@@ -228,7 +230,8 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
       entry.entryType === 'system-message'
       && (entry.metadata?.subtype === 'task_progress'
         || entry.metadata?.subtype === 'stop_hook_summary'
-        || entry.metadata?.subtype === 'task_notification')
+        || entry.metadata?.subtype === 'task_notification'
+        || entry.metadata?.subtype === 'thinking_tokens')
     ) {
       continue
     }
@@ -291,18 +294,11 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
     // ── Conversation messages flush the tool group ──
     flushToolBuffer()
 
-    // If the next message is an assistant-message that already contains the
-    // thinking content, skip the standalone thinking display (avoid duplication
-    // when engines stream thinking and message as the same text).
-    if (
-      entry.entryType === 'assistant-message'
-      && pendingThinking
-      && entry.content.startsWith(pendingThinking.content)
-    ) {
-      pendingThinking = null
-    } else {
-      flushPendingThinking()
-    }
+    // Keep thinking as its own surface — no dedup heuristics.
+    // Models commonly open the reply with the same sentence as the
+    // reasoning; if the duplication bothers users they can collapse
+    // the thinking block.
+    flushPendingThinking()
 
     switch (entry.entryType) {
       case 'user-message': {

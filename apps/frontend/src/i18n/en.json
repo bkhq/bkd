@@ -27,6 +27,8 @@
     "review": "Review",
     "gotoHome": "Home",
     "gotoReview": "Review",
+    "typeToSearch": "Type to search conversation logs across all projects",
+    "foundNResults": "Found {{count}} results",
     "openTerminal": "Terminal",
     "gotoCron": "Cron Jobs"
   },

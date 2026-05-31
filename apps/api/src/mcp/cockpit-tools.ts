@@ -194,6 +194,7 @@ interface LogSearchRow {
   issue_id: string
   title: string
   alias: string
+  name: string
   entry_type: string
   content: string
   created_at: number
@@ -205,6 +206,7 @@ export interface LogSearchHit {
   issueId: string
   issueTitle: string
   projectAlias: string
+  projectName: string
   entryType: string
   content: string
   createdAt: string
@@ -230,6 +232,7 @@ export function searchLogs(
         l.issue_id     AS issue_id,
         i.title        AS title,
         p.alias        AS alias,
+        p.name         AS name,
         l.entry_type   AS entry_type,
         l.content      AS content,
         l.created_at   AS created_at,
@@ -257,6 +260,7 @@ export function searchLogs(
       issueId: r.issue_id,
       issueTitle: r.title,
       projectAlias: r.alias,
+      projectName: r.name,
       entryType: r.entry_type,
       content: r.content.length > 320 ? `${r.content.slice(0, 320)}…` : r.content,
       createdAt: new Date(r.created_at * 1000).toISOString(),
@@ -282,6 +286,7 @@ function likeSearchLogs(
       l.issue_id   AS issue_id,
       i.title      AS title,
       p.alias      AS alias,
+      p.name       AS name,
       l.entry_type AS entry_type,
       l.content    AS content,
       l.created_at AS created_at,
@@ -303,6 +308,7 @@ function likeSearchLogs(
     issueId: r.issue_id,
     issueTitle: r.title,
     projectAlias: r.alias,
+    projectName: r.name,
     entryType: r.entry_type,
     content: r.content.length > 320 ? `${r.content.slice(0, 320)}…` : r.content,
     createdAt: new Date(r.created_at * 1000).toISOString(),
