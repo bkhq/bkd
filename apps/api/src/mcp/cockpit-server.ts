@@ -10,6 +10,14 @@ import {
   cockpitRecentActivity,
   cockpitSearchLogs,
 } from './cockpit-tools'
+import {
+  bkdCreateIssue,
+  bkdLinkIssues,
+  bkdListChildren,
+  bkdNotifyRoom,
+  bkdQueryIssue,
+  bkdTriggerIssue,
+} from './workspace-tools'
 
 let cached: ReturnType<typeof createSdkMcpServer> | null = null
 
@@ -79,6 +87,47 @@ export function getCockpitMcpServer(): ReturnType<typeof createSdkMcpServer> {
             }],
           }
         },
+      ),
+      tool(
+        'bkd_query_issue',
+        'Query a single issue by ID and return its metadata (title, status, tokens, cost, etc). Use this before mutating or linking issues to verify they exist and gather context.',
+        { issueId: z.string() },
+        async params => bkdQueryIssue(params),
+      ),
+      tool(
+        'bkd_trigger_issue',
+        'Send a follow-up message to an existing issue, triggering the AI engine to continue working. The issue must have an engine type set and a previous session.',
+        { issueId: z.string(), prompt: z.string() },
+        async params => bkdTriggerIssue(params),
+      ),
+      tool(
+        'bkd_list_children',
+        'List child issues linked to a given parent issue. Returns an array of {id, title, statusId, sessionStatus}. Use to understand the sub-task tree.',
+        { parentIssueId: z.string() },
+        async params => bkdListChildren(params),
+      ),
+      tool(
+        'bkd_create_issue',
+        'Create a new issue directly via DB insert (bypasses the normal route). Returns the new issue id and title. Use for automated bulk creation or secretary-driven task generation.',
+        {
+          projectId: z.string(),
+          title: z.string(),
+          prompt: z.string().optional(),
+          parentIssueId: z.string().optional(),
+        },
+        async params => bkdCreateIssue(params),
+      ),
+      tool(
+        'bkd_link_issues',
+        'Set a parent-child relationship between two issues by updating the child\'s parentIssueId. Both issues must already exist.',
+        { childIssueId: z.string(), parentIssueId: z.string() },
+        async params => bkdLinkIssues(params),
+      ),
+      tool(
+        'bkd_notify_room',
+        'Push a message to a room (e.g. cockpit assistant panel). The message will appear in the target room for the user to see. Use for status updates, summaries, or alerts.',
+        { roomType: z.string(), message: z.string() },
+        async params => bkdNotifyRoom(params),
       ),
     ],
   })

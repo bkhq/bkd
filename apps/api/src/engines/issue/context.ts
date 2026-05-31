@@ -1,5 +1,6 @@
-import type { ProcessManager } from '@/engines/process-manager'
+import { ProcessManager } from '@/engines/process-manager'
 import type { EngineAttachment, PermissionPolicy } from '@/engines/types'
+import { AUTO_CLEANUP_DELAY_MS } from './constants'
 import type { ManagedProcess } from './types'
 
 // ---------- EngineContext ----------
@@ -27,4 +28,23 @@ export interface EngineContext {
       attachments?: EngineAttachment[],
     ) => Promise<{ executionId: string, messageId?: string | null }>) |
     null
+}
+
+export function createEngineContext(): EngineContext {
+  const pm = new ProcessManager<ManagedProcess>('mcp-issue', {
+    maxConcurrent: 5,
+    autoCleanupDelayMs: AUTO_CLEANUP_DELAY_MS,
+    gcIntervalMs: 0,
+    killTimeoutMs: 30_000,
+  })
+  return {
+    pm,
+    issueOpLocks: new Map(),
+    entryCounters: new Map(),
+    turnIndexes: new Map(),
+    userMessageIds: new Map(),
+    lastErrors: new Map(),
+    lockDepth: new Map(),
+    followUpIssue: null,
+  }
 }
