@@ -37,8 +37,17 @@ export const projects = sqliteTable('projects', {
   repositoryUrl: text('repository_url'),
   systemPrompt: text('system_prompt'),
   envVars: text('env_vars'), // JSON: Record<string, string>
+  workspaceId: text('workspace_id').references(() => workspaces.id),
   sortOrder: text('sort_order').notNull().default('a0'),
   isArchived: integer('is_archived').notNull().default(0),
+  ...commonFields,
+})
+
+export const workspaces = sqliteTable('workspaces', {
+  id: shortId(),
+  name: text('name').notNull(),
+  description: text('description'),
+  repos: text('repos').notNull().default('[]'), // JSON: WorkspaceRepo[]
   ...commonFields,
 })
 
