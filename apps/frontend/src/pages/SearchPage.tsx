@@ -47,7 +47,9 @@ function SearchResult({ hit, query, onClick }: { hit: LogSearchHit, query: strin
     try {
       const d = new Date(hit.createdAt)
       return d.toLocaleString()
-    } catch { return hit.createdAt }
+    } catch {
+      return hit.createdAt
+    }
   }, [hit.createdAt])
 
   return (

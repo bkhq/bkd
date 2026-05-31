@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, User, X } from 'lucide-react'
-import { useIssueRoles, useAssignRole, useRemoveRole, useRoles } from '@/hooks/use-kanban'
+import { useAssignRole, useIssueRoles, useRemoveRole, useRoles } from '@/hooks/use-kanban'
 
 interface ParticipantPanelProps {
   projectId: string
@@ -17,7 +17,7 @@ export function ParticipantPanel({ projectId, issueId }: ParticipantPanelProps) 
   const [showAddRole, setShowAddRole] = useState(false)
 
   const availableRoles = allRoles?.filter(
-    role => !assignedRoles?.some(ar => ar.id === role.id)
+    role => !assignedRoles?.some(ar => ar.id === role.id),
   )
 
   if (isLoading) {
@@ -48,7 +48,10 @@ export function ParticipantPanel({ projectId, issueId }: ParticipantPanelProps) 
             <span className="text-lg">{role.avatar || '🤖'}</span>
             <div className="flex-1 min-w-0">
               <div className="text-sm truncate">{role.displayName}</div>
-              <div className="text-xs text-muted-foreground">@{role.name}</div>
+              <div className="text-xs text-muted-foreground">
+                @
+                {role.name}
+              </div>
             </div>
             <button
               onClick={() => removeRole.mutate(role.id)}

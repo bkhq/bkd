@@ -83,6 +83,8 @@ const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const TerminalPage = lazy(() => import('./pages/TerminalPage'))
 const CronPage = lazy(() => import('./pages/CronPage'))
 const WhiteboardPage = lazy(() => import('./pages/WhiteboardPage'))
+const WorkspaceCreatePage = lazy(() => import('./pages/WorkspaceCreatePage'))
+const WorkspacePage = lazy(() => import('./pages/WorkspacePage'))
 const SearchPage = lazy(() => import('./pages/SearchPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const LoginCallbackPage = lazy(() => import('./pages/LoginCallbackPage'))
@@ -396,6 +398,26 @@ if (!rootElement.innerHTML) {
                     <AuthGate>
                       <ErrorBoundary>
                         <WhiteboardPage />
+                      </ErrorBoundary>
+                    </AuthGate>
+                  )}
+                />
+                <Route
+                  path="/workspace/new"
+                  element={(
+                    <AuthGate>
+                      <ErrorBoundary>
+                        <WorkspaceCreatePage />
+                      </ErrorBoundary>
+                    </AuthGate>
+                  )}
+                />
+                <Route
+                  path="/workspace/:wid"
+                  element={(
+                    <AuthGate>
+                      <ErrorBoundary>
+                        <WorkspacePage />
                       </ErrorBoundary>
                     </AuthGate>
                   )}

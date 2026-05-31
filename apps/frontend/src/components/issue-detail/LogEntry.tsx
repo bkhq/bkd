@@ -295,7 +295,7 @@ function LogEntryImpl({
           <span className="text-sm font-semibold text-foreground/90">{role}</span>
           {entry.metadata.isRunning === true && (
             <span className="text-xs text-muted-foreground animate-pulse ml-1">
-              {'[正在执行...]'}
+              [正在执行...]
             </span>
           )}
         </div>

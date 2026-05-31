@@ -12,7 +12,7 @@ export interface AcpTimelineEntryItem {
   type: 'entry'
   id: string
   entry: NormalizedLogEntry
-  thinking?: NormalizedLogEntry  // Attached preceding thinking
+  thinking?: NormalizedLogEntry // Attached preceding thinking
 }
 
 export interface AcpTimelinePlanItem {
@@ -27,7 +27,7 @@ export interface AcpTimelineToolGroupItem {
   type: 'tool-group'
   id: string
   message: ToolGroupChatMessage
-  thinking?: NormalizedLogEntry  // Attached preceding thinking
+  thinking?: NormalizedLogEntry // Attached preceding thinking
 }
 
 export interface AcpTimelineThinkingItem {

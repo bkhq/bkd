@@ -46,7 +46,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
-import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue, useOmitModel, useRestartIssue, useIssueRoles } from '@/hooks/use-kanban'
+import { useClearIssueSession, useEngineAvailability, useEngineSettings, useFollowUpIssue, useIssueRoles, useOmitModel, useRestartIssue } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { apiErrorMessage } from '@/lib/api-error'
 import { formatFileSize, formatModelName } from '@/lib/format'
@@ -928,7 +928,7 @@ export function ChatInput({
                   type="button"
                   size="icon"
                   disabled={isCancelling}
-                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseDown={e => e.preventDefault()}
                   onClick={onCancel}
                   title={isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
                   className="rounded-full size-8 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -940,7 +940,7 @@ export function ChatInput({
                   type="button"
                   size="icon"
                   disabled={!canSend || followUp.isPending}
-                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseDown={e => e.preventDefault()}
                   onClick={handleSend}
                   title={t('chat.send')}
                   className="rounded-full size-8 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"
@@ -951,7 +951,7 @@ export function ChatInput({
                 <Button
                   type="button"
                   size="icon"
-                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseDown={e => e.preventDefault()}
                   onClick={() => textareaRef.current?.focus()}
                   title={t('chat.placeholder')}
                   className="rounded-full size-8 opacity-60 hover:opacity-100 bg-muted text-muted-foreground hover:bg-muted/80"
@@ -978,7 +978,7 @@ export function ChatInput({
           <label
             htmlFor="chat-file-input"
             title={`${t('chat.attach')} — ${t('chat.attachHint')}`}
-            onMouseDown={(e) => e.preventDefault()}
+            onMouseDown={e => e.preventDefault()}
             className="inline-flex items-center justify-center size-11 rounded-md hover:bg-accent cursor-pointer"
           >
             <Paperclip className="size-5" />
@@ -1062,7 +1062,7 @@ export function ChatInput({
                 (
                   <button
                     type="button"
-                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseDown={e => e.preventDefault()}
                     onClick={onToggleDiff}
                     data-active={diffOpen || undefined}
                     className="chip-surface px-2 mr-0.5"
@@ -1087,7 +1087,7 @@ export function ChatInput({
                     type="button"
                     size="icon"
                     disabled={!issueId || restartIssue.isPending || isSendingRef.current || !input.trim()}
-                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseDown={e => e.preventDefault()}
                     onClick={() => {
                       if (!issueId) return
                       restartIssue.mutate(issueId)
@@ -1107,7 +1107,7 @@ export function ChatInput({
                     type="button"
                     size="icon"
                     disabled={isCancelling}
-                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseDown={e => e.preventDefault()}
                     onClick={onCancel}
                     title={isCancelling ? t('session.cancellingBtn') : t('common.cancel')}
                     className="rounded-full size-9 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100 bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -1122,7 +1122,7 @@ export function ChatInput({
                     type="button"
                     size="icon"
                     disabled={!canSend || followUp.isPending}
-                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseDown={e => e.preventDefault()}
                     onClick={handleSend}
                     title={t('chat.send')}
                     className="rounded-full size-9 shadow-sm transition-transform hover:scale-105 disabled:hover:scale-100"

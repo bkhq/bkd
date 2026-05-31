@@ -72,7 +72,7 @@ workspaces.openapi(R.getWorkspaceProjects, async (c) => {
   const rows = await getWorkspaceProjects(existing.id)
   // serializeProject is not in scope here — return raw rows with toISO
   const { toISO } = await import('@/utils/date')
-  const data = rows.map((row) => ({
+  const data = rows.map(row => ({
     id: row.id,
     alias: row.alias,
     name: row.name,

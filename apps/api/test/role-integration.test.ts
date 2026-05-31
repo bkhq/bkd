@@ -1,11 +1,11 @@
-import { beforeAll, describe, expect, test, mock } from 'bun:test'
-import { createTestProject, expectSuccess, post, get } from './helpers'
+import { beforeAll, describe, expect, mock, test } from 'bun:test'
+import { createTestProject, expectSuccess, post } from './helpers'
 import './setup'
 
 // Mock issueEngine to avoid real AI execution
-mock.module("@/engines/issue", () => ({
+mock.module('@/engines/issue', () => ({
   issueEngine: {
-    executeIssue: mock(() => ({ executionId: "mock", messageId: "mock" })),
+    executeIssue: mock(() => ({ executionId: 'mock', messageId: 'mock' })),
     isTurnInFlight: mock(() => false),
     getLogs: mock(() => ({ entries: [], hasMore: false })),
     getMaxTurnIndex: mock(() => 0),
@@ -97,8 +97,7 @@ describe('Role Integration', () => {
     const { issueLogs } = await import('@/db/schema')
     const { eq } = await import('drizzle-orm')
 
-    const logs = await db.select().from(issueLogs)
-      .where(eq(issueLogs.issueId, issueId))
+    const logs = await db.select().from(issueLogs).where(eq(issueLogs.issueId, issueId))
 
     const hasReply = logs.some((entry: any) =>
       entry.content === '建议用 React + Tailwind',
@@ -117,8 +116,7 @@ describe('Role Integration', () => {
     const { issueLogs } = await import('@/db/schema')
     const { eq } = await import('drizzle-orm')
 
-    const logs = await db.select().from(issueLogs)
-      .where(eq(issueLogs.issueId, issueId))
+    const logs = await db.select().from(issueLogs).where(eq(issueLogs.issueId, issueId))
 
     const roleEntry = logs.find((entry: any) =>
       entry.content === '前端方案完成',

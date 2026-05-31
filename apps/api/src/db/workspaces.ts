@@ -10,7 +10,7 @@ export function serializeWorkspace(row: WorkspaceRow) {
     id: row.id,
     name: row.name,
     description: row.description ?? undefined,
-    repos: JSON.parse(row.repos) as { url: string; defaultBranch: string; role: string }[],
+    repos: JSON.parse(row.repos) as { url: string, defaultBranch: string, role: string }[],
     createdAt: toISO(row.createdAt),
     updatedAt: toISO(row.updatedAt),
   }
@@ -35,7 +35,7 @@ export async function listWorkspaces() {
 export async function createWorkspace(data: {
   name: string
   description?: string
-  repos?: { url: string; defaultBranch: string; role: string }[]
+  repos?: { url: string, defaultBranch: string, role: string }[]
 }) {
   const [row] = await db
     .insert(workspaces)
@@ -50,7 +50,7 @@ export async function createWorkspace(data: {
 
 export async function updateWorkspace(
   id: string,
-  data: { name?: string; description?: string; repos?: { url: string; defaultBranch: string; role: string }[] },
+  data: { name?: string, description?: string, repos?: { url: string, defaultBranch: string, role: string }[] },
 ) {
   const updates: Record<string, unknown> = {}
   if (data.name !== undefined) updates.name = data.name

@@ -64,13 +64,11 @@ issueRolesRouter.openapi(R.listIssueRoles, async (c) => {
 
   const assignments = await db.select({
     role: rolesTable,
-  }).from(issueRoles)
-    .innerJoin(rolesTable, eq(issueRoles.roleId, rolesTable.id))
-    .where(and(
-      eq(issueRoles.issueId, issueId),
-      eq(issueRoles.isDeleted, 0),
-      eq(rolesTable.isDeleted, 0),
-    ))
+  }).from(issueRoles).innerJoin(rolesTable, eq(issueRoles.roleId, rolesTable.id)).where(and(
+    eq(issueRoles.issueId, issueId),
+    eq(issueRoles.isDeleted, 0),
+    eq(rolesTable.isDeleted, 0),
+  ))
 
   const roles = assignments.map(a => a.role)
   return c.json({ success: true, data: roles }, 200)
@@ -82,13 +80,11 @@ issueRolesRouter.get('/:issueId/participants', async (c) => {
 
   const roleAssignments = await db.select({
     role: rolesTable,
-  }).from(issueRoles)
-    .innerJoin(rolesTable, eq(issueRoles.roleId, rolesTable.id))
-    .where(and(
-      eq(issueRoles.issueId, issueId),
-      eq(issueRoles.isDeleted, 0),
-      eq(rolesTable.isDeleted, 0),
-    ))
+  }).from(issueRoles).innerJoin(rolesTable, eq(issueRoles.roleId, rolesTable.id)).where(and(
+    eq(issueRoles.issueId, issueId),
+    eq(issueRoles.isDeleted, 0),
+    eq(rolesTable.isDeleted, 0),
+  ))
 
   return c.json({
     success: true,

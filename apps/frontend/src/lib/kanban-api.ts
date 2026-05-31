@@ -23,6 +23,7 @@ import type {
   WebhookDelivery,
   WebhookEventType,
   WhiteboardNode,
+  Workspace,
 } from '@/types/kanban'
 import { clearToken, getToken } from './auth'
 
@@ -362,6 +363,15 @@ export const kanbanApi = {
   unarchiveProject: (id: string) => post<Project>(`/api/projects/${id}/unarchive`, {}),
   sortProject: (id: string, sortOrder: string) =>
     patch<null>('/api/projects/sort', { id, sortOrder }),
+
+  // Workspaces
+  getWorkspaces: () => get<Workspace[]>('/api/workspaces'),
+  getWorkspace: (id: string) => get<Workspace>(`/api/workspaces/${encodeURIComponent(id)}`),
+  createWorkspace: (data: { name: string, description?: string, repos: { url: string, defaultBranch: string, role: string }[] }) => post<Workspace>('/api/workspaces', data),
+  updateWorkspace: (id: string, data: { name?: string, description?: string }) => patch<Workspace>(`/api/workspaces/${encodeURIComponent(id)}`, data),
+  deleteWorkspace: (id: string) => del<{ id: string }>(`/api/workspaces/${encodeURIComponent(id)}`),
+  getWorkspaceProjects: (workspaceId: string) => get<Project[]>(`/api/workspaces/${encodeURIComponent(workspaceId)}/projects`),
+  getIssueTree: (projectId: string) => get<any[]>(`/api/projects/${encodeURIComponent(projectId)}/issues?tree=true`),
 
   // Worktrees
   getWorktrees: (projectId: string) =>

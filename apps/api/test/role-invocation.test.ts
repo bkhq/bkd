@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test, mock } from 'bun:test'
+import { beforeAll, describe, expect, mock, test } from 'bun:test'
 import { createTestProject, expectSuccess, post } from './helpers'
 import './setup'
 
@@ -8,7 +8,7 @@ const mockExecuteIssue = mock((issueId: string, _opts: any) => ({
   messageId: `mock-msg-${issueId}`,
 }))
 
-mock.module("@/engines/issue", () => ({
+mock.module('@/engines/issue', () => ({
   issueEngine: {
     executeIssue: mockExecuteIssue,
     isTurnInFlight: mock(() => false),
@@ -71,7 +71,7 @@ describe('Role Invocation', () => {
         roleName: 'non-existent',
         message: 'test',
       }),
-    ).rejects.toThrow("Role 'non-existent' not found")
+    ).rejects.toThrow('Role \'non-existent\' not found')
   })
 
   test('invokeRole returns error for internal role without issueId', async () => {
@@ -92,7 +92,7 @@ describe('Role Invocation', () => {
         roleName: 'no-issue',
         message: 'test',
       }),
-    ).rejects.toThrow("Internal role 'no-issue' has no associated issue")
+    ).rejects.toThrow('Internal role \'no-issue\' has no associated issue')
   })
 
   test('invokeRole returns error for external role without endpoint', async () => {
@@ -113,7 +113,7 @@ describe('Role Invocation', () => {
         roleName: 'no-endpoint',
         message: 'test',
       }),
-    ).rejects.toThrow("External role 'no-endpoint' has no endpoint")
+    ).rejects.toThrow('External role \'no-endpoint\' has no endpoint')
   })
 
   test('invokeRole triggers internal role with mocked engine', async () => {
@@ -187,6 +187,6 @@ describe('Role Invocation', () => {
         roleName: 'designer',
         message: 'test',
       }),
-    ).rejects.toThrow("External role 'designer' returned 500")
+    ).rejects.toThrow('External role \'designer\' returned 500')
   })
 })

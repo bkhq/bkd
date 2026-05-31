@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
-import { createTestProject, createTestIssue, expectSuccess, post, get } from './helpers'
+import { createTestProject, expectSuccess, post } from './helpers'
 import './setup'
 
 let projectId: string
@@ -50,8 +50,7 @@ describe('Role Reply Callback', () => {
     const { issueLogs } = await import('@/db/schema')
     const { eq } = await import('drizzle-orm')
 
-    const logs = await db.select().from(issueLogs)
-      .where(eq(issueLogs.issueId, issueId))
+    const logs = await db.select().from(issueLogs).where(eq(issueLogs.issueId, issueId))
 
     const hasRoleReply = logs.some((entry: any) =>
       entry.content === '测试回复消息' && entry.entryType === 'assistant-message',

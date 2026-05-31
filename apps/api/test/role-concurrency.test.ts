@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, test, mock } from 'bun:test'
+import { beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { createTestProject, expectSuccess, post } from './helpers'
 import './setup'
 
@@ -22,7 +22,7 @@ const mockExecuteIssue = mock(({ issueId }: { issueId: string }) => {
   })
 })
 
-mock.module("@/engines/issue", () => ({
+mock.module('@/engines/issue', () => ({
   issueEngine: {
     executeIssue: mockExecuteIssue,
     isTurnInFlight: mock(() => false),

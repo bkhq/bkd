@@ -65,6 +65,10 @@ export const queryKeys = {
   pendingMessages: (projectId: string, issueId: string) =>
     ['projects', projectId, 'issues', issueId, 'pending'] as const,
   roles: (projectId: string) => ['projects', projectId, 'roles'] as const,
+  workspaces: () => ['workspaces'] as const,
+  workspace: (id: string) => ['workspaces', id] as const,
+  workspaceProjects: (id: string) => ['workspaces', id, 'projects'] as const,
+  issueTree: (projectId: string) => ['projects', projectId, 'issues', 'tree'] as const,
 }
 
 export function useProjects() {
@@ -1229,5 +1233,61 @@ export function useIssueParticipants(projectId: string, issueId: string) {
     queryFn: () => kanbanApi.getIssueParticipants(projectId, issueId),
     enabled: !!(projectId && issueId),
     staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useWorkspaces() {
+  return useQuery({
+    queryKey: queryKeys.workspaces(),
+    queryFn: () => kanbanApi.getWorkspaces(),
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useWorkspace(id: string) {
+  return useQuery({
+    queryKey: queryKeys.workspace(id),
+    queryFn: () => kanbanApi.getWorkspace(id),
+    enabled: !!id,
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useWorkspaceProjects(id: string) {
+  return useQuery({
+    queryKey: queryKeys.workspaceProjects(id),
+    queryFn: () => kanbanApi.getWorkspaceProjects(id),
+    enabled: !!id,
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useIssueTree(projectId: string) {
+  return useQuery({
+    queryKey: queryKeys.issueTree(projectId),
+    queryFn: () => kanbanApi.getIssueTree(projectId),
+    enabled: !!projectId,
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useCreateWorkspace() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { name: string, description?: string, repos: { url: string, defaultBranch: string, role: string }[] }) =>
+      kanbanApi.createWorkspace(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaces() })
+    },
+  })
+}
+
+export function useDeleteWorkspace() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => kanbanApi.deleteWorkspace(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaces() })
+    },
   })
 }

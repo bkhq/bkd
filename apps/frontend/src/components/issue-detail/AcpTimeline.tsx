@@ -97,8 +97,10 @@ const StreamingThinking = memo(({ entry }: { entry: NormalizedLogEntry }) => {
   )
 })
 
-/** Completed thinking block — expanded by default so switching out of
- *  streaming mode doesn't visually collapse all thinking content. */
+/**
+ * Completed thinking block — expanded by default so switching out of
+ *  streaming mode doesn't visually collapse all thinking content.
+ */
 const CompletedThinking = memo(({ entry }: { entry: NormalizedLogEntry }) => {
   const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(true)
