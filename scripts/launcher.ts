@@ -19,6 +19,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:f
 import { rename } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { cli } from 'cleye'
+import { initLauncher, registerUpgradeShutdown } from '../apps/api/src/launcher-init'
 
 // --- Constants ---
 
@@ -660,8 +661,77 @@ async function main() {
 
   console.log(`[launcher] Starting version ${version}`)
 
-  // 6. Start server
-  await import(serverPath)
+  // 6. Init engine framework (migrations, reconciliation, cron, etc.)
+  const stops = initLauncher()
+
+  // 7. Load Hono app
+  const publicDir = resolve(appDir, 'public')
+  const indexHtml = resolve(publicDir, 'index.html')
+  let currentServerPath = serverPath
+  let currentApp: any = null
+
+  async function loadApp(sp: string): Promise<any> {
+    const mod = await import(sp)
+    return typeof mod.createApp === 'function' ? mod.createApp() : mod.default
+  }
+
+  currentApp = await loadApp(currentServerPath)
+
+  // 8. HTTP server
+  const listenHost = process.env.HOST ?? flags.host
+  const listenPort = Number(process.env.PORT ?? flags.port)
+  const http = Bun.serve({
+    port: listenPort,
+    hostname: listenHost,
+    fetch: async (req, server) => {
+      const url = new URL(req.url)
+
+      if (url.pathname.startsWith('/api/') || (req.method !== 'GET' && req.method !== 'HEAD')) {
+        return currentApp.fetch(req, server.raw ?? server)
+      }
+
+      if (url.pathname.startsWith('/assets/')) {
+        const file = Bun.file(resolve(publicDir, url.pathname.slice(1)))
+        if (await file.exists()) {
+          return new Response(file, { headers: { 'Cache-Control': 'public, max-age=31536000, immutable' } })
+        }
+      }
+
+      const filePath = url.pathname.slice(1) || 'index.html'
+      const file = Bun.file(resolve(publicDir, filePath))
+      if (await file.exists()) {
+        const isHtml = filePath === 'index.html'
+        return new Response(file, {
+          headers: isHtml
+            ? { 'Content-Type': 'text/html;charset=utf-8', 'Cache-Control': 'no-cache' }
+            : { 'Cache-Control': 'public, max-age=3600, must-revalidate' },
+        })
+      }
+
+      if (await Bun.file(indexHtml).exists()) {
+        return new Response(Bun.file(indexHtml), {
+          headers: { 'Content-Type': 'text/html;charset=utf-8', 'Cache-Control': 'no-cache' },
+        })
+      }
+
+      return currentApp.fetch(req, server.raw ?? server)
+    },
+  })
+
+  console.log(`[launcher] Listening on http://${listenHost}:${http.port} (version ${version})`)
+
+  // 9. Register upgrade callback (needs http reference)
+  registerUpgradeShutdown(stops, http)
+
+  // 10. Hot-reload hook — called by upgrade/apply.ts
+  ;(globalThis as any).hotReloadApp = async (newVersionDir: string) => {
+    const newPath = resolve(newVersionDir, 'server.js')
+    if (!existsSync(newPath)) throw new Error(`server.js not found: ${newPath}`)
+    delete (Bun as any).importCache?.[currentServerPath]
+    currentApp = await loadApp(newPath)
+    currentServerPath = newPath
+    console.log(`[launcher] Hot-reloaded app from ${newVersionDir}`)
+  }
 }
 
 // --- Retry wrapper ---

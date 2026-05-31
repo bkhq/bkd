@@ -2,127 +2,27 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { serveStatic, websocket } from 'hono/bun'
 import app from './app'
-import { authConfig, discoverOIDC } from './auth'
 import { embeddedStatic } from './embedded-static'
 import { issueEngine } from './engines/issue'
-import { migrateSlashCommandsKey, refreshSlashCommandsCache } from './engines/issue/queries'
 import {
-  registerSettledReconciliation,
-  startPeriodicReconciliation,
-  startupReconciliation,
   stopPeriodicReconciliation,
 } from './engines/reconciler'
-import { refreshGlobalEnvCache } from './engines/safe-env'
-import { startCockpitDigestBridge } from './cockpit/digest-bridge'
-import { startChangesSummaryWatcher, stopChangesSummaryWatcher } from './events/changes-summary'
-import { startCron } from './cron'
+import { initLauncher, registerUpgradeShutdown } from './launcher-init'
 import { logger } from './logger'
-import { acquirePidLock, releasePidLock } from './pid-lock'
+import { releasePidLock } from './pid-lock'
 import { APP_DIR, ROOT_DIR } from './root'
 import { printStartupBanner } from './startup-banner'
 import { staticAssets } from './static-assets'
-import { drainRunningIssues } from './upgrade/drain'
-import { initUpgradeSystem, registerShutdownForUpgrade, stopPeriodicCheck } from './upgrade/service'
-import { initWebhookDispatcher, startDeliveryCleanup } from './webhooks/dispatcher'
-
-// ---------- Global error handlers ----------
-// Catch unhandled promise rejections so they are always logged.
-// This prevents silent failures in fire-and-forget async operations
-// (monitorCompletion, turn settlement, GC sweep, etc.).
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error({ reason, promise: String(promise) }, 'unhandled_rejection')
-})
-
-// Catch truly uncaught exceptions. Log and exit — the process state is
-// unreliable after an uncaught exception.
-process.on('uncaughtException', (err, origin) => {
-  logger.fatal({ err, origin }, 'uncaught_exception')
-  // Give pino time to flush the log entry before exiting
-  setTimeout(() => process.exit(1), 200)
-})
-
-// ---------- PID lock ----------
-// Prevent multiple BKD instances from running simultaneously against the
-// same data directory. Must run before any DB writes or Bun.serve().
-acquirePidLock()
-
-// Safety net: release the PID lock on any exit path (uncaughtException,
-// process.exit, SIGKILL is not catchable but stale-lock detection handles it).
-// `process.on('exit')` only allows synchronous work — releasePidLock is sync.
-process.on('exit', () => {
-  releasePidLock()
-})
-
-// Warm up OIDC discovery cache when auth is enabled
-if (authConfig.enabled) {
-  void discoverOIDC().catch((err) => {
-    logger.error({ err }, 'oidc_discovery_warmup_failed')
-  })
-}
-
-// Migrate legacy global slash commands key to per-engine format, then load cache
-void migrateSlashCommandsKey()
-  .then(() => refreshSlashCommandsCache())
-  .catch((err) => {
-    logger.error({ err }, 'slash_commands_cache_load_failed')
-  })
-
-// Pre-warm global env vars cache from DB
-void refreshGlobalEnvCache().catch((err) => {
-  logger.error({ err }, 'global_env_cache_load_failed')
-})
-
-// Ensure FTS shadow is built with the current tokenizer version.
-// Rebuilds when migrating from the previous porter/unicode61 tokenizer.
-void Promise.resolve().then(async () => {
-  const { ensureFtsTokenizerVersion } = await import('./db/fts')
-  ensureFtsTokenizerVersion()
-}).catch((err) => {
-  logger.error({ err }, 'fts_rebuild_failed')
-})
-
-// Load max concurrent executions setting from DB
-void issueEngine.initMaxConcurrent().catch((err) => {
-  logger.error({ err }, 'init_max_concurrent_failed')
-})
-
-// Run startup reconciliation: mark stale sessions as failed and move
-// orphaned working issues to review.
-void startupReconciliation().catch((err) => {
-  logger.error({ err }, 'startup_reconciliation_failed')
-})
-
-// Register event-driven reconciliation (fires after each process settles)
-const stopSettledReconciliation = registerSettledReconciliation()
-
-// Start periodic reconciliation (fallback safety net)
-startPeriodicReconciliation()
-
-// Start watching for file changes to push summaries via SSE
-startChangesSummaryWatcher()
-
-// Wire the cockpit always-on bot timeline (COCKPIT-007 / PLAN-020)
-const stopCockpitDigestBridge = startCockpitDigestBridge()
-
-// Initialize webhook dispatcher (subscribes to event bus)
-initWebhookDispatcher()
-
-// Start periodic webhook delivery cleanup (keeps last 100 per webhook)
-const stopDeliveryCleanup = startDeliveryCleanup()
+import { stopPeriodicCheck } from './upgrade/service'
 
 const listenHost = process.env.HOST ?? '0.0.0.0'
 const listenPort = Number(process.env.PORT ?? 3000)
 
 // --- Static file serving ---
-// In compiled mode, static-assets.ts is replaced at build time with
-// generated imports that embed all frontend/dist files.
-// In dev mode, the file exports an empty Map and we fall back to disk.
 if (staticAssets.size > 0) {
   app.use('*', embeddedStatic(staticAssets))
   logger.info({ assets: staticAssets.size }, 'embedded_static_loaded')
 } else {
-  // In package mode, static files live in APP_DIR/public/.
-  // In dev mode, they live in apps/frontend/dist/.
   const staticRoot = APP_DIR ? resolve(APP_DIR, 'public') : resolve(ROOT_DIR, 'apps/frontend/dist')
   if (existsSync(staticRoot)) {
     app.use(
@@ -149,11 +49,6 @@ if (staticAssets.size > 0) {
       }),
     )
 
-    // SPA fallback: serve index.html for any unmatched non-API path so the
-    // client-side router (react-router) can handle deep links like
-    // /projects/:projectId/issues/:issueId. Without this, package mode
-    // returns the global 404 JSON for direct deep-link visits and reloads.
-    // Embedded mode already handles this in embedded-static.ts.
     const indexHtml = resolve(staticRoot, 'index.html')
     if (existsSync(indexHtml)) {
       app.use('*', async (c, next) => {
@@ -174,9 +69,6 @@ const http = Bun.serve({
   port: listenPort,
   hostname: listenHost,
   idleTimeout: 60,
-  // Worst-case multipart upload: MAX_FILES * MAX_FILE_SIZE + a little
-  // framing overhead. Bun's default rejects large project-seed tarballs
-  // attached via the chat input. See apps/api/src/uploads.ts.
   maxRequestBodySize: 1024 * 1024 * 1024 + 16 * 1024 * 1024, // 1040 MB
   fetch: app.fetch,
   websocket,
@@ -184,44 +76,13 @@ const http = Bun.serve({
 
 printStartupBanner(listenHost, listenPort)
 
-// Start cron scheduler (replaces individual setInterval jobs)
-const stopCron = startCron()
-
-// Register shutdown callback for upgrade restarts (stops server + cancels engines)
-registerShutdownForUpgrade(async () => {
-  // Stop schedulers first so no cron/periodic runs start while we drain.
-  stopCron()
-  stopPeriodicCheck()
-
-  // Graceful drain: reject new executions and wait for in-flight engine
-  // turns to settle naturally, so the upgrade doesn't kill running sessions
-  // mid-turn. Turns that exceed the drain timeout fall through to cancelAll.
-  const { drained, remaining } = await drainRunningIssues()
-  if (!drained) {
-    logger.warn({ remaining }, 'upgrade_proceeding_with_unsettled_issues')
-  }
-
-  stopChangesSummaryWatcher()
-  stopSettledReconciliation()
-  stopPeriodicReconciliation()
-  stopDeliveryCleanup()
-  stopCockpitDigestBridge()
-  await issueEngine.cancelAll()
-  http.stop()
-  releasePidLock()
-  logger.info('server_stopped_for_upgrade')
-})
-
-// Initialize upgrade system (check for updates on startup + periodic check)
-void initUpgradeSystem().catch((err) => {
-  logger.error({ err }, 'upgrade_system_init_failed')
-})
+const stops = initLauncher()
+registerUpgradeShutdown(stops, http)
 
 let isShuttingDown = false
 
 async function shutdown(signal: string) {
   if (isShuttingDown) {
-    // Second signal → force-exit immediately (e.g. double Ctrl+C)
     logger.warn({ signal }, 'server_shutdown_forced')
     process.exit(1)
   }
@@ -238,16 +99,14 @@ async function shutdown(signal: string) {
     'server_shutdown',
   )
 
-  // Stop SSE subscriptions and periodic jobs before cancelling processes
-  stopChangesSummaryWatcher()
-  stopSettledReconciliation()
-  stopPeriodicReconciliation()
-  stopCron()
+  stops.stopCron()
   stopPeriodicCheck()
-  stopDeliveryCleanup()
-  stopCockpitDigestBridge()
+  stops.stopChangesSummaryWatcher()
+  stops.stopSettledReconciliation()
+  stopPeriodicReconciliation()
+  stops.stopDeliveryCleanup()
+  stops.stopCockpitDigestBridge()
 
-  // Cancel all active engine processes before shutting down
   await issueEngine.cancelAll()
 
   http.stop()

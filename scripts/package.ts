@@ -48,7 +48,7 @@ const ROOT = resolve(import.meta.dir, '..')
 const OUT_DIR = resolve(ROOT, 'dist')
 const FRONTEND_DIST = resolve(ROOT, 'apps/frontend/dist')
 const DRIZZLE = resolve(ROOT, 'apps/api/drizzle')
-const API_SRC = resolve(ROOT, 'apps/api/src/index.ts')
+const API_SRC = resolve(ROOT, 'apps/api/src/app-entry.ts')
 
 const STAGE = resolve(ROOT, '.package-staging')
 

@@ -214,10 +214,10 @@ export function listLocalAppVersions(): Array<{ version: string, isCurrent: bool
 }
 
 /**
- * Activate an already-installed local app package version and restart through
- * the same graceful-drain path as a downloaded upgrade. Unlike
- * applyUpgradeAndRestart this skips the GitHub download/checksum gate, so it
- * works for locally-built packages (`bun run package`). Package mode only.
+ * Activate an already-installed local app package version and hot-reload
+ * through the same graceful-drain path as a downloaded upgrade. Uses runtime
+ * module swap (globalThis.hotReloadApp) to avoid process restart — zero 502,
+ * engine subprocesses survive. Package mode only.
  */
 export async function applyLocalVersion(version: string): Promise<void> {
   if (!isPackageMode) {
@@ -241,7 +241,6 @@ export async function applyLocalVersion(version: string): Promise<void> {
 
   try {
     const versionDir = resolve(APP_BASE, `v${version}`)
-    // Defence in depth: VALID_VERSION_RE already rejects path separators.
     if (!isPathWithinDir(versionDir, APP_BASE)) {
       throw new Error('Version directory escapes the app directory')
     }
@@ -250,14 +249,22 @@ export async function applyLocalVersion(version: string): Promise<void> {
       throw new Error(`Version ${version} is not installed (missing server.js)`)
     }
 
-    // Activate the version, then restart through the shared drain path.
     writeFileSync(
       VERSION_FILE,
       JSON.stringify({ version, updatedAt: new Date().toISOString() }),
     )
     logger.info({ version }, 'upgrade_local_version_activated')
 
-    await shutdownAndRespawn(process.execPath)
+    const hotReload = (globalThis as any).hotReloadApp as
+      ((versionDir: string) => Promise<void>) | undefined
+
+    if (typeof hotReload === 'function') {
+      await hotReload(versionDir)
+      logger.info({ version }, 'upgrade_hot_reloaded')
+    } else {
+      logger.warn('upgrade_hot_reload_unavailable_falling_back_to_restart')
+      await shutdownAndRespawn(process.execPath)
+    }
   } finally {
     clearTimeout(safetyTimer)
     isApplying = false
