@@ -5,8 +5,43 @@ import { issues as issuesTable } from '@/db/schema'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 import { getProjectOwnedIssue, serializeIssue } from './_shared'
+import type { IssueRow } from './_shared'
 
 const query = createOpenAPIRouter()
+
+interface TreeIssue {
+  id: string
+  title: string
+  statusId: string
+  issueNumber: number
+  parentIssueId: string | null
+  children: TreeIssue[]
+}
+
+function buildIssueTree(issues: IssueRow[]): TreeIssue[] {
+  const map = new Map<string, TreeIssue>()
+  const roots: TreeIssue[] = []
+
+  for (const issue of issues) {
+    map.set(issue.id, {
+      id: issue.id,
+      title: issue.title,
+      statusId: issue.statusId,
+      issueNumber: issue.issueNumber,
+      parentIssueId: issue.parentIssueId ?? null,
+      children: [],
+    })
+  }
+  for (const issue of issues) {
+    const node = map.get(issue.id)!
+    if (issue.parentIssueId && map.has(issue.parentIssueId)) {
+      map.get(issue.parentIssueId)!.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  }
+  return roots
+}
 
 // GET /api/projects/:projectId/issues — List issues
 query.openapi(R.listIssues, async (c) => {
@@ -25,6 +60,11 @@ query.openapi(R.listIssues, async (c) => {
       eq(issuesTable.isHidden, false),
     ))
     .orderBy(desc(issuesTable.isPinned), desc(issuesTable.statusUpdatedAt))
+
+  if (c.req.query('tree') === 'true') {
+    const tree = buildIssueTree(rows)
+    return c.json({ success: true, data: tree }, 200 as const)
+  }
 
   return c.json({
     success: true,
