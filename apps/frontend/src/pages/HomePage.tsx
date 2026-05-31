@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AppLogo } from '@/components/AppLogo'
 import { AppSettingsDialog } from '@/components/AppSettingsDialog'
 import { CreateProjectDialog } from '@/components/CreateProjectDialog'
@@ -38,7 +38,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
-import { useArchivedProjects, useProjects, useSortProject, useUnarchiveProject } from '@/hooks/use-kanban'
+import { useArchivedProjects, useProjects, useSortProject, useUnarchiveProject, useWorkspaces } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useProjectStats } from '@/hooks/use-project-stats'
 import { getProjectInitials } from '@/lib/format'
@@ -514,6 +514,7 @@ export default function HomePage() {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { data: projects, isLoading } = useProjects()
+  const { data: workspaces } = useWorkspaces()
   const [showCreate, setShowCreate] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const isMobile = useIsMobile()
@@ -616,6 +617,27 @@ export default function HomePage() {
                 />
               )}
         </div>
+
+        {workspaces && workspaces.length > 0 && (
+          <section className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Workspaces</h2>
+              <Link to="/workspace/new" className="text-sm text-blue-600 hover:text-blue-700">+ New</Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {workspaces.map(ws => (
+                <Link key={ws.id} to={`/workspace/${ws.id}`} className="p-4 border rounded-lg hover:shadow transition-shadow bg-white">
+                  <div className="font-medium text-gray-900">{ws.name}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {ws.repos?.length || 0}
+                    {' repos · '}
+                    {ws.description || 'No description'}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         {isLoading ?
             (

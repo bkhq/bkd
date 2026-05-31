@@ -1,8 +1,9 @@
-import { ArrowLeft, FileSearch, Search } from 'lucide-react'
+import { ArrowLeft, FileSearch, Search, Settings } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { AppSettingsDialog } from '@/components/AppSettingsDialog'
 import { kanbanApi } from '@/lib/kanban-api'
 import { queryKeys } from '@/hooks/use-kanban'
 
@@ -81,6 +82,7 @@ export default function SearchPage() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [showSettings, setShowSettings] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
@@ -136,6 +138,15 @@ export default function SearchPage() {
         {isLoading && (
           <span className="text-xs text-muted-foreground animate-pulse">{t('common.loading', '…')}</span>
         )}
+        <button
+          type="button"
+          onClick={() => setShowSettings(true)}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent/50 active:bg-accent transition-colors"
+          aria-label={t('sidebar.settings')}
+          title={t('sidebar.settings')}
+        >
+          <Settings className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Results */}
@@ -170,6 +181,7 @@ export default function SearchPage() {
           </div>
         )}
       </div>
+      <AppSettingsDialog open={showSettings} onOpenChange={setShowSettings} />
     </div>
   )
 }
