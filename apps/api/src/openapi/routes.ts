@@ -364,7 +364,12 @@ export const listIssues = createRoute({
   tags: ['Issues'],
   summary: 'List issues in project',
   operationId: 'listIssues',
-  request: { params: projectParam },
+  request: {
+    params: projectParam,
+    query: z.object({
+      tree: z.enum(['true']).optional(),
+    }),
+  },
   responses: {
     200: successResponse(z.array(IssueSchema), 'Issue list'),
     404: errorResponse('Project not found'),
@@ -556,7 +561,19 @@ export const restartIssue = createRoute({
   tags: ['Issue Commands'],
   summary: 'Restart failed session',
   operationId: 'restartIssue',
-  request: { params: projectIssueParams },
+  request: {
+    params: projectIssueParams,
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            engineType: z.string().optional(),
+          }),
+        },
+      },
+      required: false,
+    },
+  },
   responses: {
     200: successResponse(ExecuteIssueResponseSchema, 'Restarted'),
     400: errorResponse('Bad request'),

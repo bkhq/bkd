@@ -151,7 +151,10 @@ command.openapi(R.restartIssue, async (c) => {
     if (!guard.ok) {
       return c.json({ success: false, error: guard.reason! }, 400 as const)
     }
-    const result = await issueEngine.restartIssue(issueId)
+    const body = await c.req.json().catch(() => ({}))
+    const result = await issueEngine.restartIssue(issueId, {
+      engineType: body?.engineType,
+    })
     return c.json({
       success: true,
       data: { executionId: result.executionId, issueId },

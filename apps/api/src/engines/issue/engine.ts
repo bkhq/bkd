@@ -142,8 +142,8 @@ export class IssueEngine {
     )
   }
 
-  async restartIssue(issueId: string): Promise<{ executionId: string }> {
-    return restartIssue(this.ctx, issueId)
+  async restartIssue(issueId: string, opts?: { engineType?: string }): Promise<{ executionId: string }> {
+    return restartIssue(this.ctx, issueId, opts)
   }
 
   async cancelIssue(issueId: string): Promise<'interrupted' | 'cancelled'> {

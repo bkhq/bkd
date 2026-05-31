@@ -26,6 +26,7 @@ import { logger } from '@/logger'
 export async function restartIssue(
   ctx: EngineContext,
   issueId: string,
+  opts?: { engineType?: string },
 ): Promise<{ executionId: string }> {
   return withIssueLock(ctx, issueId, async () => {
     const issue = await getIssueWithSession(issueId)
@@ -35,12 +36,16 @@ export async function restartIssue(
     if (status !== 'failed' && status !== 'cancelled')
       throw new Error(`Cannot restart issue in session status: ${status}`)
 
-    if (!issue.sessionFields.engineType) throw new Error('No engine type set on issue')
     if (!issue.sessionFields.prompt) throw new Error('No prompt set on issue')
 
     ensureNoActiveProcess(ctx, issueId)
 
-    const engineType = issue.sessionFields.engineType
+    const engineType = opts?.engineType ?? issue.sessionFields.engineType
+    if (!engineType) throw new Error('No engine type set on issue')
+
+    if (opts?.engineType && opts.engineType !== issue.sessionFields.engineType) {
+      await updateIssueSession(issueId, { engineType: opts.engineType })
+    }
     const executor = engineRegistry.get(engineType)
     if (!executor) throw new Error(`No executor for engine type: ${engineType}`)
 
