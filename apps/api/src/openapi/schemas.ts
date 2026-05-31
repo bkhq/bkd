@@ -621,3 +621,32 @@ export const GeneratedIssueItemSchema = z.object({
   title: z.string(),
   prompt: z.string(),
 }).openapi('GeneratedIssueItem')
+
+// ── Workspace schemas ───────────────────────────────────
+
+export const WorkspaceRepoSchema = z.object({
+  url: z.string().min(1),
+  defaultBranch: z.string().min(1),
+  role: z.string().min(1),
+}).openapi('WorkspaceRepo')
+
+export const WorkspaceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  repos: z.array(WorkspaceRepoSchema),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+}).openapi('Workspace')
+
+export const CreateWorkspaceSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(5000).optional(),
+  repos: z.array(WorkspaceRepoSchema).default([]),
+}).openapi('CreateWorkspace')
+
+export const UpdateWorkspaceSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  description: z.string().max(5000).optional(),
+  repos: z.array(WorkspaceRepoSchema).optional(),
+}).openapi('UpdateWorkspace')

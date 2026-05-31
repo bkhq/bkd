@@ -49,14 +49,17 @@ import {
   UpdateNoteSchema,
   UpdateProjectSchema,
   UpdateRoleSchema,
+  CreateWorkspaceSchema,
   UpdateWebhookSchema,
   UpdateWhiteboardNodeSchema,
+  UpdateWorkspaceSchema,
   WebhookDeliverySchema,
   WebhookSchema,
   WhiteboardAskResponseSchema,
   WhiteboardAskSchema,
   WhiteboardNodeSchema,
   WorktreeEntrySchema,
+  WorkspaceSchema,
   WriteFilterRuleSchema,
 } from './schemas'
 
@@ -1388,5 +1391,112 @@ export const generateIssuesFromNodes = createRoute({
     200: successResponse(z.array(GeneratedIssueItemSchema), 'Recommended issues'),
     404: errorResponse('Project not found'),
     500: errorResponse('Internal error'),
+  },
+})
+
+// ── Workspaces ──────────────────────────────────────────
+
+export const listWorkspaces = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Workspaces'],
+  summary: 'List workspaces',
+  operationId: 'listWorkspaces',
+  responses: {
+    200: successResponse(z.array(WorkspaceSchema), 'Workspace list'),
+  },
+})
+
+export const createWorkspace = createRoute({
+  method: 'post',
+  path: '/',
+  tags: ['Workspaces'],
+  summary: 'Create workspace',
+  operationId: 'createWorkspace',
+  request: { body: { content: { 'application/json': { schema: CreateWorkspaceSchema } } } },
+  responses: {
+    201: successResponse(WorkspaceSchema, 'Created workspace'),
+    400: errorResponse('Validation error'),
+  },
+})
+
+export const getWorkspace = createRoute({
+  method: 'get',
+  path: '/{workspaceId}',
+  tags: ['Workspaces'],
+  summary: 'Get workspace',
+  operationId: 'getWorkspace',
+  request: { params: z.object({ workspaceId: z.string() }) },
+  responses: {
+    200: successResponse(WorkspaceSchema, 'Workspace'),
+    404: errorResponse('Workspace not found'),
+  },
+})
+
+export const updateWorkspace = createRoute({
+  method: 'patch',
+  path: '/{workspaceId}',
+  tags: ['Workspaces'],
+  summary: 'Update workspace',
+  operationId: 'updateWorkspace',
+  request: {
+    params: z.object({ workspaceId: z.string() }),
+    body: { content: { 'application/json': { schema: UpdateWorkspaceSchema } } },
+  },
+  responses: {
+    200: successResponse(WorkspaceSchema, 'Updated workspace'),
+    404: errorResponse('Workspace not found'),
+  },
+})
+
+export const deleteWorkspace = createRoute({
+  method: 'delete',
+  path: '/{workspaceId}',
+  tags: ['Workspaces'],
+  summary: 'Soft-delete workspace',
+  operationId: 'deleteWorkspace',
+  request: { params: z.object({ workspaceId: z.string() }) },
+  responses: {
+    200: successResponse(z.object({ id: z.string() }), 'Deleted'),
+    404: errorResponse('Workspace not found'),
+  },
+})
+
+export const getWorkspaceProjects = createRoute({
+  method: 'get',
+  path: '/{workspaceId}/projects',
+  tags: ['Workspaces'],
+  summary: 'List projects in workspace',
+  operationId: 'getWorkspaceProjects',
+  request: { params: z.object({ workspaceId: z.string() }) },
+  responses: {
+    200: successResponse(z.array(ProjectSchema), 'Project list'),
+    404: errorResponse('Workspace not found'),
+  },
+})
+
+export const linkProjectToWorkspace = createRoute({
+  method: 'put',
+  path: '/{workspaceId}/projects/{projectId}',
+  tags: ['Workspaces'],
+  summary: 'Link project to workspace',
+  operationId: 'linkProjectToWorkspace',
+  request: { params: z.object({ workspaceId: z.string(), projectId: z.string() }) },
+  responses: {
+    200: successResponse(ProjectSchema, 'Linked project'),
+    404: errorResponse('Workspace or project not found'),
+  },
+})
+
+export const unlinkProjectFromWorkspace = createRoute({
+  method: 'delete',
+  path: '/{workspaceId}/projects/{projectId}',
+  tags: ['Workspaces'],
+  summary: 'Unlink project from workspace',
+  operationId: 'unlinkProjectFromWorkspace',
+  request: { params: z.object({ workspaceId: z.string(), projectId: z.string() }) },
+  responses: {
+    200: successResponse(ProjectSchema, 'Unlinked project'),
+    404: errorResponse('Workspace or project not found'),
   },
 })

@@ -10,6 +10,7 @@ import { apiRoutes, engineRoutes, eventRoutes, settingsRoutes } from './routes'
 import cronRoute from './routes/cron'
 import notesRoutes from './routes/notes'
 import terminalRoute from './routes/terminal'
+import workspaceRoutes from './routes/workspaces'
 import { VERSION } from './version'
 
 const app = new OpenAPIHono()
@@ -84,6 +85,7 @@ app.doc31('/api/docs/openapi.json', {
     { name: 'Whiteboard', description: 'Project mindmap whiteboard' },
     { name: 'Settings', description: 'Application settings and configuration' },
     { name: 'Webhooks', description: 'Webhook notification management' },
+    { name: 'Workspaces', description: 'Workspace management and project grouping' },
   ],
 })
 app.get('/api/openapi.json', c => c.redirect('/api/docs/openapi.json'))
@@ -98,6 +100,7 @@ app.route('/api/events', eventRoutes)
 app.route('/api/settings', settingsRoutes)
 app.route('/api/notes', notesRoutes)
 app.route('/api/cron', cronRoute)
+app.route('/api/workspaces', workspaceRoutes)
 app.route('/api', terminalRoute)
 
 // --- 404 handler ---

@@ -24,6 +24,21 @@ export interface Project {
   updatedAt: string
 }
 
+export interface WorkspaceRepo {
+  url: string
+  defaultBranch: string
+  role: string
+}
+
+export interface Workspace {
+  id: string
+  name: string
+  description?: string
+  repos: WorkspaceRepo[]
+  createdAt: string
+  updatedAt: string
+}
+
 export type EngineType = 'claude-code' | 'claude-code-sdk' | 'codex' | 'acp' | `acp:${string}`
 
 export interface PluginInfo { name: string, path: string }
