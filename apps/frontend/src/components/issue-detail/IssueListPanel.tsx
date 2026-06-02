@@ -165,6 +165,7 @@ export function IssueListPanel({
             onToggle={() => toggleCollapse(status.id)}
             activeIssueId={activeIssueId}
             onNavigate={issueId => navigate(`/projects/${projectId}/issues/${issueId}`)}
+            onActiveDeleted={() => navigate(`/projects/${projectId}/issues`)}
           />
         ))}
       </div>
@@ -191,6 +192,7 @@ function StatusGroup({
   onToggle,
   activeIssueId,
   onNavigate,
+  onActiveDeleted,
 }: {
   status: StatusDefinition
   issues: Issue[]
@@ -199,6 +201,7 @@ function StatusGroup({
   onToggle: () => void
   activeIssueId: string
   onNavigate: (issueId: string) => void
+  onActiveDeleted: () => void
 }) {
   const { t } = useTranslation()
 
@@ -238,6 +241,7 @@ function StatusGroup({
                 projectId={projectId}
                 isActive={isActive}
                 onNavigate={onNavigate}
+                onActiveDeleted={onActiveDeleted}
               />
             )
           })}
@@ -261,11 +265,13 @@ const IssueRow = memo(({
   projectId,
   isActive,
   onNavigate,
+  onActiveDeleted,
 }: {
   issue: Issue
   projectId: string
   isActive: boolean
   onNavigate: (issueId: string) => void
+  onActiveDeleted: () => void
 }) => {
   const handleClick = useCallback(() => {
     if (!isActive) {
@@ -306,7 +312,12 @@ const IssueRow = memo(({
         {issue.title}
       </span>
       <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
-        <IssueContextMenu issue={issue} projectId={projectId} showPin>
+        <IssueContextMenu
+          issue={issue}
+          projectId={projectId}
+          showPin
+          onDeleted={isActive ? onActiveDeleted : undefined}
+        >
           <button
             type="button"
             className="inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
