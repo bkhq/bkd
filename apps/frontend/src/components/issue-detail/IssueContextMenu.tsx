@@ -104,6 +104,8 @@ interface IssueContextMenuProps {
   projectId: string
   showPin?: boolean
   children: ReactNode
+  /** Called after the issue is successfully deleted (e.g. to navigate away when it was active) */
+  onDeleted?: () => void
 }
 
 export function IssueContextMenu({
@@ -111,6 +113,7 @@ export function IssueContextMenu({
   projectId,
   showPin = false,
   children,
+  onDeleted,
 }: IssueContextMenuProps) {
   const { t } = useTranslation()
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -138,9 +141,11 @@ export function IssueContextMenu({
   }, [projectId, issue.id])
 
   const handleDelete = useCallback(() => {
-    deleteIssue.mutate(issue.id)
+    deleteIssue.mutate(issue.id, {
+      onSuccess: () => onDeleted?.(),
+    })
     setDeleteOpen(false)
-  }, [deleteIssue, issue.id])
+  }, [deleteIssue, issue.id, onDeleted])
 
   return (
     <>
