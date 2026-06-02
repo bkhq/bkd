@@ -421,6 +421,24 @@ export function useCancelIssue(projectId: string) {
   })
 }
 
+export function useTerminateIssue(projectId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (issueId: string) => kanbanApi.terminateIssue(projectId, issueId),
+    onSuccess: (_data, issueId) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.issue(projectId, issueId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.issues(projectId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.allProcesses(),
+      })
+    },
+  })
+}
+
 export function useSlashCommands(projectId: string, issueId: string, enabled = false) {
   return useQuery({
     queryKey: queryKeys.slashCommands(projectId, issueId),

@@ -276,6 +276,36 @@ command.openapi(R.cancelIssue, async (c) => {
   }
 })
 
+// POST /api/projects/:projectId/issues/:issueId/terminate — Force terminate
+command.openapi(R.terminateIssue, async (c) => {
+  const projectId = c.req.param('projectId')!
+  const project = await findProject(projectId)
+  if (!project) {
+    return c.json({ success: false, error: 'Project not found' }, 404 as const)
+  }
+
+  const issueId = c.req.param('issueId')!
+  const issue = await getProjectOwnedIssue(project.id, issueId)
+  if (!issue) {
+    return c.json({ success: false, error: 'Issue not found' }, 404 as const)
+  }
+
+  try {
+    await issueEngine.terminateProcess(issueId)
+    return c.json({ success: true, data: { issueId, status: 'terminated' } }, 200 as const)
+  } catch (error) {
+    logger.warn(
+      {
+        projectId: project.id,
+        issueId,
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+      },
+      'issue_terminate_failed',
+    )
+    return c.json({ success: false, error: 'Operation failed' }, 400 as const)
+  }
+})
+
 // GET /api/projects/:projectId/issues/:issueId/slash-commands — Get available slash commands
 command.openapi(R.getSlashCommands, async (c) => {
   const projectId = c.req.param('projectId')!
