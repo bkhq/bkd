@@ -328,6 +328,12 @@ export const kanbanApi = {
       {},
     ),
 
+  terminateIssue: (projectId: string, issueId: string) =>
+    post<{ issueId: string, status: string }>(
+      `/api/projects/${projectId}/issues/${issueId}/terminate`,
+      {},
+    ),
+
   restartIssue: (projectId: string, issueId: string) =>
     post<ExecuteIssueResponse>(`/api/projects/${projectId}/issues/${issueId}/restart`, {}),
 

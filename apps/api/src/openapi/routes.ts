@@ -395,6 +395,20 @@ export const cancelIssue = createRoute({
   },
 })
 
+export const terminateIssue = createRoute({
+  method: 'post',
+  path: '/{issueId}/terminate',
+  tags: ['Issue Commands'],
+  summary: 'Force-terminate the engine process for an issue',
+  operationId: 'terminateIssue',
+  request: { params: projectIssueParams },
+  responses: {
+    200: successResponse(z.object({ issueId: z.string(), status: z.string() }), 'Terminated'),
+    400: errorResponse('Terminate failed'),
+    404: errorResponse('Issue not found'),
+  },
+})
+
 export const clearIssueSession = createRoute({
   method: 'post',
   path: '/{issueId}/clear-session',
