@@ -30,8 +30,8 @@ mock.module('@/engines/issue/diagnostic', () => ({
  * 5. Dead processes are terminated immediately
  */
 
-test('idle timeout is configured to 90 minutes', () => {
-  expect(IDLE_TIMEOUT_MS).toBe(90 * 60 * 1000)
+test('idle timeout is configured to 30 minutes', () => {
+  expect(IDLE_TIMEOUT_MS).toBe(30 * 60 * 1000)
 })
 
 // ---------- Mock helpers ----------
