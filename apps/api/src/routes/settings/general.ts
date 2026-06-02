@@ -334,10 +334,17 @@ general.put(
   zValidator(
     'json',
     z.object({
-      vars: z.record(z.string(), z.string()).refine(
-        obj => Object.keys(obj).length <= 50,
-        { message: 'Maximum 50 environment variables allowed' },
-      ),
+      vars: z.record(z.string(), z.string())
+        .refine(
+          obj => Object.keys(obj).length <= 50,
+          { message: 'Maximum 50 environment variables allowed' },
+        )
+        .refine(
+          obj => Object.entries(obj).every(
+            ([k, v]) => !/[\r\n]/.test(k) && !/[\r\n]/.test(v),
+          ),
+          { message: 'Environment variable keys and values must not contain line breaks' },
+        ),
     }),
     (result, c) => {
       if (!result.success) {
