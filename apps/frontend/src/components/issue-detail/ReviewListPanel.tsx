@@ -42,7 +42,6 @@ export function ReviewListPanel({
       {
         projectId: string
         projectName: string
-        projectAlias: string
         issues: ReviewIssue[]
       }
     >()
@@ -54,7 +53,6 @@ export function ReviewListPanel({
         map.set(issue.projectId, {
           projectId: issue.projectId,
           projectName: issue.projectName,
-          projectAlias: issue.projectAlias,
           issues: [issue],
         })
       }
@@ -119,12 +117,12 @@ export function ReviewListPanel({
                   <ProjectGroup
                     key={group.projectId}
                     projectName={group.projectName}
-                    projectAlias={group.projectAlias}
+                    projectId={group.projectId}
                     issues={group.issues}
                     isCollapsed={!!collapsed[group.projectId]}
                     onToggle={() => toggleCollapse(group.projectId)}
                     activeIssueId={activeIssueId}
-                    onNavigate={(projectAlias, issueId) => navigate(`/review/${projectAlias}/${issueId}`)}
+                    onNavigate={(projectId, issueId) => navigate(`/review/${projectId}/${issueId}`)}
                   />
                 ))
               )}
@@ -146,7 +144,7 @@ export function ReviewListPanel({
 
 function ProjectGroup({
   projectName,
-  projectAlias,
+  projectId,
   issues,
   isCollapsed,
   onToggle,
@@ -154,12 +152,12 @@ function ProjectGroup({
   onNavigate,
 }: {
   projectName: string
-  projectAlias: string
+  projectId: string
   issues: ReviewIssue[]
   isCollapsed: boolean
   onToggle: () => void
   activeIssueId: string
-  onNavigate: (projectAlias: string, issueId: string) => void
+  onNavigate: (projectId: string, issueId: string) => void
 }) {
   const reviewColor = '#f59e0b' // amber — matches review status color
 
@@ -194,7 +192,7 @@ function ProjectGroup({
                   key={issue.id}
                   issue={issue}
                   isActive={issue.id === activeIssueId}
-                  onNavigate={() => onNavigate(projectAlias, issue.id)}
+                  onNavigate={() => onNavigate(projectId, issue.id)}
                 />
               ))}
             </div>

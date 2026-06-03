@@ -163,7 +163,7 @@ projects.openapi(R.sortProject, async (c) => {
     .update(projectsTable)
     .set({ sortOrder })
     .where(eq(projectsTable.id, existing.id))
-  await invalidateProjectCache(existing.id, existing.alias)
+  await invalidateProjectCache(existing.id)
   return c.json({ success: true, data: null }, 200 as const)
 })
 
@@ -222,7 +222,7 @@ projects.openapi(R.updateProject, async (c) => {
   }
 
   // Invalidate cache for old ID and alias before updating
-  await invalidateProjectCache(existing.id, existing.alias)
+  await invalidateProjectCache(existing.id)
 
   const [row] = await db
     .update(projectsTable)
@@ -300,7 +300,7 @@ projects.openapi(R.deleteProject, async (c) => {
   })
 
   // Invalidate caches
-  await invalidateProjectCache(existing.id, existing.alias)
+  await invalidateProjectCache(existing.id)
   await cacheDelByPrefix(`projectIssueIds:${existing.id}`)
 
   logger.info({ projectId: existing.id }, 'project_deleted')
@@ -321,7 +321,7 @@ projects.openapi(R.archiveProject, async (c) => {
     .set({ isArchived: 1 })
     .where(eq(projectsTable.id, existing.id))
     .returning()
-  await invalidateProjectCache(existing.id, existing.alias)
+  await invalidateProjectCache(existing.id)
   logger.info({ projectId: existing.id }, 'project_archived')
   return c.json({ success: true, data: serializeProject(row!) }, 200 as const)
 })
@@ -339,7 +339,7 @@ projects.openapi(R.unarchiveProject, async (c) => {
     .set({ isArchived: 0 })
     .where(eq(projectsTable.id, existing.id))
     .returning()
-  await invalidateProjectCache(existing.id, existing.alias)
+  await invalidateProjectCache(existing.id)
   logger.info({ projectId: existing.id }, 'project_unarchived')
   return c.json({ success: true, data: serializeProject(row!) }, 200 as const)
 })

@@ -94,17 +94,20 @@ describe('GET /api/projects/:id', () => {
     expect(data.name).toBe('GetById')
   })
 
-  test('gets a project by alias', async () => {
+  test('does not resolve a project by alias (id-only)', async () => {
     const created = expectSuccess(
       await post<Project>('/api/projects', {
         name: 'GetByAlias',
         alias: 'byalias',
       }),
     )
-    const result = await get<Project>(`/api/projects/${created.alias}`)
-    expect(result.status).toBe(200)
-    const data = expectSuccess(result)
-    expect(data.id).toBe(created.id)
+    // Alias is a display field, never an identifier — lookup by alias must 404
+    const byAlias = await get<Project>(`/api/projects/${created.alias}`)
+    expect(byAlias.status).toBe(404)
+    // The same project still resolves by its nanoid id
+    const byId = await get<Project>(`/api/projects/${created.id}`)
+    expect(byId.status).toBe(200)
+    expect(expectSuccess(byId).id).toBe(created.id)
   })
 
   test('returns 404 for nonexistent project', async () => {

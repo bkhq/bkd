@@ -20,16 +20,16 @@ const MAX_LIST_WIDTH = 400
 
 export default function ReviewPage() {
   const { t } = useTranslation()
-  const { projectAlias = '', issueId = '' } = useParams<{
-    projectAlias: string
+  const { projectId: projectIdParam = '', issueId = '' } = useParams<{
+    projectId: string
     issueId: string
   }>()
 
   const { data: reviewIssues } = useReviewIssues()
 
-  // Find the matching issue to get its projectId (alias)
+  // Prefer the resolved issue's projectId; fall back to the URL param
   const activeIssue = reviewIssues?.find(i => i.id === issueId)
-  const projectId = activeIssue?.projectAlias ?? projectAlias
+  const projectId = activeIssue?.projectId ?? projectIdParam
 
   const [showDiff, setShowDiff] = useState(false)
   const [diffWidth, setDiffWidth] = useState(DEFAULT_DIFF_WIDTH)

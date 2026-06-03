@@ -12,39 +12,26 @@ type ProjectRow = typeof projectsTable.$inferSelect
 
 const PROJECT_CACHE_TTL = 60 // seconds
 
-export async function findProject(param: string) {
-  // Check cache first (param could be ID or alias)
-  const cacheKey = `project:lookup:${param}`
+export async function findProject(id: string) {
+  // Resolve strictly by nanoid id (alias is a display field, never an identifier)
+  const cacheKey = `project:lookup:${id}`
   const cached = await cacheGet<ProjectRow>(cacheKey)
   if (cached) return cached
 
-  // Single query: match by ID or alias
   const [row] = await db
     .select()
     .from(projectsTable)
-    .where(
-      and(
-        sql`(${projectsTable.id} = ${param} OR ${projectsTable.alias} = ${param})`,
-        eq(projectsTable.isDeleted, 0),
-      ),
-    )
+    .where(and(eq(projectsTable.id, id), eq(projectsTable.isDeleted, 0)))
 
   if (row) {
-    // Cache under both ID and alias keys
     await cacheSet(`project:lookup:${row.id}`, row, PROJECT_CACHE_TTL)
-    if (row.alias) {
-      await cacheSet(`project:lookup:${row.alias}`, row, PROJECT_CACHE_TTL)
-    }
   }
 
   return row
 }
 
-export async function invalidateProjectCache(id: string, alias?: string | null): Promise<void> {
+export async function invalidateProjectCache(id: string): Promise<void> {
   await cacheDel(`project:lookup:${id}`)
-  if (alias) {
-    await cacheDel(`project:lookup:${alias}`)
-  }
 }
 
 /**

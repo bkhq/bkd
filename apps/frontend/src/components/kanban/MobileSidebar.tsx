@@ -44,7 +44,7 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
     (project: Project) => {
       setShowCreate(false)
       setOpen(false)
-      void navigate(mobileProjectPath(project.alias))
+      void navigate(mobileProjectPath(project.id))
     },
     [navigate, mobileProjectPath],
   )
@@ -78,14 +78,14 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
             </div>
             <div className="flex-1 overflow-y-auto px-2" style={{ scrollbarWidth: 'none' }}>
               {projects?.map((project) => {
-                const isActive = activeProjectId === project.alias
+                const isActive = activeProjectId === project.id
                 return (
                   <button
                     key={project.id}
                     type="button"
                     onClick={() => {
                       setOpen(false)
-                      void navigate(mobileProjectPath(project.alias))
+                      void navigate(mobileProjectPath(project.id))
                     }}
                     className={`flex items-center gap-3 w-full px-2 min-h-[44px] rounded-md text-left transition-colors ${
                       isActive ?

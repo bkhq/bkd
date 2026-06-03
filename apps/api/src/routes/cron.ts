@@ -12,21 +12,24 @@ import type { TaskConfig } from '@/cron/executor'
 
 const cronRoute = createOpenAPIRouter()
 
-/** Find a non-deleted job by ID or name */
-function findJob(identifier: string) {
-  const [byId] = db
+/** Find a non-deleted job strictly by nanoid id (name is a display field, never an identifier) */
+function findJob(id: string) {
+  const [row] = db
     .select()
     .from(cronJobs)
-    .where(and(eq(cronJobs.isDeleted, 0), eq(cronJobs.id, identifier)))
+    .where(and(eq(cronJobs.isDeleted, 0), eq(cronJobs.id, id)))
     .all()
-  if (byId) return byId
+  return row ?? null
+}
 
-  const [byName] = db
-    .select()
+/** Check whether a non-deleted job with the given name already exists */
+function jobNameExists(name: string): boolean {
+  const [row] = db
+    .select({ id: cronJobs.id })
     .from(cronJobs)
-    .where(and(eq(cronJobs.isDeleted, 0), eq(cronJobs.name, identifier)))
+    .where(and(eq(cronJobs.isDeleted, 0), eq(cronJobs.name, name)))
     .all()
-  return byName ?? null
+  return !!row
 }
 
 // GET /api/cron/actions — list available cron actions (must be before /:param routes)
@@ -97,7 +100,7 @@ cronRoute.openapi(R.createCronJob, async (c) => {
   const { name, cron, action, config: rawConfig } = c.req.valid('json')
 
   // Check name uniqueness
-  if (findJob(name)) {
+  if (jobNameExists(name)) {
     return c.json({ success: false, error: `Job with name "${name}" already exists` }, 409 as const)
   }
 
