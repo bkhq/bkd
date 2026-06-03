@@ -27,6 +27,7 @@ import {
   IssueLogsResponseSchema,
   IssueSchema,
   NoteSchema,
+  paginatedSuccessResponse,
   ProbeResultSchema,
   ProcessCapacitySchema,
   ProcessInfoSchema,
@@ -225,9 +226,17 @@ export const listIssues = createRoute({
   tags: ['Issues'],
   summary: 'List issues in project',
   operationId: 'listIssues',
-  request: { params: projectParam },
+  request: {
+    params: projectParam,
+    query: z.object({
+      // Optional keyset pagination. Omit both to return the full list (default).
+      limit: z.coerce.number().int().min(1).max(200).optional(),
+      cursor: z.string().optional(),
+    }),
+  },
   responses: {
-    200: successResponse(z.array(IssueSchema), 'Issue list'),
+    200: paginatedSuccessResponse(z.array(IssueSchema), 'Issue list'),
+    400: errorResponse('Invalid cursor'),
     404: errorResponse('Project not found'),
   },
 })
