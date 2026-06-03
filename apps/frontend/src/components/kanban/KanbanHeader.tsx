@@ -48,7 +48,7 @@ export function KanbanHeader({
           {project.directory && (
             <button
               type="button"
-              onClick={() => toggleFileBrowser(project.alias, project.directory ?? undefined)}
+              onClick={() => toggleFileBrowser(project.id, project.directory ?? undefined)}
               className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-foreground/[0.07] transition-colors shrink-0"
               aria-label={t('viewMode.files')}
               title={t('viewMode.files')}

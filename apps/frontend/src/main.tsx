@@ -216,7 +216,7 @@ if (!rootElement.innerHTML) {
                   )}
                 />
                 <Route
-                  path="/review/:projectAlias/:issueId"
+                  path="/review/:projectId/:issueId"
                   element={(
                     <ErrorBoundary>
                       <ReviewPage />

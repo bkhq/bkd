@@ -184,7 +184,7 @@ function SortableProjectCard({
 
 /* -- Archived projects section ------------------------- */
 
-function ArchivedProjectsSection({ projectPath }: { projectPath: (alias: string) => string }) {
+function ArchivedProjectsSection({ projectPath }: { projectPath: (projectId: string) => string }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
@@ -243,7 +243,7 @@ function ArchivedProjectsSection({ projectPath }: { projectPath: (alias: string)
           >
             <Card
               className="h-full bg-card/40 hover:bg-card/60 cursor-pointer transition-all hover:shadow-md group opacity-70 hover:opacity-100"
-              onClick={() => navigate(projectPath(project.alias))}
+              onClick={() => navigate(projectPath(project.id))}
             >
               <CardHeader>
                 <div className="flex items-start gap-3">
@@ -552,7 +552,7 @@ export default function HomePage() {
 
   // Mobile always uses list mode
   const projectPath = useCallback(
-    (alias: string) => (isMobile ? `/projects/${alias}/issues` : globalProjectPath(alias)),
+    (projectId: string) => (isMobile ? `/projects/${projectId}/issues` : globalProjectPath(projectId)),
     [isMobile, globalProjectPath],
   )
 
@@ -619,7 +619,7 @@ export default function HomePage() {
                     key={project.id}
                     project={project}
                     index={index}
-                    onClick={() => navigate(projectPath(project.alias))}
+                    onClick={() => navigate(projectPath(project.id))}
                   />
                 ))}
               </div>

@@ -93,7 +93,7 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
   const handleProjectCreated = useCallback(
     (project: Project) => {
       setShowCreate(false)
-      void navigate(projectPath(project.alias))
+      void navigate(projectPath(project.id))
     },
     [navigate, projectPath],
   )
@@ -122,8 +122,8 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
           <ProjectButton
             key={project.id}
             project={project}
-            isActive={activeProjectId === project.alias}
-            onClick={() => navigate(projectPath(project.alias))}
+            isActive={activeProjectId === project.id}
+            onClick={() => navigate(projectPath(project.id))}
           />
         ))}
       </div>
