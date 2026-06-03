@@ -83,6 +83,15 @@ export const issues = sqliteTable(
     index('issues_status_id_idx').on(table.statusId),
     index('issues_parent_issue_id_idx').on(table.parentIssueId),
     index('issues_project_id_status_updated_at_idx').on(table.projectId, table.statusUpdatedAt),
+    // Covers the issue-list keyset query: WHERE project_id, is_deleted
+    // ORDER BY is_pinned DESC, status_updated_at DESC, issue_number DESC.
+    index('issues_project_id_list_order_idx').on(
+      table.projectId,
+      table.isDeleted,
+      table.isPinned,
+      table.statusUpdatedAt,
+      table.issueNumber,
+    ),
     check('issues_status_id_check', sql`${table.statusId} IN ('todo','working','review','done')`),
     uniqueIndex('issues_project_id_issue_number_uniq').on(table.projectId, table.issueNumber),
   ],

@@ -27,6 +27,23 @@ export function successResponse(dataSchema: z.ZodType, description: string) {
   } as const
 }
 
+/** Success envelope for keyset-paginated lists (adds nextCursor/hasMore). */
+export function paginatedSuccessResponse(dataSchema: z.ZodType, description: string) {
+  return {
+    description,
+    content: {
+      'application/json': {
+        schema: z.object({
+          success: z.literal(true),
+          data: dataSchema,
+          nextCursor: z.string().nullable(),
+          hasMore: z.boolean(),
+        }),
+      },
+    },
+  } as const
+}
+
 /** Standard error envelope (reused across all error responses) */
 export const errorSchema = z.object({
   success: z.literal(false),

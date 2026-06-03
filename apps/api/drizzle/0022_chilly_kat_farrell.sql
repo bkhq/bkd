@@ -1,0 +1,1 @@
+CREATE INDEX `issues_project_id_list_order_idx` ON `issues` (`project_id`,`is_deleted`,`is_pinned`,`status_updated_at`,`issue_number`);
