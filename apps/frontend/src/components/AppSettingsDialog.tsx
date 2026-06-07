@@ -9,6 +9,7 @@ import {
   FileText,
   Filter,
   FolderOpen,
+  Gauge,
   Info,
   Loader2,
   Plus,
@@ -24,6 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DirectoryPicker } from '@/components/DirectoryPicker'
 import { EngineIcon } from '@/components/EngineIcons'
+import { UsageSection } from '@/components/settings/UsageSection'
 import { WebhookSection } from '@/components/settings/WebhookSection'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -108,6 +110,7 @@ export function AppSettingsDialog({
     () => [
       { id: 'general', label: t('settings.tabGeneral'), icon: Settings },
       { id: 'models', label: t('settings.tabModels'), icon: Box },
+      { id: 'usage', label: t('settings.tabUsage'), icon: Gauge },
       { id: 'logs', label: t('settings.tabLogs'), icon: FileText },
       { id: 'cleanup', label: t('settings.tabCleanup'), icon: Trash2 },
       { id: 'recycleBin', label: t('settings.tabRecycleBin'), icon: Trash },
@@ -130,6 +133,7 @@ export function AppSettingsDialog({
         <>
           {active === 'general' && <GeneralSection open={open} />}
           {active === 'models' && <ModelsSection open={open} />}
+          {active === 'usage' && <UsageSection open={open} />}
           {active === 'logs' && <LogsSection open={open} />}
           {active === 'cleanup' && <CleanupSection open={open} />}
           {active === 'recycleBin' && <RecycleBinSection open={open} />}

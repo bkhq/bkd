@@ -322,6 +322,18 @@ export const ProbeResultSchema = z.object({
   duration: z.number(),
 }).openapi('ProbeResult')
 
+const ClaudeUsageWindowSchema = z.object({
+  usedPercentage: z.number(),
+  resetsAt: z.string().nullable(),
+}).nullable()
+
+export const ClaudeUsageSchema = z.object({
+  available: z.boolean(),
+  reason: z.enum(['no_credentials', 'api_key_mode', 'token_expired', 'upstream_error']).optional(),
+  fiveHour: ClaudeUsageWindowSchema.optional(),
+  sevenDay: ClaudeUsageWindowSchema.optional(),
+}).openapi('ClaudeUsage')
+
 // ── Cron schemas ───────────────────────────────────────
 
 export const CronJobSchema = z.object({

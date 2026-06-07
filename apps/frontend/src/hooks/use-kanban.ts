@@ -11,6 +11,7 @@ export const queryKeys = {
   engineProfiles: () => ['engines', 'profiles'] as const,
   engineSettings: () => ['engines', 'settings'] as const,
   virtualEngines: () => ['engines', 'virtual'] as const,
+  claudeUsage: () => ['engines', 'claude', 'usage'] as const,
   projects: () => ['projects'] as const,
   archivedProjects: () => ['projects', 'archived'] as const,
   project: (id: string) => ['projects', id] as const,
@@ -474,6 +475,15 @@ export function useEngineProfiles(enabled = false) {
     queryFn: () => kanbanApi.getEngineProfiles(),
     enabled,
     staleTime: STALE_TIME.CONFIG,
+  })
+}
+
+export function useClaudeUsage(enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.claudeUsage(),
+    queryFn: () => kanbanApi.getClaudeUsage(),
+    enabled,
+    staleTime: STALE_TIME.STANDARD,
   })
 }
 

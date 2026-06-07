@@ -9,6 +9,7 @@ import * as z from 'zod'
 import {
   BulkUpdateSchema,
   CategorizedCommandsSchema,
+  ClaudeUsageSchema,
   CreateCronJobSchema,
   CreateIssueSchema,
   CreateNoteSchema,
@@ -505,6 +506,17 @@ export const getEngineProfiles = createRoute({
   operationId: 'getEngineProfiles',
   responses: {
     200: successResponse(z.array(EngineProfileSchema), 'Engine profiles'),
+  },
+})
+
+export const getClaudeUsage = createRoute({
+  method: 'get',
+  path: '/claude/usage',
+  tags: ['Engines'],
+  summary: 'Get Claude subscription usage utilization',
+  operationId: 'getClaudeUsage',
+  responses: {
+    200: successResponse(ClaudeUsageSchema, 'Claude usage utilization'),
   },
 })
 

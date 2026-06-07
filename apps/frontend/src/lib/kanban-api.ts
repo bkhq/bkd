@@ -2,6 +2,7 @@ import type {
   ApiResponse,
   BusyAction,
   CategorizedCommands,
+  ClaudeUsage,
   EngineDiscoveryResult,
   EngineProfile,
   EngineSettings,
@@ -395,6 +396,7 @@ export const kanbanApi = {
   // Engines
   getEngineAvailability: () => get<EngineDiscoveryResult>('/api/engines/available'),
   getEngineProfiles: () => get<EngineProfile[]>('/api/engines/profiles'),
+  getClaudeUsage: () => get<ClaudeUsage>('/api/engines/claude/usage'),
   getEngineSettings: () => get<EngineSettings>('/api/engines/settings'),
   updateEngineModelSetting: (engineType: string, data: { defaultModel: string }) =>
     patch<{ engineType: string, defaultModel: string }>(

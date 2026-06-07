@@ -65,3 +65,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-018 Extract base64 image data-URIs from engine messages to attachments**](ENG-018.md) `P1`
 - [x] [**ENG-019 Normalize assistant image content blocks (Bifrost) to attachments**](ENG-019.md) `P1`
 - [x] [**UI-003 Use nanoid id as the only resource identifier in URLs and API**](UI-003.md) `P2`
+- [x] [**ENG-020 Add Claude subscription usage panel in settings**](ENG-020.md) `P2`

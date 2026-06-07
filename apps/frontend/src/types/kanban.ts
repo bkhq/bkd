@@ -5,6 +5,7 @@ export type {
   ApiResponse,
   BusyAction,
   CategorizedCommands,
+  ClaudeUsage,
   CommandCategory,
   DirectoryListing,
   EngineAvailability,

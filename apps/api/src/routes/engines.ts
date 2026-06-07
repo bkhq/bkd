@@ -10,6 +10,7 @@ import {
   setEngineHiddenModels,
 } from '@/db/helpers'
 import { engineRegistry } from '@/engines/executors'
+import { getClaudeUsage } from '@/engines/executors/claude/usage'
 import type { EngineType } from '@/engines/types'
 import { forceProbeEngines, getEngineDiscovery, getEngineModels } from '@/engines/startup-probe'
 import { BUILT_IN_PROFILES } from '@/engines/types'
@@ -42,6 +43,12 @@ engines.openapi(R.getAvailableEngines, async (c) => {
 engines.openapi(R.getEngineProfiles, async (c) => {
   const profiles = [...Object.values(BUILT_IN_PROFILES), ...(await getVirtualEngineProfiles())]
   return c.json({ success: true, data: profiles })
+})
+
+// GET /api/engines/claude/usage — Claude subscription rate-limit utilization (TUI /usage panel)
+engines.openapi(R.getClaudeUsage, async (c) => {
+  const usage = await getClaudeUsage()
+  return c.json({ success: true, data: usage })
 })
 
 // --- Virtual engines (claude-code executor + preset env vars) ---

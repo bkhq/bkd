@@ -377,6 +377,27 @@ export interface ProbeResult {
   duration: number
 }
 
+/** A single rate-limit window in the Claude subscription usage panel. */
+export interface ClaudeUsageWindow {
+  /** Percentage of the window consumed (0–100). */
+  usedPercentage: number
+  /** ISO timestamp when the window resets, if known. */
+  resetsAt: string | null
+}
+
+/**
+ * Claude subscription rate-limit utilization (the TUI `/usage` panel).
+ * `available: false` carries a reason for the unavailable state.
+ */
+export interface ClaudeUsage {
+  available: boolean
+  reason?: 'no_credentials' | 'api_key_mode' | 'token_expired' | 'upstream_error'
+  /** 5-hour session window (may be absent even when available). */
+  fiveHour?: ClaudeUsageWindow | null
+  /** 7-day window. */
+  sevenDay?: ClaudeUsageWindow | null
+}
+
 // ── Event Bus ────────────────────────────────────────────
 
 export interface ChangesSummary {
