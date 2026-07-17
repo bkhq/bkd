@@ -336,6 +336,7 @@
     "usageRefresh": "刷新",
     "usageFiveHour": "5 小时窗口",
     "usageSevenDay": "7 天窗口",
+    "usageSevenDayModel": "7 天窗口({{model}})",
     "usageResetsAt": "{{time}} 重置",
     "usageNoWindowData": "当前没有可用的用量数据。",
     "usageUnavailableNoCredentials": "未找到 Claude 凭证。请在终端用 Pro/Max 订阅登录后再查看用量。",

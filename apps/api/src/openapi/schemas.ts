@@ -327,11 +327,18 @@ const ClaudeUsageWindowSchema = z.object({
   resetsAt: z.string().nullable(),
 }).nullable()
 
+const ClaudeUsageModelWindowSchema = z.object({
+  model: z.string(),
+  usedPercentage: z.number(),
+  resetsAt: z.string().nullable(),
+})
+
 export const ClaudeUsageSchema = z.object({
   available: z.boolean(),
   reason: z.enum(['no_credentials', 'api_key_mode', 'token_expired', 'upstream_error']).optional(),
   fiveHour: ClaudeUsageWindowSchema.optional(),
   sevenDay: ClaudeUsageWindowSchema.optional(),
+  modelWindows: z.array(ClaudeUsageModelWindowSchema).optional(),
 }).openapi('ClaudeUsage')
 
 // ── Cron schemas ───────────────────────────────────────
