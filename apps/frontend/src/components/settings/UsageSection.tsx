@@ -61,7 +61,8 @@ export function UsageSection({ open }: { open: boolean }) {
     return <div className="py-4 text-sm text-muted-foreground">{t('settings.usageLoadError')}</div>
   }
 
-  const hasWindows = data.available && (data.fiveHour || data.sevenDay)
+  const modelWindows = data.modelWindows ?? []
+  const hasWindows = data.available && (data.fiveHour || data.sevenDay || modelWindows.length > 0)
 
   return (
     <div className="space-y-4">
@@ -95,6 +96,9 @@ export function UsageSection({ open }: { open: boolean }) {
                 <div className="space-y-4 rounded-md border px-3 py-3">
                   {data.fiveHour ? <UsageBar label={t('settings.usageFiveHour')} window={data.fiveHour} /> : null}
                   {data.sevenDay ? <UsageBar label={t('settings.usageSevenDay')} window={data.sevenDay} /> : null}
+                  {modelWindows.map(w => (
+                    <UsageBar key={w.model} label={t('settings.usageSevenDayModel', { model: w.model })} window={w} />
+                  ))}
                 </div>
               )}
     </div>

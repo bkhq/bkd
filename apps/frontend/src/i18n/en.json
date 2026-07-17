@@ -338,6 +338,7 @@
     "usageRefresh": "Refresh",
     "usageFiveHour": "5-hour window",
     "usageSevenDay": "7-day window",
+    "usageSevenDayModel": "7-day window ({{model}})",
     "usageResetsAt": "Resets at {{time}}",
     "usageNoWindowData": "No utilization data is currently reported.",
     "usageUnavailableNoCredentials": "No Claude credentials found. Log in with a Pro/Max subscription in the terminal to view usage.",
