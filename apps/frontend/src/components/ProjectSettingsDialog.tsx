@@ -1,5 +1,6 @@
 import {
   Archive,
+  ArchiveRestore,
   Check,
   ChevronDown,
   Copy,
@@ -57,6 +58,7 @@ import {
   useEngineProfiles,
   useEngineSettings,
   useProjectWorktrees,
+  useUnarchiveProject,
   useUpdateProject,
 } from '@/hooks/use-kanban'
 import { formatModelName } from '@/lib/format'
@@ -273,6 +275,7 @@ export function ProjectSettingsDialog({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const updateProject = useUpdateProject()
   const archiveProject = useArchiveProject()
+  const unarchiveProject = useUnarchiveProject()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -364,22 +367,40 @@ export function ProjectSettingsDialog({
                     <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}>
                       {t('project.delete')}
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        archiveProject.mutate(project.id, {
-                          onSuccess: () => {
-                            onOpenChange(false)
-                            void navigate('/')
-                          },
-                        })
-                      }}
-                      disabled={archiveProject.isPending}
-                    >
-                      <Archive className="size-4" />
-                      {archiveProject.isPending ? t('project.archiving') : t('project.archive')}
-                    </Button>
+                    {project.isArchived ?
+                        (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              unarchiveProject.mutate(project.id, {
+                                onSuccess: () => onOpenChange(false),
+                              })
+                            }}
+                            disabled={unarchiveProject.isPending}
+                          >
+                            <ArchiveRestore className="size-4" />
+                            {unarchiveProject.isPending ? t('project.unarchiving') : t('project.unarchive')}
+                          </Button>
+                        ) :
+                        (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              archiveProject.mutate(project.id, {
+                                onSuccess: () => {
+                                  onOpenChange(false)
+                                  void navigate('/')
+                                },
+                              })
+                            }}
+                            disabled={archiveProject.isPending}
+                          >
+                            <Archive className="size-4" />
+                            {archiveProject.isPending ? t('project.archiving') : t('project.archive')}
+                          </Button>
+                        )}
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>

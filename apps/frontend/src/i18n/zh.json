@@ -70,6 +70,7 @@
     "archive": "归档",
     "archiving": "归档中...",
     "unarchive": "取消归档",
+    "unarchiving": "取消归档中...",
     "archivedProjects": "已归档项目",
     "noArchivedProjects": "暂无已归档项目。"
   },
