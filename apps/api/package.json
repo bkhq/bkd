@@ -21,23 +21,23 @@
   },
   "dependencies": {
     "@hono/swagger-ui": "^0.6.1",
-    "@hono/zod-openapi": "^1.4.0",
-    "@hono/zod-validator": "^0.8.0",
+    "@hono/zod-openapi": "^1.5.1",
+    "@hono/zod-validator": "^0.9.0",
     "bs58": "^6.0.0",
     "consola": "^3.4.2",
     "cronbake": "^0.4.0",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.12.18",
+    "hono": "^4.12.30",
     "jittered-fractional-indexing": "catalog:",
-    "nanoid": "^5.1.11",
+    "nanoid": "^6.0.0",
     "pino": "^10.3.1",
     "ulid": "^3.0.2",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@bkd/tsconfig": "workspace:*",
-    "@libsql/client": "^0.17.3",
-    "@types/bun": "^1.3.13",
+    "@libsql/client": "^0.17.4",
+    "@types/bun": "^1.3.14",
     "drizzle-kit": "^0.31.10",
     "typescript": "catalog:"
   }

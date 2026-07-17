@@ -38,13 +38,13 @@
     "cleye": "^2.6.0"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^8.2.0",
+    "@antfu/eslint-config": "^9.1.0",
     "@bkd/tsconfig": "workspace:*",
-    "@eslint-react/eslint-plugin": "^3.0.0",
-    "@nsio/nsl": "^0.1.5",
-    "eslint": "^10.3.0",
+    "@eslint-react/eslint-plugin": "^5.17.1",
+    "@nsio/nsl": "^0.1.7",
+    "eslint": "^10.7.0",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.2",
+    "eslint-plugin-react-refresh": "^0.5.3",
     "typescript": "catalog:"
   }
 }
