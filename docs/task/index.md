@@ -67,3 +67,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**UI-003 Use nanoid id as the only resource identifier in URLs and API**](UI-003.md) `P2`
 - [x] [**ENG-020 Add Claude subscription usage panel in settings**](ENG-020.md) `P2`
 - [x] [**DEV-002 Upgrade all workspace dependencies to latest**](DEV-002.md) `P2`
+- [x] [**DEV-003 Replace @nsio/nsl with @dotns/nsl**](DEV-003.md) `P3`
