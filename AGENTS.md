@@ -202,7 +202,7 @@ Components use the shadcn/ui pattern: `cn()` utility (`apps/frontend/src/lib/uti
 
 ### Dev Workflow
 
-- `bun run dev` starts both API (port 3010) and Vite (port 3000) via `bun --filter`. Each server is wrapped in `nsl run`, registering routes at `http://bkd.localhost/api` and `http://bkd.localhost/`. The nsl proxy daemon must be running (`bunx nsl start` once); the npm package `@nsio/nsl` is installed at the repo root, so `bun install` is the only setup step.
+- `bun run dev` starts both API (port 3010) and Vite (port 3000) via `bun --filter`. Each server is wrapped in `nsl run`, registering routes at `http://bkd.localhost/api` and `http://bkd.localhost/`. The nsl proxy daemon must be running (`bunx nsl start` once); the npm package `@dotns/nsl` is installed at the repo root, so `bun install` is the only setup step.
 - `http://bkd.localhost` is the only dev entry — Vite has no `/api/*` proxy.
 - `bun run dev:api` / `bun run dev:frontend` can be run individually in separate terminals if needed
 - Production: `bun run build` then `bun run start` — the Bun server handles both API and static file serving on port 3000

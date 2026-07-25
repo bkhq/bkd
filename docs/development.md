@@ -6,7 +6,7 @@
 # Install Bun
 curl -fsSL https://bun.sh/install | bash
 
-# Install dependencies (also installs the nsl dev-URL proxy as @nsio/nsl)
+# Install dependencies (also installs the nsl dev-URL proxy as @dotns/nsl)
 bun install
 
 # Configure environment
