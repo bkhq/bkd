@@ -1,4 +1,4 @@
-import type { ClaudeUsage, ClaudeUsageWindow } from '@bkd/shared'
+import type { ClaudeUsage, ClaudeUsageModelWindow, ClaudeUsageWindow } from '@bkd/shared'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { logger } from '@/logger'
@@ -34,6 +34,30 @@ function parseWindow(raw: unknown): ClaudeUsageWindow | null {
     usedPercentage: pct,
     resetsAt: typeof w.resets_at === 'string' ? w.resets_at : null,
   }
+}
+
+/**
+ * Extract model-scoped weekly windows (e.g. Fable) from the upstream `limits`
+ * array. Malformed entries are dropped; never throws.
+ */
+export function parseModelWindows(raw: unknown): ClaudeUsageModelWindow[] {
+  if (!Array.isArray(raw)) return []
+  const windows: ClaudeUsageModelWindow[] = []
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue
+    const l = entry as Record<string, unknown>
+    if (l.kind !== 'weekly_scoped') continue
+    const scope = l.scope as Record<string, unknown> | null | undefined
+    const model = (scope?.model as Record<string, unknown> | null | undefined)?.display_name
+    if (typeof model !== 'string' || model.length === 0) continue
+    if (typeof l.percent !== 'number') continue
+    windows.push({
+      model,
+      usedPercentage: l.percent,
+      resetsAt: typeof l.resets_at === 'string' ? l.resets_at : null,
+    })
+  }
+  return windows
 }
 
 /**
@@ -79,6 +103,7 @@ export async function getClaudeUsage(): Promise<ClaudeUsage> {
       available: true,
       fiveHour: parseWindow(json.five_hour),
       sevenDay: parseWindow(json.seven_day),
+      modelWindows: parseModelWindows(json.limits),
     }
   } catch (error) {
     logger.warn({ error }, 'claude_usage_parse_failed')

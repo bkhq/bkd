@@ -385,6 +385,12 @@ export interface ClaudeUsageWindow {
   resetsAt: string | null
 }
 
+/** A model-scoped weekly rate-limit window (e.g. Fable). */
+export interface ClaudeUsageModelWindow extends ClaudeUsageWindow {
+  /** Upstream model display name, e.g. "Fable". */
+  model: string
+}
+
 /**
  * Claude subscription rate-limit utilization (the TUI `/usage` panel).
  * `available: false` carries a reason for the unavailable state.
@@ -396,6 +402,8 @@ export interface ClaudeUsage {
   fiveHour?: ClaudeUsageWindow | null
   /** 7-day window. */
   sevenDay?: ClaudeUsageWindow | null
+  /** Model-scoped weekly windows from the upstream `limits` array. */
+  modelWindows?: ClaudeUsageModelWindow[]
 }
 
 // ── Event Bus ────────────────────────────────────────────

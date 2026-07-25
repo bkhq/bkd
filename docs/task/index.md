@@ -68,3 +68,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-020 Add Claude subscription usage panel in settings**](ENG-020.md) `P2`
 - [x] [**DEV-002 Upgrade all workspace dependencies to latest**](DEV-002.md) `P2`
 - [x] [**DEV-003 Replace @nsio/nsl with @dotns/nsl**](DEV-003.md) `P3`
+- [x] [**ENG-021 Show model-scoped (Fable) usage windows in settings usage panel**](ENG-021.md) `P2`
