@@ -109,6 +109,7 @@
     "emptyStatusHint": "No issues",
     "emptyStatusDropHint": "Drop issues here",
     "editTitle": "Click to edit title",
+    "tokenUsage": "Token usage",
     "addDescription": "Add a description...",
     "clickToEdit": "Click to edit",
     "tag": "Tags",

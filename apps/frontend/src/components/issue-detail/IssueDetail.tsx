@@ -1,10 +1,11 @@
-import { ChevronDown, GitBranch, Tag, Trash2, Wrench, Zap } from 'lucide-react'
+import { ChevronDown, Coins, GitBranch, Tag, Trash2, Wrench, Zap } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useClickOutside } from '@/hooks/use-click-outside'
 import { useProjectWorktrees } from '@/hooks/use-kanban'
+import { formatTokenCount } from '@/lib/format'
 import { tStatus } from '@/lib/i18n-utils'
 import type { StatusDefinition, StatusId } from '@/lib/statuses'
 import { STATUSES } from '@/lib/statuses'
@@ -156,8 +157,9 @@ export function IssueDetail({
             </button>
           )}
 
-      {/* Worktree (right side) */}
+      {/* Token usage + worktree (right side) */}
       <div className="ml-auto flex items-center gap-1.5">
+        <TokenUsageBadge issue={issue} />
         {issue.useWorktree ?
             (
               <div ref={worktreeRef} className="relative flex">
@@ -200,6 +202,26 @@ export function IssueDetail({
           null}
       </div>
     </div>
+  )
+}
+
+/** Accumulated token/cost totals for the issue; hidden while all totals are zero. */
+function TokenUsageBadge({ issue }: { issue: Issue }) {
+  const { t } = useTranslation()
+  const input = issue.totalInputTokens ?? 0
+  const output = issue.totalOutputTokens ?? 0
+  const cost = Number(issue.totalCostUsd ?? '0')
+  if (input <= 0 && output <= 0) return null
+
+  const costLabel = cost > 0 ? ` · $${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}` : ''
+  return (
+    <span
+      className={`${badgeBase} border-border/50 bg-muted/20 text-muted-foreground tabular-nums`}
+      title={`${t('issue.tokenUsage')}: ${input.toLocaleString()} in / ${output.toLocaleString()} out${cost > 0 ? ` · $${cost.toFixed(4)}` : ''}`}
+    >
+      <Coins className="h-3 w-3" />
+      {`↑${formatTokenCount(input)} ↓${formatTokenCount(output)}${costLabel}`}
+    </span>
   )
 }
 

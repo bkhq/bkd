@@ -109,6 +109,7 @@
     "emptyStatusHint": "暂无任务",
     "emptyStatusDropHint": "可拖拽任务到这里",
     "editTitle": "点击编辑标题",
+    "tokenUsage": "Token 用量",
     "addDescription": "添加描述...",
     "clickToEdit": "点击编辑",
     "tag": "标签",

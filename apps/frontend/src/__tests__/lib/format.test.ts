@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatFileSize, formatModelName, getProjectInitials } from '../../lib/format'
+import { formatFileSize, formatModelName, formatTokenCount, getProjectInitials } from '../../lib/format'
 
 describe('formatFileSize', () => {
   it('formats bytes below 1024', () => {
@@ -72,5 +72,23 @@ describe('getProjectInitials', () => {
 
   it('uppercases lowercase initials', () => {
     expect(getProjectInitials('my project')).toBe('MP')
+  })
+})
+
+describe('formatTokenCount', () => {
+  it('shows small counts as-is', () => {
+    expect(formatTokenCount(0)).toBe('0')
+    expect(formatTokenCount(999)).toBe('999')
+  })
+
+  it('formats thousands with one decimal', () => {
+    expect(formatTokenCount(1000)).toBe('1.0k')
+    expect(formatTokenCount(12345)).toBe('12.3k')
+    expect(formatTokenCount(999949)).toBe('999.9k')
+  })
+
+  it('formats millions with one decimal', () => {
+    expect(formatTokenCount(1000000)).toBe('1.0M')
+    expect(formatTokenCount(2560000)).toBe('2.6M')
   })
 })

@@ -14,6 +14,13 @@ export function formatModelName(id: string): string {
   return id
 }
 
+/** Format a token count compactly: 999 → "999", 12345 → "12.3k", 2560000 → "2.6M" */
+export function formatTokenCount(count: number): string {
+  if (count < 1000) return `${count}`
+  if (count < 1_000_000) return `${(count / 1000).toFixed(1)}k`
+  return `${(count / 1_000_000).toFixed(1)}M`
+}
+
 export function getProjectInitials(name: string): string {
   const trimmed = name.trim()
   if (!trimmed) return '??'
