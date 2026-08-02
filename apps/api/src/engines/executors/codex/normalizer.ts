@@ -22,6 +22,14 @@ import type { NormalizedLogEntry, ToolAction } from '@/engines/types'
 export class CodexLogNormalizer {
   private assistantText = ''
   private thinkingText = ''
+  /**
+   * Last seen cumulative thread token totals (from thread/tokenUsage/updated).
+   * Initialized to `total - last` on first sight so a resumed thread's
+   * history is excluded from the first delta.
+   */
+  private prevTokenTotal: TokenBreakdown | null = null
+  /** Per-turn token deltas accumulated since the last turn/completed. */
+  private turnTokens: TokenBreakdown = zeroBreakdown()
 
   /**
    * Parse a single stdout line and return normalized log entries.
@@ -116,24 +124,8 @@ export class CodexLogNormalizer {
       case 'thread/compacted':
         return { entryType: 'system-message', content: 'Context compacted', timestamp: now }
 
-      case 'thread/tokenUsage/updated': {
-        const p = (data.params ?? {}) as Record<string, unknown>
-        const usage = (p.usage ?? {}) as Record<string, unknown>
-        const totalTokens = (usage.inputTokens as number ?? 0) + (usage.outputTokens as number ?? 0)
-        const contextWindow = usage.contextWindow as number | undefined
-        if (!totalTokens) return null
-        return {
-          entryType: 'token-usage',
-          content: `Tokens: ${totalTokens}${contextWindow ? ` / Context: ${contextWindow}` : ''}`,
-          timestamp: now,
-          metadata: {
-            totalTokens,
-            ...(contextWindow != null && { contextWindow }),
-            inputTokens: usage.inputTokens as number | undefined,
-            outputTokens: usage.outputTokens as number | undefined,
-          },
-        }
-      }
+      case 'thread/tokenUsage/updated':
+        return this.handleTokenUsageUpdated(data, now)
 
       default:
         return null
@@ -701,12 +693,90 @@ export class CodexLogNormalizer {
     }
   }
 
+  /**
+   * Handle `thread/tokenUsage/updated`.
+   * Wire format (0.144.x schema): { params: { threadId, turnId,
+   *   tokenUsage: { last: TokenUsageBreakdown, total: TokenUsageBreakdown,
+   *   modelContextWindow? } } }
+   * Tracks per-turn deltas of the cumulative `total` breakdown so
+   * turn/completed can report the turn's own token consumption.
+   */
+  private handleTokenUsageUpdated(
+    data: Record<string, unknown>,
+    now: string,
+  ): NormalizedLogEntry | null {
+    const p = (data.params ?? {}) as Record<string, unknown>
+    const tokenUsage = (p.tokenUsage ?? {}) as Record<string, unknown>
+    const total = parseBreakdown(tokenUsage.total)
+    const last = parseBreakdown(tokenUsage.last)
+    if (!total) return null
+
+    // Baseline excludes thread history on first sight (resumed threads).
+    const baseline =
+      this.prevTokenTotal ?? (last ? subtractBreakdown(total, last) : zeroBreakdown())
+    this.turnTokens = addBreakdown(this.turnTokens, subtractBreakdown(total, baseline))
+    this.prevTokenTotal = total
+
+    const contextWindow = tokenUsage.modelContextWindow as number | undefined
+    if (!total.totalTokens) return null
+    return {
+      entryType: 'token-usage',
+      content: `Tokens: ${total.totalTokens}${contextWindow ? ` / Context: ${contextWindow}` : ''}`,
+      timestamp: now,
+      metadata: {
+        totalTokens: total.totalTokens,
+        ...(contextWindow != null && { contextWindow }),
+        inputTokens: total.inputTokens,
+        outputTokens: total.outputTokens,
+        cachedInputTokens: total.cachedInputTokens,
+        reasoningOutputTokens: total.reasoningOutputTokens,
+      },
+    }
+  }
+
   private handleTurnCompleted(data: Record<string, unknown>, now: string): NormalizedLogEntry {
     const params = (data.params ?? {}) as Record<string, unknown>
     const turn = (params.turn ?? {}) as Record<string, unknown>
+    const status = turn.status as string | undefined
+
+    // Legacy servers put usage directly on the turn; current schema has no
+    // turn.usage \u2014 fall back to the deltas tracked from tokenUsage/updated.
     const usage = (turn.usage ?? {}) as Record<string, unknown>
-    const inputTokens = usage.inputTokens as number | undefined
-    const outputTokens = usage.outputTokens as number | undefined
+    const tracked = this.turnTokens
+    this.turnTokens = zeroBreakdown()
+    const inputTokens =
+      (usage.inputTokens as number | undefined) ?? (tracked.inputTokens || undefined)
+    const outputTokens =
+      (usage.outputTokens as number | undefined) ?? (tracked.outputTokens || undefined)
+    const cachedInputTokens = tracked.cachedInputTokens || undefined
+    const reasoningOutputTokens = tracked.reasoningOutputTokens || undefined
+
+    const tokenMetadata = {
+      inputTokens,
+      outputTokens,
+      ...(cachedInputTokens != null && { cachedInputTokens }),
+      ...(reasoningOutputTokens != null && { reasoningOutputTokens }),
+    }
+
+    if (status === 'failed') {
+      const error = (turn.error ?? {}) as Record<string, unknown>
+      const message = (error.message as string) ?? 'Turn failed'
+      return {
+        entryType: 'error-message',
+        content: `Turn failed \u00B7 ${message}`,
+        timestamp: now,
+        metadata: {
+          source: 'result',
+          turnCompleted: true,
+          resultSubtype: 'failed',
+          isError: true,
+          error: message,
+          errorKind: codexErrorKind(error.codexErrorInfo),
+          turnId: turn.id as string | undefined,
+          ...tokenMetadata,
+        },
+      }
+    }
 
     const parts: string[] = []
     if (inputTokens != null) {
@@ -721,6 +791,9 @@ export class CodexLogNormalizer {
           : `${outputTokens} output`,
       )
     }
+    if (status === 'interrupted') {
+      parts.unshift('Turn interrupted')
+    }
 
     return {
       entryType: 'system-message',
@@ -729,9 +802,9 @@ export class CodexLogNormalizer {
       metadata: {
         source: 'result',
         turnCompleted: true,
+        ...(status === 'interrupted' && { resultSubtype: 'interrupted' }),
         turnId: turn.id as string | undefined,
-        inputTokens,
-        outputTokens,
+        ...tokenMetadata,
       },
     }
   }
@@ -774,6 +847,7 @@ export class CodexLogNormalizer {
       timestamp: now,
       metadata: {
         code: error.code as number | undefined,
+        errorKind: codexErrorKind(error.codexErrorInfo),
         willRetry,
       },
     }
@@ -785,6 +859,72 @@ export class CodexLogNormalizer {
     this.assistantText = ''
     this.thinkingText = ''
   }
+}
+
+// ---------- Token usage helpers ----------
+
+/** Mirror of the schema's TokenUsageBreakdown (all fields required on the wire). */
+interface TokenBreakdown {
+  inputTokens: number
+  cachedInputTokens: number
+  outputTokens: number
+  reasoningOutputTokens: number
+  totalTokens: number
+}
+
+function zeroBreakdown(): TokenBreakdown {
+  return {
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    outputTokens: 0,
+    reasoningOutputTokens: 0,
+    totalTokens: 0,
+  }
+}
+
+function parseBreakdown(raw: unknown): TokenBreakdown | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const num = (v: unknown) => (typeof v === 'number' ? v : 0)
+  return {
+    inputTokens: num(r.inputTokens),
+    cachedInputTokens: num(r.cachedInputTokens),
+    outputTokens: num(r.outputTokens),
+    reasoningOutputTokens: num(r.reasoningOutputTokens),
+    totalTokens: num(r.totalTokens),
+  }
+}
+
+function addBreakdown(a: TokenBreakdown, b: TokenBreakdown): TokenBreakdown {
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    cachedInputTokens: a.cachedInputTokens + b.cachedInputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    reasoningOutputTokens: a.reasoningOutputTokens + b.reasoningOutputTokens,
+    totalTokens: a.totalTokens + b.totalTokens,
+  }
+}
+
+/** Clamped a - b (never negative — totals are monotonic, guard against resets). */
+function subtractBreakdown(a: TokenBreakdown, b: TokenBreakdown): TokenBreakdown {
+  return {
+    inputTokens: Math.max(0, a.inputTokens - b.inputTokens),
+    cachedInputTokens: Math.max(0, a.cachedInputTokens - b.cachedInputTokens),
+    outputTokens: Math.max(0, a.outputTokens - b.outputTokens),
+    reasoningOutputTokens: Math.max(0, a.reasoningOutputTokens - b.reasoningOutputTokens),
+    totalTokens: Math.max(0, a.totalTokens - b.totalTokens),
+  }
+}
+
+/**
+ * Normalize `codexErrorInfo` to a string kind. The schema encodes it either
+ * as a plain enum string (e.g. "usageLimitExceeded") or as a single-key
+ * object variant (e.g. {"httpConnectionFailed": {"httpStatusCode": 502}}).
+ */
+function codexErrorKind(info: unknown): string | undefined {
+  if (typeof info === 'string') return info
+  if (info && typeof info === 'object') return Object.keys(info)[0]
+  return undefined
 }
 
 /**

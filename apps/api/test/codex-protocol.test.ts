@@ -536,7 +536,7 @@ describe('CodexProtocolHandler', () => {
     stdout.close()
   })
 
-  test('auto-approves toolRequestUserInput', async () => {
+  test('answers item/tool/requestUserInput with empty answers map', async () => {
     const { sink, written } = createMockStdin()
     const stdout = createMockStdout()
 
@@ -546,21 +546,81 @@ describe('CodexProtocolHandler', () => {
     stdout.push(
       JSON.stringify({
         id: 300,
-        method: 'toolRequestUserInput',
-        params: { prompt: 'Enter value' },
+        method: 'item/tool/requestUserInput',
+        params: { questions: [{ id: 'q1', prompt: 'Enter value' }] },
       }),
     )
     await tick()
 
-    const approvalResp = written.find((w) => {
+    const resp = written.find((w) => {
       try {
         const p = JSON.parse(w)
-        return p.id === 300 && p.result?.decision === 'accept'
+        return p.id === 300 && p.result && typeof p.result.answers === 'object'
       } catch {
         return false
       }
     })
-    expect(approvalResp).toBeTruthy()
+    expect(resp).toBeTruthy()
+
+    handler.close()
+    stdout.close()
+  })
+
+  test('auto-approves legacy execCommandApproval with ReviewDecision "approved"', async () => {
+    const { sink, written } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+    await tick()
+
+    stdout.push(
+      JSON.stringify({
+        id: 301,
+        method: 'execCommandApproval',
+        params: { command: ['ls'], cwd: '/tmp' },
+      }),
+    )
+    await tick()
+
+    const resp = written.find((w) => {
+      try {
+        const p = JSON.parse(w)
+        return p.id === 301 && p.result?.decision === 'approved'
+      } catch {
+        return false
+      }
+    })
+    expect(resp).toBeTruthy()
+
+    handler.close()
+    stdout.close()
+  })
+
+  test('auto-approves legacy applyPatchApproval with ReviewDecision "approved"', async () => {
+    const { sink, written } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+    await tick()
+
+    stdout.push(
+      JSON.stringify({
+        id: 302,
+        method: 'applyPatchApproval',
+        params: { changes: {} },
+      }),
+    )
+    await tick()
+
+    const resp = written.find((w) => {
+      try {
+        const p = JSON.parse(w)
+        return p.id === 302 && p.result?.decision === 'approved'
+      } catch {
+        return false
+      }
+    })
+    expect(resp).toBeTruthy()
 
     handler.close()
     stdout.close()

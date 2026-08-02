@@ -118,7 +118,10 @@ export interface ClaudeResult {
   subtype?: string
   is_error?: boolean
   duration_ms?: number
+  /** Modern CLI field; `cost_usd` is the legacy top-level variant. */
+  total_cost_usd?: number
   cost_usd?: number
+  /** Legacy top-level token fields; modern CLI nests them under `usage`. */
   input_tokens?: number
   output_tokens?: number
   num_turns?: number
@@ -126,6 +129,8 @@ export interface ClaudeResult {
   result?: string
   errors?: unknown[]
   model_usage?: Record<string, { contextWindow?: number }>
+  /** Modern CLI field name (camelCase on the wire). */
+  modelUsage?: Record<string, { contextWindow?: number }>
   usage?: ClaudeUsage
   timestamp?: string
 }

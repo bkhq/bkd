@@ -184,6 +184,47 @@ describe('ClaudeLogNormalizer', () => {
       expect(entries[0]!.entryType).toBe('system-message')
       expect(entries[0]!.content).toContain('5.0s')
       expect(entries[0]!.metadata?.turnCompleted).toBe(true)
+      expect(entries[0]!.metadata?.inputTokens).toBe(100)
+      expect(entries[0]!.metadata?.outputTokens).toBe(50)
+      expect(entries[0]!.metadata?.costUsd).toBe(0.01)
+    })
+
+    test('result with modern wire format (nested usage + total_cost_usd)', () => {
+      const entries = parseAll(
+        normalizer,
+        line({
+          type: 'result',
+          subtype: 'success',
+          duration_ms: 19583,
+          num_turns: 1,
+          session_id: 's1',
+          total_cost_usd: 0.0523,
+          usage: {
+            input_tokens: 10,
+            cache_creation_input_tokens: 200,
+            cache_read_input_tokens: 3000,
+            output_tokens: 450,
+          },
+          modelUsage: {
+            'claude-opus-4-8': {
+              inputTokens: 10,
+              outputTokens: 450,
+              costUSD: 0.0523,
+              contextWindow: 200000,
+            },
+          },
+        }),
+      )
+      expect(entries).toHaveLength(1)
+      expect(entries[0]!.metadata?.turnCompleted).toBe(true)
+      // input = input + cache_creation + cache_read (same convention as message_delta)
+      expect(entries[0]!.metadata?.inputTokens).toBe(3210)
+      expect(entries[0]!.metadata?.outputTokens).toBe(450)
+      expect(entries[0]!.metadata?.costUsd).toBe(0.0523)
+      expect(entries[0]!.metadata?.cacheReadInputTokens).toBe(3000)
+      expect(entries[0]!.metadata?.cacheCreationInputTokens).toBe(200)
+      expect(entries[0]!.content).toContain('3210 input')
+      expect(entries[0]!.content).toContain('$0.0523')
     })
 
     test('thinking blocks produce thinking entries', () => {

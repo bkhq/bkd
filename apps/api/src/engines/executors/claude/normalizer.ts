@@ -649,11 +649,24 @@ export class ClaudeLogNormalizer {
     const entries: NormalizedLogEntry[] = []
     const isLogicalError = !!data.is_error || data.subtype !== 'success'
 
+    // Modern CLI nests tokens under `usage` and reports `total_cost_usd`;
+    // legacy top-level fields take precedence when present.
+    // Input counts cache tokens, same convention as parseMessageDelta.
+    const usage = data.usage
+    const usageInput = usage
+      ? (usage.input_tokens ?? 0)
+      + (usage.cache_creation_input_tokens ?? 0)
+      + (usage.cache_read_input_tokens ?? 0)
+      : undefined
+    const inputTokens = data.input_tokens ?? usageInput
+    const outputTokens = data.output_tokens ?? usage?.output_tokens
+    const costUsd = data.cost_usd ?? data.total_cost_usd
+
     const parts: string[] = []
     if (data.duration_ms) parts.push(`${(data.duration_ms / 1000).toFixed(1)}s`)
-    if (data.input_tokens) parts.push(`${data.input_tokens} input`)
-    if (data.output_tokens) parts.push(`${data.output_tokens} output`)
-    if (data.cost_usd) parts.push(`$${data.cost_usd.toFixed(4)}`)
+    if (inputTokens) parts.push(`${inputTokens} input`)
+    if (outputTokens) parts.push(`${outputTokens} output`)
+    if (costUsd) parts.push(`$${costUsd.toFixed(4)}`)
 
     let errorSummary: string | undefined
     let errorKind: string | undefined
@@ -682,12 +695,16 @@ export class ClaudeLogNormalizer {
         errorKind,
         error: errorSummary,
         sessionId: data.session_id,
-        costUsd: data.cost_usd,
-        inputTokens: data.input_tokens,
-        outputTokens: data.output_tokens,
+        costUsd,
+        inputTokens,
+        outputTokens,
+        ...(usage?.cache_read_input_tokens != null &&
+          { cacheReadInputTokens: usage.cache_read_input_tokens }),
+        ...(usage?.cache_creation_input_tokens != null &&
+          { cacheCreationInputTokens: usage.cache_creation_input_tokens }),
         duration: data.duration_ms,
         numTurns: data.num_turns,
-        modelUsage: data.model_usage,
+        modelUsage: data.modelUsage ?? data.model_usage,
       },
     })
 

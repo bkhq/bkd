@@ -10,12 +10,22 @@ function clipForLog(input: string): string {
   return `${input.slice(0, MAX_IO_LOG_CHARS)}...<truncated:${input.length - MAX_IO_LOG_CHARS}>`
 }
 
-/** Methods that represent server-side approval requests (has `id`, expects a response). */
-const APPROVAL_METHODS = new Set([
-  'item/commandExecution/requestApproval',
-  'item/fileChange/requestApproval',
-  'toolRequestUserInput',
-])
+/**
+ * Server-side requests (has `id`, expects a response) that we auto-answer,
+ * mapped to their schema-exact response payloads (codex app-server
+ * generate-json-schema, v0.144.x):
+ * - v2 item approvals use decision enum `accept`
+ * - legacy exec/patch approvals use ReviewDecision enum `approved`
+ * - `item/tool/requestUserInput` expects `{answers: {questionId: {answers: []}}}`;
+ *   an empty map declines to answer without failing the turn
+ */
+const SERVER_REQUEST_RESPONSES: Record<string, () => Record<string, unknown>> = {
+  'item/commandExecution/requestApproval': () => ({ decision: 'accept' }),
+  'item/fileChange/requestApproval': () => ({ decision: 'accept' }),
+  'execCommandApproval': () => ({ decision: 'approved' }),
+  'applyPatchApproval': () => ({ decision: 'approved' }),
+  'item/tool/requestUserInput': () => ({ answers: {} }),
+}
 
 interface PendingRequest {
   resolve: (value: unknown) => void
@@ -446,9 +456,10 @@ export class CodexProtocolHandler {
   private handleServerRequest(request: JsonRpcServerRequest): void {
     const { id, method } = request
 
-    if (APPROVAL_METHODS.has(method)) {
+    const buildResponse = SERVER_REQUEST_RESPONSES[method]
+    if (buildResponse) {
       logger.debug({ id, method }, 'codex_protocol_auto_approve')
-      this.writeJson({ id, result: { decision: 'accept' } })
+      this.writeJson({ id, result: buildResponse() })
       return
     }
 
@@ -462,6 +473,13 @@ export class CodexProtocolHandler {
   /** Track state from known notifications (e.g. turn IDs). */
   private trackNotification(notification: JsonRpcNotification): void {
     const { method, params } = notification
+
+    if (method === 'deprecationNotice') {
+      logger.warn(
+        { summary: params?.summary, details: params?.details },
+        'codex_protocol_deprecation_notice',
+      )
+    }
 
     if (method === 'turn/completed') {
       logger.debug({ turnId: this._turnId }, 'codex_protocol_turn_completed')

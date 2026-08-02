@@ -561,3 +561,181 @@ describe('CodexExecutor.normalizeLog', () => {
     })
   })
 })
+
+// ------------------------------------------------------------------
+// Stateful token usage tracking (ENG-022) + protocol alignment (ENG-023)
+// ------------------------------------------------------------------
+describe('CodexLogNormalizer token usage (stateful)', () => {
+  function feed(
+    n: { parse: (line: string) => NormalizedLogEntry | NormalizedLogEntry[] | null },
+    method: string,
+    params: Record<string, unknown>,
+  ) {
+    return asSingleEntry(n.parse(JSON.stringify({ method, params })))
+  }
+
+  const breakdown = (
+    inputTokens: number,
+    cachedInputTokens: number,
+    outputTokens: number,
+    reasoningOutputTokens: number,
+  ) => ({
+    inputTokens,
+    cachedInputTokens,
+    outputTokens,
+    reasoningOutputTokens,
+    totalTokens: inputTokens + outputTokens,
+  })
+
+  test('thread/tokenUsage/updated emits token-usage entry from tokenUsage.total', () => {
+    const n = executor.createNormalizer()
+    const entry = feed(n, 'thread/tokenUsage/updated', {
+      threadId: 't1',
+      turnId: 'turn1',
+      tokenUsage: {
+        last: breakdown(100, 40, 20, 5),
+        total: breakdown(5100, 1040, 520, 105),
+        modelContextWindow: 272000,
+      },
+    })
+    expect(entry).not.toBeNull()
+    expect(entry!.entryType).toBe('token-usage')
+    expect(entry!.metadata?.totalTokens).toBe(5620)
+    expect(entry!.metadata?.contextWindow).toBe(272000)
+    expect(entry!.metadata?.inputTokens).toBe(5100)
+    expect(entry!.metadata?.outputTokens).toBe(520)
+    expect(entry!.metadata?.cachedInputTokens).toBe(1040)
+  })
+
+  test('turn/completed carries per-turn token deltas accumulated from tokenUsage totals', () => {
+    const n = executor.createNormalizer()
+    // First update of the turn: baseline = total - last (thread history)
+    feed(n, 'thread/tokenUsage/updated', {
+      threadId: 't1',
+      turnId: 'turn1',
+      tokenUsage: {
+        last: breakdown(100, 40, 20, 5),
+        total: breakdown(5100, 1040, 520, 105),
+        modelContextWindow: 272000,
+      },
+    })
+    // Second update: totals advance by (200 input / 100 cached / 30 output / 5 reasoning)
+    feed(n, 'thread/tokenUsage/updated', {
+      threadId: 't1',
+      turnId: 'turn1',
+      tokenUsage: {
+        last: breakdown(200, 100, 30, 5),
+        total: breakdown(5300, 1140, 550, 110),
+        modelContextWindow: 272000,
+      },
+    })
+
+    const done = feed(n, 'turn/completed', {
+      threadId: 't1',
+      turn: { id: 'turn1', status: 'completed', items: [] },
+    })
+    expect(done).not.toBeNull()
+    expect(done!.metadata?.turnCompleted).toBe(true)
+    expect(done!.metadata?.inputTokens).toBe(300)
+    expect(done!.metadata?.outputTokens).toBe(50)
+    expect(done!.metadata?.cachedInputTokens).toBe(140)
+    expect(done!.metadata?.reasoningOutputTokens).toBe(10)
+
+    // Next turn accumulates independently
+    feed(n, 'thread/tokenUsage/updated', {
+      threadId: 't1',
+      turnId: 'turn2',
+      tokenUsage: {
+        last: breakdown(80, 0, 10, 0),
+        total: breakdown(5380, 1140, 560, 110),
+        modelContextWindow: 272000,
+      },
+    })
+    const done2 = feed(n, 'turn/completed', {
+      threadId: 't1',
+      turn: { id: 'turn2', status: 'completed', items: [] },
+    })
+    expect(done2!.metadata?.inputTokens).toBe(80)
+    expect(done2!.metadata?.outputTokens).toBe(10)
+  })
+
+  test('turn/completed keeps legacy turn.usage fallback', () => {
+    const n = executor.createNormalizer()
+    const done = feed(n, 'turn/completed', {
+      threadId: 't1',
+      turn: { id: 'turn1', status: 'completed', items: [], usage: { inputTokens: 42, outputTokens: 7 } },
+    })
+    expect(done!.metadata?.turnCompleted).toBe(true)
+    expect(done!.metadata?.inputTokens).toBe(42)
+    expect(done!.metadata?.outputTokens).toBe(7)
+  })
+
+  test('turn/completed with status failed maps to error entry with errorKind', () => {
+    const n = executor.createNormalizer()
+    const done = feed(n, 'turn/completed', {
+      threadId: 't1',
+      turn: {
+        id: 'turn1',
+        status: 'failed',
+        items: [],
+        error: { message: 'usage limit reached', codexErrorInfo: 'usageLimitExceeded' },
+      },
+    })
+    expect(done!.entryType).toBe('error-message')
+    expect(done!.metadata?.turnCompleted).toBe(true)
+    expect(done!.metadata?.isError).toBe(true)
+    expect(done!.metadata?.errorKind).toBe('usageLimitExceeded')
+    expect(done!.content).toContain('usage limit reached')
+  })
+
+  test('turn/completed with object codexErrorInfo uses its variant key', () => {
+    const n = executor.createNormalizer()
+    const done = feed(n, 'turn/completed', {
+      threadId: 't1',
+      turn: {
+        id: 'turn1',
+        status: 'failed',
+        items: [],
+        error: {
+          message: 'connection failed',
+          codexErrorInfo: { httpConnectionFailed: { httpStatusCode: 502 } },
+        },
+      },
+    })
+    expect(done!.entryType).toBe('error-message')
+    expect(done!.metadata?.errorKind).toBe('httpConnectionFailed')
+  })
+
+  test('turn/completed with status interrupted stays a system message', () => {
+    const n = executor.createNormalizer()
+    const done = feed(n, 'turn/completed', {
+      threadId: 't1',
+      turn: { id: 'turn1', status: 'interrupted', items: [] },
+    })
+    expect(done!.entryType).toBe('system-message')
+    expect(done!.metadata?.turnCompleted).toBe(true)
+    expect(done!.metadata?.resultSubtype).toBe('interrupted')
+  })
+
+  test('error notification carries errorKind from codexErrorInfo', () => {
+    const entry = normalize('error', {
+      threadId: 't1',
+      turnId: 'turn1',
+      willRetry: true,
+      error: { message: 'stream disconnected', codexErrorInfo: 'other' },
+    })
+    expect(entry!.entryType).toBe('error-message')
+    expect(entry!.metadata?.willRetry).toBe(true)
+    expect(entry!.metadata?.errorKind).toBe('other')
+  })
+
+  test('item/completed contextCompaction maps to system message', () => {
+    const entry = normalize('item/completed', {
+      threadId: 't1',
+      item: { type: 'contextCompaction', id: 'cc-1' },
+    })
+    expect(entry).not.toBeNull()
+    expect(entry!.entryType).toBe('system-message')
+    expect(entry!.content).toBe('Context compacted')
+  })
+})
