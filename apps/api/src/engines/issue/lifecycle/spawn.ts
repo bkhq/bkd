@@ -25,6 +25,7 @@ import {
   isWorktreeRegistered,
   resolveWorktreePath,
 } from '@/engines/issue/utils/worktree'
+import { resolveExecutionModel } from '@/engines/model-resolver'
 import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
 import { monitorCompletion } from './completion-monitor'
@@ -195,7 +196,7 @@ export async function spawnRetry(
   const spawnOpts = {
     workingDir,
     prompt: issue.sessionFields.prompt ?? '',
-    model: issue.sessionFields.model === 'auto' ? undefined : (issue.sessionFields.model ?? undefined),
+    model: await resolveExecutionModel(engineType, issue.sessionFields.model, issue.engineProfileId),
     permissionMode: permOptions.permissionMode,
     projectId: issue.projectId,
     envVars,
@@ -261,9 +262,13 @@ export async function spawnFollowUpProcess(
   }
 
   const executionId = crypto.randomUUID()
-  // Treat 'auto' as unset — let the engine use its own default
-  const rawModel = model ?? issue.sessionFields.model ?? undefined
-  const effectiveModel = rawModel === 'auto' ? undefined : rawModel
+  // 'auto' or a model missing from the engine's list resolves to the
+  // engine's default model.
+  const effectiveModel = await resolveExecutionModel(
+    engineType,
+    model ?? issue.sessionFields.model,
+    issue.engineProfileId,
+  )
 
   await updateIssueSession(issueId, { sessionStatus: 'running' })
 

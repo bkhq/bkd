@@ -19,6 +19,7 @@ import {
 } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { createWorktree } from '@/engines/issue/utils/worktree'
+import { resolveExecutionModel } from '@/engines/model-resolver'
 import type { SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
 
@@ -71,9 +72,13 @@ export async function restartIssue(
         (issue.sessionFields.prompt ?? '')
     const effectivePrompt = basePrompt
 
-    // Treat 'auto' as unset — let the engine CLI use its own default
-    const rawModel = issue.sessionFields.model ?? undefined
-    const effectiveModel = rawModel === 'auto' ? undefined : rawModel
+    // 'auto' or a model missing from the engine's list resolves to the
+    // engine's default model.
+    const effectiveModel = await resolveExecutionModel(
+      engineType,
+      issue.sessionFields.model,
+      issue.engineProfileId,
+    )
 
     const spawnOpts = {
       workingDir,

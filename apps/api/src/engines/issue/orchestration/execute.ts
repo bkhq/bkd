@@ -13,6 +13,7 @@ import { getPermissionOptions, resolveExecEnvVars } from '@/engines/issue/utils/
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
 import { createWorktree } from '@/engines/issue/utils/worktree'
+import { resolveExecutionModel } from '@/engines/model-resolver'
 import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
 import { ROOT_DIR } from '@/root'
@@ -56,20 +57,21 @@ export async function executeIssue(
       throw new Error(`Engine '${opts.engineType}' is not yet executable (spawn not implemented)`)
     }
 
-    // Treat 'auto' as unset — let the engine CLI use its own default.
-    // Do NOT look up or fill in a default model from DB; the engine decides.
-    const model = opts.model === 'auto' ? undefined : opts.model
-
     // Resolve the effective virtual profile under the issue lock to avoid a
     // race between concurrent execute requests targeting different engines.
     const effectiveProfileId = opts.engineProfileId !== undefined
       ? opts.engineProfileId
       : issue.engineProfileId
+
+    // 'auto' or a model missing from the engine's list resolves to the
+    // engine's default model for the spawn. DB keeps the raw selection.
+    const rawModel = opts.model === 'auto' ? undefined : opts.model
+    const model = await resolveExecutionModel(opts.engineType, opts.model, effectiveProfileId)
     await updateIssueSession(issueId, {
       engineType: opts.engineType,
       sessionStatus: 'running',
       prompt: opts.prompt,
-      model: model ?? undefined,
+      model: rawModel ?? undefined,
       ...(opts.engineProfileId !== undefined ? { engineProfileId: opts.engineProfileId } : {}),
     })
 
