@@ -33,11 +33,25 @@ describe('pickExecutionModel', () => {
 })
 
 describe('resolveExecutionModel', () => {
-  test('uses the cached model list for the engine', async () => {
-    await cacheSet('engines:models:claude-code', MODELS, 60)
+  test('resolves auto/unknown to the engine default', async () => {
     expect(await resolveExecutionModel('claude-code', 'auto')).toBe('claude-opus-5')
     expect(await resolveExecutionModel('claude-code', 'claude-opus-4-8')).toBe('claude-opus-5')
     expect(await resolveExecutionModel('claude-code', 'claude-fable-5')).toBe('claude-fable-5')
+  })
+
+  test('claude-code ignores a stale cached model list (static catalog wins)', async () => {
+    // Simulate pre-upgrade probe data still present in the cache: the removed
+    // model is listed and even marked default.
+    await cacheSet(
+      'engines:models:claude-code',
+      [
+        { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', isDefault: true },
+        { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', isDefault: false },
+      ] satisfies EngineModel[],
+      60,
+    )
+    expect(await resolveExecutionModel('claude-code', 'claude-opus-4-8')).toBe('claude-opus-5')
+    expect(await resolveExecutionModel('claude-code', 'auto')).toBe('claude-opus-5')
   })
 
   test('passes through for virtual engine profiles', async () => {

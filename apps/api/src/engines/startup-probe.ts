@@ -53,6 +53,22 @@ async function readFromCache(): Promise<EngineDiscovery | null> {
   return { engines, models }
 }
 
+/**
+ * Overlay engines whose model catalogs are static in-code (claude-code) with
+ * the registry's current list. Cached/DB probe data may predate catalog
+ * changes shipped with an upgrade; the in-code list is always authoritative.
+ */
+async function withFreshStaticModels(discovery: EngineDiscovery): Promise<EngineDiscovery> {
+  if (!('claude-code' in discovery.models)) return discovery
+  return {
+    ...discovery,
+    models: {
+      ...discovery.models,
+      'claude-code': await engineRegistry.getModels('claude-code'),
+    },
+  }
+}
+
 // Per-engine probe timeout (prevents a single engine from blocking the entire probe)
 const PER_ENGINE_TIMEOUT_MS = 15_000
 
@@ -223,7 +239,7 @@ export function __resetProbeInFlightForTests(): void {
 export async function getEngineDiscovery(): Promise<EngineDiscovery> {
   // 1. Memory cache
   const cached = await readFromCache()
-  if (cached) return cached
+  if (cached) return withFreshStaticModels(cached)
 
   // 2. DB
   const dbData = await getProbeResults()
@@ -236,7 +252,7 @@ export async function getEngineDiscovery(): Promise<EngineDiscovery> {
       'probe_loaded_from_db',
     )
     await writeToCache(dbData.engines, dbData.models)
-    return dbData
+    return withFreshStaticModels(dbData)
   }
 
   // 3. Live probe (deduped: concurrent callers share the same in-flight probe)
@@ -297,6 +313,10 @@ export async function forceProbeEngines(): Promise<ProbeResult> {
  * Get cached models for a specific engine type. Falls back to live query.
  */
 export async function getEngineModels(engineType: EngineType): Promise<EngineModel[]> {
+  // claude-code's catalog is static in-code and always authoritative —
+  // cached probe data may predate catalog changes shipped with an upgrade.
+  if (engineType === 'claude-code') return engineRegistry.getModels(engineType)
+
   const cached = await cacheGet<EngineModel[]>(`${CACHE_KEY_MODELS_PREFIX}${engineType}`)
   if (cached) return cached
 
