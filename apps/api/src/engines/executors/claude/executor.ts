@@ -103,7 +103,6 @@ const CLAUDE_MODELS: EngineModel[] = [
     name: 'Claude Sonnet 5 (1M)',
     isDefault: false,
   },
-  { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', isDefault: false },
 ]
 
 export class ClaudeCodeExecutor implements EngineExecutor {
