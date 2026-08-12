@@ -55,6 +55,9 @@ export interface Issue {
   totalInputTokens: number
   totalOutputTokens: number
   totalCostUsd: string
+  /** Live context usage (claude-code only); 0 when unknown */
+  contextTokens: number
+  contextWindow: number
   statusUpdatedAt: string
   createdAt: string
   updatedAt: string
@@ -426,7 +429,14 @@ export interface SSEEventMap {
   'done': { issueId: string, finalStatus: string }
   'issue-updated': { issueId: string, changes: Record<string, unknown> }
   'changes-summary': ChangesSummary
+  'context-usage': ContextUsageEvent
   'heartbeat': { ts: string }
+}
+
+export interface ContextUsageEvent {
+  issueId: string
+  contextTokens: number
+  contextWindow: number
 }
 
 /** Internal bus format — superset of SSEEventMap, carries engine context. */
@@ -443,6 +453,7 @@ export interface AppEventMap {
   'done': { issueId: string, executionId: string, finalStatus: string }
   'issue-updated': { issueId: string, changes: Record<string, unknown> }
   'changes-summary': ChangesSummary
+  'context-usage': { issueId: string, contextTokens: number, contextWindow: number }
   'heartbeat': { ts: string }
 }
 

@@ -1,4 +1,4 @@
-import type { ChangesSummary } from '@bkd/shared'
+import type { ChangesSummary, ContextUsageEvent } from '@bkd/shared'
 import type { NormalizedLogEntry, SessionStatus } from '@/types/kanban'
 
 export interface IssueEventHandler {
@@ -13,6 +13,7 @@ export type ChangesSummaryData = ChangesSummary
 
 type IssueUpdatedListener = (data: { issueId: string, changes: Record<string, unknown> }) => void
 type ChangesSummaryListener = (data: ChangesSummaryData) => void
+type ContextUsageListener = (data: ContextUsageEvent) => void
 type IssueActivityListener = (issueId: string) => void
 type ConnectionListener = (connected: boolean) => void
 
@@ -30,6 +31,7 @@ class EventBus {
   private handlers = new Map<string, Set<IssueEventHandler>>()
   private issueUpdatedListeners = new Set<IssueUpdatedListener>()
   private changesSummaryListeners = new Set<ChangesSummaryListener>()
+  private contextUsageListeners = new Set<ContextUsageListener>()
   private issueActivityListeners = new Set<IssueActivityListener>()
   private connectionListeners = new Set<ConnectionListener>()
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -159,6 +161,21 @@ class EventBus {
       }
     })
 
+    es.addEventListener('context-usage', (e) => {
+      try {
+        const data = JSON.parse(e.data) as ContextUsageEvent
+        for (const cb of this.contextUsageListeners) {
+          try {
+            cb(data)
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+    })
+
     // Reset watchdog on heartbeat — server sends every 15s
     es.addEventListener('heartbeat', () => {
       this.resetHeartbeatWatchdog(es)
@@ -243,6 +260,13 @@ class EventBus {
     this.changesSummaryListeners.add(listener)
     return () => {
       this.changesSummaryListeners.delete(listener)
+    }
+  }
+
+  onContextUsage(listener: ContextUsageListener): () => void {
+    this.contextUsageListeners.add(listener)
+    return () => {
+      this.contextUsageListeners.delete(listener)
     }
   }
 

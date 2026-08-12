@@ -92,6 +92,11 @@ events.get('/', async (c) => {
         writeEvent('changes-summary', data)
       })
 
+      // Live context-window usage (claude-code issues)
+      const unsubContextUsage = appEvents.on('context-usage', (data) => {
+        writeEvent('context-usage', data)
+      })
+
       // Heartbeat every 15s — keeps connection alive and detects client disconnect
       const heartbeat = setInterval(() => {
         if (done) return
@@ -110,6 +115,7 @@ events.get('/', async (c) => {
         unsubDone()
         unsubIssueUpdated()
         unsubChangesSummary()
+        unsubContextUsage()
         logger.debug('global_sse_closed')
       }
     })

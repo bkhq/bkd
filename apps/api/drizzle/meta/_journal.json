@@ -162,6 +162,13 @@
       "when": 1780464320739,
       "tag": "0022_chilly_kat_farrell",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1786494493557,
+      "tag": "0023_lame_james_howlett",
+      "breakpoints": true
     }
   ]
 }

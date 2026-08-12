@@ -158,6 +158,8 @@ export const IssueSchema = z.object({
   totalInputTokens: z.number().int(),
   totalOutputTokens: z.number().int(),
   totalCostUsd: z.string(),
+  contextTokens: z.number().int(),
+  contextWindow: z.number().int(),
   statusUpdatedAt: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),

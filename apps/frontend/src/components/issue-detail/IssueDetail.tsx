@@ -1,9 +1,10 @@
-import { ChevronDown, Coins, GitBranch, Tag, Trash2, Wrench, Zap } from 'lucide-react'
+import { ChevronDown, Coins, Gauge, GitBranch, Tag, Trash2, Wrench, Zap } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useClickOutside } from '@/hooks/use-click-outside'
+import { useContextUsage } from '@/hooks/use-context-usage'
 import { useProjectWorktrees } from '@/hooks/use-kanban'
 import { formatTokenCount } from '@/lib/format'
 import { tStatus } from '@/lib/i18n-utils'
@@ -157,8 +158,9 @@ export function IssueDetail({
             </button>
           )}
 
-      {/* Token usage + worktree (right side) */}
+      {/* Context + token usage + worktree (right side) */}
       <div className="ml-auto flex items-center gap-1.5">
+        <ContextUsageMeter issue={issue} />
         <TokenUsageBadge issue={issue} />
         {issue.useWorktree ?
             (
@@ -202,6 +204,39 @@ export function IssueDetail({
           null}
       </div>
     </div>
+  )
+}
+
+/**
+ * Live context-window water level — claude-code issues only (the engine is
+ * the only one reporting per-call usage over stream-json; see ENG-026).
+ * Initial value comes from the issue row; SSE `context-usage` events overlay.
+ */
+function ContextUsageMeter({ issue }: { issue: Issue }) {
+  const { t } = useTranslation()
+  const live = useContextUsage(issue.engineType === 'claude-code' ? issue.id : undefined)
+  if (issue.engineType !== 'claude-code') return null
+
+  const tokens = live?.contextTokens ?? issue.contextTokens ?? 0
+  const window = live?.contextWindow ?? issue.contextWindow ?? 0
+  if (tokens <= 0 || window <= 0) return null
+
+  const percent = Math.min(100, Math.round((tokens / window) * 100))
+  const tone =
+    percent > 90
+      ? 'border-red-400/40 bg-red-500/10 text-red-600 dark:text-red-400'
+      : percent > 80
+        ? 'border-amber-400/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+        : 'border-border/50 bg-muted/20 text-muted-foreground'
+
+  return (
+    <span
+      className={`${badgeBase} ${tone} tabular-nums`}
+      title={`${t('issue.contextUsage')}: ${tokens.toLocaleString()} / ${window.toLocaleString()}`}
+    >
+      <Gauge className="h-3 w-3" />
+      {`${percent}% · ${formatTokenCount(tokens)}/${formatTokenCount(window)}`}
+    </span>
   )
 }
 

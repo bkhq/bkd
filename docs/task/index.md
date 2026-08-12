@@ -73,3 +73,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-023 Align Codex executor with app-server 0.144.x protocol schema**](ENG-023.md) `P1`
 - [x] [**ENG-024 Display per-issue token usage totals**](ENG-024.md) `P1`
 - [x] [**ENG-025 Resolve auto/unknown model to engine default at execution time**](ENG-025.md) `P1`
+- [x] [**ENG-026 Show live context-window usage for claude-code issues**](ENG-026.md) `P2`

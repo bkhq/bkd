@@ -114,6 +114,8 @@ export function serializeIssue(row: IssueRow) {
     totalInputTokens: row.totalInputTokens ?? 0,
     totalOutputTokens: row.totalOutputTokens ?? 0,
     totalCostUsd: row.totalCostUsd ?? '0',
+    contextTokens: row.contextTokens ?? 0,
+    contextWindow: row.contextWindow ?? 0,
     statusUpdatedAt: toISO(row.statusUpdatedAt),
     createdAt: toISO(row.createdAt),
     updatedAt: toISO(row.updatedAt),

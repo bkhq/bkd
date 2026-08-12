@@ -358,6 +358,9 @@ export class ClaudeCodeExecutor implements EngineExecutor {
 
     const builder = CommandBuilder.create(resolveBaseCmd())
       .params(['-p', '--output-format=stream-json', '--verbose', '--no-chrome'])
+      // stream_event message_delta carries per-call usage — feeds the
+      // live context meter (parseMessageDelta → token-usage entries)
+      .param('--include-partial-messages')
       .param('--input-format', 'stream-json')
       .param('--permission-prompt-tool', 'stdio')
       .env('NPM_CONFIG_LOGLEVEL', 'error')
