@@ -241,7 +241,7 @@ export async function getEngineDiscovery(): Promise<EngineDiscovery> {
   const cached = await readFromCache()
   if (cached) return withFreshStaticModels(cached)
 
-  // 2. DB
+  // 2. DB (expires — see PROBE_DB_TTL_MS in db/helpers.ts)
   const dbData = await getProbeResults()
   if (dbData) {
     logger.debug(

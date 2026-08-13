@@ -74,3 +74,6 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-024 Display per-issue token usage totals**](ENG-024.md) `P1`
 - [x] [**ENG-025 Resolve auto/unknown model to engine default at execution time**](ENG-025.md) `P1`
 - [x] [**ENG-026 Show live context-window usage for claude-code issues**](ENG-026.md) `P2`
+- [x] [**ENG-027 Codex follow-up loses thread config on thread/resume**](ENG-027.md) `P0`
+- [x] [**ENG-028 Codex protocol conformance gaps (0.144.x)**](ENG-028.md) `P1`
+- [x] [**ENG-029 Engine probe cache never expires (stale Codex model catalog)**](ENG-029.md) `P1`

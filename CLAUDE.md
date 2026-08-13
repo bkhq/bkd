@@ -142,7 +142,7 @@ Each engine has an executor in `executors/<name>/executor.ts` implementing `Engi
 - **`issue/lifecycle/`** — Spawn with session fallback, completion monitoring (auto-retry on failure, pending message coalescence), settlement
 - **`issue/streams/`** — Stdout consumption via async generator, log classification, stderr drain
 - **`reconciler.ts`** — Safety net: marks stale `running`/`pending` sessions as `failed` on startup; moves orphaned `working` issues to `review`. Runs on startup + every 60s + 1s after each issue settlement.
-- **`startup-probe.ts`** — Engine discovery with 3-tier cache: memory (10 min) → DB (`appSettings`) → live probe (15s per-engine timeout, all engines probed in parallel)
+- **`startup-probe.ts`** — Engine discovery with 3-tier cache: memory (10 min) → DB (`appSettings`, 6h TTL) → live probe (15s per-engine timeout, all engines probed in parallel). The DB tier expires so a CLI upgrade's new model catalog is picked up; `claude-code`'s catalog is static in code and always overlaid on cached data
 
 **Execution flow:**
 
@@ -156,7 +156,7 @@ Route handler → IssueEngine.executeIssue() → acquires per-issue lock
 **Follow-up flow** (Codex is special — process stays alive):
 
 - Claude: spawns new process with `--resume <sessionId>` flag
-- Codex: sends `turn/start` to existing process via JSON-RPC; if process died, spawns new `app-server` with `thread/resume`
+- Codex: sends `turn/start` to existing process via JSON-RPC; if process died, spawns new `app-server` with `thread/resume`. `thread/resume` must re-send the thread params (`cwd`, `sandbox`, `approvalPolicy`, `model`) — the app-server does not restore them and silently falls back to `~/.codex/config.toml` defaults
 
 #### Real-Time Events (`events/`)
 
