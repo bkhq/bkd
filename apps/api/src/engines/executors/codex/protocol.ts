@@ -18,14 +18,36 @@ function clipForLog(input: string): string {
  * - legacy exec/patch approvals use ReviewDecision enum `approved`
  * - `item/tool/requestUserInput` expects `{answers: {questionId: {answers: []}}}`;
  *   an empty map declines to answer without failing the turn
+ * - `item/permissions/requestApproval` grants exactly what the agent asked
+ *   for (`RequestPermissionProfile` and `GrantedPermissionProfile` share a
+ *   shape). Replying with an error would be read as "granted nothing", which
+ *   silently strips network / extra filesystem access for the rest of the turn.
+ * - `mcpServer/elicitation/request` cannot be answered by an unattended
+ *   client; `decline` lets the turn continue (`cancel` would abort it).
  */
-const SERVER_REQUEST_RESPONSES: Record<string, () => Record<string, unknown>> = {
+const SERVER_REQUEST_RESPONSES: Record<
+  string,
+  (params?: Record<string, unknown>) => Record<string, unknown>
+> = {
   'item/commandExecution/requestApproval': () => ({ decision: 'accept' }),
   'item/fileChange/requestApproval': () => ({ decision: 'accept' }),
   'execCommandApproval': () => ({ decision: 'approved' }),
   'applyPatchApproval': () => ({ decision: 'approved' }),
   'item/tool/requestUserInput': () => ({ answers: {} }),
+  'item/permissions/requestApproval': params => ({
+    permissions: (params?.permissions as Record<string, unknown>) ?? {},
+    scope: 'session',
+  }),
+  'mcpServer/elicitation/request': () => ({ action: 'decline' }),
 }
+
+/**
+ * Client capabilities sent with `initialize`. Field names must match
+ * `InitializeCapabilities` in the generated schema — unknown keys (such as the
+ * snake_case `experimental_api` used before ENG-028) are silently dropped by
+ * the server, leaving the experimental API disabled.
+ */
+export const INITIALIZE_CAPABILITIES = { experimentalApi: true } as const
 
 interface PendingRequest {
   resolve: (value: unknown) => void
@@ -158,7 +180,7 @@ export class CodexProtocolHandler {
   async initialize(): Promise<{ userAgent: string }> {
     const result = (await this.sendRequest('initialize', {
       clientInfo: { name: 'bkd', version: '0.1.0', title: 'BKD' },
-      capabilities: { experimental_api: true },
+      capabilities: INITIALIZE_CAPABILITIES,
     })) as { userAgent?: string }
 
     this.sendNotification('initialized')
@@ -241,12 +263,24 @@ export class CodexProtocolHandler {
   }
 
   /**
-   * Resume an existing thread (legacy fallback if fork fails).
+   * Resume an existing thread.
+   *
+   * The app-server does NOT restore the settings the thread was started with:
+   * omitted fields fall back to `~/.codex/config.toml` defaults, which would
+   * downgrade a `danger-full-access` / `never` thread to `workspace-write` /
+   * `on-request` (no network) on every follow-up. `ThreadResumeParams` accepts
+   * the same overrides as `thread/start`, so they are re-sent here.
    */
-  async resumeThread(threadId: string): Promise<void> {
-    await this.sendRequest('thread/resume', { threadId })
+  async resumeThread(threadId: string, params: ThreadStartParams = {}): Promise<void> {
+    await this.sendRequest('thread/resume', {
+      ...threadParamsToRpc(params),
+      threadId,
+    })
     this._threadId = threadId
-    logger.info({ threadId }, 'codex_protocol_thread_resumed')
+    logger.info(
+      { threadId, model: params.model, sandbox: params.sandbox },
+      'codex_protocol_thread_resumed',
+    )
   }
 
   /**
@@ -454,12 +488,12 @@ export class CodexProtocolHandler {
 
   /** Handle server-initiated requests — auto-approves command/file changes. */
   private handleServerRequest(request: JsonRpcServerRequest): void {
-    const { id, method } = request
+    const { id, method, params } = request
 
     const buildResponse = SERVER_REQUEST_RESPONSES[method]
     if (buildResponse) {
       logger.debug({ id, method }, 'codex_protocol_auto_approve')
-      this.writeJson({ id, result: buildResponse() })
+      this.writeJson({ id, result: buildResponse(params) })
       return
     }
 

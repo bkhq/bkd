@@ -150,7 +150,7 @@ export async function consumeStderr(
       for (const line of lines) {
         if (!line.trim()) continue
         if (IO_LOG_ENABLED) {
-          logger.debug({ stream: 'stderr', line: clipForLog(line) }, 'claude_protocol_io')
+          logger.debug({ stream: 'stderr', line: clipForLog(line) }, 'engine_stderr_io')
         }
         try {
           const managed = callbacks.getManaged()
@@ -170,7 +170,7 @@ export async function consumeStderr(
 
     if (buffer.trim()) {
       if (IO_LOG_ENABLED) {
-        logger.debug({ stream: 'stderr', line: clipForLog(buffer) }, 'claude_protocol_io')
+        logger.debug({ stream: 'stderr', line: clipForLog(buffer) }, 'engine_stderr_io')
       }
       const managed = callbacks.getManaged()
       if (managed) {

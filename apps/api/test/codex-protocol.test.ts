@@ -176,6 +176,83 @@ describe('CodexProtocolHandler', () => {
     stdout.close()
   })
 
+  test('grants item/permissions/requestApproval with the requested profile', async () => {
+    const { sink, written } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+    await tick()
+
+    const requested = {
+      network: { allowAll: true },
+      fileSystem: { write: ['/tmp/work'] },
+    }
+    stdout.push(
+      JSON.stringify({
+        id: 120,
+        method: 'item/permissions/requestApproval',
+        params: {
+          threadId: 't1',
+          turnId: 'turn-1',
+          itemId: 'call-1',
+          reason: 'needs network',
+          permissions: requested,
+        },
+      }),
+    )
+    await tick()
+
+    const grant = written
+      .map((w) => {
+        try {
+          return JSON.parse(w)
+        } catch {
+          return null
+        }
+      })
+      .find(p => p?.id === 120)
+    expect(grant).toBeTruthy()
+    expect(grant.error).toBeUndefined()
+    expect(grant.result.permissions).toEqual(requested)
+    expect(grant.result.scope).toBe('session')
+
+    handler.close()
+    stdout.close()
+  })
+
+  test('declines mcpServer/elicitation/request instead of erroring', async () => {
+    const { sink, written } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+    await tick()
+
+    stdout.push(
+      JSON.stringify({
+        id: 121,
+        method: 'mcpServer/elicitation/request',
+        params: { serverName: 'directus', message: 'pick one' },
+      }),
+    )
+    await tick()
+
+    const resp = written
+      .map((w) => {
+        try {
+          return JSON.parse(w)
+        } catch {
+          return null
+        }
+      })
+      .find(p => p?.id === 121)
+    expect(resp).toBeTruthy()
+    expect(resp.error).toBeUndefined()
+    expect(resp.result.action).toBe('decline')
+
+    handler.close()
+    stdout.close()
+  })
+
   test('auto-approves file change approval requests', async () => {
     const { sink, written } = createMockStdin()
     const stdout = createMockStdout()
@@ -381,6 +458,37 @@ describe('CodexProtocolHandler', () => {
 
     await resumePromise
     expect(handler.threadId).toBe('existing-thread')
+
+    handler.close()
+    stdout.close()
+  })
+
+  test('resumeThread re-sends the thread config (sandbox/approval/model/cwd)', async () => {
+    const { sink, written } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+
+    const resumePromise = handler.resumeThread('existing-thread', {
+      model: 'gpt-5.6-sol',
+      cwd: '/work/repo',
+      approvalPolicy: 'never',
+      sandbox: 'danger-full-access',
+    })
+    await tick()
+
+    const req = JSON.parse(written[0]!)
+    expect(req.method).toBe('thread/resume')
+    expect(req.params).toEqual({
+      threadId: 'existing-thread',
+      model: 'gpt-5.6-sol',
+      cwd: '/work/repo',
+      approvalPolicy: 'never',
+      sandbox: 'danger-full-access',
+    })
+
+    stdout.push(JSON.stringify({ id: req.id, result: {} }))
+    await resumePromise
 
     handler.close()
     stdout.close()
@@ -705,7 +813,7 @@ describe('CodexProtocolHandler', () => {
     stdout.close()
   })
 
-  test('initialize sends experimental_api capability', async () => {
+  test('initialize sends the experimentalApi capability', async () => {
     const { sink, written } = createMockStdin()
     const stdout = createMockStdout()
 
@@ -715,7 +823,9 @@ describe('CodexProtocolHandler', () => {
     await tick()
 
     const req = JSON.parse(written[0]!)
-    expect(req.params.capabilities.experimental_api).toBe(true)
+    // Schema field is camelCase (InitializeCapabilities, codex 0.144.x);
+    // snake_case is silently ignored by the server.
+    expect(req.params.capabilities.experimentalApi).toBe(true)
 
     stdout.push(JSON.stringify({ id: 1, result: { userAgent: 'codex/2.0' } }))
     await initPromise

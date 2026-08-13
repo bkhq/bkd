@@ -18,7 +18,7 @@ import type {
 import { logger } from '@/logger'
 import { CodexLogNormalizer } from './normalizer'
 import type { ThreadStartParams } from './protocol'
-import { CodexProtocolHandler } from './protocol'
+import { CodexProtocolHandler, INITIALIZE_CAPABILITIES } from './protocol'
 
 const NPX_FALLBACK = ['npx', '-y', '@openai/codex']
 
@@ -240,7 +240,7 @@ async function queryCodexModels(): Promise<EngineModel[]> {
       'initialize',
       {
         clientInfo: { name: 'bkd', title: 'BKD', version: '0.1.0' },
-        capabilities: { experimental_api: true },
+        capabilities: INITIALIZE_CAPABILITIES,
       },
       0,
     )
@@ -390,7 +390,15 @@ export class CodexExecutor implements EngineExecutor {
         },
         close: () => handler.close(),
         sendUserMessage: (content: string) => {
-          void handler.sendUserMessage(content)
+          // turn/start is async: without this catch a rejected follow-up
+          // (RPC error, request timeout) would silently drop the user's
+          // message and surface only as an unhandled rejection.
+          handler.sendUserMessage(content).catch((error: unknown) => {
+            logger.error(
+              { issueId: env.issueId, threadId: handler.threadId, error },
+              'codex_send_user_message_failed',
+            )
+          })
         },
       },
       externalSessionId: handler.threadId,
@@ -415,7 +423,10 @@ export class CodexExecutor implements EngineExecutor {
 
     // Resume the existing thread — appends new turns to the same conversation.
     // This keeps the thread ID stable so follow-up chains work correctly.
-    await handler.resumeThread(options.sessionId)
+    // The thread params must be re-sent: a bare resume falls back to the
+    // config.toml defaults (workspace-write sandbox, no network, on-request
+    // approvals) instead of the settings the thread was started with.
+    await handler.resumeThread(options.sessionId, buildThreadParams(options))
     const threadId = options.sessionId
 
     // Start a new turn with the follow-up prompt
@@ -449,7 +460,15 @@ export class CodexExecutor implements EngineExecutor {
         },
         close: () => handler.close(),
         sendUserMessage: (content: string) => {
-          void handler.sendUserMessage(content)
+          // turn/start is async: without this catch a rejected follow-up
+          // (RPC error, request timeout) would silently drop the user's
+          // message and surface only as an unhandled rejection.
+          handler.sendUserMessage(content).catch((error: unknown) => {
+            logger.error(
+              { issueId: env.issueId, threadId: handler.threadId, error },
+              'codex_send_user_message_failed',
+            )
+          })
         },
       },
       externalSessionId: handler.threadId,
@@ -550,7 +569,7 @@ export class CodexExecutor implements EngineExecutor {
         'initialize',
         {
           clientInfo: { name: 'bkd', title: 'BKD', version: '0.1.0' },
-          capabilities: { experimental_api: true },
+          capabilities: INITIALIZE_CAPABILITIES,
         },
         0,
       )

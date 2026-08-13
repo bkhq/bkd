@@ -634,6 +634,52 @@ export class CodexLogNormalizer {
       }
     }
 
+    // SubAgentActivity: { type: "subAgentActivity", id, agentPath,
+    //   agentThreadId, kind: "started"|"interacted"|"interrupted" }
+    if (itemType === 'subAgentActivity') {
+      const agentPath = (item.agentPath as string) ?? 'agent'
+      const kind = (item.kind as string) ?? 'started'
+      return {
+        entryType: 'system-message',
+        content: `Sub-agent ${agentPath}: ${kind}`,
+        timestamp: now,
+        metadata: {
+          subtype: 'sub_agent_activity',
+          toolCallId: item.id as string | undefined,
+          agentThreadId: item.agentThreadId as string | undefined,
+          kind,
+        },
+      }
+    }
+
+    // HookPrompt: { type: "hookPrompt", id, fragments: [{hookRunId, text}] }
+    if (itemType === 'hookPrompt') {
+      const fragments = item.fragments as Array<{ text?: string }> | undefined
+      const text = fragments?.map(f => f.text ?? '').filter(Boolean).join('\n') ?? ''
+      if (!text) return null
+      return {
+        entryType: 'system-message',
+        content: text,
+        timestamp: now,
+        metadata: { subtype: 'hook_prompt', toolCallId: item.id as string | undefined },
+      }
+    }
+
+    // Sleep: { type: "sleep", id, durationMs }
+    if (itemType === 'sleep') {
+      const durationMs = item.durationMs as number | undefined
+      return {
+        entryType: 'system-message',
+        content: `Slept ${durationMs ?? 0}ms`,
+        timestamp: now,
+        metadata: {
+          subtype: 'sleep',
+          toolCallId: item.id as string | undefined,
+          ...(durationMs != null && { duration: durationMs }),
+        },
+      }
+    }
+
     return null
   }
 
@@ -825,7 +871,7 @@ export class CodexLogNormalizer {
     now: string,
   ): NormalizedLogEntry | null {
     const params = (data.params ?? {}) as Record<string, unknown>
-    const status = params.status as string | undefined
+    const status = threadStatusType(params.status)
     if (status === 'systemError') {
       return {
         entryType: 'error-message',
@@ -914,6 +960,20 @@ function subtractBreakdown(a: TokenBreakdown, b: TokenBreakdown): TokenBreakdown
     reasoningOutputTokens: Math.max(0, a.reasoningOutputTokens - b.reasoningOutputTokens),
     totalTokens: Math.max(0, a.totalTokens - b.totalTokens),
   }
+}
+
+/**
+ * Read the discriminant of a `ThreadStatus`. The wire format is an object
+ * (`{"type":"idle"}`, `{"type":"active","activeFlags":[...]}`); older servers
+ * sent a bare string.
+ */
+function threadStatusType(raw: unknown): string | undefined {
+  if (typeof raw === 'string') return raw
+  if (raw && typeof raw === 'object') {
+    const type = (raw as Record<string, unknown>).type
+    return typeof type === 'string' ? type : undefined
+  }
+  return undefined
 }
 
 /**

@@ -302,6 +302,26 @@ describe('CodexExecutor.normalizeLog', () => {
       const entry = normalize('thread/status/changed', { status: 'idle' })
       expect(entry).toBeNull()
     })
+
+    // Wire format (codex 0.144.x): status is a ThreadStatus object, not a string
+    test('thread/status/changed with object systemError returns error-message', () => {
+      const entry = normalize('thread/status/changed', {
+        threadId: 't1',
+        status: { type: 'systemError' },
+        message: 'connection lost',
+      })
+      expect(entry).not.toBeNull()
+      expect(entry!.entryType).toBe('error-message')
+      expect(entry!.content).toBe('Thread error: connection lost')
+    })
+
+    test('thread/status/changed with object active status returns null', () => {
+      const entry = normalize('thread/status/changed', {
+        threadId: 't1',
+        status: { type: 'active', activeFlags: ['waitingOnApproval'] },
+      })
+      expect(entry).toBeNull()
+    })
   })
 
   // ------------------------------------------------------------------
@@ -558,6 +578,55 @@ describe('CodexExecutor.normalizeLog', () => {
       expect(entry).not.toBeNull()
       expect(entry!.entryType).toBe('system-message')
       expect(entry!.content).toBe('Model rerouted from o3 to o4-mini')
+    })
+  })
+
+  // ------------------------------------------------------------------
+  // 16. Items added in 0.144.x (ENG-028)
+  // ------------------------------------------------------------------
+  describe('sub-agent / hook / sleep items', () => {
+    test('subAgentActivity returns system-message with agent path and kind', () => {
+      const entry = normalize('item/completed', {
+        item: {
+          type: 'subAgentActivity',
+          id: 'sa-1',
+          agentPath: 'reviewer',
+          agentThreadId: 'thread-2',
+          kind: 'started',
+        },
+      })
+      expect(entry).not.toBeNull()
+      expect(entry!.entryType).toBe('system-message')
+      expect(entry!.content).toBe('Sub-agent reviewer: started')
+      expect(entry!.metadata?.subtype).toBe('sub_agent_activity')
+      expect(entry!.metadata?.agentThreadId).toBe('thread-2')
+    })
+
+    test('hookPrompt returns system-message with joined fragments', () => {
+      const entry = normalize('item/completed', {
+        item: {
+          type: 'hookPrompt',
+          id: 'hp-1',
+          fragments: [
+            { hookRunId: 'r1', text: 'first' },
+            { hookRunId: 'r2', text: 'second' },
+          ],
+        },
+      })
+      expect(entry).not.toBeNull()
+      expect(entry!.entryType).toBe('system-message')
+      expect(entry!.content).toBe('first\nsecond')
+      expect(entry!.metadata?.subtype).toBe('hook_prompt')
+    })
+
+    test('sleep returns system-message with duration', () => {
+      const entry = normalize('item/completed', {
+        item: { type: 'sleep', id: 'sl-1', durationMs: 2500 },
+      })
+      expect(entry).not.toBeNull()
+      expect(entry!.entryType).toBe('system-message')
+      expect(entry!.content).toBe('Slept 2500ms')
+      expect(entry!.metadata?.subtype).toBe('sleep')
     })
   })
 })
