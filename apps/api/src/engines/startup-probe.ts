@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { cacheGet, cacheSet } from '@/cache'
 import { getProbeResults, saveProbeResults, setAppSetting } from '@/db/helpers'
 import { refreshSlashCommandsCacheForEngine, slashCommandsKey } from '@/engines/issue/queries'
@@ -67,6 +68,15 @@ async function withFreshStaticModels(discovery: EngineDiscovery): Promise<Engine
       'claude-code': await engineRegistry.getModels('claude-code'),
     },
   }
+}
+
+/**
+ * True when a cached entry points at a binary that no longer exists — e.g. the
+ * CLI moved between installs. Spawning it would fail with ENOENT, so the cache
+ * has to be discarded before its TTL instead of serving a dead path.
+ */
+export function probeBinariesMissing(engines: EngineAvailability[]): boolean {
+  return engines.some(e => e.installed && !!e.binaryPath && !existsSync(e.binaryPath))
 }
 
 // Per-engine probe timeout (prevents a single engine from blocking the entire probe)
@@ -239,11 +249,11 @@ export function __resetProbeInFlightForTests(): void {
 export async function getEngineDiscovery(): Promise<EngineDiscovery> {
   // 1. Memory cache
   const cached = await readFromCache()
-  if (cached) return withFreshStaticModels(cached)
+  if (cached && !probeBinariesMissing(cached.engines)) return withFreshStaticModels(cached)
 
   // 2. DB (expires — see PROBE_DB_TTL_MS in db/helpers.ts)
   const dbData = await getProbeResults()
-  if (dbData) {
+  if (dbData && !probeBinariesMissing(dbData.engines)) {
     logger.debug(
       {
         engines: dbData.engines.length,

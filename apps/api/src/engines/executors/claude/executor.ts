@@ -2,7 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { CommandBuilder } from '@/engines/command'
 import { safeEnv } from '@/engines/safe-env'
-import { resolveCommand, spawnNode } from '@/engines/spawn'
+import { resolveCommand, runCommand, spawnNode } from '@/engines/spawn'
 import type {
   EngineAvailability,
   EngineCapability,
@@ -27,6 +27,12 @@ const NPX_FALLBACK = 'npx -y @anthropic-ai/claude-code'
 /** Base directory for per-issue debug logs */
 const ISSUE_LOG_DIR = join(ROOT_DIR, 'data', 'logs', 'issues')
 
+/**
+ * Fallback auth probe for CLIs without `claude auth status` (pre-2.x).
+ *
+ * Only reliable on Linux/WSL: macOS keeps OAuth credentials in the login
+ * Keychain, so the absence of `.credentials.json` says nothing there.
+ */
 function getLocalClaudeAuthStatus(): EngineAvailability['authStatus'] {
   if (process.env.ANTHROPIC_API_KEY) {
     return 'authenticated'
@@ -38,6 +44,50 @@ function getLocalClaudeAuthStatus(): EngineAvailability['authStatus'] {
   }
 
   return 'unauthenticated'
+}
+
+/**
+ * Read the auth status out of `claude auth status --json` output.
+ * Returns null when the payload is not the expected shape — e.g. an older CLI
+ * that rejects the subcommand — so the caller can fall back.
+ */
+export function parseClaudeAuthStatus(stdout: string): EngineAvailability['authStatus'] | null {
+  const start = stdout.indexOf('{')
+  const end = stdout.lastIndexOf('}')
+  if (start === -1 || end <= start) return null
+  try {
+    const parsed = JSON.parse(stdout.slice(start, end + 1)) as { loggedIn?: unknown }
+    if (typeof parsed.loggedIn !== 'boolean') return null
+    return parsed.loggedIn ? 'authenticated' : 'unauthenticated'
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Ask the CLI whether it is signed in. This is the only cross-platform check:
+ * it covers OAuth (Keychain on macOS, `.credentials.json` elsewhere), setup
+ * tokens, `apiKeyHelper` and the Bedrock/Vertex providers.
+ */
+async function queryClaudeAuthStatus(
+  binaryPath: string,
+): Promise<EngineAvailability['authStatus']> {
+  try {
+    const { code, stdout } = await runCommand([binaryPath, 'auth', 'status', '--json'], {
+      timeout: 10000,
+      stderr: 'pipe',
+      env: safeEnv({ NPM_CONFIG_LOGLEVEL: 'error' }, 'claude-code'),
+    })
+    const parsed = code === 0 ? parseClaudeAuthStatus(stdout) : null
+    if (parsed) return parsed
+    logger.debug({ exitCode: code }, 'claude_auth_status_unavailable')
+  } catch (error) {
+    logger.debug(
+      { error: error instanceof Error ? error.message : String(error) },
+      'claude_auth_status_failed',
+    )
+  }
+  return getLocalClaudeAuthStatus()
 }
 
 /**
@@ -190,7 +240,7 @@ export class ClaudeCodeExecutor implements EngineExecutor {
       const versionMatch = stdout.match(/(\d+\.\d+\.\d[\w.-]*)/)
       const version = versionMatch?.[1]
 
-      const authStatus = getLocalClaudeAuthStatus()
+      const authStatus = await queryClaudeAuthStatus(binaryPath)
 
       return {
         engineType: 'claude-code',
