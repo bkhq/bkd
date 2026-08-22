@@ -3,7 +3,7 @@ import { kanbanApi } from '@/lib/kanban-api'
 import { STALE_TIME } from '@/lib/query-config'
 import { useBoardStore } from '@/stores/board-store'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
-import type { ExecuteIssueRequest, Issue, VirtualEngine, WebhookEventType } from '@/types/kanban'
+import type { ExecuteIssueRequest, ImportSessionRequest, Issue, VirtualEngine, WebhookEventType } from '@/types/kanban'
 
 export const queryKeys = {
   workspacePath: () => ['settings', 'workspacePath'] as const,
@@ -47,6 +47,10 @@ export const queryKeys = {
   webhooks: () => ['settings', 'webhooks'] as const,
   webhookDeliveries: (id: string) => ['settings', 'webhooks', id, 'deliveries'] as const,
   cronJobs: () => ['cron', 'jobs'] as const,
+  localSessions: (filters: { engine?: string, search?: string, managed?: string }) =>
+    ['localSessions', filters] as const,
+  localSession: (engine: string, sessionId: string) =>
+    ['localSessions', engine, sessionId] as const,
   cronJobLogs: (jobId: string) => ['cron', 'jobs', jobId, 'logs'] as const,
   pendingMessages: (projectId: string, issueId: string) =>
     ['projects', projectId, 'issues', issueId, 'pending'] as const,
@@ -1106,6 +1110,57 @@ export function useResumeCronJob() {
     mutationFn: (jobId: string) => kanbanApi.resumeCronJob(jobId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.cronJobs() })
+    },
+  })
+}
+
+export function useDeleteCronJob() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (jobId: string) => kanbanApi.deleteCronJob(jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cronJobs() })
+    },
+  })
+}
+
+// ── Local engine sessions ────────────────────────────────
+
+export function useLocalSessions(filters: {
+  engine?: string
+  search?: string
+  managed?: 'true' | 'false'
+  limit?: number
+}) {
+  return useQuery({
+    queryKey: queryKeys.localSessions({
+      engine: filters.engine,
+      search: filters.search,
+      managed: filters.managed,
+    }),
+    queryFn: () => kanbanApi.getLocalSessions(filters),
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useLocalSession(engine: string | null, sessionId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.localSession(engine ?? '', sessionId ?? ''),
+    queryFn: () => kanbanApi.getLocalSession(engine!, sessionId!),
+    enabled: !!engine && !!sessionId,
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useImportSession() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ projectId, ...data }: ImportSessionRequest & { projectId: string }) =>
+      kanbanApi.importSession(projectId, data),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['localSessions'] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues(result.issue.projectId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects() })
     },
   })
 }

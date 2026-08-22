@@ -1,4 +1,4 @@
-import type { ToolGroupChatMessage, ToolGroupItem } from '@bkd/shared'
+import type { SubagentThread, ToolGroupChatMessage, ToolGroupItem } from '@bkd/shared'
 import {
   Check,
   CheckCircle2,
@@ -335,6 +335,69 @@ function cleanAgentResult(raw: string): string {
     .trim()
 }
 
+/**
+ * Everything the subagent did, forwarded by `--forward-subagent-text` and
+ * nested here instead of interleaved with the parent conversation.
+ */
+function SubagentThreadView({ thread }: { thread: SubagentThread }) {
+  const { t } = useTranslation()
+  const statusLabel = thread.status ? t(`session.subagent.${thread.status}`) : null
+
+  return (
+    <div className="border-t border-border/40 bg-muted/10">
+      <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-muted-foreground/70">
+        <span className="font-medium">{t('session.subagent.activity')}</span>
+        {statusLabel
+          ? (
+              <span className="flex items-center gap-1">
+                {thread.status === 'running'
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : null}
+                {statusLabel}
+                {thread.status === 'running' && thread.lastToolName ? ` · ${thread.lastToolName}` : ''}
+              </span>
+            )
+          : null}
+        {typeof thread.toolUses === 'number'
+          ? <span>{t('session.subagent.tools', { count: thread.toolUses })}</span>
+          : null}
+        {typeof thread.totalTokens === 'number'
+          ? <span>{t('session.subagent.tokens', { count: thread.totalTokens })}</span>
+          : null}
+      </div>
+
+      {thread.items.length > 0
+        ? (
+            <div className="max-h-96 overflow-y-auto border-t border-border/30 divide-y divide-border/30">
+              {thread.items.map((step, index) => {
+                if (step.kind === 'tool') {
+                  return <MemoizedToolItemRenderer key={step.item.action.messageId ?? index} item={step.item} />
+                }
+                if (step.kind === 'thinking') {
+                  return (
+                    <details key={step.entry.messageId ?? index} className="px-3 py-1.5">
+                      <summary className="cursor-pointer list-none text-[10px] text-muted-foreground/60">
+                        {t('session.subagent.thinking')}
+                      </summary>
+                      <div className="pt-1 text-[11px] leading-[1.6] text-muted-foreground/80 whitespace-pre-wrap">
+                        {step.entry.content}
+                      </div>
+                    </details>
+                  )
+                }
+                return (
+                  <div key={step.entry.messageId ?? index} className="px-3 py-1.5">
+                    <MarkdownContent content={step.entry.content} className="text-[12px] leading-[1.7]" />
+                  </div>
+                )
+              })}
+            </div>
+          )
+        : null}
+    </div>
+  )
+}
+
 export function AgentToolItem({ item }: { item: ToolGroupItem }) {
   const input = item.action.metadata?.input as {
     description?: string
@@ -375,6 +438,7 @@ export function AgentToolItem({ item }: { item: ToolGroupItem }) {
         </div>
       )}
     >
+      {item.subagent ? <SubagentThreadView thread={item.subagent} /> : null}
       {resultContent
         ? (
             <div

@@ -9,10 +9,14 @@ import type {
   ExecuteIssueRequest,
   ExecuteIssueResponse,
   FileListingResult,
+  ImportSessionRequest,
+  ImportSessionResult,
   Issue,
   IssueChangesResponse,
   IssueFilePatchResponse,
   IssueLogsResponse,
+  LocalSessionListResponse,
+  LocalSessionPreview,
   Note,
   PermissionMode,
   ProbeResult,
@@ -661,4 +665,28 @@ export const kanbanApi = {
     post<{ paused: boolean, name: string }>(`/api/cron/${jobId}/pause`, {}),
   resumeCronJob: (jobId: string) =>
     post<{ resumed: boolean, name: string }>(`/api/cron/${jobId}/resume`, {}),
+  deleteCronJob: (jobId: string) =>
+    del<{ deleted: boolean, name: string }>(`/api/cron/${jobId}`),
+
+  // Local engine sessions recorded outside BKD
+  getLocalSessions: (opts?: {
+    engine?: string
+    search?: string
+    managed?: 'true' | 'false'
+    limit?: number
+    offset?: number
+  }) => {
+    const params = new URLSearchParams()
+    if (opts?.engine) params.set('engine', opts.engine)
+    if (opts?.search) params.set('search', opts.search)
+    if (opts?.managed) params.set('managed', opts.managed)
+    if (opts?.limit) params.set('limit', String(opts.limit))
+    if (opts?.offset) params.set('offset', String(opts.offset))
+    const qs = params.toString()
+    return get<LocalSessionListResponse>(`/api/sessions${qs ? `?${qs}` : ''}`)
+  },
+  getLocalSession: (engine: string, sessionId: string) =>
+    get<LocalSessionPreview>(`/api/sessions/${engine}/${encodeURIComponent(sessionId)}`),
+  importSession: (projectId: string, data: ImportSessionRequest) =>
+    post<ImportSessionResult>(`/api/projects/${projectId}/issues/import-session`, data),
 }

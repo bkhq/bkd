@@ -47,6 +47,16 @@ export interface FileChange {
   newText: string
 }
 
+/** Attribution for a turn forwarded from a subagent (Agent/Task tool). */
+export interface SubagentAttribution {
+  /** `parent_tool_use_id` — the tool call that dispatched the subagent */
+  toolCallId: string
+  /** `subagent_type`, e.g. `general-purpose` */
+  type?: string
+  /** Task description given at dispatch */
+  description?: string
+}
+
 export interface TaskPlanItem {
   content: string
   status: string

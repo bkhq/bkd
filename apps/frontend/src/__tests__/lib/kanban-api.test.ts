@@ -105,6 +105,19 @@ describe('kanbanApi.followUpIssue', () => {
   })
 })
 
+describe('kanbanApi.deleteCronJob', () => {
+  it('calls DELETE /api/cron/:jobId', async () => {
+    mockFetch.mockResolvedValueOnce(mockJsonResponse({ deleted: true, name: 'cleanup' }))
+
+    const result = await kanbanApi.deleteCronJob('cron-1')
+
+    const [url, options] = mockFetch.mock.calls[0]
+    expect(url).toBe('/api/cron/cron-1')
+    expect(options.method).toBe('DELETE')
+    expect(result).toEqual({ deleted: true, name: 'cleanup' })
+  })
+})
+
 describe('kanbanApi error handling', () => {
   it('throws when success is false', async () => {
     mockFetch.mockResolvedValueOnce(mockErrorResponse('Something went wrong'))

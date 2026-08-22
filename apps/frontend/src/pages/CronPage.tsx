@@ -19,10 +19,20 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { AppLogo } from '@/components/AppLogo'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { useCronJobs, usePauseCronJob, useResumeCronJob } from '@/hooks/use-kanban'
+import { useCronJobs, useDeleteCronJob, usePauseCronJob, useResumeCronJob } from '@/hooks/use-kanban'
 import type { CronJob, CronJobLog, CronJobLogsResponse } from '@/lib/kanban-api'
 import { kanbanApi } from '@/lib/kanban-api'
 import { useNotesStore } from '@/stores/notes-store'
@@ -113,15 +123,39 @@ function JobActionButton({ job }: { job: CronJob }) {
   )
 }
 
+function JobDeleteButton({ job, onDelete }: { job: CronJob, onDelete: (job: CronJob) => void }) {
+  const { t } = useTranslation()
+
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation()
+    onDelete(job)
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+      onClick={handleClick}
+      title={t('cron.delete')}
+      aria-label={t('cron.delete')}
+    >
+      <Trash2 className="h-3.5 w-3.5" />
+    </Button>
+  )
+}
+
 /* -- Job list view ---------------------------------------- */
 
 function CronJobList({
   jobs,
   onSelectJob,
+  onDeleteJob,
   isDeletedView,
 }: {
   jobs: CronJob[]
   onSelectJob: (job: CronJob) => void
+  onDeleteJob?: (job: CronJob) => void
   isDeletedView?: boolean
 }) {
   const { t } = useTranslation()
@@ -168,6 +202,7 @@ function CronJobList({
                       <div className="flex items-center gap-1 shrink-0">
                         <StatusBadge status={job.enabled ? job.status : 'disabled'} />
                         <JobActionButton job={job} />
+                        {onDeleteJob && <JobDeleteButton job={job} onDelete={onDeleteJob} />}
                       </div>
                     )}
               </div>
@@ -234,7 +269,15 @@ function TaskConfigView({ config }: { config: Record<string, unknown> }) {
 
 /* -- Log detail view with pagination ---------------------- */
 
-function CronJobLogView({ job, onBack }: { job: CronJob, onBack: () => void }) {
+function CronJobLogView({
+  job,
+  onBack,
+  onDelete,
+}: {
+  job: CronJob
+  onBack: () => void
+  onDelete: (job: CronJob) => void
+}) {
   const { t } = useTranslation()
   const [logs, setLogs] = useState<CronJobLog[]>([])
   const [hasMore, setHasMore] = useState(false)
@@ -302,6 +345,7 @@ function CronJobLogView({ job, onBack }: { job: CronJob, onBack: () => void }) {
           <span className="font-mono">{job.cron}</span>
           {!job.isDeleted && <StatusBadge status={job.enabled ? job.status : 'disabled'} />}
           {!job.isDeleted && <JobActionButton job={job} />}
+          {!job.isDeleted && <JobDeleteButton job={job} onDelete={onDelete} />}
           {job.nextExecution && !job.isDeleted && (
             <span className="text-[11px]">
               {t('cron.nextExecution')}
@@ -426,7 +470,9 @@ function LogEntry({ log }: { log: CronJobLog }) {
 export default function CronPage() {
   const { t } = useTranslation()
   const { data: jobs, isLoading } = useCronJobs()
+  const deleteCronJob = useDeleteCronJob()
   const [selectedJob, setSelectedJob] = useState<CronJob | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<CronJob | null>(null)
   const [showDeleted, setShowDeleted] = useState(false)
 
   const activeJobs = jobs?.filter(j => !j.isDeleted) ?? []
@@ -435,6 +481,21 @@ export default function CronPage() {
   const liveSelectedJob = selectedJob
     ? (jobs?.find(j => j.id === selectedJob.id) ?? selectedJob)
     : null
+
+  const requestDelete = (job: CronJob) => {
+    deleteCronJob.reset()
+    setDeleteTarget(job)
+  }
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return
+    deleteCronJob.mutate(deleteTarget.id, {
+      onSuccess: () => {
+        if (selectedJob?.id === deleteTarget.id) setSelectedJob(null)
+        setDeleteTarget(null)
+      },
+    })
+  }
 
   return (
     <main className="min-h-screen text-foreground animate-page-enter">
@@ -496,12 +557,14 @@ export default function CronPage() {
             key={liveSelectedJob.id}
             job={liveSelectedJob}
             onBack={() => setSelectedJob(null)}
+            onDelete={requestDelete}
           />
         ) : (
           <>
             <CronJobList
               jobs={activeJobs}
               onSelectJob={setSelectedJob}
+              onDeleteJob={requestDelete}
             />
             {deletedJobs.length > 0 && (
               <div className="mt-6">
@@ -530,6 +593,39 @@ export default function CronPage() {
             )}
           </>
         )}
+
+        <AlertDialog
+          open={!!deleteTarget}
+          onOpenChange={(open) => {
+            if (!open && !deleteCronJob.isPending) setDeleteTarget(null)
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('cron.deleteConfirmTitle')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('cron.deleteConfirm', { name: deleteTarget?.name })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {deleteCronJob.error && (
+              <p role="alert" className="text-sm text-destructive">
+                {deleteCronJob.error.message}
+              </p>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleteCronJob.isPending}>
+                {t('common.cancel')}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                disabled={deleteCronJob.isPending}
+                onClick={confirmDelete}
+              >
+                {deleteCronJob.isPending ? t('cron.deleting') : t('cron.delete')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </section>
     </main>
   )

@@ -7,6 +7,7 @@ import create from './create'
 import del from './delete'
 import duplicate from './duplicate'
 import exportRoute from './export'
+import importSession from './import-session'
 import logs from './logs'
 import message from './message'
 import query from './query'
@@ -19,6 +20,7 @@ issues.route('/', update)
 issues.route('/', del)
 issues.route('/', duplicate)
 issues.route('/', exportRoute)
+issues.route('/', importSession)
 issues.route('/', command)
 issues.route('/', message)
 issues.route('/', attachments)

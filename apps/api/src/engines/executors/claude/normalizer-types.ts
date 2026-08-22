@@ -19,9 +19,24 @@ export interface ClaudeInternalLifecycle {
   [key: string]: unknown
 }
 
+/** Usage block attached to `task_progress` / `task_notification`. */
+export interface ClaudeTaskUsage {
+  total_tokens?: number
+  tool_uses?: number
+  duration_ms?: number
+}
+
 export interface ClaudeSystem {
   type: 'system'
   subtype?: string
+  // Subagent lifecycle telemetry (task_started / task_progress / task_notification)
+  task_id?: string
+  tool_use_id?: string
+  description?: string
+  subagent_type?: string
+  last_tool_name?: string
+  summary?: string
+  usage?: ClaudeTaskUsage
   session_id?: string
   cwd?: string
   model?: string
@@ -48,6 +63,10 @@ export interface ClaudeAssistant {
   session_id?: string
   uuid?: string
   timestamp?: string
+  // Present only on turns forwarded from a subagent (--forward-subagent-text)
+  parent_tool_use_id?: string | null
+  subagent_type?: string
+  task_description?: string
 }
 
 export interface ClaudeUser {
@@ -58,6 +77,10 @@ export interface ClaudeUser {
   isSynthetic?: boolean
   isReplay?: boolean
   timestamp?: string
+  // Present only on turns forwarded from a subagent (--forward-subagent-text)
+  parent_tool_use_id?: string | null
+  subagent_type?: string
+  task_description?: string
 }
 
 export interface ClaudeToolUse {

@@ -266,9 +266,41 @@
       "showLess": "Show less",
       "showMore": "Show {{count}} more"
     },
+    "subagent": {
+      "activity": "Sub-agent activity",
+      "running": "running",
+      "completed": "completed",
+      "failed": "failed",
+      "tools": "{{count}} tools",
+      "tokens": "{{count}} tokens",
+      "summary": "Summary",
+      "thinking": "Thinking"
+    },
     "restart": "Restart",
     "restarting": "Restarting...",
     "contextCompacted": "Context compacted"
+  },
+  "sessions": {
+    "title": "Local sessions",
+    "description": "Engine sessions recorded on this host outside BKD. Import one to attach it to a project as an issue.",
+    "searchPlaceholder": "Search by prompt or directory",
+    "allEngines": "All engines",
+    "managed": "In BKD",
+    "importAction": "Import",
+    "empty": "No local sessions found.",
+    "truncated": "Showing the {{count}} most recent sessions. Narrow the search to see others.",
+    "import": {
+      "title": "Import session as issue",
+      "project": "Project",
+      "selectProject": "Select a project",
+      "issueTitle": "Issue title",
+      "importLogs": "Import transcript",
+      "importLogsHint": "Off imports only the session link, leaving the chat empty.",
+      "cwdMismatch": "This session ran in {{sessionCwd}}, but the project directory is {{projectDir}}. Follow-up will start a new session instead of resuming this one.",
+      "acknowledge": "Import anyway",
+      "confirm": "Import",
+      "failed": "Import failed"
+    }
   },
   "directory": {
     "browse": "Browse Directory",
@@ -626,6 +658,10 @@
     "deleted": "Deleted",
     "deletedJobs": "Deleted Jobs",
     "pause": "Pause",
-    "resume": "Resume"
+    "resume": "Resume",
+    "delete": "Delete",
+    "deleting": "Deleting...",
+    "deleteConfirmTitle": "Delete cron job?",
+    "deleteConfirm": "The cron job \"{{name}}\" will be removed from the schedule. Its execution logs will be kept."
   }
 }

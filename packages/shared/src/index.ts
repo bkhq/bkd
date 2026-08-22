@@ -81,6 +81,66 @@ export interface FileChange {
   newText: string
 }
 
+// ── Local engine sessions (recorded outside BKD) ──────────
+
+export interface LocalSession {
+  engine: 'claude-code' | 'codex'
+  sessionId: string
+  /** Working directory the session ran in — decides whether resume will work */
+  cwd: string
+  title: string
+  startedAt?: string
+  lastActiveAt: string
+  sizeBytes: number
+  gitBranch?: string
+  cliVersion?: string
+  model?: string
+  /** Set when the session is already bound to a BKD issue */
+  managedByIssueId?: string
+  managedByProjectId?: string
+  /** Project whose directory equals the session cwd, when one exists */
+  matchedProjectId?: string
+}
+
+export interface LocalSessionListResponse {
+  sessions: LocalSession[]
+  total: number
+  hasMore: boolean
+}
+
+export interface LocalSessionPreview {
+  session: LocalSession
+  entries: NormalizedLogEntry[]
+  totalEntries: number
+}
+
+export interface ImportSessionRequest {
+  engine: 'claude-code' | 'codex'
+  sessionId: string
+  title?: string
+  statusId?: 'todo' | 'working' | 'review' | 'done'
+  /** false imports only the session link, leaving the chat empty */
+  importLogs?: boolean
+}
+
+export interface ImportSessionResult {
+  issue: Issue
+  importedEntries: number
+  droppedEntries: number
+  /** false when the session ran outside the project directory */
+  cwdMatches: boolean
+}
+
+/** Attribution for a turn forwarded from a subagent (Agent/Task tool). */
+export interface SubagentAttribution {
+  /** `parent_tool_use_id` — the tool call that dispatched the subagent */
+  toolCallId: string
+  /** `subagent_type`, e.g. `general-purpose` */
+  type?: string
+  /** Task description given at dispatch */
+  description?: string
+}
+
 export interface TaskPlanItem {
   content: string
   status: string
@@ -163,6 +223,34 @@ export interface ToolGroupItem {
   action: NormalizedLogEntry
   /** The matching tool result entry, if available */
   result: NormalizedLogEntry | null
+  /** Activity forwarded from the subagent this tool call dispatched */
+  subagent?: SubagentThread
+}
+
+/** One step inside a subagent thread, in emission order. */
+export type SubagentItem =
+  | { kind: 'tool', item: ToolGroupItem }
+  | { kind: 'text', entry: NormalizedLogEntry }
+  | { kind: 'thinking', entry: NormalizedLogEntry }
+
+/**
+ * Everything a single subagent did, reconstructed from turns tagged with
+ * `metadata.subagent` plus the `task_*` lifecycle events for the same tool call.
+ */
+export interface SubagentThread {
+  /** The Agent/Task tool call that dispatched this subagent */
+  toolCallId: string
+  type?: string
+  description?: string
+  status?: 'running' | 'completed' | 'failed'
+  /** Tool the subagent was last seen running (from task_progress) */
+  lastToolName?: string
+  toolUses?: number
+  totalTokens?: number
+  durationMs?: number
+  /** Result summary reported by task_notification */
+  summary?: string
+  items: SubagentItem[]
 }
 
 export interface UserChatMessage {

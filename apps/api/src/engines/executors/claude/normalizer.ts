@@ -1,4 +1,4 @@
-import type { NormalizedLogEntry } from '@/engines/types'
+import type { NormalizedLogEntry, SubagentAttribution } from '@/engines/types'
 import {
   buildToolResultRaw,
   classifyToolAction,
@@ -18,6 +18,7 @@ import type {
   ClaudeStreamEvent,
   ClaudeStreamEventWrapper,
   ClaudeSystem,
+  ClaudeTaskUsage,
   ClaudeToolResult,
   ClaudeToolUse,
   ClaudeUser,
@@ -26,6 +27,47 @@ import type {
 
 // Re-export for external consumers
 export { classifyToolAction, extractTextContent } from './normalizer-tool'
+
+// ---------- Subagent attribution ----------
+
+/**
+ * Turns forwarded from a subagent carry `parent_tool_use_id` (the Agent/Task
+ * tool call that dispatched them) plus the subagent identity. Everything the
+ * envelope produces is tagged so the chat can nest it under that tool call
+ * instead of interleaving it with the main thread.
+ */
+function subagentAttribution(data: ClaudeAssistant | ClaudeUser): SubagentAttribution | undefined {
+  const toolCallId = data.parent_tool_use_id
+  if (!toolCallId) return undefined
+  return {
+    toolCallId,
+    ...(data.subagent_type ? { type: data.subagent_type } : {}),
+    ...(data.task_description ? { description: data.task_description } : {}),
+  }
+}
+
+function tagSubagent(
+  result: NormalizedLogEntry | NormalizedLogEntry[] | null,
+  data: ClaudeAssistant | ClaudeUser,
+): NormalizedLogEntry | NormalizedLogEntry[] | null {
+  const subagent = subagentAttribution(data)
+  if (!subagent || !result) return result
+  const tag = (entry: NormalizedLogEntry): NormalizedLogEntry => ({
+    ...entry,
+    metadata: { ...entry.metadata, subagent },
+  })
+  return Array.isArray(result) ? result.map(tag) : tag(result)
+}
+
+/** Flatten the task usage block into metadata, omitting absent counters. */
+function taskUsageMetadata(usage: ClaudeTaskUsage | undefined): Record<string, number> {
+  if (!usage) return {}
+  return {
+    ...(typeof usage.total_tokens === 'number' ? { totalTokens: usage.total_tokens } : {}),
+    ...(typeof usage.tool_uses === 'number' ? { toolUses: usage.tool_uses } : {}),
+    ...(typeof usage.duration_ms === 'number' ? { durationMs: usage.duration_ms } : {}),
+  }
+}
 
 // ---------- Normalizer ----------
 
@@ -52,9 +94,9 @@ export class ClaudeLogNormalizer {
       case 'system':
         return this.parseSystem(data)
       case 'assistant':
-        return this.parseAssistant(data)
+        return tagSubagent(this.parseAssistant(data), data)
       case 'user':
-        return this.parseUser(data)
+        return tagSubagent(this.parseUser(data), data)
       case 'tool_use':
         return this.parseToolUse(data)
       case 'tool_result':
@@ -114,7 +156,50 @@ export class ClaudeLogNormalizer {
           },
         }
       case 'task_started':
+        // A subagent was dispatched. Carries the identity the chat needs to
+        // attach the forwarded turns to their parent tool call.
+        return {
+          entryType: 'system-message',
+          content: '',
+          timestamp: data.timestamp,
+          metadata: {
+            subtype: data.subtype,
+            taskId: data.task_id,
+            toolCallId: data.tool_use_id,
+            subagentType: data.subagent_type,
+            description: data.description,
+          },
+        }
       case 'task_progress':
+        return {
+          entryType: 'system-message',
+          content: '',
+          timestamp: data.timestamp,
+          metadata: {
+            subtype: data.subtype,
+            taskId: data.task_id,
+            toolCallId: data.tool_use_id,
+            subagentType: data.subagent_type,
+            description: data.description,
+            lastToolName: data.last_tool_name,
+            ...taskUsageMetadata(data.usage),
+          },
+        }
+      case 'task_notification':
+        // Terminal status for the subagent, plus its result summary.
+        return {
+          entryType: 'system-message',
+          content: '',
+          timestamp: data.timestamp,
+          metadata: {
+            subtype: data.subtype,
+            taskId: data.task_id,
+            toolCallId: data.tool_use_id,
+            status: data.status,
+            summary: data.summary,
+            ...taskUsageMetadata(data.usage),
+          },
+        }
       case 'stop_hook_summary':
         // Suppress — no user-facing value
         return null

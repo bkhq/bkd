@@ -265,9 +265,41 @@
       "showLess": "收起",
       "showMore": "展开更多 ({{count}})"
     },
+    "subagent": {
+      "activity": "子 agent 活动",
+      "running": "运行中",
+      "completed": "已完成",
+      "failed": "失败",
+      "tools": "{{count}} 次工具调用",
+      "tokens": "{{count}} tokens",
+      "summary": "结论",
+      "thinking": "思考"
+    },
     "restart": "重启",
     "restarting": "重启中...",
     "contextCompacted": "上下文已压缩"
+  },
+  "sessions": {
+    "title": "本地会话",
+    "description": "本机上不由 BKD 管理的引擎会话。导入后可作为 issue 关联到某个项目。",
+    "searchPlaceholder": "按提示词或目录搜索",
+    "allEngines": "全部引擎",
+    "managed": "已在 BKD",
+    "importAction": "导入",
+    "empty": "未找到本地会话。",
+    "truncated": "仅显示最近 {{count}} 个会话，缩小搜索范围可查看其他会话。",
+    "import": {
+      "title": "导入会话为 issue",
+      "project": "项目",
+      "selectProject": "选择项目",
+      "issueTitle": "Issue 标题",
+      "importLogs": "导入对话记录",
+      "importLogsHint": "关闭后只建立会话关联，聊天记录为空。",
+      "cwdMismatch": "该会话运行在 {{sessionCwd}}，而项目目录是 {{projectDir}}。后续对话会开启新会话，而不是续上这个会话。",
+      "acknowledge": "仍然导入",
+      "confirm": "导入",
+      "failed": "导入失败"
+    }
   },
   "directory": {
     "browse": "浏览目录",
@@ -625,6 +657,10 @@
     "deleted": "已删除",
     "deletedJobs": "已删除的任务",
     "pause": "暂停",
-    "resume": "恢复"
+    "resume": "恢复",
+    "delete": "删除",
+    "deleting": "删除中...",
+    "deleteConfirmTitle": "删除定时任务？",
+    "deleteConfirm": "定时任务“{{name}}”将从调度中移除，其执行日志会被保留。"
   }
 }

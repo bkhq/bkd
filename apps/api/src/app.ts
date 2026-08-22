@@ -7,6 +7,7 @@ import { getEngineDiscovery } from './engines/startup-probe'
 import { httpLogger, logger } from './logger'
 import { apiRoutes, engineRoutes, eventRoutes, settingsRoutes } from './routes'
 import cronRoute from './routes/cron'
+import sessionsRoute from './routes/sessions'
 import notesRoutes from './routes/notes'
 import terminalRoute from './routes/terminal'
 import { VERSION } from './version'
@@ -90,6 +91,7 @@ app.route('/api/events', eventRoutes)
 app.route('/api/settings', settingsRoutes)
 app.route('/api/notes', notesRoutes)
 app.route('/api/cron', cronRoute)
+app.route('/api/sessions', sessionsRoute)
 app.route('/api', terminalRoute)
 
 // --- 404 handler ---

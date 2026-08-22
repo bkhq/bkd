@@ -864,13 +864,10 @@ describe('ClaudeLogNormalizer', () => {
       expect(entries[0]!.content).toBe('Context compacted')
     })
 
-    test('task_started is suppressed', () => {
-      const result = normalizer.parse(line({ type: 'system', subtype: 'task_started' }))
-      expect(result).toBeNull()
-    })
-
+    // task_started / task_progress / task_notification now carry subagent
+    // attribution — see claude-subagent.test.ts (ENG-031).
     test('streaming telemetry subtypes with no content are suppressed', () => {
-      for (const subtype of ['thinking_tokens', 'task_notification', 'task_updated', 'hook_started', 'api_retry']) {
+      for (const subtype of ['thinking_tokens', 'task_updated', 'hook_started', 'api_retry']) {
         const result = normalizer.parse(line({ type: 'system', subtype }))
         expect(result).toBeNull()
       }

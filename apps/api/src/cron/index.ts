@@ -65,13 +65,13 @@ export function getBaker(): Baker {
   return baker
 }
 
-/** Ensure default jobs exist in DB (driven by action registry metadata) */
+/** Ensure default jobs have been seeded (deleted rows act as tombstones) */
 function ensureDefaultJobs(): void {
   for (const { name, cron } of getDefaultActions()) {
     const [existing] = db
       .select({ id: cronJobs.id })
       .from(cronJobs)
-      .where(and(eq(cronJobs.name, name), eq(cronJobs.isDeleted, 0)))
+      .where(eq(cronJobs.name, name))
       .all()
 
     if (!existing) {

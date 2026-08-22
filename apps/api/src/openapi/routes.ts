@@ -24,9 +24,13 @@ import {
   ExecuteIssueResponseSchema,
   ExecuteIssueSchema,
   FollowUpSchema,
+  ImportSessionResultSchema,
+  ImportSessionSchema,
   IssueChangesResponseSchema,
   IssueLogsResponseSchema,
   IssueSchema,
+  LocalSessionSchema,
+  NormalizedLogEntrySchema,
   NoteSchema,
   paginatedSuccessResponse,
   ProbeResultSchema,
@@ -486,6 +490,81 @@ export const getIssueChanges = createRoute({
 })
 
 // ── Engines ────────────────────────────────────────────
+
+export const listLocalSessions = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Sessions'],
+  summary: 'List engine sessions recorded on this host outside BKD',
+  operationId: 'listLocalSessions',
+  request: {
+    query: z.object({
+      engine: z.enum(['claude-code', 'codex']).optional(),
+      search: z.string().optional(),
+      managed: z.enum(['true', 'false']).optional(),
+      limit: z.coerce.number().int().min(1).max(200).optional(),
+      offset: z.coerce.number().int().min(0).optional(),
+    }),
+  },
+  responses: {
+    200: successResponse(
+      z.object({
+        sessions: z.array(LocalSessionSchema),
+        total: z.number().int(),
+        hasMore: z.boolean(),
+      }),
+      'Local sessions',
+    ),
+  },
+})
+
+export const getLocalSession = createRoute({
+  method: 'get',
+  path: '/{engine}/{sessionId}',
+  tags: ['Sessions'],
+  summary: 'Preview a local session transcript',
+  operationId: 'getLocalSession',
+  request: {
+    params: z.object({
+      engine: z.enum(['claude-code', 'codex']),
+      sessionId: z.string(),
+    }),
+    query: z.object({
+      limit: z.coerce.number().int().min(1).max(1000).optional(),
+    }),
+  },
+  responses: {
+    200: successResponse(
+      z.object({
+        session: LocalSessionSchema,
+        entries: z.array(NormalizedLogEntrySchema),
+        totalEntries: z.number().int(),
+      }),
+      'Session preview',
+    ),
+    404: errorResponse('Session not found'),
+  },
+})
+
+export const importSession = createRoute({
+  method: 'post',
+  path: '/import-session',
+  tags: ['Issues'],
+  summary: 'Create an issue from a local engine session',
+  operationId: 'importSession',
+  request: {
+    params: z.object({ projectId: z.string() }),
+    body: {
+      content: { 'application/json': { schema: ImportSessionSchema } },
+      required: true,
+    },
+  },
+  responses: {
+    201: successResponse(ImportSessionResultSchema, 'Imported'),
+    404: errorResponse('Project or session not found'),
+    409: errorResponse('Session already imported'),
+  },
+})
 
 export const getAvailableEngines = createRoute({
   method: 'get',

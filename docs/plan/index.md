@@ -1,6 +1,6 @@
 # BKD - Plan Index
 
-> Updated: 2026-05-11
+> Updated: 2026-08-21
 
 ## Usage
 
@@ -42,3 +42,7 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-011 fix-db CLI command on the main bkd entry**](PLAN-011.md) `2026-05-16`
 - [x] [**PLAN-012 Virtual engines (claude-code executor + preset env vars)**](PLAN-012.md) `2026-05-22`
 - [x] [**PLAN-013 Upgrade all workspace dependencies to latest**](PLAN-013.md) `2026-07-17`
+- [x] [**PLAN-014 Add persistent cron job deletion**](PLAN-014.md) `2026-08-20`
+- [ ] [**PLAN-015 Add one-click cron history cleanup**](PLAN-015.md) `2026-08-21`
+- [x] [**PLAN-016 Observe Claude subagent (Task/Agent tool) activity**](PLAN-016.md) `2026-08-22`
+- [x] [**PLAN-017 Global local session scanner and session-to-issue import**](PLAN-017.md) `2026-08-22`

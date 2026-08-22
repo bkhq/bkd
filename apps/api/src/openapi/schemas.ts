@@ -367,6 +367,43 @@ export const CreateCronJobSchema = z.object({
   config: z.record(z.string(), z.unknown()).optional(),
 }).openapi('CreateCronJob')
 
+// ── Local session schemas ──────────────────────────────
+
+export const LocalSessionSchema = z.object({
+  engine: z.enum(['claude-code', 'codex']),
+  sessionId: z.string(),
+  cwd: z.string(),
+  title: z.string(),
+  startedAt: z.string().optional(),
+  lastActiveAt: z.string(),
+  sizeBytes: z.number().int(),
+  gitBranch: z.string().optional(),
+  cliVersion: z.string().optional(),
+  model: z.string().optional(),
+  /** Set when this session is already bound to a BKD issue */
+  managedByIssueId: z.string().optional(),
+  managedByProjectId: z.string().optional(),
+  /** Project whose directory equals the session cwd, when one exists */
+  matchedProjectId: z.string().optional(),
+}).openapi('LocalSession')
+
+export const ImportSessionSchema = z.object({
+  engine: z.enum(['claude-code', 'codex']),
+  sessionId: z.string().min(1).max(200),
+  title: z.string().min(1).max(500).optional(),
+  statusId: statusIdEnum.optional(),
+  /** false imports only the session link, leaving the chat empty */
+  importLogs: z.boolean().optional(),
+}).openapi('ImportSession')
+
+export const ImportSessionResultSchema = z.object({
+  issue: IssueSchema,
+  importedEntries: z.number().int(),
+  droppedEntries: z.number().int(),
+  /** false when the session ran outside the project directory — resume will not continue it */
+  cwdMatches: z.boolean(),
+}).openapi('ImportSessionResult')
+
 // ── Process schemas ────────────────────────────────────
 
 export const ProcessInfoSchema = z.object({

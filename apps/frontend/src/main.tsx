@@ -54,6 +54,7 @@ const IssueDetailPage = lazy(() => import('./pages/IssueDetailPage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const TerminalPage = lazy(() => import('./pages/TerminalPage'))
 const CronPage = lazy(() => import('./pages/CronPage'))
+const LocalSessionsPage = lazy(() => import('./pages/LocalSessionsPage'))
 const LazyTerminalDrawer = lazy(() =>
   import('./components/terminal/TerminalDrawer').then(m => ({
     default: m.TerminalDrawer,
@@ -236,6 +237,14 @@ if (!rootElement.innerHTML) {
                   element={(
                     <ErrorBoundary>
                       <CronPage />
+                    </ErrorBoundary>
+                  )}
+                />
+                <Route
+                  path="/sessions"
+                  element={(
+                    <ErrorBoundary>
+                      <LocalSessionsPage />
                     </ErrorBoundary>
                   )}
                 />

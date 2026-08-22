@@ -3,6 +3,9 @@ import type {
   ChatMessage,
   ErrorChatMessage,
   NormalizedLogEntry,
+  SubagentAttribution,
+  SubagentItem,
+  SubagentThread,
   SystemChatMessage,
   TaskPlanChatMessage,
   ThinkingChatMessage,
@@ -41,6 +44,151 @@ function entryId(entry: NormalizedLogEntry, fallback: string): string {
   return entry.messageId ?? fallback
 }
 
+function toolCallIdOf(entry: NormalizedLogEntry): string | undefined {
+  return entry.toolDetail?.toolCallId ?? (entry.metadata?.toolCallId as string | undefined)
+}
+
+// ---------- Subagent threads ----------
+
+/** Lifecycle events the CLI emits for a dispatched subagent. */
+const SUBAGENT_LIFECYCLE_SUBTYPES = new Set(['task_started', 'task_progress', 'task_notification'])
+
+type SubagentStatus = Omit<SubagentThread, 'toolCallId' | 'items'>
+
+function subagentOf(entry: NormalizedLogEntry): SubagentAttribution | undefined {
+  const attribution = entry.metadata?.subagent as SubagentAttribution | undefined
+  return attribution?.toolCallId ? attribution : undefined
+}
+
+function num(value: unknown): number | undefined {
+  return typeof value === 'number' ? value : undefined
+}
+
+function str(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+/** Fold one lifecycle event into the running status for its subagent. */
+function mergeLifecycle(
+  current: SubagentStatus,
+  subtype: string,
+  meta: Record<string, unknown>,
+): SubagentStatus {
+  switch (subtype) {
+    case 'task_started':
+      return {
+        ...current,
+        status: 'running',
+        type: str(meta.subagentType) ?? current.type,
+        description: str(meta.description) ?? current.description,
+      }
+    case 'task_progress':
+      // `description` here is a live activity label ("Reading a.txt"), not the
+      // dispatch description — keep the original.
+      return {
+        ...current,
+        status: current.status ?? 'running',
+        type: str(meta.subagentType) ?? current.type,
+        lastToolName: str(meta.lastToolName) ?? current.lastToolName,
+        toolUses: num(meta.toolUses) ?? current.toolUses,
+        totalTokens: num(meta.totalTokens) ?? current.totalTokens,
+        durationMs: num(meta.durationMs) ?? current.durationMs,
+      }
+    case 'task_notification':
+      return {
+        ...current,
+        status: str(meta.status) === 'completed' ? 'completed' : 'failed',
+        summary: str(meta.summary) ?? current.summary,
+        toolUses: num(meta.toolUses) ?? current.toolUses,
+        totalTokens: num(meta.totalTokens) ?? current.totalTokens,
+        durationMs: num(meta.durationMs) ?? current.durationMs,
+      }
+    default:
+      return current
+  }
+}
+
+function buildSubagentThread(
+  toolCallId: string,
+  inner: NormalizedLogEntry[],
+  status: SubagentStatus,
+): SubagentThread {
+  const results = new Map<string, NormalizedLogEntry>()
+  for (const entry of inner) {
+    if (!isToolUseResult(entry)) continue
+    const callId = toolCallIdOf(entry)
+    if (callId) results.set(callId, entry)
+  }
+
+  const items: SubagentItem[] = []
+  for (const entry of inner) {
+    if (isToolUseResult(entry)) continue
+    if (isToolUseAction(entry)) {
+      const callId = toolCallIdOf(entry)
+      items.push({
+        kind: 'tool',
+        item: { action: entry, result: callId ? results.get(callId) ?? null : null },
+      })
+      continue
+    }
+    if (!entry.content) continue
+    if (entry.entryType === 'thinking') items.push({ kind: 'thinking', entry })
+    else if (entry.entryType === 'assistant-message') items.push({ kind: 'text', entry })
+  }
+
+  const attribution = inner.map(subagentOf).find(Boolean)
+  return {
+    ...status,
+    toolCallId,
+    type: status.type ?? attribution?.type,
+    description: status.description ?? attribution?.description,
+    items,
+  }
+}
+
+/**
+ * Split forwarded subagent turns and their lifecycle events out of the main
+ * timeline, and reassemble them into one thread per dispatching tool call.
+ */
+function partitionSubagents(rawEntries: NormalizedLogEntry[]): {
+  entries: NormalizedLogEntry[]
+  subagentThreads: Map<string, SubagentThread>
+} {
+  const entries: NormalizedLogEntry[] = []
+  const inner = new Map<string, NormalizedLogEntry[]>()
+  const status = new Map<string, SubagentStatus>()
+
+  for (const entry of rawEntries) {
+    const attribution = subagentOf(entry)
+    if (attribution) {
+      const existing = inner.get(attribution.toolCallId)
+      if (existing) existing.push(entry)
+      else inner.set(attribution.toolCallId, [entry])
+      continue
+    }
+
+    const subtype = entry.metadata?.subtype as string | undefined
+    if (entry.entryType === 'system-message' && subtype && SUBAGENT_LIFECYCLE_SUBTYPES.has(subtype)) {
+      const callId = str(entry.metadata?.toolCallId)
+      if (callId) {
+        status.set(callId, mergeLifecycle(status.get(callId) ?? {}, subtype, entry.metadata ?? {}))
+      }
+      continue
+    }
+
+    entries.push(entry)
+  }
+
+  const subagentThreads = new Map<string, SubagentThread>()
+  for (const callId of new Set([...inner.keys(), ...status.keys()])) {
+    subagentThreads.set(
+      callId,
+      buildSubagentThread(callId, inner.get(callId) ?? [], status.get(callId) ?? {}),
+    )
+  }
+  return { entries, subagentThreads }
+}
+
 // ---------- TodoWrite → TaskPlan ----------
 
 export function extractTodos(entry: NormalizedLogEntry): TaskPlanChatMessage['todos'] | null {
@@ -71,7 +219,11 @@ export function extractTodos(entry: NormalizedLogEntry): TaskPlanChatMessage['to
 
 // ---------- Main rebuild ----------
 
-function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
+export function rebuildMessages(rawEntries: NormalizedLogEntry[]): ChatMessage[] {
+  // Subagent turns are nested under the tool call that dispatched them, so
+  // they must not take part in main-timeline grouping.
+  const { entries, subagentThreads } = partitionSubagents(rawEntries)
+
   // Local counter — avoids module-level singleton race when multiple
   // components call useChatMessages concurrently.
   let seq = 0
@@ -127,6 +279,11 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
   }
 
   function buildToolGroup(items: ToolGroupItem[], description?: string): ToolGroupChatMessage {
+    const withSubagents = items.map((item) => {
+      const callId = toolCallIdOf(item.action)
+      const thread = callId ? subagentThreads.get(callId) : undefined
+      return thread ? { ...item, subagent: thread } : item
+    })
     const stats: Record<string, number> = {}
     for (const item of items) {
       const kind = item.action.toolDetail?.kind ?? item.action.toolAction?.kind ?? 'other'
@@ -138,7 +295,7 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
     return {
       type: 'tool-group',
       id: `tg-${stableId}`,
-      items,
+      items: withSubagents,
       stats,
       count: items.length,
       hiddenCount: 0,
@@ -225,13 +382,9 @@ function rebuildMessages(entries: NormalizedLogEntry[]): ChatMessage[] {
 
     // ── Inline entries that do NOT break the current tool group ──
 
-    // task_progress / stop_hook_summary / task_notification: skip — no user-facing value, must not break tool groups
-    if (
-      entry.entryType === 'system-message'
-      && (entry.metadata?.subtype === 'task_progress'
-        || entry.metadata?.subtype === 'stop_hook_summary'
-        || entry.metadata?.subtype === 'task_notification')
-    ) {
+    // stop_hook_summary: skip — no user-facing value, must not break tool
+    // groups. The task_* subtypes were already consumed by partitionSubagents.
+    if (entry.entryType === 'system-message' && entry.metadata?.subtype === 'stop_hook_summary') {
       continue
     }
 
