@@ -1,14 +1,16 @@
-import type { LocalSession } from '@bkd/shared'
+import type { LocalSession, NormalizedLogEntry } from '@bkd/shared'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '@/i18n'
 import LocalSessionsPage from '@/pages/LocalSessionsPage'
 
-/** Local session listing and import dialog (SES-001). */
+/** Local session listing, detail view and import dialog (SES-001, SES-002). */
 
 const mocks = vi.hoisted(() => ({
   importMutate: vi.fn(),
+  listSessions: vi.fn(),
+  readSession: vi.fn(),
 }))
 
 const matched: LocalSession = {
@@ -18,6 +20,8 @@ const matched: LocalSession = {
   title: 'ship the login page',
   lastActiveAt: '2026-08-20T00:00:00.000Z',
   sizeBytes: 2048,
+  model: 'claude-opus-5',
+  cliVersion: '2.1.231',
   matchedProjectId: 'p1',
 }
 
@@ -30,26 +34,25 @@ const mismatched: LocalSession = {
   sizeBytes: 1024,
 }
 
-const managed: LocalSession = {
-  engine: 'claude-code',
-  sessionId: 'session-managed',
-  cwd: '/app/demo',
-  title: 'already tracked',
-  lastActiveAt: '2026-08-18T00:00:00.000Z',
-  sizeBytes: 512,
-  managedByIssueId: 'i1',
-  managedByProjectId: 'p1',
-}
+const entries: NormalizedLogEntry[] = [
+  { entryType: 'user-message', content: 'ship the login page', messageId: 'e1' },
+  { entryType: 'assistant-message', content: 'on it', messageId: 'e2' },
+]
 
 vi.mock('@/hooks/use-theme', () => ({
   useTheme: () => ({ resolved: 'light' }),
 }))
 
 vi.mock('@/hooks/use-kanban', () => ({
-  useLocalSessions: () => ({
-    data: { sessions: [matched, mismatched, managed], total: 3, hasMore: false },
-    isLoading: false,
-  }),
+  useLocalSessions: (filters: unknown) => {
+    mocks.listSessions(filters)
+    return { data: { sessions: [matched, mismatched], total: 2, hasMore: false }, isLoading: false }
+  },
+  useLocalSession: (engine: string | null, sessionId: string | null) => {
+    mocks.readSession(engine, sessionId)
+    if (!sessionId) return { data: undefined, isLoading: false }
+    return { data: { session: matched, entries, totalEntries: 2 }, isLoading: false }
+  },
   useProjects: () => ({
     data: [
       { id: 'p1', name: 'Demo', directory: '/app/demo' },
@@ -64,6 +67,14 @@ vi.mock('@/hooks/use-kanban', () => ({
   }),
 }))
 
+vi.mock('@/components/issue-detail/SessionMessages', () => ({
+  SessionMessages: ({ logs }: { logs: NormalizedLogEntry[] }) => (
+    <div data-testid="transcript">
+      {logs.map(entry => <p key={entry.messageId}>{entry.content}</p>)}
+    </div>
+  ),
+}))
+
 function renderPage() {
   return render(
     <MemoryRouter>
@@ -75,10 +86,19 @@ function renderPage() {
 describe('local sessions page', () => {
   beforeEach(async () => {
     mocks.importMutate.mockReset()
+    mocks.listSessions.mockReset()
+    mocks.readSession.mockReset()
     await i18n.changeLanguage('en')
   })
 
-  it('lists matching and non-matching sessions together', () => {
+  it('requests only sessions that are not tracked in BKD', () => {
+    renderPage()
+    expect(mocks.listSessions).toHaveBeenCalledWith(
+      expect.objectContaining({ managed: 'false' }),
+    )
+  })
+
+  it('lists sessions whose directory matches a project and ones that do not', () => {
     renderPage()
 
     expect(screen.getByText('ship the login page')).toBeInTheDocument()
@@ -86,12 +106,16 @@ describe('local sessions page', () => {
     expect(screen.getByText('/somewhere/else')).toBeInTheDocument()
   })
 
-  it('marks sessions that already belong to an issue and blocks re-import', () => {
+  it('opens the parsed transcript when a session is selected', () => {
     renderPage()
 
-    expect(screen.getByText('In BKD')).toBeInTheDocument()
-    const importButtons = screen.getAllByRole('button', { name: 'Import' })
-    expect(importButtons.at(-1)).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /ship the login page/ }))
+
+    expect(mocks.readSession).toHaveBeenCalledWith('claude-code', 'session-matched')
+    const detail = screen.getByRole('dialog')
+    expect(within(detail).getByTestId('transcript')).toBeInTheDocument()
+    expect(within(detail).getByText('on it')).toBeInTheDocument()
+    expect(within(detail).getByText('/app/demo')).toBeInTheDocument()
   })
 
   it('imports a cwd-matching session without extra confirmation', () => {

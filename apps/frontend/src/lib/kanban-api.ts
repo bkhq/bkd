@@ -685,8 +685,10 @@ export const kanbanApi = {
     const qs = params.toString()
     return get<LocalSessionListResponse>(`/api/sessions${qs ? `?${qs}` : ''}`)
   },
-  getLocalSession: (engine: string, sessionId: string) =>
-    get<LocalSessionPreview>(`/api/sessions/${engine}/${encodeURIComponent(sessionId)}`),
+  getLocalSession: (engine: string, sessionId: string, opts?: { limit?: number }) => {
+    const qs = opts?.limit ? `?limit=${opts.limit}` : ''
+    return get<LocalSessionPreview>(`/api/sessions/${engine}/${encodeURIComponent(sessionId)}${qs}`)
+  },
   importSession: (projectId: string, data: ImportSessionRequest) =>
     post<ImportSessionResult>(`/api/projects/${projectId}/issues/import-session`, data),
 }

@@ -82,3 +82,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [-] [**CRON-003 Add one-click cron history cleanup**](CRON-003.md) `P1`
 - [x] [**ENG-031 Observe Claude subagent activity in issue chat**](ENG-031.md) `P1`
 - [x] [**SES-001 Scan local engine sessions and import them as issues**](SES-001.md) `P1`
+- [x] [**SES-002 Hide managed sessions and add a session detail view**](SES-002.md) `P2`

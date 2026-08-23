@@ -1143,10 +1143,14 @@ export function useLocalSessions(filters: {
   })
 }
 
-export function useLocalSession(engine: string | null, sessionId: string | null) {
+export function useLocalSession(
+  engine: string | null,
+  sessionId: string | null,
+  opts?: { limit?: number },
+) {
   return useQuery({
     queryKey: queryKeys.localSession(engine ?? '', sessionId ?? ''),
-    queryFn: () => kanbanApi.getLocalSession(engine!, sessionId!),
+    queryFn: () => kanbanApi.getLocalSession(engine!, sessionId!, opts),
     enabled: !!engine && !!sessionId,
     staleTime: STALE_TIME.STANDARD,
   })

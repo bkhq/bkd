@@ -281,13 +281,16 @@
   },
   "sessions": {
     "title": "本地会话",
-    "description": "本机上不由 BKD 管理的引擎会话。导入后可作为 issue 关联到某个项目。",
+    "description": "本机上 BKD 尚未跟踪的引擎会话。可打开查看对话记录，或导入到某个项目作为 issue。",
     "searchPlaceholder": "按提示词或目录搜索",
     "allEngines": "全部引擎",
-    "managed": "已在 BKD",
     "importAction": "导入",
     "empty": "未找到本地会话。",
     "truncated": "仅显示最近 {{count}} 个会话，缩小搜索范围可查看其他会话。",
+    "detail": {
+      "entries": "共 {{count}} 条记录",
+      "truncated": "仅显示最近 {{shown}} 条，共 {{total}} 条。"
+    },
     "import": {
       "title": "导入会话为 issue",
       "project": "项目",

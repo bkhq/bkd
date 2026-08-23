@@ -1,9 +1,10 @@
 import type { LocalSession } from '@bkd/shared'
 import { AlertTriangle, FolderGit2, Loader2, Search } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { AppLogo } from '@/components/AppLogo'
+import { SessionMessages } from '@/components/issue-detail/SessionMessages'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -24,10 +25,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { useImportSession, useLocalSessions, useProjects } from '@/hooks/use-kanban'
+import { useImportSession, useLocalSession, useLocalSessions, useProjects } from '@/hooks/use-kanban'
 
 const PAGE_SIZE = 100
+/** Entries pulled for the detail view — the tail of the transcript. */
+const PREVIEW_ENTRIES = 500
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -183,11 +194,28 @@ function ImportDialog({
   )
 }
 
+function SessionMeta({ session }: { session: LocalSession }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      <span className="flex items-center gap-1 truncate">
+        <FolderGit2 className="h-3 w-3 shrink-0" />
+        {session.cwd || '-'}
+      </span>
+      <span>{formatTime(session.lastActiveAt)}</span>
+      <span>{formatSize(session.sizeBytes)}</span>
+      {session.model ? <span>{session.model}</span> : null}
+      {session.cliVersion ? <span>{`v${session.cliVersion}`}</span> : null}
+    </div>
+  )
+}
+
 function SessionRow({
   session,
+  onOpen,
   onImport,
 }: {
   session: LocalSession
+  onOpen: (session: LocalSession) => void
   onImport: (session: LocalSession) => void
 }) {
   const { t } = useTranslation()
@@ -195,44 +223,97 @@ function SessionRow({
   return (
     <Card>
       <CardContent className="flex items-start gap-3 p-3">
-        <div className="min-w-0 flex-1 space-y-1">
+        <button
+          type="button"
+          onClick={() => onOpen(session)}
+          className="min-w-0 flex-1 space-y-1 text-left"
+        >
           <div className="flex items-center gap-2">
             <Badge variant="secondary">{session.engine}</Badge>
             <span className="truncate text-sm font-medium">
               {session.title || session.sessionId}
             </span>
-            {session.managedByIssueId
-              ? (
-                  <Link
-                    to={`/projects/${session.managedByProjectId}/issues/${session.managedByIssueId}`}
-                    className="shrink-0"
-                  >
-                    <Badge variant="outline">{t('sessions.managed')}</Badge>
-                  </Link>
-                )
-              : null}
           </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1 truncate">
-              <FolderGit2 className="h-3 w-3 shrink-0" />
-              {session.cwd || '-'}
-            </span>
-            <span>{formatTime(session.lastActiveAt)}</span>
-            <span>{formatSize(session.sizeBytes)}</span>
-            {session.model ? <span>{session.model}</span> : null}
-            {session.cliVersion ? <span>{`v${session.cliVersion}`}</span> : null}
-          </div>
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!!session.managedByIssueId}
-          onClick={() => onImport(session)}
-        >
+          <SessionMeta session={session} />
+        </button>
+        <Button size="sm" variant="outline" onClick={() => onImport(session)}>
           {t('sessions.importAction')}
         </Button>
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Parsed transcript for one session, rendered with the same chat components as
+ * the issue detail page so tool calls and subagent threads look identical.
+ */
+function SessionDetailSheet({
+  session,
+  onClose,
+  onImport,
+}: {
+  session: LocalSession | null
+  onClose: () => void
+  onImport: (session: LocalSession) => void
+}) {
+  const { t } = useTranslation()
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const { data, isLoading } = useLocalSession(
+    session?.engine ?? null,
+    session?.sessionId ?? null,
+    { limit: PREVIEW_ENTRIES },
+  )
+
+  const shown = data?.entries.length ?? 0
+  const truncated = (data?.totalEntries ?? 0) > shown
+
+  return (
+    <Sheet open={!!session} onOpenChange={open => !open && onClose()}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-3xl">
+        <SheetHeader className="border-b">
+          <SheetTitle className="truncate">
+            {session?.title || session?.sessionId}
+          </SheetTitle>
+          <SheetDescription className="font-mono text-[11px]">
+            {session?.sessionId}
+          </SheetDescription>
+          {session ? <SessionMeta session={session} /> : null}
+        </SheetHeader>
+
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
+          {isLoading
+            ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              )
+            : null}
+          {truncated
+            ? (
+                <p className="pb-2 text-center text-xs text-muted-foreground">
+                  {t('sessions.detail.truncated', { shown, total: data?.totalEntries ?? 0 })}
+                </p>
+              )
+            : null}
+          {data ? <SessionMessages logs={data.entries} scrollRef={scrollRef} /> : null}
+        </div>
+
+        <SheetFooter className="flex-row justify-between border-t">
+          <span className="text-xs text-muted-foreground">
+            {t('sessions.detail.entries', { count: data?.totalEntries ?? 0 })}
+          </span>
+          <Button
+            size="sm"
+            onClick={() => {
+              if (session) onImport(session)
+            }}
+          >
+            {t('sessions.importAction')}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -241,11 +322,14 @@ export default function LocalSessionsPage() {
   const [engine, setEngine] = useState('all')
   const [search, setSearch] = useState('')
   const [importTarget, setImportTarget] = useState<LocalSession | null>(null)
+  const [detailTarget, setDetailTarget] = useState<LocalSession | null>(null)
 
   const filters = useMemo(
     () => ({
       engine: engine === 'all' ? undefined : engine,
       search: search.trim() || undefined,
+      // Sessions already tracked by BKD belong to their issue, not to this list.
+      managed: 'false' as const,
       limit: PAGE_SIZE,
     }),
     [engine, search],
@@ -306,6 +390,7 @@ export default function LocalSessionsPage() {
             <SessionRow
               key={`${session.engine}:${session.sessionId}`}
               session={session}
+              onOpen={setDetailTarget}
               onImport={setImportTarget}
             />
           ))}
@@ -320,7 +405,18 @@ export default function LocalSessionsPage() {
           : null}
       </section>
 
-      <ImportDialog session={importTarget} onClose={() => setImportTarget(null)} />
+      <SessionDetailSheet
+        session={detailTarget}
+        onClose={() => setDetailTarget(null)}
+        onImport={setImportTarget}
+      />
+      <ImportDialog
+        session={importTarget}
+        onClose={() => {
+          setImportTarget(null)
+          setDetailTarget(null)
+        }}
+      />
     </main>
   )
 }

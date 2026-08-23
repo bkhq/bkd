@@ -282,13 +282,16 @@
   },
   "sessions": {
     "title": "Local sessions",
-    "description": "Engine sessions recorded on this host outside BKD. Import one to attach it to a project as an issue.",
+    "description": "Engine sessions recorded on this host that BKD does not track yet. Open one to read its transcript, or import it into a project as an issue.",
     "searchPlaceholder": "Search by prompt or directory",
     "allEngines": "All engines",
-    "managed": "In BKD",
     "importAction": "Import",
     "empty": "No local sessions found.",
     "truncated": "Showing the {{count}} most recent sessions. Narrow the search to see others.",
+    "detail": {
+      "entries": "{{count}} entries",
+      "truncated": "Showing the most recent {{shown}} of {{total}} entries."
+    },
     "import": {
       "title": "Import session as issue",
       "project": "Project",
