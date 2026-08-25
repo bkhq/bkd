@@ -4,18 +4,20 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useReviewIssues } from '@/hooks/use-kanban'
 import type { Issue } from '@/types/kanban'
+import { ResizeHandle } from '@/components/ui/resize-handle'
+import { LIST_MAX_WIDTH, LIST_MIN_WIDTH } from './IssueListPanel'
 
 type ReviewIssue = Issue & { projectName: string, projectAlias: string }
 
 export function ReviewListPanel({
   activeIssueId,
   width,
-  onResizeStart,
+  onWidthChange,
   mobileNav,
 }: {
   activeIssueId: string
   width?: number
-  onResizeStart?: (e: React.MouseEvent) => void
+  onWidthChange?: (width: number) => void
   mobileNav?: React.ReactNode
 }) {
   const { t } = useTranslation()
@@ -129,12 +131,15 @@ export function ReviewListPanel({
       </div>
 
       {/* Resize handle */}
-      {onResizeStart ?
+      {onWidthChange && width ?
           (
-            <div
-              role="separator"
-              onMouseDown={onResizeStart}
-              className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors z-20"
+            <ResizeHandle
+              edge="right"
+              width={width}
+              onWidthChange={onWidthChange}
+              min={LIST_MIN_WIDTH}
+              max={LIST_MAX_WIDTH}
+              label={t('issue.resizeListPanel')}
             />
           ) :
         null}

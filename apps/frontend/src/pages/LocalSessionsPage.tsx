@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ResizeHandle } from '@/components/ui/resize-handle'
 import { Switch } from '@/components/ui/switch'
 import { useImportSession, useLocalSession, useLocalSessions, useProjects } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -242,57 +243,6 @@ function SessionRow({
   )
 }
 
-/** Drag handle on the drawer's left edge — same interaction as the kanban issue panel. */
-function ResizeHandle() {
-  const { t } = useTranslation()
-  const width = useSessionPanelStore(s => s.width)
-  const setWidth = useSessionPanelStore(s => s.setWidth)
-  const dragRef = useRef<{ startX: number, startWidth: number } | null>(null)
-
-  const maxWidth = Math.round(
-    (typeof window === 'undefined' ? 1024 : window.innerWidth) * SESSION_PANEL_MAX_WIDTH_RATIO,
-  )
-
-  return (
-    <div
-      role="separator"
-      aria-orientation="vertical"
-      aria-label={t('sessions.detail.resize')}
-      aria-valuenow={width}
-      aria-valuemin={SESSION_PANEL_MIN_WIDTH}
-      aria-valuemax={maxWidth}
-      tabIndex={0}
-      className="absolute inset-y-0 left-0 z-10 w-2 -translate-x-1/2 cursor-col-resize select-none outline-none group"
-      onPointerDown={(e) => {
-        if (e.button !== 0) return
-        e.preventDefault()
-        e.currentTarget.setPointerCapture(e.pointerId)
-        dragRef.current = { startX: e.clientX, startWidth: width }
-      }}
-      onPointerMove={(e) => {
-        if (!dragRef.current) return
-        setWidth(dragRef.current.startWidth + (dragRef.current.startX - e.clientX))
-      }}
-      onPointerUp={() => {
-        dragRef.current = null
-      }}
-      onKeyDown={(e) => {
-        const step = e.shiftKey ? 50 : 10
-        if (e.key === 'ArrowLeft') {
-          e.preventDefault()
-          setWidth(width + step)
-        }
-        if (e.key === 'ArrowRight') {
-          e.preventDefault()
-          setWidth(width - step)
-        }
-      }}
-    >
-      <div className="absolute inset-y-0 left-1/2 w-1 -translate-x-1/2 rounded-full bg-primary/50 opacity-0 transition-opacity group-hover:opacity-100 group-active:bg-primary group-active:opacity-100" />
-    </div>
-  )
-}
-
 /**
  * Parsed transcript for one session, rendered with the same chat components as
  * the issue detail page so tool calls and subagent threads look identical.
@@ -311,7 +261,11 @@ function SessionDetailDrawer({
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const width = useSessionPanelStore(s => s.width)
   const isFullscreen = useSessionPanelStore(s => s.isFullscreen)
+  const setWidth = useSessionPanelStore(s => s.setWidth)
   const toggleFullscreen = useSessionPanelStore(s => s.toggleFullscreen)
+  const drawerMaxWidth = Math.round(
+    (typeof window === 'undefined' ? 1024 : window.innerWidth) * SESSION_PANEL_MAX_WIDTH_RATIO,
+  )
   const isMobile = useIsMobile()
 
   const { data, isLoading } = useLocalSession(
@@ -340,7 +294,17 @@ function SessionDetailDrawer({
         }`}
         style={fullscreen ? undefined : { width }}
       >
-        {fullscreen ? null : <ResizeHandle />}
+        {fullscreen
+          ? null
+          : (
+              <ResizeHandle
+                width={width}
+                onWidthChange={setWidth}
+                min={SESSION_PANEL_MIN_WIDTH}
+                max={drawerMaxWidth}
+                label={t('sessions.resizePanel')}
+              />
+            )}
 
         <div className="flex items-start gap-2 border-b border-border px-4 py-3">
           <div className="min-w-0 flex-1 space-y-1">

@@ -120,7 +120,8 @@
     "deleteWithChildren": "此任务包含子任务，子任务也将一并删除。",
     "deleting": "删除中...",
     "keepAlive": "保持活跃 — 防止空闲超时自动终止进程",
-    "devMode": "Dev"
+    "devMode": "Dev",
+    "resizeListPanel": "调整 issue 列表宽度"
   },
   "createIssue": {
     "model": "模型",
@@ -219,7 +220,8 @@
     "oversizedMessage": "该文件 ({{size}}) 超过 20 MB，已跳过 diff 以避免阻塞系统。",
     "oversizedBannerTitle": "检测到大文件 — 提交前请检查",
     "oversizedBannerHint": "建议将这些文件添加到 .gitignore，避免仓库体积膨胀。",
-    "timedOut": "Git 操作超时。仓库可能包含非常大的文件或磁盘较慢，请稍后重试。"
+    "timedOut": "Git 操作超时。仓库可能包含非常大的文件或磁盘较慢，请稍后重试。",
+    "resizePanel": "调整差异面板宽度"
   },
   "session": {
     "connected": "已连接",
@@ -287,11 +289,11 @@
     "importAction": "导入",
     "empty": "未找到本地会话。",
     "truncated": "仅显示最近 {{count}} 个会话，缩小搜索范围可查看其他会话。",
+    "resizePanel": "调整记录面板宽度",
     "detail": {
       "entries": "共 {{count}} 条记录",
       "truncated": "仅显示最近 {{shown}} 条，共 {{total}} 条。",
       "ariaLabel": "会话记录",
-      "resize": "调整记录面板宽度",
       "maximize": "最大化",
       "restore": "还原",
       "close": "关闭"

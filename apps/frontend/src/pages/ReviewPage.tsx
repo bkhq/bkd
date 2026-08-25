@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import { ChatArea } from '@/components/issue-detail/ChatArea'
 import { DIFF_MIN_WIDTH } from '@/components/issue-detail/diff-constants'
+import { LIST_MAX_WIDTH, LIST_MIN_WIDTH } from '@/components/issue-detail/IssueListPanel'
 import { ReviewListPanel } from '@/components/issue-detail/ReviewListPanel'
 import { AppSidebar } from '@/components/kanban/AppSidebar'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
@@ -15,8 +16,6 @@ const MIN_CHAT_WIDTH = 300
 const DEFAULT_DIFF_WIDTH = 360
 const DEFAULT_FILE_BROWSER_WIDTH = 360
 const DEFAULT_LIST_WIDTH = 232
-const MIN_LIST_WIDTH = 180
-const MAX_LIST_WIDTH = 400
 
 export default function ReviewPage() {
   const { t } = useTranslation()
@@ -36,43 +35,21 @@ export default function ReviewPage() {
   const [fileBrowserWidth, setFileBrowserWidth] = useState(DEFAULT_FILE_BROWSER_WIDTH)
   const showFileBrowser = useFileBrowserStore(s => s.isOpen)
   const [listWidth, setListWidth] = useState(DEFAULT_LIST_WIDTH)
-  const isResizingList = useRef(false)
   const isMobile = useIsMobile()
 
-  const handleListResizeStart = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault()
-      isResizingList.current = true
-      const startX = e.clientX
-      const startWidth = listWidth
-
-      const onMouseMove = (ev: MouseEvent) => {
-        if (!isResizingList.current) return
-        const delta = ev.clientX - startX
-        const viewport = typeof window !== 'undefined' ? window.innerWidth : 1600
-        const diffSpace = showDiff ? diffWidth : 0
-        const dynamicMax = Math.min(
-          MAX_LIST_WIDTH,
-          viewport - SIDEBAR_WIDTH - diffSpace - MIN_CHAT_WIDTH,
-        )
-        const newWidth = Math.min(dynamicMax, Math.max(MIN_LIST_WIDTH, startWidth + delta))
-        setListWidth(newWidth)
-      }
-
-      const onMouseUp = () => {
-        isResizingList.current = false
-        document.removeEventListener('mousemove', onMouseMove)
-        document.removeEventListener('mouseup', onMouseUp)
-        document.body.style.cursor = ''
-        document.body.style.userSelect = ''
-      }
-
-      document.body.style.cursor = 'col-resize'
-      document.body.style.userSelect = 'none'
-      document.addEventListener('mousemove', onMouseMove)
-      document.addEventListener('mouseup', onMouseUp)
+  const handleListWidthChange = useCallback(
+    (next: number) => {
+      // Clamp against what is left after the sidebar, the diff panel and the
+      // chat's minimum — the ceiling moves as those come and go.
+      const viewport = typeof window !== 'undefined' ? window.innerWidth : 1600
+      const diffSpace = showDiff ? diffWidth : 0
+      const dynamicMax = Math.min(
+        LIST_MAX_WIDTH,
+        viewport - SIDEBAR_WIDTH - diffSpace - MIN_CHAT_WIDTH,
+      )
+      setListWidth(Math.min(dynamicMax, Math.max(LIST_MIN_WIDTH, next)))
     },
-    [listWidth, showDiff, diffWidth],
+    [showDiff, diffWidth],
   )
 
   const availableWidth = typeof window !== 'undefined' ? window.innerWidth - SIDEBAR_WIDTH : 1200
@@ -103,8 +80,8 @@ export default function ReviewPage() {
   useEffect(() => {
     if (!showDiff) return
     const viewport = typeof window !== 'undefined' ? window.innerWidth : 1600
-    const maxList = Math.min(MAX_LIST_WIDTH, viewport - SIDEBAR_WIDTH - diffWidth - MIN_CHAT_WIDTH)
-    setListWidth(prev => Math.max(MIN_LIST_WIDTH, Math.min(prev, maxList)))
+    const maxList = Math.min(LIST_MAX_WIDTH, viewport - SIDEBAR_WIDTH - diffWidth - MIN_CHAT_WIDTH)
+    setListWidth(prev => Math.max(LIST_MIN_WIDTH, Math.min(prev, maxList)))
   }, [showDiff, diffWidth])
 
   return (
@@ -116,7 +93,7 @@ export default function ReviewPage() {
             <ReviewListPanel
               activeIssueId={issueId}
               width={isMobile ? undefined : listWidth}
-              onResizeStart={isMobile ? undefined : handleListResizeStart}
+              onWidthChange={isMobile ? undefined : handleListWidthChange}
               mobileNav={isMobile ? <MobileSidebar activeProjectId="" /> : undefined}
             />
           ) :

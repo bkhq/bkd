@@ -120,7 +120,8 @@
     "deleteWithChildren": "This issue has sub-issues that will also be deleted.",
     "deleting": "Deleting...",
     "keepAlive": "Keep Alive — prevent idle timeout from terminating the process",
-    "devMode": "Dev"
+    "devMode": "Dev",
+    "resizeListPanel": "Resize issue list"
   },
   "createIssue": {
     "model": "Model",
@@ -220,7 +221,8 @@
     "oversizedMessage": "This file ({{size}}) exceeds 20 MB and diff is skipped to avoid blocking the system.",
     "oversizedBannerTitle": "Large files detected — review before committing",
     "oversizedBannerHint": "Consider adding these files to .gitignore to avoid bloating the repository.",
-    "timedOut": "Git operation timed out. The repository may contain very large files or the disk is slow. Try again later."
+    "timedOut": "Git operation timed out. The repository may contain very large files or the disk is slow. Try again later.",
+    "resizePanel": "Resize diff panel"
   },
   "session": {
     "connected": "Connected",
@@ -288,11 +290,11 @@
     "importAction": "Import",
     "empty": "No local sessions found.",
     "truncated": "Showing the {{count}} most recent sessions. Narrow the search to see others.",
+    "resizePanel": "Resize transcript panel",
     "detail": {
       "entries": "{{count}} entries",
       "truncated": "Showing the most recent {{shown}} of {{total}} entries.",
       "ariaLabel": "Session transcript",
-      "resize": "Resize transcript panel",
       "maximize": "Maximize",
       "restore": "Restore",
       "close": "Close"

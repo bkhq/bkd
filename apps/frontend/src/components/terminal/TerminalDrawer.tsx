@@ -1,6 +1,6 @@
 import { Maximize2, Minimize2, Minus, TerminalSquare, Trash2 } from 'lucide-react'
-import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ResizeHandle } from '@/components/ui/resize-handle'
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
   TERMINAL_MAX_WIDTH_RATIO,
@@ -14,7 +14,6 @@ export function TerminalDrawer() {
   const { isOpen, isFullscreen, width, close, minimize, toggleFullscreen, setWidth } =
     useTerminalStore()
   const isMobile = useIsMobile()
-  const dragRef = useRef<{ startX: number, startWidth: number } | null>(null)
 
   if (!isOpen) return null
 
@@ -38,46 +37,13 @@ export function TerminalDrawer() {
       >
         {/* Resize handle — hidden in fullscreen and on mobile */}
         {!fullscreen && (
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={t('terminal.resizePanel')}
-            aria-valuenow={width}
-            aria-valuemin={TERMINAL_MIN_WIDTH}
-            aria-valuemax={maxWidth}
-            tabIndex={0}
-            className="absolute top-0 bottom-0 left-0 w-2 -translate-x-1/2 z-10 cursor-col-resize group select-none outline-none"
-            onPointerDown={(e) => {
-              if (e.button !== 0) return
-              e.preventDefault()
-              e.currentTarget.setPointerCapture(e.pointerId)
-              dragRef.current = { startX: e.clientX, startWidth: width }
-            }}
-            onPointerMove={(e) => {
-              if (!dragRef.current) return
-              const dx = dragRef.current.startX - e.clientX
-              setWidth(dragRef.current.startWidth + dx)
-            }}
-            onPointerUp={() => {
-              dragRef.current = null
-            }}
-            onPointerCancel={() => {
-              dragRef.current = null
-            }}
-            onKeyDown={(e) => {
-              const step = e.shiftKey ? 50 : 10
-              if (e.key === 'ArrowLeft') {
-                e.preventDefault()
-                setWidth(width + step)
-              }
-              if (e.key === 'ArrowRight') {
-                e.preventDefault()
-                setWidth(width - step)
-              }
-            }}
-          >
-            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 rounded-full opacity-0 group-hover:opacity-100 group-active:opacity-100 bg-primary/50 group-active:bg-primary transition-opacity" />
-          </div>
+          <ResizeHandle
+            width={width}
+            onWidthChange={setWidth}
+            min={TERMINAL_MIN_WIDTH}
+            max={maxWidth}
+            label={t('terminal.resizePanel')}
+          />
         )}
 
         {/* Header */}

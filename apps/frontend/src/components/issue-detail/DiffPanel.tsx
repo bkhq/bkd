@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useIssueChanges, useIssueFilePatch } from '@/hooks/use-kanban'
 import { useTheme } from '@/hooks/use-theme'
 import type { IssueChangedFile } from '@/types/kanban'
+import { ResizeHandle } from '@/components/ui/resize-handle'
 import { DIFF_MIN_WIDTH } from './diff-constants'
 
 const LazyMultiFileDiff = lazy(() =>
@@ -84,7 +85,17 @@ export function DiffPanel({
       }
       style={fullScreen ? undefined : { width }}
     >
-      {!fullScreen ? <ResizeHandle width={width} onWidthChange={onWidthChange} /> : null}
+      {fullScreen
+        ? null
+        : (
+            <ResizeHandle
+              width={width}
+              onWidthChange={w => onWidthChange(Math.max(DIFF_MIN_WIDTH, w))}
+              min={DIFF_MIN_WIDTH}
+              max={typeof window === 'undefined' ? 1600 : window.innerWidth}
+              label={t('diff.resizePanel')}
+            />
+          )}
 
       <div className="flex flex-col h-full min-h-0">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] bg-background/80 backdrop-blur-sm">
@@ -420,40 +431,6 @@ function PatchDiffView({ patch }: { patch: string }) {
           }}
         />
       </Suspense>
-    </div>
-  )
-}
-
-function ResizeHandle({
-  width,
-  onWidthChange,
-}: {
-  width: number
-  onWidthChange: (w: number) => void
-}) {
-  const dragRef = useRef<{ startX: number, startWidth: number } | null>(null)
-
-  return (
-    <div
-      className="absolute left-0 top-0 bottom-0 w-2 -translate-x-1/2 z-10 cursor-col-resize group select-none"
-      onPointerDown={(e) => {
-        if (e.button !== 0) return
-        e.preventDefault()
-        e.stopPropagation()
-        e.currentTarget.setPointerCapture(e.pointerId)
-        dragRef.current = { startX: e.clientX, startWidth: width }
-      }}
-      onPointerMove={(e) => {
-        if (!dragRef.current) return
-        const dx = dragRef.current.startX - e.clientX
-        const next = dragRef.current.startWidth + dx
-        onWidthChange(Math.max(DIFF_MIN_WIDTH, next))
-      }}
-      onPointerUp={() => {
-        dragRef.current = null
-      }}
-    >
-      <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 rounded-full opacity-0 group-hover:opacity-100 group-active:opacity-100 bg-primary/40 group-active:bg-primary/70 transition-all duration-200 group-hover:w-1.5" />
     </div>
   )
 }

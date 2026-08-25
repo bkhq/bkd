@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AppSidebar } from '@/components/kanban/AppSidebar'
@@ -7,6 +7,7 @@ import { IssuePanel } from '@/components/kanban/IssuePanel'
 import { KanbanBoard } from '@/components/kanban/KanbanBoard'
 import { KanbanHeader } from '@/components/kanban/KanbanHeader'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
+import { ResizeHandle } from '@/components/ui/resize-handle'
 import { useIssues, useProject } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { DEFAULT_STATUS_ID } from '@/lib/statuses'
@@ -28,6 +29,10 @@ export default function KanbanPage() {
   const width = usePanelStore(s => s.width)
   const close = usePanelStore(s => s.close)
   const openView = usePanelStore(s => s.openView)
+  const setWidth = usePanelStore(s => s.setWidth)
+  const panelMaxWidth = Math.round(
+    (typeof window === 'undefined' ? 800 : window.innerWidth) * PANEL_MAX_WIDTH_RATIO,
+  )
   const isPanelOpen = useIsPanelOpen()
   const isMobile = useIsMobile()
   const [searchQuery, setSearchQuery] = useState('')
@@ -111,64 +116,17 @@ export default function KanbanPage() {
               className="fixed inset-y-0 right-0 z-30 border-l border-border bg-card"
               style={{ width }}
             >
-              <ResizeHandle />
+              <ResizeHandle
+                width={width}
+                onWidthChange={setWidth}
+                min={PANEL_MIN_WIDTH}
+                max={panelMaxWidth}
+                label={t('kanban.resizePanel')}
+              />
               <IssuePanel projectId={projectId} issueId={panel.issueId} onClose={close} />
             </div>
           )
         : null}
-    </div>
-  )
-}
-
-function ResizeHandle() {
-  const { t } = useTranslation()
-  const width = usePanelStore(s => s.width)
-  const setWidth = usePanelStore.getState().setWidth
-  const dragRef = useRef<{ startX: number, startWidth: number } | null>(null)
-
-  const maxWidth = Math.round(
-    (typeof window === 'undefined' ? 800 : window.innerWidth) * PANEL_MAX_WIDTH_RATIO,
-  )
-
-  return (
-    <div
-      role="separator"
-      aria-orientation="vertical"
-      aria-label={t('kanban.resizePanel')}
-      aria-valuenow={width}
-      aria-valuemin={PANEL_MIN_WIDTH}
-      aria-valuemax={maxWidth}
-      tabIndex={0}
-      className="absolute left-0 top-0 bottom-0 w-2 -translate-x-1/2 z-10 cursor-col-resize group select-none outline-none"
-      onClick={e => e.stopPropagation()}
-      onPointerDown={(e) => {
-        if (e.button !== 0) return
-        e.preventDefault()
-        e.stopPropagation()
-        e.currentTarget.setPointerCapture(e.pointerId)
-        dragRef.current = { startX: e.clientX, startWidth: width }
-      }}
-      onPointerMove={(e) => {
-        if (!dragRef.current) return
-        const dx = dragRef.current.startX - e.clientX
-        setWidth(dragRef.current.startWidth + dx)
-      }}
-      onPointerUp={() => {
-        dragRef.current = null
-      }}
-      onKeyDown={(e) => {
-        const step = e.shiftKey ? 50 : 10
-        if (e.key === 'ArrowLeft') {
-          e.preventDefault()
-          setWidth(width + step)
-        }
-        if (e.key === 'ArrowRight') {
-          e.preventDefault()
-          setWidth(width - step)
-        }
-      }}
-    >
-      <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 rounded-full opacity-0 group-hover:opacity-100 group-active:opacity-100 focus-visible:opacity-100 bg-primary/50 group-active:bg-primary transition-opacity" />
     </div>
   )
 }

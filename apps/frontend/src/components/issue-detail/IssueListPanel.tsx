@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom'
 import { IssueContextMenu } from '@/components/issue-detail/IssueContextMenu'
 import { ProjectSettingsDialog } from '@/components/ProjectSettingsDialog'
 import { Button } from '@/components/ui/button'
+import { ResizeHandle } from '@/components/ui/resize-handle'
 import { useIssues, useProject } from '@/hooks/use-kanban'
 import { tStatus } from '@/lib/i18n-utils'
 import type { StatusDefinition } from '@/lib/statuses'
@@ -22,19 +23,23 @@ import { usePanelStore } from '@/stores/panel-store'
 import { useProcessManagerStore } from '@/stores/process-manager-store'
 import type { Issue } from '@/types/kanban'
 
+/** Width bounds for the issue list column, shared with the pages that own its width. */
+export const LIST_MIN_WIDTH = 180
+export const LIST_MAX_WIDTH = 400
+
 export function IssueListPanel({
   projectId,
   activeIssueId,
   projectName,
   width,
-  onResizeStart,
+  onWidthChange,
   mobileNav,
 }: {
   projectId: string
   activeIssueId: string
   projectName: string
   width?: number
-  onResizeStart?: (e: React.MouseEvent) => void
+  onWidthChange?: (width: number) => void
   mobileNav?: React.ReactNode
 }) {
   const { t } = useTranslation()
@@ -171,12 +176,15 @@ export function IssueListPanel({
       </div>
 
       {/* Resize handle */}
-      {onResizeStart ?
+      {onWidthChange && width ?
           (
-            <div
-              role="separator"
-              onMouseDown={onResizeStart}
-              className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors z-20"
+            <ResizeHandle
+              edge="right"
+              width={width}
+              onWidthChange={onWidthChange}
+              min={LIST_MIN_WIDTH}
+              max={LIST_MAX_WIDTH}
+              label={t('issue.resizeListPanel')}
             />
           ) :
         null}

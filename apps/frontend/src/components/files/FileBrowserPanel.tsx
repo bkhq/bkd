@@ -1,6 +1,6 @@
 import { X } from 'lucide-react'
-import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ResizeHandle } from '@/components/ui/resize-handle'
 import { FILE_BROWSER_MAX_WIDTH_RATIO, FILE_BROWSER_MIN_WIDTH } from '@/stores/file-browser-store'
 import { FileBrowserContent } from './FileBrowserContent'
 
@@ -16,7 +16,6 @@ export function FileBrowserPanel({
   fullScreen?: boolean
 }) {
   const { t } = useTranslation()
-  const dragRef = useRef<{ startX: number, startWidth: number } | null>(null)
   const maxWidth = Math.round((typeof window === 'undefined' ? 800 : window.innerWidth) * FILE_BROWSER_MAX_WIDTH_RATIO)
 
   return (
@@ -30,43 +29,13 @@ export function FileBrowserPanel({
     >
       {/* Resize handle */}
       {!fullScreen && (
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label={t('fileBrowser.resizePanel')}
-          aria-valuenow={width}
-          aria-valuemin={FILE_BROWSER_MIN_WIDTH}
-          aria-valuemax={maxWidth}
-          tabIndex={0}
-          className="absolute top-0 bottom-0 left-0 w-2 -translate-x-1/2 z-10 cursor-col-resize group select-none outline-none"
-          onPointerDown={(e) => {
-            if (e.button !== 0) return
-            e.preventDefault()
-            e.currentTarget.setPointerCapture(e.pointerId)
-            dragRef.current = { startX: e.clientX, startWidth: width }
-          }}
-          onPointerMove={(e) => {
-            if (!dragRef.current) return
-            const dx = dragRef.current.startX - e.clientX
-            onWidthChange(dragRef.current.startWidth + dx)
-          }}
-          onPointerUp={() => {
-            dragRef.current = null
-          }}
-          onKeyDown={(e) => {
-            const step = e.shiftKey ? 50 : 10
-            if (e.key === 'ArrowLeft') {
-              e.preventDefault()
-              onWidthChange(width + step)
-            }
-            if (e.key === 'ArrowRight') {
-              e.preventDefault()
-              onWidthChange(width - step)
-            }
-          }}
-        >
-          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 rounded-full opacity-0 group-hover:opacity-100 group-active:opacity-100 bg-primary/50 group-active:bg-primary transition-opacity" />
-        </div>
+        <ResizeHandle
+          width={width}
+          onWidthChange={onWidthChange}
+          min={FILE_BROWSER_MIN_WIDTH}
+          max={maxWidth}
+          label={t('fileBrowser.resizePanel')}
+        />
       )}
 
       <div className="flex flex-col h-full min-h-0">
