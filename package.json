@@ -30,12 +30,7 @@
     "db:migrate": "bun --filter @bkd/api db:migrate",
     "db:reset": "bun apps/api/src/db/reset.ts",
     "clean": "bash ./scripts/clean.sh",
-    "compile": "bun scripts/compile.ts",
-    "compile:launcher": "bun scripts/compile.ts --mode launcher",
     "package": "bun scripts/package.ts"
-  },
-  "dependencies": {
-    "cleye": "^2.6.0"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^9.1.0",

@@ -44,13 +44,10 @@ import type { SettingsNavItem } from '@/components/ui/settings-layout'
 import { SettingsLayout } from '@/components/ui/settings-layout'
 import { Switch } from '@/components/ui/switch'
 import {
-  useCheckForUpdates,
   useCleanupStats,
   useClearSystemLogs,
   useDeletedIssues,
   useDisableAskUser,
-  useDownloadStatus,
-  useDownloadUpdate,
   useEngineAvailability,
   useEngineProfiles,
   useEngineSettings,
@@ -58,7 +55,9 @@ import {
   useLogPageSize,
   useMaxConcurrentExecutions,
   useProbeEngines,
-  useRestartWithUpgrade,
+  useRequestRollback,
+  useRequestUpgrade,
+  useRestartServer,
   useRestoreDeletedIssue,
   useRunCleanup,
   useServerInfo,
@@ -67,7 +66,6 @@ import {
   useSetLogPageSize,
   useSetMaxConcurrentExecutions,
   useSetSkipPermissions,
-  useSetUpgradeEnabled,
   useSetVirtualEngines,
   useSetWorktreeAutoCleanup,
   useSkipPermissions,
@@ -78,8 +76,7 @@ import {
   useUpdateEngineModelSetting,
   useUpdateServerInfo,
   useUpdateWorkspacePath,
-  useUpgradeCheck,
-  useUpgradeEnabled,
+  useUpgradeStatus,
   useVersionInfo,
   useVirtualEngines,
   useWorkspacePath,
@@ -858,18 +855,6 @@ function CleanupSection({ open }: { open: boolean }) {
             />
           )
         })()}
-        <CleanupItem
-          label={t('settings.cleanupOldVersions')}
-          count={cleanupStats?.oldVersions.items.length}
-          hint={
-            cleanupStats?.oldVersions.totalSize
-              ? formatSize(cleanupStats.oldVersions.totalSize)
-              : undefined
-          }
-          disabled={!cleanupStats?.oldVersions.items.length}
-          loading={runCleanup.isPending}
-          onClean={() => runCleanup.mutate(['oldVersions'])}
-        />
       </div>
     </div>
   )
@@ -1271,10 +1256,10 @@ function AboutSection({ open }: { open: boolean }) {
                 <Badge variant="outline" className="font-mono text-[10px] py-0">
                   {data.app.version === 'dev' ? 'dev' : `v${data.app.version}`}
                 </Badge>
-                {data.app.isPackageMode ?
+                {data.app.supervised ?
                     (
                       <Badge variant="secondary" className="text-[10px] py-0">
-                        pkg
+                        lode
                       </Badge>
                     ) :
                   null}
@@ -1310,37 +1295,14 @@ function AboutSection({ open }: { open: boolean }) {
 function UpgradeSection({ open }: { open: boolean }) {
   const { t } = useTranslation()
   const { data: versionInfo } = useVersionInfo(open)
-  const { data: upgradeEnabledData } = useUpgradeEnabled(open)
-  const setUpgradeEnabled = useSetUpgradeEnabled()
-  const { data: checkResult } = useUpgradeCheck(open && (upgradeEnabledData?.enabled ?? false))
-  const checkForUpdates = useCheckForUpdates()
-  const downloadUpdate = useDownloadUpdate()
-  const restartWithUpgrade = useRestartWithUpgrade()
-  const { data: dlStatus } = useDownloadStatus(open && (upgradeEnabledData?.enabled ?? false))
+  const { data: status } = useUpgradeStatus(open)
+  const requestUpgrade = useRequestUpgrade()
+  const requestRollback = useRequestRollback()
+  const restartServer = useRestartServer()
 
-  const isEnabled = upgradeEnabledData?.enabled ?? true
-
-  const handleToggle = (checked: boolean) => {
-    setUpgradeEnabled.mutate(checked)
-  }
-
-  const handleCheck = () => {
-    checkForUpdates.mutate()
-  }
-
-  const handleDownload = () => {
-    if (checkResult?.downloadUrl && checkResult?.downloadFileName) {
-      downloadUpdate.mutate({
-        url: checkResult.downloadUrl,
-        fileName: checkResult.downloadFileName,
-        checksumUrl: checkResult.checksumUrl ?? undefined,
-      })
-    }
-  }
-
-  const handleRestart = () => {
-    restartWithUpgrade.mutate()
-  }
+  const supervised = status?.supervised ?? false
+  const busy = status?.status === 'updating' || status?.status === 'rolling-back'
+  const canRollback = !!status?.lastGood && status.lastGood !== status.current
 
   const formatTime = (iso: string) => {
     try {
@@ -1357,17 +1319,13 @@ function UpgradeSection({ open }: { open: boolean }) {
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <span className="shrink-0 text-muted-foreground">{t('settings.currentVersion')}</span>
           <Badge variant="outline" className="shrink-0 font-mono">
-            {versionInfo?.version === 'dev' ?
-                t('settings.devBuild') :
-              `v${versionInfo?.version ?? '...'}`}
+            {versionInfo?.version === 'dev' ? t('settings.devBuild') : `v${versionInfo?.version ?? '...'}`}
           </Badge>
-          {versionInfo?.isPackageMode ?
-              (
-                <Badge variant="secondary" className="shrink-0 text-[10px] py-0">
-                  {t('settings.packageMode')}
-                </Badge>
-              ) :
-            null}
+          {supervised ? (
+            <Badge variant="secondary" className="shrink-0 text-[10px] py-0">
+              {t('settings.supervisedMode')}
+            </Badge>
+          ) : null}
         </div>
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="shrink-0 text-muted-foreground">{t('settings.buildId')}</span>
@@ -1380,201 +1338,93 @@ function UpgradeSection({ open }: { open: boolean }) {
         </div>
       </div>
 
-      {/* Auto-upgrade toggle */}
-      <div className="mt-3 flex items-center justify-between">
-        <div>
-          <span className="text-sm font-medium">{t('settings.upgradeEnabled')}</span>
-          <p className="text-[11px] text-muted-foreground">{t('settings.upgradeEnabledHint')}</p>
-        </div>
-        <Switch size="sm" checked={isEnabled} onCheckedChange={handleToggle} />
-      </div>
+      {supervised ? (
+        <div className="mt-3 flex flex-col gap-2 rounded-lg border p-3">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="text-muted-foreground">{t('settings.upgradeStatusLabel')}</span>
+            <Badge variant="outline" className="py-0 font-mono text-[10px]">
+              {status?.status ?? '—'}
+            </Badge>
+          </div>
 
-      {/* Upgrade status */}
-      {isEnabled ?
-          (
-            <div className="mt-3 rounded-lg border p-3">
-              {checkForUpdates.isPending ?
-                  (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      {t('settings.upgradeChecking')}
-                    </div>
-                  ) :
-                checkResult?.hasUpdate ?
-                    (
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2 text-xs">
-                          <ArrowDownToLine className="h-3.5 w-3.5 text-blue-500" />
-                          <span className="font-medium text-blue-600 dark:text-blue-400">
-                            {t('settings.upgradeAvailable', {
-                              version: checkResult.latestVersion,
-                            })}
-                          </span>
-                        </div>
-                        {dlStatus?.status === 'downloading' ?
-                            (
-                              <div className="flex flex-col gap-1.5">
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                  {t('settings.upgradeDownloading', {
-                                    progress: dlStatus.progress,
-                                  })}
-                                </div>
-                                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full bg-blue-500 transition-all duration-300"
-                                    style={{ width: `${dlStatus.progress}%` }}
-                                  />
-                                </div>
-                              </div>
-                            ) :
-                          dlStatus?.status === 'verifying' ?
-                              (
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                  {t('settings.upgradeVerifying')}
-                                </div>
-                              ) :
-                            dlStatus?.status === 'verified' ?
-                                (
-                                  <div className="flex flex-col gap-2">
-                                    <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
-                                      <CircleCheck className="h-3 w-3" />
-                                      {t('settings.upgradeVerified')}
-                                      <Badge variant="outline" className="text-[10px] py-0">
-                                        {t('settings.upgradeChecksumOk')}
-                                      </Badge>
-                                    </div>
-                                    <Button
-                                      variant="default"
-                                      size="sm"
-                                      onClick={handleRestart}
-                                      disabled={restartWithUpgrade.isPending}
-                                    >
-                                      {restartWithUpgrade.isPending ?
-                                          (
-                                            <Loader2 className="h-3 w-3 animate-spin" />
-                                          ) :
-                                          (
-                                            <RefreshCw className="h-3 w-3" />
-                                          )}
-                                      {restartWithUpgrade.isPending ?
-                                          t('settings.upgradeRestarting') :
-                                          t('settings.upgradeRestart')}
-                                    </Button>
-                                  </div>
-                                ) :
-                              dlStatus?.status === 'completed' ?
-                                  (
-                                    <div className="flex flex-col gap-2">
-                                      <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
-                                        <CircleCheck className="h-3 w-3" />
-                                        {t('settings.upgradeDownloaded')}
-                                        {dlStatus.fileName ?
-                                            (
-                                              <span
-                                                className="min-w-0 truncate font-mono text-[10px] text-muted-foreground"
-                                                title={dlStatus.fileName}
-                                              >
-                                                {dlStatus.fileName}
-                                              </span>
-                                            ) :
-                                          null}
-                                      </div>
-                                      <Button
-                                        variant="default"
-                                        size="sm"
-                                        onClick={handleRestart}
-                                        disabled={restartWithUpgrade.isPending}
-                                      >
-                                        {restartWithUpgrade.isPending ?
-                                            (
-                                              <Loader2 className="h-3 w-3 animate-spin" />
-                                            ) :
-                                            (
-                                              <RefreshCw className="h-3 w-3" />
-                                            )}
-                                        {restartWithUpgrade.isPending ?
-                                            t('settings.upgradeRestarting') :
-                                            t('settings.upgradeRestart')}
-                                      </Button>
-                                    </div>
-                                  ) :
-                                dlStatus?.status === 'failed' ?
-                                    (
-                                      <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400">
-                                        <CircleAlert className="h-3 w-3" />
-                                        {t('settings.upgradeDownloadFailed')}
-                                        {dlStatus.checksumMatch === false ?
-                                            (
-                                              <Badge variant="destructive" className="text-[10px] py-0">
-                                                {t('settings.upgradeChecksumFailed')}
-                                              </Badge>
-                                            ) :
-                                          null}
-                                      </div>
-                                    ) :
-                                  checkResult.downloadUrl ?
-                                      (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={handleDownload}
-                                          disabled={downloadUpdate.isPending}
-                                        >
-                                          <ArrowDownToLine className="h-3 w-3" />
-                                          {t('settings.upgradeDownload')}
-                                          {checkResult.assetSize ?
-                                              (
-                                                <span className="text-muted-foreground ml-1">
-                                                  (
-                                                  {(checkResult.assetSize / 1024 / 1024).toFixed(1)}
-                                                  {' '}
-                                                  MB)
-                                                </span>
-                                              ) :
-                                            null}
-                                        </Button>
-                                      ) :
-                                    null}
-                      </div>
-                    ) :
-                  checkResult ?
-                      (
-                        <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
-                          <CircleCheck className="h-3 w-3" />
-                          {t('settings.upgradeUpToDate')}
-                        </div>
-                      ) :
-                      (
-                        <div className="text-xs text-muted-foreground">{t('settings.upgradeNoRelease')}</div>
-                      )}
-
-              <div className="mt-2 flex items-center justify-between">
-                {checkResult?.checkedAt ?
-                    (
-                      <span className="text-[10px] text-muted-foreground">
-                        {t('settings.upgradeLastChecked', {
-                          time: formatTime(checkResult.checkedAt),
-                        })}
-                      </span>
-                    ) :
-                    (
-                      <span />
-                    )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCheck}
-                  disabled={checkForUpdates.isPending}
-                >
-                  <RefreshCw className={cn('h-3 w-3', checkForUpdates.isPending && 'animate-spin')} />
-                  {t('settings.upgradeCheckNow')}
-                </Button>
-              </div>
+          {status?.hasUpdate ? (
+            <div className="flex items-center gap-2 text-xs">
+              <ArrowDownToLine className="h-3.5 w-3.5 text-blue-500" />
+              <span className="font-medium text-blue-600 dark:text-blue-400">
+                {t('settings.upgradeAvailable', { version: status.available })}
+              </span>
             </div>
-          ) :
-        null}
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
+              <CircleCheck className="h-3 w-3" />
+              {t('settings.upgradeUpToDate')}
+            </div>
+          )}
+
+          {status?.lastError ? (
+            <div className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400">
+              <CircleAlert className="mt-0.5 h-3 w-3 shrink-0" />
+              <span className="min-w-0 break-words">{status.lastError}</span>
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => requestUpgrade.mutate(undefined)}
+              disabled={!status?.hasUpdate || busy || requestUpgrade.isPending}
+            >
+              {busy || requestUpgrade.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <ArrowDownToLine className="h-3 w-3" />
+              )}
+              {busy ? t('settings.upgradeUpdating') : t('settings.upgradeUpdate')}
+            </Button>
+
+            {canRollback ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => requestRollback.mutate(undefined)}
+                disabled={busy || requestRollback.isPending}
+              >
+                <RotateCcw className="h-3 w-3" />
+                {t('settings.upgradeRollback', { version: status?.lastGood })}
+              </Button>
+            ) : null}
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => restartServer.mutate()}
+              disabled={busy || restartServer.isPending}
+            >
+              {restartServer.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3 w-3" />
+              )}
+              {restartServer.isPending ? t('settings.upgradeRestarting') : t('settings.upgradeRestart')}
+            </Button>
+          </div>
+
+          {status?.lastCheck ? (
+            <span className="text-[10px] text-muted-foreground">
+              {t('settings.upgradeLastChecked', { time: formatTime(status.lastCheck) })}
+            </span>
+          ) : null}
+        </div>
+      ) : (
+        <div className="mt-3 rounded-lg border p-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Info className="h-3.5 w-3.5 shrink-0" />
+            {t('settings.upgradeUnsupervised')}
+          </div>
+          <p className="mt-1 text-[11px]">{t('settings.upgradeUnsupervisedHint')}</p>
+        </div>
+      )}
     </div>
   )
 }

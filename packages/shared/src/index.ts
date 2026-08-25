@@ -665,3 +665,41 @@ export interface Note {
   createdAt: string
   updatedAt: string
 }
+
+// ── Upgrade (lode supervisor) ───────────────────────────
+
+export type LodeStatus =
+  | 'starting'
+  | 'running'
+  | 'held'
+  | 'updating'
+  | 'rolling-back'
+  | 'stopping'
+  | 'stopped'
+  | 'error'
+
+export interface UpgradeHistoryEntry {
+  version: string
+  at: string
+  result: 'good' | 'bad'
+}
+
+export interface UpgradeStatus {
+  /** False when BKD runs outside lode (dev, or a bare `bun src/index.ts`). */
+  supervised: boolean
+  status: LodeStatus | null
+  current: string | null
+  lastGood: string | null
+  available: string | null
+  hasUpdate: boolean
+  lastCheck: string | null
+  lastError: string | null
+  history: UpgradeHistoryEntry[]
+}
+
+export interface VersionInfo {
+  version: string
+  commit: string
+  supervised: boolean
+  activeVersion: string | null
+}

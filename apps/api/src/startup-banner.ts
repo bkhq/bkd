@@ -6,9 +6,8 @@ import { COMMIT, VERSION } from './version'
 const consola = createConsola()
 
 function getMode(): string {
-  if (APP_DIR) return 'package'
-  if (import.meta.dir.startsWith('/$bunfs')) return 'compiled'
-  return 'dev'
+  if (!APP_DIR) return 'dev'
+  return process.env.LODE_DIR ? 'lode' : 'package'
 }
 
 export function printStartupBanner(host: string, port: number) {

@@ -24,6 +24,8 @@ export default antfu({
   ignores: [
     'apps/api/drizzle/**',
     'apps/frontend/src/components/ui/**',
+    // Vendored verbatim from github.com/dotns/lode (sdks/lode.ts) so updates stay a plain copy
+    'apps/api/src/upgrade/lode-sdk.ts',
   ],
 }, {
   // Custom rule overrides

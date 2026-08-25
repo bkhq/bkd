@@ -1,108 +1,100 @@
-import { getAppSetting, setAppSetting } from '@/db/helpers'
+/**
+ * Upgrade service — a thin façade over the lode supervisor.
+ *
+ * BKD no longer downloads, verifies or installs anything itself: lode owns the
+ * fetch → verify → install → observe → commit/rollback path. This module only
+ * reads lode's `state.json` and writes the request fields the app is allowed to
+ * set (`target`, `restart_nonce`). See `docs/deployment.md`.
+ *
+ * Outside lode (dev, or a bare `bun src/index.ts`) every call reports
+ * `supervised: false` and the mutating helpers throw.
+ */
+import type { UpgradeStatus, VersionInfo } from '@bkd/shared'
 import { logger } from '@/logger'
 import { COMMIT, VERSION } from '@/version'
-import { checkForUpdates } from './checker'
-import { CHECK_INTERVAL_MS, isPackageMode, UPGRADE_ENABLED_KEY } from './constants'
-import { cleanupBackupDirs, cleanupTmpFiles } from './files'
+import { activeVersion, isSupervised, Lode } from './lode-sdk'
 
-// --- Re-exports (preserve public API for route consumers) ---
+const UNSUPERVISED_ERROR = 'Not running under lode — upgrades are managed by the supervisor'
 
-export { applyUpgradeAndRestart, registerShutdownForUpgrade } from './apply'
-
-export { checkForUpdates, getLastCheckResult } from './checker'
-export { downloadUpdate, getDownloadStatus } from './download'
-export { deleteDownloadedUpdate, listDownloadedUpdates } from './files'
-export type { DownloadStatus, ReleaseAsset, ReleaseInfo, UpgradeCheckResult } from './types'
-
-// --- Settings ---
-
-export async function isUpgradeEnabled(): Promise<boolean> {
-  const value = await getAppSetting(UPGRADE_ENABLED_KEY)
-  // Default to true if not set
-  return value !== 'false'
-}
-
-export async function setUpgradeEnabled(enabled: boolean): Promise<void> {
-  await setAppSetting(UPGRADE_ENABLED_KEY, String(enabled))
-  if (enabled) {
-    startPeriodicCheck()
-  } else {
-    stopPeriodicCheck()
+function requireLode(): Lode {
+  if (!isSupervised()) {
+    throw new Error(UNSUPERVISED_ERROR)
   }
+  return Lode.fromEnv()
 }
 
-// --- Version info ---
-
-export function getVersionInfo() {
+export function getVersionInfo(): VersionInfo {
   return {
     version: VERSION,
     commit: COMMIT,
-    isCompiled: VERSION !== 'dev',
-    isPackageMode,
+    supervised: isSupervised(),
+    activeVersion: activeVersion() ?? null,
   }
 }
 
-// --- Periodic check ---
+export function getUpgradeStatus(): UpgradeStatus {
+  const empty: UpgradeStatus = {
+    supervised: false,
+    status: null,
+    current: null,
+    lastGood: null,
+    available: null,
+    hasUpdate: false,
+    lastCheck: null,
+    lastError: null,
+    history: [],
+  }
 
-let periodicCheckTimer: ReturnType<typeof setInterval> | null = null
+  if (!isSupervised()) return empty
 
-export function startPeriodicCheck(): void {
-  stopPeriodicCheck()
-  periodicCheckTimer = setInterval(() => {
-    void isUpgradeEnabled().then((enabled) => {
-      if (enabled) {
-        void checkForUpdates().catch((err) => {
-          logger.warn(
-            { error: err instanceof Error ? err.message : String(err) },
-            'upgrade_periodic_check_failed',
-          )
-        })
-      }
-    })
-  }, CHECK_INTERVAL_MS)
+  const state = Lode.fromEnv().read()
+  if (!state) return { ...empty, supervised: true }
 
-  // Allow the process to exit without waiting for this timer
-  if (
-    periodicCheckTimer &&
-    typeof periodicCheckTimer === 'object' &&
-    'unref' in periodicCheckTimer
-  ) {
-    periodicCheckTimer.unref()
+  const current = state.current ?? activeVersion() ?? null
+  const available = state.available ?? null
+
+  return {
+    supervised: true,
+    status: state.status ?? null,
+    current,
+    lastGood: state.lastGood ?? null,
+    available,
+    hasUpdate: !!available && available !== current,
+    lastCheck: state.lastCheck ?? null,
+    lastError: state.lastError ?? null,
+    history: state.history,
   }
 }
 
-export function stopPeriodicCheck(): void {
-  if (periodicCheckTimer) {
-    clearInterval(periodicCheckTimer)
-    periodicCheckTimer = null
-  }
+/** Ask lode to install a version (or `latest`). lode restarts us when it lands. */
+export function requestUpgrade(version = 'latest'): void {
+  requireLode().requestUpdate(version)
+  logger.info({ version }, 'upgrade_requested')
 }
 
-// --- Startup ---
+/** Ask lode to go back to `version`, or to the recorded last-good version. */
+export function requestRollback(version?: string): string {
+  const target = requireLode().rollback(version)
+  logger.info({ target }, 'upgrade_rollback_requested')
+  return target
+}
 
-export async function initUpgradeSystem(): Promise<void> {
-  // Skip upgrade system entirely in dev mode
-  if (VERSION === 'dev') {
-    logger.info('upgrade_system_skipped_dev_mode')
-    return
+/** Ask lode to stop and relaunch the current version. */
+export function requestRestart(): void {
+  const nonce = requireLode().reboot()
+  logger.info({ nonce }, 'upgrade_restart_requested')
+}
+
+/**
+ * Tell lode the server can serve traffic. Required under
+ * `[supervise].readiness = "state"`, a no-op otherwise.
+ */
+export function reportReady(): void {
+  if (!isSupervised()) return
+  try {
+    Lode.fromEnv().markReady()
+    logger.info({ version: activeVersion() }, 'lode_ready_reported')
+  } catch (err) {
+    logger.error({ err }, 'lode_ready_report_failed')
   }
-
-  // Clean up any stale .tmp files from interrupted downloads
-  await cleanupTmpFiles()
-
-  // Clean up any leftover .backup.* directories from interrupted upgrades
-  await cleanupBackupDirs()
-
-  const enabled = await isUpgradeEnabled()
-  if (enabled) {
-    // Do an initial check (notify only, no auto-download)
-    void checkForUpdates().catch((err) => {
-      logger.warn(
-        { error: err instanceof Error ? err.message : String(err) },
-        'upgrade_initial_check_failed',
-      )
-    })
-    startPeriodicCheck()
-  }
-  logger.info({ enabled }, 'upgrade_system_initialized')
 }

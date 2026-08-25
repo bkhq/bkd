@@ -22,6 +22,7 @@ import type {
   ProbeResult,
   Project,
   ProjectProcessesResponse,
+  UpgradeStatus,
   VirtualEngine,
   Webhook,
   WebhookDelivery,
@@ -452,14 +453,10 @@ export const kanbanApi = {
   getCleanupStats: () =>
     get<{
       logs: { issueCount: number, logCount: number, toolCallCount: number, logFileSize: number }
-      oldVersions: {
-        items: Array<{ name: string, size: number }>
-        totalSize: number
-      }
       worktrees: { count: number, totalSize: number }
       deletedIssues: { issueCount: number, projectCount: number }
     }>('/api/settings/cleanup/stats'),
-  runCleanup: (targets: Array<'logs' | 'oldVersions' | 'worktrees' | 'deletedIssues'>) =>
+  runCleanup: (targets: Array<'logs' | 'worktrees' | 'deletedIssues'>) =>
     post<Record<string, { cleaned: number }>>('/api/settings/cleanup', {
       targets,
     }),
@@ -497,8 +494,8 @@ export const kanbanApi = {
       app: {
         version: string
         commit: string
-        isCompiled: boolean
-        isPackageMode: boolean
+        supervised: boolean
+        activeVersion: string | null
         startedAt: string
         uptime: number
       }
@@ -517,63 +514,21 @@ export const kanbanApi = {
       }
     }>('/api/settings/system-info'),
 
-  // Upgrade
+  // Upgrade (managed by the lode supervisor)
   getVersionInfo: () =>
     get<{
       version: string
       commit: string
-      isCompiled: boolean
-      isPackageMode: boolean
+      supervised: boolean
+      activeVersion: string | null
     }>('/api/settings/upgrade/version'),
-  getUpgradeEnabled: () => get<{ enabled: boolean }>('/api/settings/upgrade/enabled'),
-  setUpgradeEnabled: (enabled: boolean) =>
-    patch<{ enabled: boolean }>('/api/settings/upgrade/enabled', { enabled }),
-  getUpgradeCheck: () =>
-    get<{
-      hasUpdate: boolean
-      currentVersion: string
-      currentCommit: string
-      latestVersion: string | null
-      latestTag: string | null
-      publishedAt: string | null
-      downloadUrl: string | null
-      checksumUrl: string | null
-      assetName: string | null
-      assetSize: number | null
-      downloadFileName: string | null
-      checkedAt: string
-    } | null>('/api/settings/upgrade/check'),
-  checkForUpdates: () =>
-    post<{
-      hasUpdate: boolean
-      currentVersion: string
-      currentCommit: string
-      latestVersion: string | null
-      latestTag: string | null
-      publishedAt: string | null
-      downloadUrl: string | null
-      checksumUrl: string | null
-      assetName: string | null
-      assetSize: number | null
-      downloadFileName: string | null
-      checkedAt: string
-    }>('/api/settings/upgrade/check', {}),
-  downloadUpdate: (url: string, fileName: string, checksumUrl?: string) =>
-    post<{ status: string, fileName: string }>('/api/settings/upgrade/download', {
-      url,
-      fileName,
-      ...(checksumUrl ? { checksumUrl } : {}),
-    }),
-  getDownloadStatus: () =>
-    get<{
-      status: 'idle' | 'downloading' | 'verifying' | 'verified' | 'completed' | 'failed'
-      progress: number
-      fileName: string | null
-      filePath: string | null
-      error: string | null
-      checksumMatch: boolean | null
-    }>('/api/settings/upgrade/download/status'),
-  restartWithUpgrade: () => post<{ status: string }>('/api/settings/upgrade/restart', {}),
+  getUpgradeStatus: () =>
+    get<UpgradeStatus>('/api/settings/upgrade/status'),
+  requestUpgrade: (version?: string) =>
+    post<{ requested: string }>('/api/settings/upgrade/update', version ? { version } : {}),
+  requestRollback: (version?: string) =>
+    post<{ requested: string }>('/api/settings/upgrade/rollback', version ? { version } : {}),
+  restartServer: () => post<{ status: string }>('/api/settings/upgrade/restart', {}),
 
   // File Browser
   listFiles: (root: string, path?: string, hideIgnored?: boolean) => {

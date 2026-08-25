@@ -18,8 +18,8 @@ about.get('/system-info', async (c) => {
       app: {
         version: versionInfo.version,
         commit: versionInfo.commit,
-        isCompiled: versionInfo.isCompiled,
-        isPackageMode: versionInfo.isPackageMode,
+        supervised: versionInfo.supervised,
+        activeVersion: versionInfo.activeVersion,
         startedAt: new Date(startedAt).toISOString(),
         uptime: Math.floor((Date.now() - startedAt) / 1000),
       },

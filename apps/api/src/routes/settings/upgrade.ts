@@ -1,58 +1,38 @@
 import { zValidator } from '@hono/zod-validator'
 import * as z from 'zod'
 import { logger } from '@/logger'
-import {
-  applyUpgradeAndRestart,
-  checkForUpdates,
-  deleteDownloadedUpdate,
-  downloadUpdate,
-  getDownloadStatus,
-  getLastCheckResult,
-  getVersionInfo,
-  isUpgradeEnabled,
-  listDownloadedUpdates,
-  setUpgradeEnabled,
-} from '@/upgrade/service'
 import { createOpenAPIRouter } from '@/openapi/hono'
-import { VALID_FILE_NAME_RE } from '@/upgrade/utils'
+import {
+  getUpgradeStatus,
+  getVersionInfo,
+  requestRestart,
+  requestRollback,
+  requestUpgrade,
+} from '@/upgrade/service'
 
-const ALLOWED_DOWNLOAD_HOSTS = new Set(['github.com', 'objects.githubusercontent.com'])
-
-function isAllowedDownloadHost(url: string): boolean {
-  try {
-    const hostname = new URL(url).hostname
-    return ALLOWED_DOWNLOAD_HOSTS.has(hostname)
-  } catch {
-    return false
-  }
-}
-
-const githubUrlSchema = z.string().url().refine(isAllowedDownloadHost, 'URL must be from GitHub')
-
-const upgradeFileNameSchema = z
+/** `latest` or a semver — the only values lode accepts as an update target. */
+const versionSchema = z
   .string()
   .min(1)
-  .max(255)
-  .regex(VALID_FILE_NAME_RE, 'File name must match bkd-<type>-v<version> format')
+  .max(64)
+  .regex(/^(?:latest|\d+\.\d+\.\d+)$/, 'Version must be "latest" or a semver like 1.2.3')
 
 const upgrade = createOpenAPIRouter()
 
 // GET /api/settings/upgrade/version — current version info
 upgrade.get('/version', (c) => {
-  const info = getVersionInfo()
-  return c.json({ success: true, data: info })
+  return c.json({ success: true, data: getVersionInfo() })
 })
 
-// GET /api/settings/upgrade/enabled — whether upgrade is enabled
-upgrade.get('/enabled', async (c) => {
-  const enabled = await isUpgradeEnabled()
-  return c.json({ success: true, data: { enabled } })
+// GET /api/settings/upgrade/status — supervisor state (version, availability, health)
+upgrade.get('/status', (c) => {
+  return c.json({ success: true, data: getUpgradeStatus() })
 })
 
-// PATCH /api/settings/upgrade/enabled — toggle upgrade on/off
-upgrade.patch(
-  '/enabled',
-  zValidator('json', z.object({ enabled: z.boolean() }), (result, c) => {
+// POST /api/settings/upgrade/update — ask lode to install a version (default: latest)
+upgrade.post(
+  '/update',
+  zValidator('json', z.object({ version: versionSchema.optional() }), (result, c) => {
     if (!result.success) {
       return c.json(
         {
@@ -63,130 +43,53 @@ upgrade.patch(
       )
     }
   }),
-  async (c) => {
-    const { enabled } = c.req.valid('json')
-    await setUpgradeEnabled(enabled)
-    return c.json({ success: true, data: { enabled } })
-  },
-)
-
-// GET /api/settings/upgrade/check — check for updates (uses cache if recent)
-upgrade.get('/check', async (c) => {
-  const result = await getLastCheckResult()
-  return c.json({ success: true, data: result })
-})
-
-// POST /api/settings/upgrade/check — force-check for updates
-upgrade.post('/check', async (c) => {
-  const result = await checkForUpdates()
-  return c.json({ success: true, data: result })
-})
-
-// POST /api/settings/upgrade/download — download an update
-upgrade.post(
-  '/download',
-  zValidator(
-    'json',
-    z.object({
-      url: githubUrlSchema,
-      fileName: upgradeFileNameSchema,
-      checksumUrl: githubUrlSchema.optional(),
-    }),
-    (result, c) => {
-      if (!result.success) {
-        return c.json(
-          {
-            success: false,
-            error: result.error.issues.map(i => i.message).join(', '),
-          },
-          400,
-        )
-      }
-    },
-  ),
-  async (c) => {
-    const { url, fileName, checksumUrl } = c.req.valid('json')
-    // Check status synchronously before starting background download
-    const currentStatus = getDownloadStatus()
-    if (currentStatus.status === 'downloading' || currentStatus.status === 'verifying') {
-      return c.json({ success: false, error: 'A download is already in progress' }, 409)
-    }
-    // Start download in background; errors are tracked in downloadStatus
-    downloadUpdate(url, fileName, checksumUrl).catch((err) => {
-      logger.error({ err }, 'upgrade_download_route_error')
-    })
-    return c.json({ success: true, data: { status: 'started', fileName } })
-  },
-)
-
-// GET /api/settings/upgrade/download/status — check download progress
-upgrade.get('/download/status', (c) => {
-  const status = getDownloadStatus()
-  return c.json({ success: true, data: status })
-})
-
-// POST /api/settings/upgrade/restart — apply downloaded upgrade and restart
-upgrade.post('/restart', async (c) => {
-  try {
-    await applyUpgradeAndRestart()
-    return c.json({
-      success: true,
-      data: { status: 'restarting' },
-    })
-  } catch (err) {
-    logger.error({ err, stack: err instanceof Error ? err.stack : undefined }, 'upgrade_restart_failed')
-    return c.json(
-      {
-        success: false,
-        error: 'Failed to apply upgrade and restart',
-      },
-      400,
-    )
-  }
-})
-
-// GET /api/settings/upgrade/downloads — list downloaded update files
-upgrade.get('/downloads', async (c) => {
-  const files = await listDownloadedUpdates()
-  return c.json({ success: true, data: files })
-})
-
-// DELETE /api/settings/upgrade/downloads/:fileName — delete a downloaded update
-upgrade.delete(
-  '/downloads/:fileName',
-  zValidator(
-    'param',
-    z.object({
-      fileName: upgradeFileNameSchema,
-    }),
-    (result, c) => {
-      if (!result.success) {
-        return c.json(
-          {
-            success: false,
-            error: result.error.issues.map(i => i.message).join(', '),
-          },
-          400,
-        )
-      }
-    },
-  ),
-  async (c) => {
-    const { fileName } = c.req.valid('param')
+  (c) => {
+    const { version } = c.req.valid('json')
     try {
-      await deleteDownloadedUpdate(fileName)
-      return c.json({ success: true, data: { deleted: fileName } })
+      requestUpgrade(version)
+      return c.json({ success: true, data: { requested: version ?? 'latest' } })
     } catch (err) {
-      logger.error({ err, fileName }, 'upgrade_delete_failed')
+      logger.error({ err }, 'upgrade_request_failed')
+      return c.json({ success: false, error: (err as Error).message }, 400)
+    }
+  },
+)
+
+// POST /api/settings/upgrade/rollback — go back to last-good (or an explicit version)
+upgrade.post(
+  '/rollback',
+  zValidator('json', z.object({ version: versionSchema.optional() }), (result, c) => {
+    if (!result.success) {
       return c.json(
         {
           success: false,
-          error: 'Failed to delete downloaded update',
+          error: result.error.issues.map(i => i.message).join(', '),
         },
-        404,
+        400,
       )
+    }
+  }),
+  (c) => {
+    const { version } = c.req.valid('json')
+    try {
+      const target = requestRollback(version)
+      return c.json({ success: true, data: { requested: target } })
+    } catch (err) {
+      logger.error({ err }, 'upgrade_rollback_failed')
+      return c.json({ success: false, error: (err as Error).message }, 400)
     }
   },
 )
+
+// POST /api/settings/upgrade/restart — relaunch the current version
+upgrade.post('/restart', (c) => {
+  try {
+    requestRestart()
+    return c.json({ success: true, data: { status: 'restarting' } })
+  } catch (err) {
+    logger.error({ err }, 'upgrade_restart_failed')
+    return c.json({ success: false, error: (err as Error).message }, 400)
+  }
+})
 
 export default upgrade

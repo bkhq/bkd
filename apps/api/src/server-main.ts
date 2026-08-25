@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { serveStatic, websocket } from 'hono/bun'
 import app from './app'
-import { embeddedStatic } from './embedded-static'
 import { issueEngine } from './engines/issue'
 import { migrateSlashCommandsKey, refreshSlashCommandsCache } from './engines/issue/queries'
 import {
@@ -18,8 +17,7 @@ import { logger } from './logger'
 import { acquirePidLock, releasePidLock } from './pid-lock'
 import { APP_DIR, ROOT_DIR } from './root'
 import { printStartupBanner } from './startup-banner'
-import { staticAssets } from './static-assets'
-import { initUpgradeSystem, registerShutdownForUpgrade, stopPeriodicCheck } from './upgrade/service'
+import { reportReady } from './upgrade/service'
 import { initWebhookDispatcher, startDeliveryCleanup } from './webhooks/dispatcher'
 
 // ---------- Global error handlers ----------
@@ -92,48 +90,40 @@ const listenHost = process.env.HOST ?? '0.0.0.0'
 const listenPort = Number(process.env.PORT ?? 3000)
 
 // --- Static file serving ---
-// In compiled mode, static-assets.ts is replaced at build time with
-// generated imports that embed all frontend/dist files.
-// In dev mode, the file exports an empty Map and we fall back to disk.
-if (staticAssets.size > 0) {
-  app.use('*', embeddedStatic(staticAssets))
-  logger.info({ assets: staticAssets.size }, 'embedded_static_loaded')
-} else {
-  // In package mode, static files live in APP_DIR/public/.
-  // In dev mode, they live in apps/frontend/dist/.
-  const staticRoot = APP_DIR ? resolve(APP_DIR, 'public') : resolve(ROOT_DIR, 'apps/frontend/dist')
-  if (existsSync(staticRoot)) {
-    app.use(
-      '/assets/*',
-      serveStatic({
-        root: staticRoot,
-        onFound: (_path, c) => {
-          c.header('Cache-Control', 'public, max-age=31536000, immutable')
-        },
-      }),
-    )
+// In package mode, static files live in APP_DIR/public/.
+// In dev mode, they live in apps/frontend/dist/.
+const staticRoot = APP_DIR ? resolve(APP_DIR, 'public') : resolve(ROOT_DIR, 'apps/frontend/dist')
+if (existsSync(staticRoot)) {
+  app.use(
+    '/assets/*',
+    serveStatic({
+      root: staticRoot,
+      onFound: (_path, c) => {
+        c.header('Cache-Control', 'public, max-age=31536000, immutable')
+      },
+    }),
+  )
 
-    app.use(
-      '*',
-      serveStatic({
-        root: staticRoot,
-        onFound: (_path, c) => {
-          c.header('Cache-Control', 'public, max-age=3600, must-revalidate')
-        },
-      }),
-    )
+  app.use(
+    '*',
+    serveStatic({
+      root: staticRoot,
+      onFound: (_path, c) => {
+        c.header('Cache-Control', 'public, max-age=3600, must-revalidate')
+      },
+    }),
+  )
 
-    app.get(
-      '*',
-      serveStatic({
-        root: staticRoot,
-        path: 'index.html',
-        onFound: (_path, c) => {
-          c.header('Cache-Control', 'no-cache')
-        },
-      }),
-    )
-  }
+  app.get(
+    '*',
+    serveStatic({
+      root: staticRoot,
+      path: 'index.html',
+      onFound: (_path, c) => {
+        c.header('Cache-Control', 'no-cache')
+      },
+    }),
+  )
 }
 
 const http = Bun.serve({
@@ -149,24 +139,10 @@ printStartupBanner(listenHost, listenPort)
 // Start cron scheduler (replaces individual setInterval jobs)
 const stopCron = startCron()
 
-// Register shutdown callback for upgrade restarts (stops server + cancels engines)
-registerShutdownForUpgrade(async () => {
-  stopChangesSummaryWatcher()
-  stopSettledReconciliation()
-  stopPeriodicReconciliation()
-  stopCron()
-  stopPeriodicCheck()
-  stopDeliveryCleanup()
-  await issueEngine.cancelAll()
-  http.stop()
-  releasePidLock()
-  logger.info('server_stopped_for_upgrade')
-})
-
-// Initialize upgrade system (check for updates on startup + periodic check)
-void initUpgradeSystem().catch((err) => {
-  logger.error({ err }, 'upgrade_system_init_failed')
-})
+// Tell the lode supervisor we can serve traffic (no-op when unsupervised).
+// lode drives every update/rollback/restart by sending SIGTERM, which the
+// graceful shutdown below already handles.
+reportReady()
 
 let isShuttingDown = false
 
@@ -194,7 +170,6 @@ async function shutdown(signal: string) {
   stopSettledReconciliation()
   stopPeriodicReconciliation()
   stopCron()
-  stopPeriodicCheck()
   stopDeliveryCleanup()
 
   // Cancel all active engine processes before shutting down

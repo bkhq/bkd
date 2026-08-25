@@ -16,7 +16,6 @@ import { removeWorktree, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import { ROOT_DIR } from '@/root'
-import { APP_BASE, UPDATES_DIR } from '@/upgrade/constants'
 
 const ISSUE_LOG_DIR = join(ROOT_DIR, 'data', 'logs', 'issues')
 
@@ -24,9 +23,8 @@ const cleanup = createOpenAPIRouter()
 
 // GET /api/settings/cleanup/stats — get sizes of cleanable data
 cleanup.get('/cleanup/stats', async (c) => {
-  const [logsResult, oldVersionsResult, worktreesResult, deletedIssuesResult] = await Promise.all([
+  const [logsResult, worktreesResult, deletedIssuesResult] = await Promise.all([
     getLogsStats(),
-    getOldVersionsStats(),
     getWorktreesStats(),
     getDeletedIssuesStats(),
   ])
@@ -34,7 +32,6 @@ cleanup.get('/cleanup/stats', async (c) => {
     success: true,
     data: {
       logs: logsResult,
-      oldVersions: oldVersionsResult,
       worktrees: worktreesResult,
       deletedIssues: deletedIssuesResult,
     },
@@ -47,7 +44,7 @@ cleanup.post(
   zValidator(
     'json',
     z.object({
-      targets: z.array(z.enum(['logs', 'oldVersions', 'worktrees', 'deletedIssues'])).min(1),
+      targets: z.array(z.enum(['logs', 'worktrees', 'deletedIssues'])).min(1),
     }),
     (result, c) => {
       if (!result.success) {
@@ -70,9 +67,6 @@ cleanup.post(
         switch (target) {
           case 'logs':
             results.logs = await cleanupLogs()
-            break
-          case 'oldVersions':
-            results.oldVersions = await cleanupOldVersions()
             break
           case 'worktrees':
             results.worktrees = await cleanupWorktrees()
@@ -175,55 +169,6 @@ async function getLogsStats() {
   }
 }
 
-async function getOldVersionsStats() {
-  const items: Array<{ name: string, size: number }> = []
-
-  // Check data/updates/
-  if (existsSync(UPDATES_DIR)) {
-    try {
-      const entries = await readdir(UPDATES_DIR)
-      for (const name of entries) {
-        const fp = resolve(UPDATES_DIR, name)
-        const s = await stat(fp).catch(() => null)
-        if (s) items.push({ name, size: s.size })
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  // Check data/app/ for old version directories (keep the current one)
-  if (existsSync(APP_BASE)) {
-    try {
-      const entries = await readdir(APP_BASE)
-      let currentVersionDir: string | null = null
-      const versionFile = resolve(APP_BASE, 'version.json')
-      if (existsSync(versionFile)) {
-        try {
-          const vj = await Bun.file(versionFile).json()
-          if (vj?.version) currentVersionDir = `v${vj.version}`
-        } catch {
-          // ignore
-        }
-      }
-
-      for (const name of entries) {
-        if (name === 'version.json') continue
-        if (currentVersionDir && name === currentVersionDir) continue
-        const fp = resolve(APP_BASE, name)
-        const s = await stat(fp).catch(() => null)
-        if (s?.isDirectory()) {
-          items.push({ name, size: await getDirSize(fp) })
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  return { items, totalSize: items.reduce((sum, i) => sum + i.size, 0) }
-}
-
 /** Scan disk for all worktree issue IDs, then query DB for active ones. */
 async function scanCleanableWorktrees(): Promise<Array<{ projectDir: string, issueId: string, path: string }>> {
   if (!existsSync(WORKTREE_BASE)) return []
@@ -317,57 +262,6 @@ async function cleanupLogs(): Promise<{ cleaned: number }> {
   if (dbIds.length > 0) db.run(sql`VACUUM`)
   logger.info({ cleaned: allIds.length, dbIds: dbIds.length, fileIds: fileIds.length }, 'cleanup_logs_done')
   return { cleaned: allIds.length }
-}
-
-async function cleanupOldVersions(): Promise<{ cleaned: number }> {
-  let cleaned = 0
-
-  // Clean data/updates/
-  if (existsSync(UPDATES_DIR)) {
-    try {
-      const entries = await readdir(UPDATES_DIR)
-      for (const name of entries) {
-        const fp = resolve(UPDATES_DIR, name)
-        await rm(fp, { recursive: true }).catch(() => {})
-        cleaned++
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  // Clean old version dirs in data/app/ (keep current)
-  if (existsSync(APP_BASE)) {
-    try {
-      const entries = await readdir(APP_BASE)
-      let currentVersionDir: string | null = null
-      const versionFile = resolve(APP_BASE, 'version.json')
-      if (existsSync(versionFile)) {
-        try {
-          const vj = await Bun.file(versionFile).json()
-          if (vj?.version) currentVersionDir = `v${vj.version}`
-        } catch {
-          // ignore
-        }
-      }
-
-      for (const name of entries) {
-        if (name === 'version.json') continue
-        if (currentVersionDir && name === currentVersionDir) continue
-        const fp = resolve(APP_BASE, name)
-        const s = await stat(fp).catch(() => null)
-        if (s?.isDirectory()) {
-          await rm(fp, { recursive: true }).catch(() => {})
-          cleaned++
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  logger.info({ cleaned }, 'cleanup_old_versions_done')
-  return { cleaned }
 }
 
 async function cleanupWorktrees(): Promise<{ cleaned: number }> {

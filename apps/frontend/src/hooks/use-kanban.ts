@@ -34,9 +34,7 @@ export const queryKeys = {
   skipPermissions: () => ['settings', 'skipPermissions'] as const,
   maxConcurrentExecutions: () => ['settings', 'maxConcurrentExecutions'] as const,
   upgradeVersion: () => ['upgrade', 'version'] as const,
-  upgradeEnabled: () => ['upgrade', 'enabled'] as const,
-  upgradeCheck: () => ['upgrade', 'check'] as const,
-  upgradeDownloadStatus: () => ['upgrade', 'downloadStatus'] as const,
+  upgradeStatus: () => ['upgrade', 'status'] as const,
   systemLogs: () => ['settings', 'systemLogs'] as const,
   cleanupStats: () => ['settings', 'cleanupStats'] as const,
   deletedIssues: () => ['settings', 'deletedIssues'] as const,
@@ -783,7 +781,7 @@ export function useCleanupStats(enabled = false) {
 export function useRunCleanup() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (targets: Array<'logs' | 'oldVersions' | 'worktrees' | 'deletedIssues'>) =>
+    mutationFn: (targets: Array<'logs' | 'worktrees' | 'deletedIssues'>) =>
       kanbanApi.runCleanup(targets),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.cleanupStats() })
@@ -826,7 +824,7 @@ export function useSystemInfo(enabled = false) {
   })
 }
 
-// --- Upgrade hooks ---
+// --- Upgrade hooks (the lode supervisor owns download/verify/install) ---
 
 export function useVersionInfo(enabled = false) {
   return useQuery({
@@ -837,73 +835,45 @@ export function useVersionInfo(enabled = false) {
   })
 }
 
-export function useUpgradeEnabled(enabled = false) {
+export function useUpgradeStatus(enabled = false) {
   return useQuery({
-    queryKey: queryKeys.upgradeEnabled(),
-    queryFn: () => kanbanApi.getUpgradeEnabled(),
-    enabled,
-    staleTime: STALE_TIME.STANDARD,
-  })
-}
-
-export function useSetUpgradeEnabled() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (enabled: boolean) => kanbanApi.setUpgradeEnabled(enabled),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.upgradeEnabled() })
-    },
-  })
-}
-
-export function useUpgradeCheck(enabled = false) {
-  return useQuery({
-    queryKey: queryKeys.upgradeCheck(),
-    queryFn: () => kanbanApi.getUpgradeCheck(),
-    enabled,
-    staleTime: STALE_TIME.STANDARD,
-  })
-}
-
-export function useCheckForUpdates() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: () => kanbanApi.checkForUpdates(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.upgradeCheck() })
-    },
-  })
-}
-
-export function useDownloadUpdate() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (args: { url: string, fileName: string, checksumUrl?: string }) =>
-      kanbanApi.downloadUpdate(args.url, args.fileName, args.checksumUrl),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.upgradeDownloadStatus(),
-      })
-    },
-  })
-}
-
-export function useDownloadStatus(enabled = false) {
-  return useQuery({
-    queryKey: queryKeys.upgradeDownloadStatus(),
-    queryFn: () => kanbanApi.getDownloadStatus(),
+    queryKey: queryKeys.upgradeStatus(),
+    queryFn: () => kanbanApi.getUpgradeStatus(),
     enabled,
     staleTime: STALE_TIME.FREQUENT,
+    // Poll while lode is mid-transition; it reports status, not progress.
     refetchInterval: (query) => {
-      const data = query.state.data
-      return data?.status === 'downloading' || data?.status === 'verifying' ? 1000 : false
+      const status = query.state.data?.status
+      return status === 'updating' || status === 'rolling-back' || status === 'starting' ?
+        2000 :
+        false
     },
   })
 }
 
-export function useRestartWithUpgrade() {
+export function useRequestUpgrade() {
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: () => kanbanApi.restartWithUpgrade(),
+    mutationFn: (version?: string) => kanbanApi.requestUpgrade(version),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.upgradeStatus() })
+    },
+  })
+}
+
+export function useRequestRollback() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (version?: string) => kanbanApi.requestRollback(version),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.upgradeStatus() })
+    },
+  })
+}
+
+export function useRestartServer() {
+  return useMutation({
+    mutationFn: () => kanbanApi.restartServer(),
     // Use onSettled (not onSuccess) because the server typically shuts down
     // before the HTTP response is sent, causing a network error on the client.
     onSettled: () => {
