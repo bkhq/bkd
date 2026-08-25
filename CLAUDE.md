@@ -46,17 +46,14 @@ bun run db:generate          # drizzle-kit generate (proxies to @bkd/api)
 bun run db:migrate           # drizzle-kit migrate (proxies to @bkd/api)
 bun run db:reset             # deletes SQLite DB files (data/db/bkd.db)
 
-# Compile to standalone binary (full mode — embeds everything, ~105 MB)
-bun run compile              # builds frontend + embeds assets + compiles binary
-bun scripts/compile.ts --target bun-linux-x64 --outfile bkd-linux-x64
-
-# Compile launcher binary (package mode — minimal binary, ~90 MB)
-bun run compile:launcher     # compiles launcher only (loads server from data/app/)
-bun scripts/compile.ts --mode launcher --target bun-linux-x64 --outfile bkd-launcher
-
-# Create app package (tar.gz with server.js + assets + migrations, ~1 MB)
+# Create the release artifact (tar.gz with server.js + assets + migrations, ~2 MB).
+# This is the only distributable: lode installs and runs it. See docs/deployment.md.
 bun run package              # builds frontend + bundles server + creates tar.gz
-bun scripts/package.ts --version 0.0.6 --skip-frontend
+bun scripts/package.ts --version 0.0.7 --outfile bkd-server.tar.gz --skip-frontend
+
+# Migrate a pre-lode (launcher) install onto lode — dry run by default
+bun scripts/migrate-to-lode.ts --root /opt/bkd
+bun scripts/migrate-to-lode.ts --root /opt/bkd --apply --prune
 ```
 
 ## Architecture
@@ -71,7 +68,7 @@ bun scripts/package.ts --version 0.0.6 --skip-frontend
   - Migrations in `apps/api/drizzle/`, auto-applied on startup. Runtime applies them in `meta/_journal.json` order, tracked per-DB in `__drizzle_migrations` (snapshots are never read at runtime). Rules: never edit or reorder a shipped migration (drizzle keys applied state by file hash); only append new ones via `bun run db:generate`; always commit the schema change, generated `.sql`, `meta/<n>_snapshot.json`, and `_journal.json` together. CI (`Migrations` job) fails if `db:generate` yields uncommitted changes. Intermediate snapshots `0001,0005,0012,0014–0019` are missing — accepted (archival-only; the diff base re-aligned at `0020`, see ENG-009)
 - **Logging**: pino (`logger.ts`)
 - **Caching**: in-process LRU+TTL Map-based cache (`cache.ts`, max 500 entries)
-- **Static serving**: three modes — embedded (compiled binary), `APP_DIR/public/` (package mode), `apps/frontend/dist/` (dev)
+- **Static serving**: `APP_DIR/public/` when running from a package, `apps/frontend/dist/` in dev
 
 #### Middleware (`app.ts`)
 
@@ -177,9 +174,17 @@ Routes: `GET/POST /api/cron`, `GET/PATCH/DELETE /api/cron/:id`, `POST /api/cron/
 - `upload-cleanup` (every 1h) — deletes files in `data/uploads/` older than 7 days
 - `worktree-cleanup` (every 30 min) — removes worktrees for `done` issues older than 1 day; gated by `worktree:autoCleanup` setting
 
-#### Self-Upgrade (`upgrade/`)
+#### Upgrade (`upgrade/`)
 
-Polls GitHub Releases (`repos/bkhq/bkd/releases/latest`) every 1h. Downloads to `data/updates/` with mandatory SHA-256 checksum verification. Two modes: binary (direct binary replacement) and package (`.tar.gz` extraction to `data/app/v{version}/`).
+BKD does not update itself. It runs as a child of the [lode](https://github.com/dotns/lode) supervisor, which fetches `bkd-server.tar.gz` from GitHub Releases, verifies sha256 + the ed25519 asset signature, installs it under `<dir>/versions/<version>/`, and restarts BKD — rolling back automatically if the new version dies inside `health_grace` or misses its readiness signal.
+
+- `lode-sdk.ts` — vendored verbatim from [`dotns/lode`](https://github.com/dotns/lode) `sdks/lode.ts` (zero-dep, eslint-ignored; update by re-copying the file).
+- `service.ts` — the only app-side surface: reads lode's `state.json` and writes the request fields the app owns (`target`, `restart_nonce`, `ready`).
+- `server-main.ts` calls `reportReady()` once `Bun.serve()` is listening (`[supervise].readiness = "state"`); lode drives every restart via SIGTERM, handled by the existing graceful shutdown.
+- `ROOT_DIR` (env, or `[env]` in lode.toml) pins the install root so `data/` survives upgrades — lode runs BKD with its cwd set to the per-version directory.
+- Update *policy* lives in `lode.toml` and is operator-owned; the UI can request an update/rollback/restart but cannot change policy. lode reports lifecycle status, not download progress.
+
+Deployment, migration from the old launcher, and the `lode.toml` reference: `docs/deployment.md`.
 
 ### Frontend (`apps/frontend/src/`)
 

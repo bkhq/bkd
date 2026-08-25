@@ -1,0 +1,76 @@
+# BKD under lode — ready-to-use config.
+#
+# Published with every release. Download it, change the two paths marked below,
+# and start BKD with `lode --dir <that path>`. Full guide: docs/deployment.md.
+#
+#   curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/bkd.lode.toml \
+#     -o /opt/bkd/lode.toml
+#
+# This file is operator-owned: BKD reads it but never writes it.
+
+[global]
+app = "bkd"
+# CHANGE ME — the install root. Holds lode.toml, state.json, versions/, runtime/
+# and BKD's own data/ directory. Must be on persistent storage.
+dir = "/opt/bkd"
+
+[update]
+github  = "bkhq/bkd"
+# The exact release asset filename. lode selects by name — do not add a version.
+asset   = "bkd-server.tar.gz"
+channel = "stable"
+# off   — never check
+# check — check and advertise a new version; install only when asked (default here)
+# auto  — check and install automatically, then restart BKD
+policy  = "check"
+
+[trust]
+# Signature verification is OFF for now: releases are not signed yet, and the
+# download is still integrity-checked (sha256 from the GitHub asset digest is
+# verified against the downloaded bytes on every install).
+#
+# To turn identity verification on once a publisher key is issued:
+#   1. trusted_keys = ["<key_id>:<base64-pubkey>"]
+#   2. require_signature = "enforce"
+require_signature = "off"
+
+[command]
+run  = "bun run server.js"
+exec = "bun"
+
+# lode downloads bun once when it is not on PATH and caches it at <dir>/runtime/bun.
+# A bun already on PATH always wins over the cache. NOTE: runtime downloads are
+# TLS-protected but not signature-verified — pin the version, or install bun
+# yourself and delete this block.
+[runtime]
+runtime  = "bun"
+# CHANGE ME on arm64 (bun-linux-aarch64.zip) or macOS (bun-darwin-x64.zip /
+# bun-darwin-aarch64.zip).
+download = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64.zip"
+version  = "1.3.14"
+
+# Defaults for the server; a host env var of the same name overrides them.
+[env]
+# CHANGE ME — must match [global].dir. Pins the install root so data/db,
+# data/uploads, data/logs and worktrees survive every upgrade (lode runs BKD
+# with its cwd set to the per-version directory).
+ROOT_DIR  = "/opt/bkd"
+NODE_ENV  = "production"
+PORT      = "3000"
+HOST      = "0.0.0.0"
+LOG_LEVEL = "info"
+# Only if you keep BKD's data somewhere other than the defaults, which are relative
+# to ROOT_DIR: data/, data/db/bkd.db, worktrees.
+# BKD_DATA_DIR = "/opt/bkd/data"
+# DB_PATH      = "/opt/bkd/data/db/bkd.db"
+# WORKTREE_DIR = "worktrees"
+
+[supervise]
+# BKD reports ready once it can serve; lode commits the version only then.
+readiness     = "state"
+ready_timeout = 30
+# A version that dies inside this window is rolled back to the last good one.
+health_grace  = 10
+# BKD cancels running engine processes on SIGTERM — leave room before SIGKILL.
+stop_timeout  = 30
+restart       = "on-failure"

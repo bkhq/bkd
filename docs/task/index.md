@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-08-21
+> Updated: 2026-08-24
 
 ## Usage
 
@@ -83,3 +83,6 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-031 Observe Claude subagent activity in issue chat**](ENG-031.md) `P1`
 - [x] [**SES-001 Scan local engine sessions and import them as issues**](SES-001.md) `P1`
 - [x] [**SES-002 Hide managed sessions and add a session detail view**](SES-002.md) `P2`
+- [x] [**REL-002 Publish lode-compatible signed release assets**](REL-002.md) `P1`
+- [x] [**REL-003 Replace the self-upgrade subsystem with the lode SDK**](REL-003.md) `P1`
+- [x] [**REL-004 Add a lode migration script and deployment guide**](REL-004.md) `P1`

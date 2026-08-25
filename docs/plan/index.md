@@ -1,6 +1,6 @@
 # BKD - Plan Index
 
-> Updated: 2026-08-21
+> Updated: 2026-08-24
 
 ## Usage
 
@@ -46,3 +46,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [ ] [**PLAN-015 Add one-click cron history cleanup**](PLAN-015.md) `2026-08-21`
 - [x] [**PLAN-016 Observe Claude subagent (Task/Agent tool) activity**](PLAN-016.md) `2026-08-22`
 - [x] [**PLAN-017 Global local session scanner and session-to-issue import**](PLAN-017.md) `2026-08-22`
+- [x] [**PLAN-018 Migrate distribution and self-upgrade to lode**](PLAN-018.md) `2026-08-24`
