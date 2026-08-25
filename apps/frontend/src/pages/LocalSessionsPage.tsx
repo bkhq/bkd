@@ -1,5 +1,5 @@
 import type { LocalSession } from '@bkd/shared'
-import { AlertTriangle, FolderGit2, Loader2, Maximize2, Minimize2, Search, X } from 'lucide-react'
+import { AlertTriangle, FolderGit2, Loader2, Search } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
@@ -25,10 +25,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ResizeHandle } from '@/components/ui/resize-handle'
+import { SidePanel, SidePanelActions } from '@/components/ui/side-panel'
 import { Switch } from '@/components/ui/switch'
 import { useImportSession, useLocalSession, useLocalSessions, useProjects } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { formatDateTime, formatFileSize } from '@/lib/format'
 import {
   SESSION_PANEL_MAX_WIDTH_RATIO,
   SESSION_PANEL_MIN_WIDTH,
@@ -38,17 +39,6 @@ import {
 const PAGE_SIZE = 100
 /** Entries pulled for the detail view — the tail of the transcript. */
 const PREVIEW_ENTRIES = 500
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function formatTime(iso: string | undefined): string {
-  if (!iso) return '-'
-  return new Date(iso).toLocaleString()
-}
 
 /**
  * Import dialog. Sessions whose `cwd` matches no project are listed like any
@@ -200,8 +190,8 @@ function SessionMeta({ session }: { session: LocalSession }) {
         <FolderGit2 className="h-3 w-3 shrink-0" />
         {session.cwd || '-'}
       </span>
-      <span>{formatTime(session.lastActiveAt)}</span>
-      <span>{formatSize(session.sizeBytes)}</span>
+      <span>{formatDateTime(session.lastActiveAt)}</span>
+      <span>{formatFileSize(session.sizeBytes)}</span>
       {session.model ? <span>{session.model}</span> : null}
       {session.cliVersion ? <span>{`v${session.cliVersion}`}</span> : null}
     </div>
@@ -281,88 +271,38 @@ function SessionDetailDrawer({
   const total = data?.totalEntries ?? 0
 
   return (
-    <>
-      {fullscreen
-        ? null
-        : <div className="fixed inset-0 z-[39] bg-black/20" onClick={onClose} />}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('sessions.detail.ariaLabel')}
-        className={`fixed inset-y-0 right-0 z-40 flex flex-col border-l border-border bg-background shadow-2xl ${
-          fullscreen ? 'left-0' : ''
-        }`}
-        style={fullscreen ? undefined : { width }}
-      >
-        {fullscreen
-          ? null
-          : (
-              <ResizeHandle
-                width={width}
-                onWidthChange={setWidth}
-                min={SESSION_PANEL_MIN_WIDTH}
-                max={drawerMaxWidth}
-                label={t('sessions.resizePanel')}
-              />
-            )}
-
-        <div className="flex items-start gap-2 border-b border-border px-4 py-3">
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">{session.engine}</Badge>
-              <h2 className="truncate text-sm font-medium">
-                {session.title || session.sessionId}
-              </h2>
-            </div>
+    <SidePanel
+      label={t('sessions.detail.ariaLabel')}
+      width={width}
+      onWidthChange={setWidth}
+      minWidth={SESSION_PANEL_MIN_WIDTH}
+      maxWidth={drawerMaxWidth}
+      resizeLabel={t('sessions.resizePanel')}
+      fullscreen={fullscreen}
+      onClose={onClose}
+      title={(
+        <>
+          <Badge variant="secondary">{session.engine}</Badge>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-medium">
+              {session.title || session.sessionId}
+            </h2>
             <SessionMeta session={session} />
           </div>
-          {isMobile
-            ? null
-            : (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={toggleFullscreen}
-                  aria-label={isFullscreen ? t('sessions.detail.restore') : t('sessions.detail.maximize')}
-                  title={isFullscreen ? t('sessions.detail.restore') : t('sessions.detail.maximize')}
-                >
-                  {isFullscreen
-                    ? <Minimize2 className="h-3.5 w-3.5" />
-                    : <Maximize2 className="h-3.5 w-3.5" />}
-                </Button>
-              )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={onClose}
-            aria-label={t('sessions.detail.close')}
-            title={t('sessions.detail.close')}
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
-          {isLoading
-            ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              )
-            : null}
-          {total > shown
-            ? (
-                <p className="pb-2 text-center text-xs text-muted-foreground">
-                  {t('sessions.detail.truncated', { shown, total })}
-                </p>
-              )
-            : null}
-          {data ? <SessionMessages logs={data.entries} scrollRef={scrollRef} /> : null}
-        </div>
-
-        <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
+        </>
+      )}
+      actions={(
+        <SidePanelActions
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={isMobile ? undefined : toggleFullscreen}
+          fullscreenLabel={t('sessions.detail.maximize')}
+          restoreLabel={t('sessions.detail.restore')}
+          onClose={onClose}
+          closeLabel={t('sessions.detail.close')}
+        />
+      )}
+      footer={(
+        <div className="flex items-center justify-between gap-2 px-4 py-3">
           <span className="text-xs text-muted-foreground">
             {t('sessions.detail.entries', { count: total })}
           </span>
@@ -370,8 +310,26 @@ function SessionDetailDrawer({
             {t('sessions.importAction')}
           </Button>
         </div>
+      )}
+    >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
+        {isLoading
+          ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            )
+          : null}
+        {total > shown
+          ? (
+              <p className="pb-2 text-center text-xs text-muted-foreground">
+                {t('sessions.detail.truncated', { shown, total })}
+              </p>
+            )
+          : null}
+        {data ? <SessionMessages logs={data.entries} scrollRef={scrollRef} /> : null}
       </div>
-    </>
+    </SidePanel>
   )
 }
 

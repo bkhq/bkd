@@ -23,6 +23,7 @@ import {
 import { useDeleteFile, useProject, useProjectFiles, useSaveFile } from '@/hooks/use-kanban'
 import { kanbanApi } from '@/lib/kanban-api'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
+import { SidePanelButton } from '@/components/ui/side-panel'
 import { FileBreadcrumb } from './FileBreadcrumb'
 import { FileList } from './FileList'
 import { FileViewer } from './FileViewer'
@@ -131,37 +132,24 @@ export function FileBrowserContent({
           </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
+          <SidePanelButton
+            icon={copied ? Check : Copy}
+            label={t('fileBrowser.copyPath')}
             onClick={handleCopyPath}
-            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            aria-label={t('fileBrowser.copyPath')}
-            title={t('fileBrowser.copyPath')}
-          >
-            {copied
-              ? <Check className="h-3.5 w-3.5 text-green-500" />
-              : <Copy className="h-3.5 w-3.5" />}
-          </button>
+          />
           {listing?.type === 'file' && (
             <>
-              <button
-                type="button"
+              <SidePanelButton
+                icon={Download}
+                label={t('fileBrowser.download')}
                 onClick={handleDownload}
-                className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                aria-label={t('fileBrowser.download')}
-                title={t('fileBrowser.download')}
-              >
-                <Download className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
+              />
+              <SidePanelButton
+                icon={Trash2}
+                label={t('fileBrowser.delete')}
                 onClick={() => setDeleteFileConfirm(true)}
-                className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                aria-label={t('fileBrowser.delete')}
-                title={t('fileBrowser.delete')}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+                destructive
+              />
             </>
           )}
           <button

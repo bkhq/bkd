@@ -84,6 +84,7 @@ import {
 } from '@/hooks/use-kanban'
 import { useTheme } from '@/hooks/use-theme'
 import { LANGUAGES } from '@/lib/constants'
+import { formatFileSize } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import type { EngineAvailability, EngineModel, EngineProfile, VirtualEngine } from '@/types/kanban'
@@ -472,13 +473,6 @@ function GlobalEnvVarsSection({ open }: { open: boolean }) {
   )
 }
 
-function formatSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  return `${(bytes / 1024 ** i).toFixed(i > 0 ? 1 : 0)} ${units[i]}`
-}
-
 function CleanupItem({
   label,
   hint,
@@ -603,7 +597,7 @@ function LogsSection({ open }: { open: boolean }) {
               (
                 <span className="text-[10px] text-muted-foreground">
                   {t('settings.logsFileSize', {
-                    size: formatSize(logsData.fileSize),
+                    size: formatFileSize(logsData.fileSize),
                   })}
                   {' · '}
                   {t('settings.logsTotalLines', {
@@ -841,7 +835,7 @@ function CleanupSection({ open }: { open: boolean }) {
           if (del?.projectCount) parts.push(t('settings.cleanupDetailProjects', { count: del.projectCount }))
           const hint = parts.length > 0
             ? parts.join(t('settings.cleanupDetailSep'))
-            + (totalSize > 0 ? ` (${formatSize(totalSize)})` : '')
+            + (totalSize > 0 ? ` (${formatFileSize(totalSize)})` : '')
             : undefined
 
           return (

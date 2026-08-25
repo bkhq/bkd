@@ -11,13 +11,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { formatFileSize } from '@/lib/format'
 import type { FileEntry } from '@/types/kanban'
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
 
 function formatDate(iso: string): string {
   const d = new Date(iso)
@@ -114,7 +109,7 @@ export function FileList({ entries, onNavigate, onDelete, isDeleting, breadcrumb
                 </div>
               </td>
               <td className="px-4 py-2 text-right text-muted-foreground">
-                {entry.type === 'file' ? formatSize(entry.size) : '—'}
+                {entry.type === 'file' ? formatFileSize(entry.size) : '—'}
               </td>
               <td className="px-4 py-2 text-right text-muted-foreground hidden sm:table-cell">
                 {formatDate(entry.modifiedAt)}

@@ -88,3 +88,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**REL-004 Add a lode migration script and deployment guide**](REL-004.md) `P1`
 - [x] [**SES-003 Make the session detail panel a resizable drawer**](SES-003.md) `P2`
 - [x] [**UI-004 Unify the panel resize handle**](UI-004.md) `P2`
+- [x] [**UI-005 Unify duplicated display formatters**](UI-005.md) `P2`
+- [x] [**UI-006 Extract a shared side panel shell**](UI-006.md) `P2`

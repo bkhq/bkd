@@ -2,6 +2,7 @@ import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ResizeHandle } from '@/components/ui/resize-handle'
 import { FILE_BROWSER_MAX_WIDTH_RATIO, FILE_BROWSER_MIN_WIDTH } from '@/stores/file-browser-store'
+import { SidePanelButton } from '@/components/ui/side-panel'
 import { FileBrowserContent } from './FileBrowserContent'
 
 export function FileBrowserPanel({
@@ -41,15 +42,12 @@ export function FileBrowserPanel({
       <div className="flex flex-col h-full min-h-0">
         <FileBrowserContent
           headerActions={(
-            <button
-              type="button"
+            <SidePanelButton
+              icon={X}
+              label={t('fileBrowser.close')}
               onClick={onClose}
-              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
-              aria-label={t('fileBrowser.close')}
-              title={t('fileBrowser.close')}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+              destructive
+            />
           )}
         />
       </div>

@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useTerminateProcessGlobal } from '@/hooks/use-kanban'
+import { formatElapsed } from '@/lib/format'
 import type { ProcessInfo } from '@/types/kanban'
 
 function StatusIcon({ status }: { status: string | null }) {
@@ -47,17 +48,6 @@ function statusVariant(status: string | null): 'default' | 'secondary' | 'destru
     default:
       return 'outline'
   }
-}
-
-function formatDuration(timestamp: string | null): string {
-  if (!timestamp) return ''
-  const diff = Date.now() - new Date(timestamp).getTime()
-  const seconds = Math.floor(diff / 1000)
-  if (seconds < 60) return `${seconds}s`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ${seconds % 60}s`
-  const hours = Math.floor(minutes / 60)
-  return `${hours}h ${minutes % 60}m`
 }
 
 function isIdle(proc: ProcessInfo): boolean {
@@ -103,7 +93,7 @@ function ProcessCard({ proc }: { proc: ProcessInfo }) {
             <Clock className="h-2.5 w-2.5 mr-0.5" />
             {t('processManager.idle')}
             {' '}
-            {formatDuration(proc.lastIdleAt)}
+            {formatElapsed(proc.lastIdleAt)}
           </Badge>
         )}
         {proc.engineType && (
@@ -131,7 +121,7 @@ function ProcessCard({ proc }: { proc: ProcessInfo }) {
         )}
         {proc.startedAt && (
           <span className="text-[10px] text-muted-foreground ml-auto tabular-nums">
-            {formatDuration(proc.startedAt)}
+            {formatElapsed(proc.startedAt)}
           </span>
         )}
       </div>

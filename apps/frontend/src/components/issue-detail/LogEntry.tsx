@@ -33,7 +33,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { getCommandPreview } from '@/lib/command-preview'
-import { formatFileSize } from '@/lib/format'
+import { formatDuration, formatFileSize } from '@/lib/format'
 import type { NormalizedLogEntry, ToolAction } from '@/types/kanban'
 import { MarkdownContent } from './MarkdownContent'
 
@@ -197,15 +197,6 @@ function formatTime(timestamp?: string): string {
   } catch {
     return ''
   }
-}
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  const s = ms / 1000
-  if (s < 60) return `${s.toFixed(1)}s`
-  const m = Math.floor(s / 60)
-  const remainS = Math.round(s % 60)
-  return `${m}m${remainS}s`
 }
 
 function TaskPlanEntry({ entry }: { entry: NormalizedLogEntry }) {

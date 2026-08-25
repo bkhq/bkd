@@ -33,25 +33,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useCronJobs, useDeleteCronJob, usePauseCronJob, useResumeCronJob } from '@/hooks/use-kanban'
+import { formatDateTime, formatDuration } from '@/lib/format'
 import type { CronJob, CronJobLog, CronJobLogsResponse } from '@/lib/kanban-api'
 import { kanbanApi } from '@/lib/kanban-api'
 import { useNotesStore } from '@/stores/notes-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 
 const LOG_PAGE_SIZE = 20
-
-function formatDuration(ms: number | null): string {
-  if (ms === null) return '-'
-  if (ms < 1000) return `${ms}ms`
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`
-  return `${Math.round(ms / 60_000)}m`
-}
-
-function formatTime(ts: string | null): string {
-  if (!ts) return '-'
-  const d = new Date(typeof ts === 'number' ? ts * 1000 : ts)
-  return d.toLocaleString()
-}
 
 function StatusBadge({ status }: { status: string }) {
   const { t } = useTranslation()
@@ -211,7 +199,7 @@ function CronJobList({
                   <div className="flex items-center gap-1">
                     <Clock className="h-2.5 w-2.5 shrink-0" />
                     <span className="ml-auto font-mono truncate">
-                      {job.nextExecution ? formatTime(job.nextExecution) : '-'}
+                      {job.nextExecution ? formatDateTime(job.nextExecution) : '-'}
                     </span>
                   </div>
                 )}
@@ -351,7 +339,7 @@ function CronJobLogView({
               {t('cron.nextExecution')}
               :
               {' '}
-              {formatTime(job.nextExecution)}
+              {formatDateTime(job.nextExecution)}
             </span>
           )}
         </div>
@@ -429,7 +417,7 @@ function LogEntry({ log }: { log: CronJobLog }) {
       <div className="flex items-center gap-2">
         <StatusBadge status={log.status} />
         <span className="text-[11px] text-muted-foreground font-mono">
-          {formatTime(log.startedAt)}
+          {formatDateTime(log.startedAt)}
         </span>
         {log.durationMs !== null && (
           <span className="text-[11px] text-muted-foreground font-mono">
@@ -454,9 +442,9 @@ function LogEntry({ log }: { log: CronJobLog }) {
           )}
           {log.finishedAt && (
             <p className="text-[10px] text-muted-foreground/60">
-              {formatTime(log.startedAt)}
+              {formatDateTime(log.startedAt)}
               {' → '}
-              {formatTime(log.finishedAt)}
+              {formatDateTime(log.finishedAt)}
             </p>
           )}
         </div>

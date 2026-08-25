@@ -1,7 +1,37 @@
+/** Compact byte size: 500 → "500B", 2560 → "2.5KB", 1.5e9 → "1.4GB" */
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)}KB`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)}MB`
+  return `${(bytes / 1024 ** 3).toFixed(1)}GB`
+}
+
+/** Locale date + time, tolerant of a missing value. */
+export function formatDateTime(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '-'
+  const date = new Date(typeof value === 'number' ? value * 1000 : value)
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString()
+}
+
+/** Duration in milliseconds: 500 → "500ms", 1500 → "1.5s", 90000 → "1m30s" */
+export function formatDuration(ms: number | null | undefined): string {
+  if (ms === null || ms === undefined) return '-'
+  if (ms < 1000) return `${ms}ms`
+  const seconds = ms / 1000
+  if (seconds < 60) return `${seconds.toFixed(1)}s`
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}m${Math.round(seconds % 60)}s`
+}
+
+/** Time elapsed since a timestamp: "45s", "3m 12s", "2h 5m" */
+export function formatElapsed(timestamp: string | null | undefined): string {
+  if (!timestamp) return ''
+  const seconds = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ${minutes % 60}m`
 }
 
 /** Turn a raw model ID like "claude-opus-4-6" into a shorter display name */

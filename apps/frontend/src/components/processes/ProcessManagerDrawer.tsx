@@ -1,6 +1,6 @@
-import { Activity, Maximize2, Minimize2, Minus, X } from 'lucide-react'
+import { Activity } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { ResizeHandle } from '@/components/ui/resize-handle'
+import { SidePanel, SidePanelActions } from '@/components/ui/side-panel'
 import { useAllProcesses } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
@@ -22,107 +22,62 @@ export function ProcessManagerDrawer() {
 
   const viewportWidth = typeof window === 'undefined' ? 1024 : window.innerWidth
   const maxWidth = Math.round(viewportWidth * PROCESS_MANAGER_MAX_WIDTH_RATIO)
-  const fullscreen = isMobile || isFullscreen
-  const effectiveWidth = fullscreen ? viewportWidth : width
   const processes = data?.processes ?? []
 
   return (
-    <>
-      {/* Backdrop overlay */}
-      {fullscreen ?
-        null :
-          (
-            <div className="fixed inset-0 z-[39] bg-black/20" onClick={close} onKeyDown={undefined} />
-          )}
-      <div
-        className={`fixed top-0 bottom-0 right-0 z-40 flex flex-col border-l border-border bg-background shadow-2xl ${
-          fullscreen ? 'left-0' : ''
-        }`}
-        style={fullscreen ? undefined : { width: effectiveWidth }}
-      >
-        {/* Resize handle */}
-        {!fullscreen && (
-          <ResizeHandle
-            width={width}
-            onWidthChange={setWidth}
-            min={PROCESS_MANAGER_MIN_WIDTH}
-            max={maxWidth}
-            label={t('processManager.resizePanel')}
-          />
-        )}
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-3 py-1.5 border-b border-border shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <Activity className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="text-xs font-medium text-muted-foreground truncate">
-              {t('processManager.title')}
-            </span>
-            {processes.length > 0 && <CountBadge count={processes.length} />}
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={minimize}
-              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              aria-label={t('terminal.minimize')}
-              title={t('terminal.minimize')}
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </button>
-            {!isMobile && (
-              <button
-                type="button"
-                onClick={toggleFullscreen}
-                className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                aria-label={t('terminal.maximize')}
-                title={isFullscreen ? t('terminal.back') : t('terminal.maximize')}
-              >
-                {isFullscreen ?
-                    (
-                      <Minimize2 className="h-3.5 w-3.5" />
-                    ) :
-                    (
-                      <Maximize2 className="h-3.5 w-3.5" />
-                    )}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={close}
-              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
-              aria-label={t('processManager.close')}
-              title={t('processManager.close')}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-auto min-h-0 p-3">
-          {isLoading ?
+    <SidePanel
+      label={t('processManager.title')}
+      width={width}
+      onWidthChange={setWidth}
+      minWidth={PROCESS_MANAGER_MIN_WIDTH}
+      maxWidth={maxWidth}
+      resizeLabel={t('processManager.resizePanel')}
+      fullscreen={isMobile || isFullscreen}
+      onClose={close}
+      title={(
+        <>
+          <Activity className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="truncate text-xs font-medium text-muted-foreground">
+            {t('processManager.title')}
+          </span>
+          {processes.length > 0 && <CountBadge count={processes.length} />}
+        </>
+      )}
+      actions={(
+        <SidePanelActions
+          onMinimize={minimize}
+          minimizeLabel={t('terminal.minimize')}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={isMobile ? undefined : toggleFullscreen}
+          fullscreenLabel={t('terminal.maximize')}
+          restoreLabel={t('terminal.back')}
+          onClose={close}
+          closeLabel={t('processManager.close')}
+        />
+      )}
+    >
+      <div className="flex-1 overflow-auto min-h-0 p-3">
+        {isLoading ?
+            (
+              <div className="flex items-center justify-center py-16">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            ) :
+          processes.length === 0 ?
               (
-                <div className="flex items-center justify-center py-16">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+                  <Activity className="h-12 w-12" />
+                  <p className="text-sm font-medium">{t('processManager.noProcesses')}</p>
+                  <p className="text-xs text-center max-w-[240px]">
+                    {t('processManager.noProcessesHint')}
+                  </p>
                 </div>
               ) :
-            processes.length === 0 ?
-                (
-                  <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-                    <Activity className="h-12 w-12" />
-                    <p className="text-sm font-medium">{t('processManager.noProcesses')}</p>
-                    <p className="text-xs text-center max-w-[240px]">
-                      {t('processManager.noProcessesHint')}
-                    </p>
-                  </div>
-                ) :
-                (
-                  <ProcessList processes={processes} />
-                )}
-        </div>
+              (
+                <ProcessList processes={processes} />
+              )}
       </div>
-    </>
+    </SidePanel>
   )
 }
 

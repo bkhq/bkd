@@ -2,6 +2,7 @@ import DOMPurify from 'dompurify'
 import { Code, Eye, FileWarning } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { formatFileSize } from '@/lib/format'
 import { codeToHtml } from '@/lib/shiki'
 import type { FileContent } from '@/types/kanban'
 import { MarkdownRenderer } from './MarkdownRenderer'
@@ -47,12 +48,6 @@ function inferLang(path: string): string {
 function isMarkdownFile(path: string): boolean {
   const ext = path.split('.').pop()?.toLowerCase() ?? ''
   return ext === 'md' || ext === 'mdx'
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 interface FileViewerProps {
@@ -138,7 +133,7 @@ export function FileViewer({
         )}
         <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border">
           <span className="font-medium text-sm truncate">{fileName}</span>
-          <span className="text-xs text-muted-foreground shrink-0">{formatSize(file.size)}</span>
+          <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(file.size)}</span>
         </div>
         <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
           <FileWarning className="h-10 w-10" />
@@ -214,7 +209,7 @@ export function FileViewer({
                     {' '}
                     {t('fileBrowser.lines')}
                   </span>
-                  <span>{formatSize(file.size)}</span>
+                  <span>{formatFileSize(file.size)}</span>
                   {file.isTruncated
                     ? (
                         <span className="text-yellow-600 dark:text-yellow-400">

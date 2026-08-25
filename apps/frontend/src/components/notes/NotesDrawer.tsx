@@ -1,9 +1,6 @@
 import {
   ArrowLeft,
   Loader2,
-  Maximize2,
-  Minimize2,
-  Minus,
   Pin,
   PinOff,
   Plus,
@@ -11,11 +8,10 @@ import {
   StickyNote,
   Trash2,
   TriangleAlert,
-  X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ResizeHandle } from '@/components/ui/resize-handle'
+import { SidePanel, SidePanelActions, SidePanelButton } from '@/components/ui/side-panel'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useCreateNote, useDeleteNote, useNotes, useUpdateNote } from '@/hooks/use-notes'
 import { cn } from '@/lib/utils'
@@ -112,203 +108,155 @@ export function NotesDrawer() {
   }
 
   return (
-    <>
-      {/* Backdrop overlay — hidden in fullscreen */}
-      {fullscreen ?
-        null :
-          (
-            <div aria-hidden="true" className="fixed inset-0 z-[39] bg-black/20" onClick={close} />
-          )}
-      <div
-        className={`fixed top-0 bottom-0 right-0 z-40 flex flex-col border-l border-border bg-background shadow-2xl ${
-          fullscreen ? 'left-0' : ''
-        }`}
-        style={fullscreen ? undefined : { width }}
-      >
-        {/* Resize handle — hidden in fullscreen and on mobile */}
-        {!fullscreen && (
-          <ResizeHandle
-            width={width}
-            onWidthChange={setWidth}
-            min={NOTES_MIN_WIDTH}
-            max={maxWidth}
-            label={t('notes.resizePanel')}
-          />
-        )}
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-3 py-1.5 border-b border-border shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <StickyNote className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="text-xs font-medium text-muted-foreground truncate">
-              {t('notes.title')}
+    <SidePanel
+      label={t('notes.title')}
+      width={width}
+      onWidthChange={setWidth}
+      minWidth={NOTES_MIN_WIDTH}
+      maxWidth={maxWidth}
+      resizeLabel={t('notes.resizePanel')}
+      fullscreen={fullscreen}
+      onClose={close}
+      title={(
+        <>
+          <StickyNote className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="truncate text-xs font-medium text-muted-foreground">
+            {t('notes.title')}
+          </span>
+          {notes && notes.length > 0 && (
+            <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+              {notes.length}
             </span>
-            {notes && notes.length > 0 && (
-              <span className="text-[10px] text-muted-foreground/60 tabular-nums">
-                {notes.length}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={handleCreate}
-              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              aria-label={t('notes.create')}
-              title={t('notes.create')}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={minimize}
-              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              aria-label={t('notes.minimize')}
-              title={t('notes.minimize')}
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </button>
-            {!isMobile && (
-              <button
-                type="button"
-                onClick={toggleFullscreen}
-                className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                aria-label={t('notes.maximize')}
-                title={isFullscreen ? t('notes.restore') : t('notes.maximize')}
-              >
-                {isFullscreen ?
-                    (
-                      <Minimize2 className="h-3.5 w-3.5" />
-                    ) :
-                    (
-                      <Maximize2 className="h-3.5 w-3.5" />
-                    )}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={close}
-              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
-              aria-label={t('notes.close')}
-              title={t('notes.close')}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="flex flex-1 min-h-0">
-          {/* Note list */}
-          <div
-            className={cn(
-              'shrink-0 border-r border-border flex flex-col',
-              isMobile ? 'flex-1' : 'w-56',
-            )}
-          >
-            {/* Search */}
-            <div className="px-2 py-1.5 border-b border-border/50 shrink-0">
-              <div className="flex items-center gap-1.5 rounded-md bg-muted/40 px-2 py-1">
-                <Search className="h-3 w-3 text-muted-foreground shrink-0" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder={t('notes.searchPlaceholder')}
-                  className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-                />
-              </div>
-            </div>
-
-            {/* List */}
-            <div className="flex-1 overflow-y-auto">
-              {isLoading ?
-                  (
-                    <div className="flex items-center justify-center p-6">
-                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
-                    </div>
-                  ) :
-                isError ?
-                    (
-                      <div className="flex flex-col items-center p-6 text-muted-foreground">
-                        <TriangleAlert className="h-5 w-5 mb-1 opacity-40" />
-                        <p className="text-xs">{t('notes.loadError')}</p>
-                      </div>
-                    ) :
-                  filteredNotes.length > 0 ?
-                      (
-                        <>
-                          {pinnedNotes.length > 0 && (
-                            <>
-                              <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider px-3 pt-2 pb-0.5">
-                                {t('notes.pinned')}
-                              </p>
-                              {pinnedNotes.map(note => (
-                                <NoteListItem
-                                  key={note.id}
-                                  note={note}
-                                  isActive={note.id === selectedNoteId}
-                                  onClick={() => selectNote(note.id)}
-                                  onDelete={() => handleDelete(note.id)}
-                                  onPin={() => handlePin(note.id, false)}
-                                />
-                              ))}
-                            </>
-                          )}
-                          {unpinnedNotes.length > 0 && (
-                            <>
-                              {pinnedNotes.length > 0 && (
-                                <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider px-3 pt-2 pb-0.5">
-                                  {t('notes.other')}
-                                </p>
-                              )}
-                              {unpinnedNotes.map(note => (
-                                <NoteListItem
-                                  key={note.id}
-                                  note={note}
-                                  isActive={note.id === selectedNoteId}
-                                  onClick={() => selectNote(note.id)}
-                                  onDelete={() => handleDelete(note.id)}
-                                  onPin={() => handlePin(note.id, true)}
-                                />
-                              ))}
-                            </>
-                          )}
-                        </>
-                      ) :
-                      (
-                        <div className="flex flex-col items-center justify-center p-6 text-muted-foreground">
-                          <StickyNote className="h-8 w-8 mb-2 opacity-20" />
-                          <p className="text-xs">{t('notes.empty')}</p>
-                        </div>
-                      )}
-            </div>
-          </div>
-
-          {/* Editor — hidden on mobile (mobile uses fullscreen editor above) */}
-          {!isMobile && (
-            <div className="flex-1 min-w-0 flex flex-col">
-              {selectedNote ?
-                  (
-                    <NoteEditor
-                      key={selectedNote.id}
-                      note={selectedNote}
-                      onUpdate={updateNote.mutate}
-                      onPin={() => handlePin(selectedNote.id, !selectedNote.isPinned)}
-                      onDelete={() => handleDelete(selectedNote.id)}
-                    />
-                  ) :
-                  (
-                    <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
-                      <StickyNote className="h-8 w-8 opacity-20" />
-                      <p className="text-sm">{t('notes.selectOrCreate')}</p>
-                    </div>
-                  )}
-            </div>
           )}
+        </>
+      )}
+      actions={(
+        <div className="flex items-center gap-1">
+          <SidePanelButton icon={Plus} label={t('notes.create')} onClick={handleCreate} />
+          <SidePanelActions
+            onMinimize={minimize}
+            minimizeLabel={t('notes.minimize')}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={isMobile ? undefined : toggleFullscreen}
+            fullscreenLabel={t('notes.maximize')}
+            restoreLabel={t('notes.restore')}
+            onClose={close}
+            closeLabel={t('notes.close')}
+          />
         </div>
+      )}
+    >
+      {/* Body */}
+      <div className="flex flex-1 min-h-0">
+        {/* Note list */}
+        <div
+          className={cn(
+            'shrink-0 border-r border-border flex flex-col',
+            isMobile ? 'flex-1' : 'w-56',
+          )}
+        >
+          {/* Search */}
+          <div className="px-2 py-1.5 border-b border-border/50 shrink-0">
+            <div className="flex items-center gap-1.5 rounded-md bg-muted/40 px-2 py-1">
+              <Search className="h-3 w-3 text-muted-foreground shrink-0" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder={t('notes.searchPlaceholder')}
+                className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+          </div>
+
+          {/* List */}
+          <div className="flex-1 overflow-y-auto">
+            {isLoading ?
+                (
+                  <div className="flex items-center justify-center p-6">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
+                  </div>
+                ) :
+              isError ?
+                  (
+                    <div className="flex flex-col items-center p-6 text-muted-foreground">
+                      <TriangleAlert className="h-5 w-5 mb-1 opacity-40" />
+                      <p className="text-xs">{t('notes.loadError')}</p>
+                    </div>
+                  ) :
+                filteredNotes.length > 0 ?
+                    (
+                      <>
+                        {pinnedNotes.length > 0 && (
+                          <>
+                            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider px-3 pt-2 pb-0.5">
+                              {t('notes.pinned')}
+                            </p>
+                            {pinnedNotes.map(note => (
+                              <NoteListItem
+                                key={note.id}
+                                note={note}
+                                isActive={note.id === selectedNoteId}
+                                onClick={() => selectNote(note.id)}
+                                onDelete={() => handleDelete(note.id)}
+                                onPin={() => handlePin(note.id, false)}
+                              />
+                            ))}
+                          </>
+                        )}
+                        {unpinnedNotes.length > 0 && (
+                          <>
+                            {pinnedNotes.length > 0 && (
+                              <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider px-3 pt-2 pb-0.5">
+                                {t('notes.other')}
+                              </p>
+                            )}
+                            {unpinnedNotes.map(note => (
+                              <NoteListItem
+                                key={note.id}
+                                note={note}
+                                isActive={note.id === selectedNoteId}
+                                onClick={() => selectNote(note.id)}
+                                onDelete={() => handleDelete(note.id)}
+                                onPin={() => handlePin(note.id, true)}
+                              />
+                            ))}
+                          </>
+                        )}
+                      </>
+                    ) :
+                    (
+                      <div className="flex flex-col items-center justify-center p-6 text-muted-foreground">
+                        <StickyNote className="h-8 w-8 mb-2 opacity-20" />
+                        <p className="text-xs">{t('notes.empty')}</p>
+                      </div>
+                    )}
+          </div>
+        </div>
+
+        {/* Editor — hidden on mobile (mobile uses fullscreen editor above) */}
+        {!isMobile && (
+          <div className="flex-1 min-w-0 flex flex-col">
+            {selectedNote ?
+                (
+                  <NoteEditor
+                    key={selectedNote.id}
+                    note={selectedNote}
+                    onUpdate={updateNote.mutate}
+                    onPin={() => handlePin(selectedNote.id, !selectedNote.isPinned)}
+                    onDelete={() => handleDelete(selectedNote.id)}
+                  />
+                ) :
+                (
+                  <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                    <StickyNote className="h-8 w-8 opacity-20" />
+                    <p className="text-sm">{t('notes.selectOrCreate')}</p>
+                  </div>
+                )}
+          </div>
+        )}
       </div>
-    </>
+    </SidePanel>
   )
 }
 
