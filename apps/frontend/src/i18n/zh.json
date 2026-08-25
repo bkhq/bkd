@@ -289,7 +289,12 @@
     "truncated": "仅显示最近 {{count}} 个会话，缩小搜索范围可查看其他会话。",
     "detail": {
       "entries": "共 {{count}} 条记录",
-      "truncated": "仅显示最近 {{shown}} 条，共 {{total}} 条。"
+      "truncated": "仅显示最近 {{shown}} 条，共 {{total}} 条。",
+      "ariaLabel": "会话记录",
+      "resize": "调整记录面板宽度",
+      "maximize": "最大化",
+      "restore": "还原",
+      "close": "关闭"
     },
     "import": {
       "title": "导入会话为 issue",

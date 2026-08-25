@@ -290,7 +290,12 @@
     "truncated": "Showing the {{count}} most recent sessions. Narrow the search to see others.",
     "detail": {
       "entries": "{{count}} entries",
-      "truncated": "Showing the most recent {{shown}} of {{total}} entries."
+      "truncated": "Showing the most recent {{shown}} of {{total}} entries.",
+      "ariaLabel": "Session transcript",
+      "resize": "Resize transcript panel",
+      "maximize": "Maximize",
+      "restore": "Restore",
+      "close": "Close"
     },
     "import": {
       "title": "Import session as issue",

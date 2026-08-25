@@ -1,5 +1,5 @@
 import type { LocalSession } from '@bkd/shared'
-import { AlertTriangle, FolderGit2, Loader2, Search } from 'lucide-react'
+import { AlertTriangle, FolderGit2, Loader2, Maximize2, Minimize2, Search, X } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
@@ -25,16 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { useImportSession, useLocalSession, useLocalSessions, useProjects } from '@/hooks/use-kanban'
+import { useIsMobile } from '@/hooks/use-mobile'
+import {
+  SESSION_PANEL_MAX_WIDTH_RATIO,
+  SESSION_PANEL_MIN_WIDTH,
+  useSessionPanelStore,
+} from '@/stores/session-panel-store'
 
 const PAGE_SIZE = 100
 /** Entries pulled for the detail view — the tail of the transcript. */
@@ -244,11 +242,63 @@ function SessionRow({
   )
 }
 
+/** Drag handle on the drawer's left edge — same interaction as the kanban issue panel. */
+function ResizeHandle() {
+  const { t } = useTranslation()
+  const width = useSessionPanelStore(s => s.width)
+  const setWidth = useSessionPanelStore(s => s.setWidth)
+  const dragRef = useRef<{ startX: number, startWidth: number } | null>(null)
+
+  const maxWidth = Math.round(
+    (typeof window === 'undefined' ? 1024 : window.innerWidth) * SESSION_PANEL_MAX_WIDTH_RATIO,
+  )
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={t('sessions.detail.resize')}
+      aria-valuenow={width}
+      aria-valuemin={SESSION_PANEL_MIN_WIDTH}
+      aria-valuemax={maxWidth}
+      tabIndex={0}
+      className="absolute inset-y-0 left-0 z-10 w-2 -translate-x-1/2 cursor-col-resize select-none outline-none group"
+      onPointerDown={(e) => {
+        if (e.button !== 0) return
+        e.preventDefault()
+        e.currentTarget.setPointerCapture(e.pointerId)
+        dragRef.current = { startX: e.clientX, startWidth: width }
+      }}
+      onPointerMove={(e) => {
+        if (!dragRef.current) return
+        setWidth(dragRef.current.startWidth + (dragRef.current.startX - e.clientX))
+      }}
+      onPointerUp={() => {
+        dragRef.current = null
+      }}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 50 : 10
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault()
+          setWidth(width + step)
+        }
+        if (e.key === 'ArrowRight') {
+          e.preventDefault()
+          setWidth(width - step)
+        }
+      }}
+    >
+      <div className="absolute inset-y-0 left-1/2 w-1 -translate-x-1/2 rounded-full bg-primary/50 opacity-0 transition-opacity group-hover:opacity-100 group-active:bg-primary group-active:opacity-100" />
+    </div>
+  )
+}
+
 /**
  * Parsed transcript for one session, rendered with the same chat components as
  * the issue detail page so tool calls and subagent threads look identical.
+ * Presented as a drag-resizable right drawer, like the kanban issue panel.
  */
-function SessionDetailSheet({
+function SessionDetailDrawer({
   session,
   onClose,
   onImport,
@@ -259,27 +309,76 @@ function SessionDetailSheet({
 }) {
   const { t } = useTranslation()
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const width = useSessionPanelStore(s => s.width)
+  const isFullscreen = useSessionPanelStore(s => s.isFullscreen)
+  const toggleFullscreen = useSessionPanelStore(s => s.toggleFullscreen)
+  const isMobile = useIsMobile()
+
   const { data, isLoading } = useLocalSession(
     session?.engine ?? null,
     session?.sessionId ?? null,
     { limit: PREVIEW_ENTRIES },
   )
 
+  if (!session) return null
+
+  const fullscreen = isMobile || isFullscreen
   const shown = data?.entries.length ?? 0
-  const truncated = (data?.totalEntries ?? 0) > shown
+  const total = data?.totalEntries ?? 0
 
   return (
-    <Sheet open={!!session} onOpenChange={open => !open && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-3xl">
-        <SheetHeader className="border-b">
-          <SheetTitle className="truncate">
-            {session?.title || session?.sessionId}
-          </SheetTitle>
-          <SheetDescription className="font-mono text-[11px]">
-            {session?.sessionId}
-          </SheetDescription>
-          {session ? <SessionMeta session={session} /> : null}
-        </SheetHeader>
+    <>
+      {fullscreen
+        ? null
+        : <div className="fixed inset-0 z-[39] bg-black/20" onClick={onClose} />}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('sessions.detail.ariaLabel')}
+        className={`fixed inset-y-0 right-0 z-40 flex flex-col border-l border-border bg-background shadow-2xl ${
+          fullscreen ? 'left-0' : ''
+        }`}
+        style={fullscreen ? undefined : { width }}
+      >
+        {fullscreen ? null : <ResizeHandle />}
+
+        <div className="flex items-start gap-2 border-b border-border px-4 py-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">{session.engine}</Badge>
+              <h2 className="truncate text-sm font-medium">
+                {session.title || session.sessionId}
+              </h2>
+            </div>
+            <SessionMeta session={session} />
+          </div>
+          {isMobile
+            ? null
+            : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={toggleFullscreen}
+                  aria-label={isFullscreen ? t('sessions.detail.restore') : t('sessions.detail.maximize')}
+                  title={isFullscreen ? t('sessions.detail.restore') : t('sessions.detail.maximize')}
+                >
+                  {isFullscreen
+                    ? <Minimize2 className="h-3.5 w-3.5" />
+                    : <Maximize2 className="h-3.5 w-3.5" />}
+                </Button>
+              )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={onClose}
+            aria-label={t('sessions.detail.close')}
+            title={t('sessions.detail.close')}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
           {isLoading
@@ -289,31 +388,26 @@ function SessionDetailSheet({
                 </div>
               )
             : null}
-          {truncated
+          {total > shown
             ? (
                 <p className="pb-2 text-center text-xs text-muted-foreground">
-                  {t('sessions.detail.truncated', { shown, total: data?.totalEntries ?? 0 })}
+                  {t('sessions.detail.truncated', { shown, total })}
                 </p>
               )
             : null}
           {data ? <SessionMessages logs={data.entries} scrollRef={scrollRef} /> : null}
         </div>
 
-        <SheetFooter className="flex-row justify-between border-t">
+        <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
           <span className="text-xs text-muted-foreground">
-            {t('sessions.detail.entries', { count: data?.totalEntries ?? 0 })}
+            {t('sessions.detail.entries', { count: total })}
           </span>
-          <Button
-            size="sm"
-            onClick={() => {
-              if (session) onImport(session)
-            }}
-          >
+          <Button size="sm" onClick={() => onImport(session)}>
             {t('sessions.importAction')}
           </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -405,7 +499,7 @@ export default function LocalSessionsPage() {
           : null}
       </section>
 
-      <SessionDetailSheet
+      <SessionDetailDrawer
         session={detailTarget}
         onClose={() => setDetailTarget(null)}
         onImport={setImportTarget}

@@ -112,10 +112,36 @@ describe('local sessions page', () => {
     fireEvent.click(screen.getByRole('button', { name: /ship the login page/ }))
 
     expect(mocks.readSession).toHaveBeenCalledWith('claude-code', 'session-matched')
-    const detail = screen.getByRole('dialog')
+    const detail = screen.getByRole('dialog', { name: 'Session transcript' })
     expect(within(detail).getByTestId('transcript')).toBeInTheDocument()
     expect(within(detail).getByText('on it')).toBeInTheDocument()
     expect(within(detail).getByText('/app/demo')).toBeInTheDocument()
+  })
+
+  it('resizes the transcript drawer from the drag handle', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /ship the login page/ }))
+
+    const detail = screen.getByRole('dialog', { name: 'Session transcript' })
+    const handle = within(detail).getByRole('separator')
+    const before = Number.parseInt(detail.style.width, 10)
+
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+    expect(Number.parseInt(detail.style.width, 10)).toBe(before + 10)
+
+    fireEvent.keyDown(handle, { key: 'ArrowRight', shiftKey: true })
+    expect(Number.parseInt(detail.style.width, 10)).toBe(before - 40)
+  })
+
+  it('expands the transcript drawer to fullscreen', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /ship the login page/ }))
+
+    const detail = screen.getByRole('dialog', { name: 'Session transcript' })
+    fireEvent.click(within(detail).getByRole('button', { name: 'Maximize' }))
+
+    expect(detail.style.width).toBe('')
+    expect(within(detail).queryByRole('separator')).not.toBeInTheDocument()
   })
 
   it('imports a cwd-matching session without extra confirmation', () => {
