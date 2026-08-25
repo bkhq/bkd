@@ -109,8 +109,10 @@ interface ExtractedImage {
   src: string
 }
 
-/** Pull renderable image references out of the content; returns the images and
- * the remaining text (with those image markdowns removed). */
+/**
+ * Pull renderable image references out of the content; returns the images and
+ * the remaining text (with those image markdowns removed).
+ */
 function splitImages(content: string): { images: ExtractedImage[], text: string } {
   const images: ExtractedImage[] = []
   const text = content.replace(IMAGE_MD_RE, (_m, alt: string, src: string) => {
