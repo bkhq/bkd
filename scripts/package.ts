@@ -13,7 +13,7 @@
  *   bun scripts/package.ts
  *   bun scripts/package.ts --version 0.0.6
  *   bun scripts/package.ts --skip-frontend
- *   bun scripts/package.ts --outfile bkd-app-v0.0.6.tar.gz
+ *   bun scripts/package.ts --outfile bkd-server.tar.gz
  */
 import { cpSync, existsSync, mkdirSync, renameSync, rmSync, unlinkSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -75,8 +75,10 @@ const gitCommit = Bun.spawnSync(['git', 'rev-parse', '--short', 'HEAD'], {
 const commit = gitCommit.stdout.toString().trim() || 'unknown'
 step(`Version: ${version} (${commit})`)
 
-// Default output file name
-const defaultOutfile = version !== 'dev' ? `bkd-app-v${version}.tar.gz` : 'bkd-app.tar.gz'
+// Default output file name. Fixed and version-free: lode selects a release asset by
+// exact filename, and the `bkd-app` prefix is avoided so pre-lode installs (which match
+// on it) never mistake this package for an update they can apply. See docs/deployment.md.
+const defaultOutfile = 'bkd-server.tar.gz'
 mkdirSync(OUT_DIR, { recursive: true })
 const outfile = resolve(OUT_DIR, args.outfile ?? defaultOutfile)
 
@@ -205,7 +207,7 @@ const archiveData = await Bun.file(outfile).arrayBuffer()
 hasher.update(new Uint8Array(archiveData))
 const sha256 = hasher.digest('hex')
 const checksumFile = resolve(OUT_DIR, 'checksums.txt')
-const archiveName = outfile.split('/').pop() ?? 'bkd-app.tar.gz'
+const archiveName = outfile.split('/').pop() ?? defaultOutfile
 const entry = `${sha256}  ${archiveName}\n`
 const existing = existsSync(checksumFile) ? await Bun.file(checksumFile).text() : ''
 await atomicWrite(checksumFile, existing + entry)
