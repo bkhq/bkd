@@ -4,6 +4,8 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  # Called by release.yml so a tag cannot be published from an unchecked tree
+  workflow_call:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

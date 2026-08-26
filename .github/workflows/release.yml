@@ -36,10 +36,16 @@ jobs:
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
+  # The full check matrix, defined once in ci.yml. A tag push does not trigger
+  # ci.yml on its own, so without this a release could ship an unchecked tree.
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
   package:
     name: Build app package
-    needs: validate
-    if: ${{ !cancelled() && (needs.validate.result == 'success' || needs.validate.result == 'skipped') }}
+    needs: [validate, ci]
+    if: ${{ !cancelled() && needs.ci.result == 'success' && (needs.validate.result == 'success' || needs.validate.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
