@@ -1,9 +1,11 @@
 # BKD under lode — ready-to-use config.
 #
-# Published with every release. Download it, change the two paths marked below,
-# and start BKD with `lode --dir <that path>`. Full guide: docs/deployment.md.
+# Served from the repository rather than shipped per release: it carries no
+# version, so a correction here reaches operators immediately. Download it,
+# change the paths marked below, and start BKD with `lode --dir <that path>`.
+# Full guide: docs/deployment.md.
 #
-#   curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/bkd.lode.toml \
+#   curl -fsSL https://raw.githubusercontent.com/bkhq/bkd/main/docs/bkd.lode.toml \
 #     -o /opt/bkd/lode.toml
 #
 # This file is operator-owned: BKD reads it but never writes it.

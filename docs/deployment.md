@@ -32,7 +32,7 @@ curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64
 sudo mkdir -p /opt/bkd && sudo chown "$(id -un)" /opt/bkd
 
 # 3. the ready-to-use config — edit the paths marked CHANGE ME (default /opt/bkd)
-curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/bkd.lode.toml \
+curl -fsSL https://raw.githubusercontent.com/bkhq/bkd/main/docs/bkd.lode.toml \
   -o /opt/bkd/lode.toml
 
 # 4. run — lode installs the current release and supervises it
@@ -48,10 +48,13 @@ Release assets:
 | Asset | What it is |
 |---|---|
 | `bkd-server.tar.gz` | the application — the value of `[update].asset` |
-| `bkd.lode.toml` | ready-to-use lode config (the file this guide describes) |
 | `DEPLOYMENT.md` | this guide |
 | `migrate-to-lode.ts` | migration script for launcher installs |
 | `checksums.txt` | sha256 of the package |
+
+The ready-to-use config this guide describes is not a release asset — it lives in
+the repository at [`docs/bkd.lode.toml`](bkd.lode.toml), so a correction reaches
+operators without waiting for a release.
 
 The sections below explain each part of that config.
 
@@ -237,7 +240,7 @@ bun migrate-to-lode.ts --root /opt/bkd --apply --prune
 ```
 
 The script needs `bun` on `PATH`. If the host has none (the old launcher embedded its
-own), skip it: download `bkd.lode.toml` instead, set `[global].dir` and `[env].ROOT_DIR`
+own), skip it: download [`bkd.lode.toml`](bkd.lode.toml) instead, set `[global].dir` and `[env].ROOT_DIR`
 to your existing install root, and start lode — that is all the script does, minus packing
 the old version for rollback.
 

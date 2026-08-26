@@ -47,7 +47,7 @@ curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64
 sudo mkdir -p /opt/bkd && sudo chown "$(id -un)" /opt/bkd
 
 # 3. the ready-to-use config — edit the paths marked CHANGE ME (default /opt/bkd)
-curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/bkd.lode.toml \
+curl -fsSL https://raw.githubusercontent.com/bkhq/bkd/main/docs/bkd.lode.toml \
   -o /opt/bkd/lode.toml
 
 # 4. run — lode installs the current release and supervises it

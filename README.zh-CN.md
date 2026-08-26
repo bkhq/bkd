@@ -45,7 +45,7 @@ curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64
 sudo mkdir -p /opt/bkd && sudo chown "$(id -un)" /opt/bkd
 
 # 3. 开箱即用的配置——修改标注 CHANGE ME 的路径（默认 /opt/bkd）
-curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/bkd.lode.toml \
+curl -fsSL https://raw.githubusercontent.com/bkhq/bkd/main/docs/bkd.lode.toml \
   -o /opt/bkd/lode.toml
 
 # 4. 运行——lode 会安装当前版本并接管进程

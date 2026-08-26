@@ -84,11 +84,12 @@ jobs:
           ls -lh dist/bkd-server.tar.gz && cat dist/checksums.txt
 
       # Operators install from the release page without a repo checkout, so the
-      # ready-to-use config, the guide and the migration script ship with it.
+      # guide and the migration script ship with it. The lode config does not:
+      # it carries no version, so it is served from the repository and a fix
+      # reaches operators without waiting for a release.
       - name: Collect operator files
         run: |
           set -euo pipefail
-          cp docs/bkd.lode.toml dist/bkd.lode.toml
           cp docs/deployment.md dist/DEPLOYMENT.md
           cp scripts/migrate-to-lode.ts dist/migrate-to-lode.ts
 
@@ -98,7 +99,6 @@ jobs:
           path: |
             dist/bkd-server.tar.gz
             dist/checksums.txt
-            dist/bkd.lode.toml
             dist/DEPLOYMENT.md
             dist/migrate-to-lode.ts
           retention-days: 7
@@ -126,7 +126,6 @@ jobs:
           set -euo pipefail
           mkdir -p release/
           cp artifacts/bkd-package/bkd-server.tar.gz release/
-          cp artifacts/bkd-package/bkd.lode.toml release/
           cp artifacts/bkd-package/DEPLOYMENT.md release/
           cp artifacts/bkd-package/migrate-to-lode.ts release/
           cat artifacts/*/checksums.txt > release/checksums.txt
@@ -156,7 +155,7 @@ jobs:
             | sudo tar -xz -C /usr/local/bin lode lode-cli
           # an install root you own — BKD spawns coding agents, so it should not run as root
           sudo mkdir -p /opt/bkd && sudo chown "$(id -un)" /opt/bkd
-          curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/bkd.lode.toml -o /opt/bkd/lode.toml
+          curl -fsSL https://raw.githubusercontent.com/bkhq/bkd/main/docs/bkd.lode.toml -o /opt/bkd/lode.toml
           # edit the paths marked CHANGE ME, then:
           lode --dir /opt/bkd
           ```
@@ -172,7 +171,6 @@ jobs:
           | Asset | What it is |
           |---|---|
           | `bkd-server.tar.gz` | the application — configure as `[update].asset` |
-          | `bkd.lode.toml` | ready-to-use lode config |
           | `DEPLOYMENT.md` | full deployment + migration guide |
           | `migrate-to-lode.ts` | migration script for launcher installs |
           | `checksums.txt` | sha256 of the package |
@@ -212,7 +210,6 @@ jobs:
           done
           gh release upload "${VERSION}" \
             release/checksums.txt \
-            release/bkd.lode.toml \
             release/DEPLOYMENT.md \
             release/migrate-to-lode.ts \
             --repo "${GITHUB_REPOSITORY}" --clobber
