@@ -152,11 +152,12 @@ jobs:
           verifies, launches and updates it.
 
           ```bash
-          mkdir -p /opt/bkd
           curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64.tar.gz \
             | sudo tar -xz -C /usr/local/bin lode lode-cli
+          # an install root you own — BKD spawns coding agents, so it should not run as root
+          sudo mkdir -p /opt/bkd && sudo chown "$(id -un)" /opt/bkd
           curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/bkd.lode.toml -o /opt/bkd/lode.toml
-          # edit the two paths marked CHANGE ME, then:
+          # edit the paths marked CHANGE ME, then:
           lode --dir /opt/bkd
           ```
 

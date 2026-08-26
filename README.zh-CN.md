@@ -35,21 +35,25 @@ BKD 运行在 [lode](https://github.com/dotns/lode) supervisor 之下。lode 负
 > 发布包都经过 sha256 校验。lode 同时支持 ed25519 asset 签名校验，但 BKD 目前尚未签名。
 
 ```bash
-sudo mkdir -p /opt/bkd
-
-# 1. 安装 lode
+# 1. 安装 lode——arm64 或 macOS 换成对应的 asset
+#    （lode-linux-arm64 / lode-darwin-x64 / lode-darwin-arm64）
 curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64.tar.gz \
   | sudo tar -xz -C /usr/local/bin lode lode-cli
 
-# 2. 开箱即用的配置——修改标注 CHANGE ME 的路径（默认 /opt/bkd）
+# 2. 准备一个自己有写权限的安装根目录——BKD 会在你的工作区里拉起编程代理，
+#    不应该以 root 运行
+sudo mkdir -p /opt/bkd && sudo chown "$(id -un)" /opt/bkd
+
+# 3. 开箱即用的配置——修改标注 CHANGE ME 的路径（默认 /opt/bkd）
 curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/bkd.lode.toml \
   -o /opt/bkd/lode.toml
 
-# 3. 运行——lode 会安装当前版本并接管进程
+# 4. 运行——lode 会安装当前版本并接管进程
 lode --dir /opt/bkd
 ```
 
-启动后访问 http://localhost:3000。
+启动后访问 http://localhost:3000。arm64 或 macOS 还需要改 `lode.toml` 里
+`[runtime].download` 的 bun 下载地址——那是第三处 `CHANGE ME`。
 
 > **已经在用 `bkd-launcher-*` 安装？** 它不会更新到当前版本。发布包已从 `bkd-app*.tar.gz`
 > 改名为 `bkd-server.tar.gz`，旧 launcher 找不到匹配的 asset，会一直停留在原有版本。请显式

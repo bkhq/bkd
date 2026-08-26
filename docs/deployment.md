@@ -22,17 +22,20 @@ there is no Windows build.
 Every release ships the operator files, so no repo checkout is needed:
 
 ```bash
-sudo mkdir -p /opt/bkd
-
-# 1. lode itself
+# 1. lode itself — on arm64 or macOS swap in the matching asset
+#    (lode-linux-arm64 / lode-darwin-x64 / lode-darwin-arm64)
 curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64.tar.gz \
   | sudo tar -xz -C /usr/local/bin lode lode-cli
 
-# 2. the ready-to-use config — edit the paths marked CHANGE ME (default /opt/bkd)
+# 2. an install root you own — lode writes state.json, versions/, runtime/ and
+#    BKD's data/ here, and BKD spawns coding agents, so it should not run as root
+sudo mkdir -p /opt/bkd && sudo chown "$(id -un)" /opt/bkd
+
+# 3. the ready-to-use config — edit the paths marked CHANGE ME (default /opt/bkd)
 curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/bkd.lode.toml \
   -o /opt/bkd/lode.toml
 
-# 3. run — lode installs the current release and supervises it
+# 4. run — lode installs the current release and supervises it
 lode --dir /opt/bkd
 ```
 
