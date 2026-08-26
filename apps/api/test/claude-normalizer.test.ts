@@ -892,6 +892,25 @@ describe('ClaudeLogNormalizer', () => {
       expect(entries[0]!.content).toBe('Working...')
     })
 
+    // `status` carries the CLI's spinner label as its whole payload. One
+    // `requesting` lands per API request, so a long turn buries the chat in
+    // them — see ENG-033.
+    test('the activity indicator is suppressed', () => {
+      for (const status of ['requesting', 'status']) {
+        expect(normalizer.parse(line({ type: 'system', subtype: 'status', status }))).toBeNull()
+      }
+    })
+
+    test('compacting still surfaces — it explains a long pause', () => {
+      const entries = parseAll(
+        normalizer,
+        line({ type: 'system', subtype: 'status', status: 'compacting' }),
+      )
+      expect(entries).toHaveLength(1)
+      expect(entries[0]!.content).toBe('compacting')
+      expect(entries[0]!.metadata?.subtype).toBe('status')
+    })
+
     test('hook_response with output', () => {
       const entries = parseAll(
         normalizer,

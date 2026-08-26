@@ -28,6 +28,15 @@ import type {
 // Re-export for external consumers
 export { classifyToolAction, extractTextContent } from './normalizer-tool'
 
+/**
+ * `system`/`status` carries the CLI's activity indicator as its entire payload —
+ * the string that drives the spinner label in the interactive TUI. `requesting`
+ * lands once per API request, so a long turn buries the chat in bare
+ * `requesting` lines (57 in one turn on a real issue). `compacting` is kept:
+ * it is the one value that explains a long pause.
+ */
+const SUPPRESSED_STATUS = new Set(['requesting', 'status'])
+
 // ---------- Subagent attribution ----------
 
 /**
@@ -221,7 +230,7 @@ export class ClaudeLogNormalizer {
           },
         }
       case 'status':
-        if (data.status) {
+        if (data.status && !SUPPRESSED_STATUS.has(data.status)) {
           return {
             entryType: 'system-message',
             content: data.status,
