@@ -97,8 +97,8 @@ exec = "bun"                 # `lode <args>` → passthrough, e.g. `lode run ser
 # or install bun yourself and drop this block (a bun on PATH always wins over the cache).
 [runtime]
 runtime  = "bun"
-download = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64.zip"
-version  = "1.3.14"
+download = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.0/bun-linux-x64.zip"
+version  = "1.4.0"
 
 [env]
 ROOT_DIR = "/opt/bkd"     # keeps data/ outside the per-version directory — required
