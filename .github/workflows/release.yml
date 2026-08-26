@@ -74,6 +74,12 @@ jobs:
           set -euo pipefail
           bun install
           VERSION_NUM="${VERSION#v}"
+          # Dry run (workflow_dispatch with no tag): VERSION is the branch name.
+          # `package.ts` takes `dev` for exactly this case.
+          if [[ ! "${VERSION_NUM}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "No release tag — packaging as a dry run"
+            VERSION_NUM=dev
+          fi
           bun scripts/package.ts --version "${VERSION_NUM}" --outfile bkd-server.tar.gz
           ls -lh dist/bkd-server.tar.gz && cat dist/checksums.txt
 
