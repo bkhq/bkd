@@ -17,50 +17,51 @@ BKD 是 CLI 编程代理的统一前端 —— 支持 [Claude Code](https://gith
 - **文件上传** — 上传文件作为代理的上下文
 - **Webhooks** — 可配置的事件通知，支持 Issue 状态变更推送
 - **多轮会话** — 保持完整会话历史，支持连续对话
-- **自动升级** — 自动检查新版本，设置界面一键升级
+- **子 agent 可观测** — Claude 子 agent 的工作嵌套在派发它的工具调用下，带实时进度
+- **会话导入** — 扫描不由 BKD 管理的 Claude Code / Codex 本地会话，可导入为 Issue
+- **定时任务** — Cron 作业，含执行历史和连续失败自动暂停
+- **Git Worktree** — Issue 可在独立 worktree 中执行，多个代理并行互不干扰
+- **进程管理** — 查看并终止所有正在运行的引擎进程
+- **托管更新** — 运行在 lode supervisor 之下：发布包经过校验、重启带健康检查、失败自动回滚
 - **国际化** — 中文 / 英文界面
 - **暗色模式** — 浅色 / 深色 / 跟随系统
 - **移动端适配** — 响应式布局，支持触控
 
 ## 安装
 
-从 [launcher release](https://github.com/bkhq/bkd/releases/tag/launcher-v1) 下载启动器。启动器是一个小型二进制文件（约 90 MB），会自动下载和管理应用更新（每次约 1 MB）：
+BKD 运行在 [lode](https://github.com/dotns/lode) supervisor 之下。lode 负责拉取发布包、校验、
+启动 BKD 并执行后续更新——新版本起不来时会自动回滚。支持 Linux 和 macOS，x64 与 arm64。
 
-**Linux (x64)**
-
-```bash
-curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-linux-x64
-chmod +x bkd-launcher-linux-x64
-./bkd-launcher-linux-x64
-```
-
-**Linux (ARM64)**
+> 发布包都经过 sha256 校验。lode 同时支持 ed25519 asset 签名校验，但 BKD 目前尚未签名。
 
 ```bash
-curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-linux-arm64
-chmod +x bkd-launcher-linux-arm64
-./bkd-launcher-linux-arm64
+sudo mkdir -p /opt/bkd
+
+# 1. 安装 lode
+curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64.tar.gz \
+  | sudo tar -xz -C /usr/local/bin lode lode-cli
+
+# 2. 开箱即用的配置——修改标注 CHANGE ME 的路径（默认 /opt/bkd）
+curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/bkd.lode.toml \
+  -o /opt/bkd/lode.toml
+
+# 3. 运行——lode 会安装当前版本并接管进程
+lode --dir /opt/bkd
 ```
 
-**macOS (Apple Silicon)**
+启动后访问 http://localhost:3000。
 
-```bash
-curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-darwin-arm64
-chmod +x bkd-launcher-darwin-arm64
-./bkd-launcher-darwin-arm64
-```
+> **已经在用 `bkd-launcher-*` 安装？** 它不会更新到当前版本。发布包已从 `bkd-app*.tar.gz`
+> 改名为 `bkd-server.tar.gz`，旧 launcher 找不到匹配的 asset，会一直停留在原有版本。请显式
+> 迁移——数据库、上传文件和 worktree 都保持原位：
+>
+> ```bash
+> curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/migrate-to-lode.ts -o migrate-to-lode.ts
+> bun migrate-to-lode.ts --root /opt/bkd            # 预览
+> bun migrate-to-lode.ts --root /opt/bkd --apply
+> ```
 
-**macOS (Intel)**
-
-```bash
-curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-darwin-x64
-chmod +x bkd-launcher-darwin-x64
-./bkd-launcher-darwin-x64
-```
-
-> **macOS 提示：** 如果 macOS 提示「无法打开，因为无法验证开发者」，请先运行 `xattr -cr <二进制文件>` 移除隔离属性后再执行。
-
-启动器跨版本保持不变，只有轻量级的应用包会被更新。启动后打开 http://localhost:3000。
+完整的 `lode.toml` 参考、签名校验、更新策略和日常运维见 [docs/deployment.md](docs/deployment.md)。
 
 ## 系统要求
 
@@ -126,7 +127,7 @@ npx skills add bkhq/bkd --skill bkd
 | --------------------------- | --------------------------------------------------------- | ---------------- |
 | `PORT`                      | 服务端口                                                  | `3000`           |
 | `HOST`                      | 监听地址                                                  | `0.0.0.0`        |
-| `ROOT_DIR`                  | 工作区根目录                                              | 自动检测         |
+| `ROOT_DIR`                  | 安装根目录——固定 `data/` 位置，使其在升级后保留            | 自动检测         |
 | `DB_PATH`                   | SQLite 数据库路径                                         | `data/db/bkd.db` |
 | `LOG_LEVEL`                 | 日志级别（`trace` / `debug` / `info` / `warn` / `error`） | `info`           |
 | `SERVICE_NAME`              | 日志名称前缀                                              | `bkd`            |

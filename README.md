@@ -17,50 +17,55 @@ BKD is a unified frontend for CLI-based coding agents — [Claude Code](https://
 - **File Upload** — Attach files to issues as context for the agent
 - **Webhooks** — Configurable event notifications for issue status changes
 - **Multi-turn Sessions** — Continue conversations with full session history
-- **Auto-Upgrade** — Automatic version checking and one-click upgrade from the settings UI
+- **Sub-agent Visibility** — Work a Claude sub-agent does is nested under the call that dispatched it, with live progress
+- **Session Import** — Scan Claude Code and Codex sessions run outside BKD and adopt one as an issue
+- **Scheduled Tasks** — Cron jobs with execution history and auto-pause after repeated failures
+- **Git Worktrees** — Run an issue in its own worktree so parallel agents never collide
+- **Process Manager** — See and terminate every running engine process
+- **Supervised Updates** — Runs under the lode supervisor: verified releases, health-checked restarts, automatic rollback
 - **i18n** — Chinese and English UI
 - **Dark Mode** — Light / Dark / System theme
 - **Mobile Friendly** — Responsive layout with touch support
 
 ## Installation
 
-Download the launcher binary from the [launcher release](https://github.com/bkhq/bkd/releases/tag/launcher-v1). The launcher is a small binary (~90 MB) that automatically downloads and manages app updates (~1 MB each):
+BKD runs under the [lode](https://github.com/dotns/lode) supervisor, which fetches a release,
+verifies it, starts BKD, and applies later updates — rolling back automatically if a new
+version fails to come up. Linux and macOS, x64 and arm64.
 
-**Linux (x64)**
-
-```bash
-curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-linux-x64
-chmod +x bkd-launcher-linux-x64
-./bkd-launcher-linux-x64
-```
-
-**Linux (ARM64)**
+> Releases are sha256-verified. lode also checks an ed25519 asset signature when the
+> publisher provides one; BKD releases are not signed yet.
 
 ```bash
-curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-linux-arm64
-chmod +x bkd-launcher-linux-arm64
-./bkd-launcher-linux-arm64
+sudo mkdir -p /opt/bkd
+
+# 1. lode itself
+curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64.tar.gz \
+  | sudo tar -xz -C /usr/local/bin lode lode-cli
+
+# 2. the ready-to-use config — edit the paths marked CHANGE ME (default /opt/bkd)
+curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/bkd.lode.toml \
+  -o /opt/bkd/lode.toml
+
+# 3. run — lode installs the current release and supervises it
+lode --dir /opt/bkd
 ```
 
-**macOS (Apple Silicon)**
+Open http://localhost:3000 once it is up.
 
-```bash
-curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-darwin-arm64
-chmod +x bkd-launcher-darwin-arm64
-./bkd-launcher-darwin-arm64
-```
+> **Already running a `bkd-launcher-*` install?** It will not reach current releases. The
+> package was renamed from `bkd-app*.tar.gz` to `bkd-server.tar.gz`, so the old launcher
+> finds no matching asset and keeps running whatever it has. Migrate deliberately — your
+> database, uploads and worktrees stay where they are:
+>
+> ```bash
+> curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/migrate-to-lode.ts -o migrate-to-lode.ts
+> bun migrate-to-lode.ts --root /opt/bkd            # preview
+> bun migrate-to-lode.ts --root /opt/bkd --apply
+> ```
 
-**macOS (Intel)**
-
-```bash
-curl -LO https://github.com/bkhq/bkd/releases/download/launcher-v1/bkd-launcher-darwin-x64
-chmod +x bkd-launcher-darwin-x64
-./bkd-launcher-darwin-x64
-```
-
-> **macOS note:** If macOS blocks the binary with "cannot be opened because the developer cannot be verified", run `xattr -cr <binary>` to remove the quarantine attribute before executing.
-
-The launcher stays fixed across versions — only the lightweight app package gets updated. Open http://localhost:3000 after starting.
+[docs/deployment.md](docs/deployment.md) is the full guide: `lode.toml` reference, signature
+verification, update policy, and day-to-day operations.
 
 ## System Requirements
 
@@ -126,7 +131,7 @@ All configuration is done via environment variables. Create a `.env` file in the
 | --------------------------- | --------------------------------------------------------- | ---------------- |
 | `PORT`                      | Server port                                               | `3000`           |
 | `HOST`                      | Listen address                                            | `0.0.0.0`        |
-| `ROOT_DIR`                  | Workspace root directory                                  | auto-detected    |
+| `ROOT_DIR`                  | Install root — pins `data/` so it survives an upgrade     | auto-detected    |
 | `DB_PATH`                   | SQLite database path                                      | `data/db/bkd.db` |
 | `LOG_LEVEL`                 | Log level (`trace` / `debug` / `info` / `warn` / `error`) | `info`           |
 | `SERVICE_NAME`              | Logger name prefix                                        | `bkd`            |

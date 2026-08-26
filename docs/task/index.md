@@ -94,3 +94,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**CI-001 Clear the Node 20 deprecation warning in CI**](CI-001.md) `P3`
 - [x] [**CI-002 Make the Typecheck job pass on main**](CI-002.md) `P1`
 - [x] [**CI-003 Gate releases on CI**](CI-003.md) `P1`
+- [x] [**DOC-001 Bring the READMEs back in line with the lode install**](DOC-001.md) `P1`
