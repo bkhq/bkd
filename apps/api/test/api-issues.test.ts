@@ -20,6 +20,9 @@ interface Issue {
   sessionStatus: string | null
   prompt: string | null
   model: string | null
+  totalInputTokens: number
+  totalOutputTokens: number
+  totalCostUsd: string
   createdAt: string
   updatedAt: string
 }

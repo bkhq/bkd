@@ -36,7 +36,7 @@ let issueId: string
 
 beforeAll(() => {
   db.insert(projects)
-    .values({ id: 'ctxproj1', name: 'Ctx Test', alias: 'ctx-test', path: '/tmp' })
+    .values({ id: 'ctxproj1', name: 'Ctx Test', alias: 'ctx-test', directory: '/tmp' })
     .onConflictDoNothing()
     .run()
   issueId = 'ctxiss01'
