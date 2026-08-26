@@ -91,3 +91,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**UI-005 Unify duplicated display formatters**](UI-005.md) `P2`
 - [x] [**UI-006 Extract a shared side panel shell**](UI-006.md) `P2`
 - [x] [**ENG-032 Fix subagent activity never reaching the chat**](ENG-032.md) `P0`
+- [x] [**CI-001 Clear the Node 20 deprecation warning in CI**](CI-001.md) `P3`
