@@ -91,43 +91,6 @@ async function queryClaudeAuthStatus(
 }
 
 /**
- * Detect whether the installed CLI advertises `--forward-subagent-text`,
- * the flag that forwards subagent turns as assistant/user messages carrying
- * `parent_tool_use_id`. Older CLIs abort on an unknown option, so the flag is
- * only passed when the help output lists it.
- */
-export function helpAdvertisesSubagentForwarding(stdout: string): boolean {
-  return stdout.includes('--forward-subagent-text')
-}
-
-/**
- * Memoized per process — `--help` is a local exec and the answer only changes
- * when the CLI is upgraded, which also restarts the server.
- */
-let _subagentForwardingProbe: Promise<boolean> | undefined
-function supportsSubagentForwarding(): Promise<boolean> {
-  _subagentForwardingProbe ??= (async () => {
-    try {
-      const { code, stdout } = await runCommand([resolveBaseCmd(), '--help'], {
-        timeout: 15000,
-        stderr: 'pipe',
-        env: safeEnv({ NPM_CONFIG_LOGLEVEL: 'error' }, 'claude-code'),
-      })
-      const supported = code === 0 && helpAdvertisesSubagentForwarding(stdout)
-      logger.debug({ supported }, 'claude_subagent_forwarding_probe')
-      return supported
-    } catch (error) {
-      logger.debug(
-        { error: error instanceof Error ? error.message : String(error) },
-        'claude_subagent_forwarding_probe_failed',
-      )
-      return false
-    }
-  })()
-  return _subagentForwardingProbe
-}
-
-/**
  * Find the `claude` binary in well-known locations WITHOUT falling back to npx.
  * Used by getAvailability() to determine if the engine is truly installed.
  * Returns null if no binary is found.
@@ -455,10 +418,10 @@ export class ClaudeCodeExecutor implements EngineExecutor {
 
     // Without this, a subagent (Agent/Task tool) is a black box: only the
     // dispatch and its final text reach stdout. With it, the subagent's turns
-    // arrive tagged with parent_tool_use_id. Older CLIs reject the flag.
-    if (await supportsSubagentForwarding()) {
-      builder.param('--forward-subagent-text')
-    }
+    // arrive tagged with parent_tool_use_id. Requires a CLI that supports the
+    // flag (verified on 2.1.231); older ones refuse to start, which is the
+    // intended signal to upgrade.
+    builder.param('--forward-subagent-text')
 
     if (skipPermissions) {
       builder.param('--dangerously-skip-permissions')

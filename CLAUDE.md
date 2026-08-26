@@ -126,7 +126,10 @@ The most complex subsystem — bridges API routes and CLI-based AI agents.
 
 **Engine types and protocols:**
 
-- `claude-code` — `stream-json` protocol (streaming JSON over stdout, process exits after each turn)
+- `claude-code` — `stream-json` protocol (streaming JSON over stdout, process exits after each turn).
+  Requires a CLI new enough to accept `--forward-subagent-text` (verified on 2.1.231); BKD passes it
+  unconditionally so subagent turns reach the chat, and an older CLI fails to start rather than
+  silently hiding subagent activity (ENG-032)
 - `codex` — `json-rpc` protocol (JSONL JSON-RPC over stdio, process **stays alive** between turns)
 
 Each engine has an executor in `executors/<name>/executor.ts` implementing `EngineExecutor` interface: `spawn`, `spawnFollowUp`, `cancel`, `getAvailability`, `getModels`, `normalizeLog`.

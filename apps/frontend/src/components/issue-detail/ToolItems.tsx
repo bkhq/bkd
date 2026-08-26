@@ -398,6 +398,21 @@ function SubagentThreadView({ thread }: { thread: SubagentThread }) {
   )
 }
 
+/** Collapsed-state hint that the row holds a subagent thread. */
+function SubagentSummaryBadge({ thread }: { thread: SubagentThread }) {
+  const { t } = useTranslation()
+
+  return (
+    <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground/70">
+      {thread.status === 'running' ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+      <span className="rounded bg-muted/40 px-1 py-0.5">
+        {t('session.subagent.steps', { count: thread.items.length })}
+      </span>
+      {thread.status ? <span>{t(`session.subagent.${thread.status}`)}</span> : null}
+    </span>
+  )
+}
+
 export function AgentToolItem({ item }: { item: ToolGroupItem }) {
   const input = item.action.metadata?.input as {
     description?: string
@@ -435,6 +450,7 @@ export function AgentToolItem({ item }: { item: ToolGroupItem }) {
               ))}
             </span>
           )}
+          {item.subagent ? <SubagentSummaryBadge thread={item.subagent} /> : null}
         </div>
       )}
     >
@@ -757,7 +773,11 @@ function ToolItemRenderer({ item }: { item: ToolGroupItem }) {
   const { t } = useTranslation()
   const kind = item.action.toolAction?.kind
   const toolName = getItemToolName(item)
-  if (toolName === 'Agent' || kind === 'agent') return <AgentToolItem item={item} />
+  // `item.subagent` also routes here: older CLIs name the tool `Task`, which
+  // classifies as a generic tool and would otherwise drop the thread.
+  if (toolName === 'Agent' || kind === 'agent' || item.subagent) {
+    return <AgentToolItem item={item} />
+  }
   if (kind === 'file-edit' || kind === 'file-read') return <FileToolItem item={item} />
   if (kind === 'command-run') return <CommandToolItem item={item} />
   if (kind === 'search') return <SearchToolItem item={item} />

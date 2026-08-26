@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { ClaudeLogNormalizer } from '@/engines/executors/claude'
-import { helpAdvertisesSubagentForwarding } from '@/engines/executors/claude/executor'
 import type { NormalizedLogEntry } from '@/engines/types'
 import './setup'
 
@@ -225,21 +224,5 @@ describe('subagent lifecycle events', () => {
         tasks: [{ task_id: TASK_ID, task_type: 'local_agent', description: 'x' }],
       }),
     ).toHaveLength(0)
-  })
-})
-
-describe('helpAdvertisesSubagentForwarding', () => {
-  test('detects the flag in CLI help output', () => {
-    const help = [
-      '  --fork-session                        Create a new session ID',
-      '  --forward-subagent-text               Forward subagent text and thinking',
-      '                                        blocks as assistant/user messages',
-    ].join('\n')
-    expect(helpAdvertisesSubagentForwarding(help)).toBe(true)
-  })
-
-  test('is false for a CLI without the flag', () => {
-    expect(helpAdvertisesSubagentForwarding('  --fork-session   Create a new session ID')).toBe(false)
-    expect(helpAdvertisesSubagentForwarding('')).toBe(false)
   })
 })

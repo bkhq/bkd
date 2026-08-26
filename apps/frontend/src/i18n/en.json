@@ -273,6 +273,7 @@
       "running": "running",
       "completed": "completed",
       "failed": "failed",
+      "steps": "{{count}} steps",
       "tools": "{{count}} tools",
       "tokens": "{{count}} tokens",
       "summary": "Summary",
