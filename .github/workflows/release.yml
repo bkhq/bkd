@@ -119,16 +119,24 @@ jobs:
           echo "--- Verifying checksums ---"
           sha256sum -c checksums.txt
 
-      - name: Create release
+      # Publish as a draft and flip it live only once the assets are attached.
+      # A release is `/releases/latest` the moment it is published, so publishing first
+      # exposes a version lode resolves but cannot install ("release X has no assets"),
+      # and lode only clears that error when an update commits — a few seconds of race
+      # leave a red error in the UI for days. Drafts are excluded from `latest`, so the
+      # window closes. A release cut by hand is demoted to draft here for the same reason.
+      - name: Create draft release
         run: |
           set -euo pipefail
           if gh release view "${VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            echo "Release ${VERSION} already exists — reusing it"
+            echo "Release ${VERSION} already exists — hiding it until its assets land"
+            gh release edit "${VERSION}" --repo "${GITHUB_REPOSITORY}" --draft
             exit 0
           fi
           gh release create "${VERSION}" \
             --repo "${GITHUB_REPOSITORY}" \
             --title "${VERSION}" \
+            --draft \
             --generate-notes \
             --notes-file - <<'NOTES'
           ### Install
@@ -201,3 +209,11 @@ jobs:
           done
           gh release upload "${VERSION}" release/checksums.txt \
             --repo "${GITHUB_REPOSITORY}" --clobber
+
+      - name: Publish release
+        run: |
+          set -euo pipefail
+          gh release edit "${VERSION}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --draft=false \
+            --latest
