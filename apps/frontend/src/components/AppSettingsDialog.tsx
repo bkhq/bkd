@@ -1295,8 +1295,16 @@ function UpgradeSection({ open }: { open: boolean }) {
   const restartServer = useRestartServer()
 
   const supervised = status?.supervised ?? false
-  const busy = status?.status === 'updating' || status?.status === 'rolling-back'
+  // `target` is set from the moment we ask until lode consumes the request, so it covers
+  // the seconds before lode's status turns transitional — without it the panel looks idle
+  // while an update is already running.
+  const pending = !!status?.target
+  const busy = pending || status?.status === 'updating' || status?.status === 'rolling-back'
   const canRollback = !!status?.lastGood && status.lastGood !== status.current
+  // lode restarts BKD in place, so a completed update leaves this page on the old build.
+  const servedVersion = versionInfo?.activeVersion ?? versionInfo?.version
+  const staleTab =
+    supervised && !busy && !!status?.current && !!servedVersion && status.current !== servedVersion
 
   const formatTime = (iso: string) => {
     try {
@@ -1354,6 +1362,17 @@ function UpgradeSection({ open }: { open: boolean }) {
               {t('settings.upgradeUpToDate')}
             </div>
           )}
+
+          {staleTab ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+              <CircleAlert className="h-3 w-3 shrink-0" />
+              <span>{t('settings.upgradeReloadHint', { version: status?.current })}</span>
+              <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+                <RefreshCw className="h-3 w-3" />
+                {t('settings.upgradeReload')}
+              </Button>
+            </div>
+          ) : null}
 
           {status?.lastError ? (
             <div className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400">

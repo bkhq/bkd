@@ -109,6 +109,7 @@ describe('upgrade service — supervised', () => {
       hasUpdate: true,
       lastCheck: '2026-08-24T00:00:00.000Z',
       lastError: null,
+      target: null,
     })
     expect(status.history).toHaveLength(1)
   })
@@ -124,6 +125,12 @@ describe('upgrade service — supervised', () => {
 
     expect(status.supervised).toBe(true)
     expect(status.current).toBeNull()
+  })
+
+  it('surfaces a pending request so the UI can poll until lode consumes it', () => {
+    writeState({ current: '0.0.97', available: '0.0.98', status: 'running', target: 'latest' })
+
+    expect(getUpgradeStatus().target).toBe('latest')
   })
 
   it('requests the latest version by default', () => {

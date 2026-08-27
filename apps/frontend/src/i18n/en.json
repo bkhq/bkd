@@ -443,6 +443,8 @@
     "upgradeStatusLabel": "Supervisor status",
     "upgradeUpdate": "Update to latest",
     "upgradeUpdating": "Updating...",
+    "upgradeReload": "Reload",
+    "upgradeReloadHint": "v{{version}} is running — reload to load its interface.",
     "upgradeRollback": "Roll back to v{{version}}",
     "upgradeUnsupervised": "Not running under a supervisor",
     "upgradeUnsupervisedHint": "Updates are installed by lode. See docs/deployment.md to run BKD under it.",

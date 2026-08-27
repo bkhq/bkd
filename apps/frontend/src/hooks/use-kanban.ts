@@ -841,12 +841,18 @@ export function useUpgradeStatus(enabled = false) {
     queryFn: () => kanbanApi.getUpgradeStatus(),
     enabled,
     staleTime: STALE_TIME.FREQUENT,
-    // Poll while lode is mid-transition; it reports status, not progress.
+    // Poll while a request is outstanding or lode is mid-transition. `target` is the
+    // reliable signal: lode picks it up about a second after we write it and clears it
+    // once consumed, whereas the transient status can easily be missed between polls.
     refetchInterval: (query) => {
-      const status = query.state.data?.status
-      return status === 'updating' || status === 'rolling-back' || status === 'starting' ?
-        2000 :
-        false
+      const data = query.state.data
+      const status = data?.status
+      const busy =
+        !!data?.target ||
+        status === 'updating' ||
+        status === 'rolling-back' ||
+        status === 'starting'
+      return busy ? 2000 : false
     },
   })
 }

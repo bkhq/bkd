@@ -442,6 +442,8 @@
     "upgradeStatusLabel": "监管器状态",
     "upgradeUpdate": "更新到最新版本",
     "upgradeUpdating": "更新中...",
+    "upgradeReload": "刷新",
+    "upgradeReloadHint": "v{{version}} 已在运行，刷新页面以加载新界面。",
     "upgradeRollback": "回滚到 v{{version}}",
     "upgradeUnsupervised": "未在监管器下运行",
     "upgradeUnsupervisedHint": "更新由 lode 安装。参见 docs/deployment.md 了解如何在其下运行 BKD。",

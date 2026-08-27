@@ -702,6 +702,8 @@ export interface UpgradeStatus {
   lastGood: string | null
   available: string | null
   hasUpdate: boolean
+  /** The version lode was asked to install, until it consumes the request. */
+  target: string | null
   lastCheck: string | null
   lastError: string | null
   history: UpgradeHistoryEntry[]
