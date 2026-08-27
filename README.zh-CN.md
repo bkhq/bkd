@@ -60,7 +60,7 @@ lode --dir /opt/bkd
 > 迁移——数据库、上传文件和 worktree 都保持原位：
 >
 > ```bash
-> curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/migrate-to-lode.ts -o migrate-to-lode.ts
+> curl -fsSL https://raw.githubusercontent.com/bkhq/bkd/main/scripts/migrate-to-lode.ts -o migrate-to-lode.ts
 > bun migrate-to-lode.ts --root /opt/bkd            # 预览
 > bun migrate-to-lode.ts --root /opt/bkd --apply
 > ```

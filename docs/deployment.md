@@ -48,13 +48,13 @@ Release assets:
 | Asset | What it is |
 |---|---|
 | `bkd-server.tar.gz` | the application — the value of `[update].asset` |
-| `DEPLOYMENT.md` | this guide |
-| `migrate-to-lode.ts` | migration script for launcher installs |
 | `checksums.txt` | sha256 of the package |
 
-The ready-to-use config this guide describes is not a release asset — it lives in
-the repository at [`docs/bkd.lode.toml`](bkd.lode.toml), so a correction reaches
-operators without waiting for a release.
+A release carries only what the build produces. This guide, the config it
+describes ([`docs/bkd.lode.toml`](bkd.lode.toml)) and the migration script
+([`scripts/migrate-to-lode.ts`](../scripts/migrate-to-lode.ts)) live in the
+repository instead, so a correction reaches operators without waiting for a
+release.
 
 The sections below explain each part of that config.
 
@@ -225,8 +225,8 @@ Installs created by the old `bkd-launcher-*` binary keep everything under one ro
 never moves**.
 
 ```bash
-# The script ships as a release asset; from a repo checkout use scripts/migrate-to-lode.ts.
-curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/migrate-to-lode.ts \
+# From a repo checkout use scripts/migrate-to-lode.ts directly.
+curl -fsSL https://raw.githubusercontent.com/bkhq/bkd/main/scripts/migrate-to-lode.ts \
   -o migrate-to-lode.ts
 
 # 1. Preview (writes nothing)

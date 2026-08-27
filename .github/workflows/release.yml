@@ -83,24 +83,12 @@ jobs:
           bun scripts/package.ts --version "${VERSION_NUM}" --outfile bkd-server.tar.gz
           ls -lh dist/bkd-server.tar.gz && cat dist/checksums.txt
 
-      # Operators install from the release page without a repo checkout, so the
-      # guide and the migration script ship with it. The lode config does not:
-      # it carries no version, so it is served from the repository and a fix
-      # reaches operators without waiting for a release.
-      - name: Collect operator files
-        run: |
-          set -euo pipefail
-          cp docs/deployment.md dist/DEPLOYMENT.md
-          cp scripts/migrate-to-lode.ts dist/migrate-to-lode.ts
-
       - uses: actions/upload-artifact@v7
         with:
           name: bkd-package
           path: |
             dist/bkd-server.tar.gz
             dist/checksums.txt
-            dist/DEPLOYMENT.md
-            dist/migrate-to-lode.ts
           retention-days: 7
 
   release:
@@ -126,8 +114,6 @@ jobs:
           set -euo pipefail
           mkdir -p release/
           cp artifacts/bkd-package/bkd-server.tar.gz release/
-          cp artifacts/bkd-package/DEPLOYMENT.md release/
-          cp artifacts/bkd-package/migrate-to-lode.ts release/
           cat artifacts/*/checksums.txt > release/checksums.txt
           cd release
           echo "--- Verifying checksums ---"
@@ -163,7 +149,7 @@ jobs:
           Upgrading from a `bkd-launcher-*` install (keeps your database, uploads and worktrees):
 
           ```bash
-          curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/migrate-to-lode.ts -o migrate-to-lode.ts
+          curl -fsSL https://raw.githubusercontent.com/bkhq/bkd/main/scripts/migrate-to-lode.ts -o migrate-to-lode.ts
           bun migrate-to-lode.ts --root /opt/bkd            # preview
           bun migrate-to-lode.ts --root /opt/bkd --apply
           ```
@@ -171,9 +157,14 @@ jobs:
           | Asset | What it is |
           |---|---|
           | `bkd-server.tar.gz` | the application — configure as `[update].asset` |
-          | `DEPLOYMENT.md` | full deployment + migration guide |
-          | `migrate-to-lode.ts` | migration script for launcher installs |
           | `checksums.txt` | sha256 of the package |
+
+          The lode config, the deployment guide and the migration script are served from the
+          repository rather than published per release — they carry no version, so a correction
+          reaches you without waiting for the next one:
+          [`docs/bkd.lode.toml`](https://github.com/bkhq/bkd/blob/main/docs/bkd.lode.toml),
+          [`docs/deployment.md`](https://github.com/bkhq/bkd/blob/main/docs/deployment.md),
+          [`scripts/migrate-to-lode.ts`](https://github.com/bkhq/bkd/blob/main/scripts/migrate-to-lode.ts).
 
           **Pre-lode installs do not auto-update to this release.** The package was renamed
           from `bkd-app*.tar.gz`, so older BKD versions and the old launcher find no matching
@@ -208,8 +199,5 @@ jobs:
               echo "::warning::LODE_SIGNING_KEY not set — $(basename "$f") uploaded UNSIGNED"
             fi
           done
-          gh release upload "${VERSION}" \
-            release/checksums.txt \
-            release/DEPLOYMENT.md \
-            release/migrate-to-lode.ts \
+          gh release upload "${VERSION}" release/checksums.txt \
             --repo "${GITHUB_REPOSITORY}" --clobber

@@ -97,3 +97,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**DOC-001 Bring the READMEs back in line with the lode install**](DOC-001.md) `P1`
 - [x] [**DOC-002 Serve lode.toml from the repository instead of every release**](DOC-002.md) `P3`
 - [x] [**ENG-033 Stop rendering the CLI activity indicator as chat messages**](ENG-033.md) `P2`
+- [x] [**DOC-003 Drop the remaining doc assets from releases**](DOC-003.md) `P3`

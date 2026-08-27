@@ -63,7 +63,7 @@ Open http://localhost:3000 once it is up. On arm64 or macOS also update the
 > database, uploads and worktrees stay where they are:
 >
 > ```bash
-> curl -fsSL https://github.com/bkhq/bkd/releases/latest/download/migrate-to-lode.ts -o migrate-to-lode.ts
+> curl -fsSL https://raw.githubusercontent.com/bkhq/bkd/main/scripts/migrate-to-lode.ts -o migrate-to-lode.ts
 > bun migrate-to-lode.ts --root /opt/bkd            # preview
 > bun migrate-to-lode.ts --root /opt/bkd --apply
 > ```
