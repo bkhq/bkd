@@ -1301,10 +1301,27 @@ function UpgradeSection({ open }: { open: boolean }) {
   const pending = !!status?.target
   const busy = pending || status?.status === 'updating' || status?.status === 'rolling-back'
   const canRollback = !!status?.lastGood && status.lastGood !== status.current
-  // lode restarts BKD in place, so a completed update leaves this page on the old build.
-  const servedVersion = versionInfo?.activeVersion ?? versionInfo?.version
+  // lode restarts BKD in place, so a completed update leaves this page on the old build —
+  // its JS no longer matches the server it talks to. Reload rather than leave it stranded.
+  //
+  // Latch the version that served this page instead of reading the query each render: the
+  // SSE reconnect that follows the restart invalidates every query, so versionInfo would
+  // refetch to the NEW version and hide the very mismatch we are looking for.
+  const servedVersion = useRef<string | undefined>(undefined)
+  servedVersion.current ??= versionInfo?.activeVersion ?? versionInfo?.version
   const staleTab =
-    supervised && !busy && !!status?.current && !!servedVersion && status.current !== servedVersion
+    supervised &&
+    !busy &&
+    !!status?.current &&
+    !!servedVersion.current &&
+    status.current !== servedVersion.current
+
+  useEffect(() => {
+    if (!staleTab) return
+    // Brief pause so the new version finishes settling and the panel can say why.
+    const timer = setTimeout(() => window.location.reload(), 3000)
+    return () => clearTimeout(timer)
+  }, [staleTab])
 
   const formatTime = (iso: string) => {
     try {
@@ -1374,10 +1391,25 @@ function UpgradeSection({ open }: { open: boolean }) {
             </div>
           ) : null}
 
+          {/* lode records a failed check or install without changing `status`, and only
+              clears it when an update commits. Presenting that as a red error misreads a
+              transient network failure as a broken install — the server is still serving,
+              and the Update button retries. Only a real error state gets error styling. */}
           {status?.lastError ? (
-            <div className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400">
+            <div
+              className={cn(
+                'flex items-start gap-2 text-xs',
+                status.status === 'error' ?
+                  'text-red-600 dark:text-red-400' :
+                  'text-muted-foreground',
+              )}
+            >
               <CircleAlert className="mt-0.5 h-3 w-3 shrink-0" />
-              <span className="min-w-0 break-words">{status.lastError}</span>
+              <span className="min-w-0 break-words">
+                {status.status === 'error' ?
+                  status.lastError :
+                    t('settings.upgradeLastAttemptFailed', { error: status.lastError })}
+              </span>
             </div>
           ) : null}
 
