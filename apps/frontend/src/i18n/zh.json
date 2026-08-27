@@ -310,6 +310,15 @@
       "acknowledge": "仍然导入",
       "confirm": "导入",
       "failed": "导入失败"
+    },
+    "select": "选择 {{title}}",
+    "selectAll": "全选",
+    "selectedCount": "已选 {{count}} 个",
+    "deleteAction": "删除",
+    "deleteConfirm": {
+      "title": "删除 {{count}} 个本地会话？",
+      "body": "会从磁盘上删除会话记录，以及旁边的子 agent 记录。删除后该会话无法再恢复，BKD 也不保留副本。被活跃 issue 占用的会话会自动跳过。",
+      "partial": "有 {{count}} 个会话被跳过——剩余的见列表。"
     }
   },
   "directory": {

@@ -1,4 +1,4 @@
-import { readdir } from 'node:fs/promises'
+import { readdir, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { classifyToolAction, classifyToolKind } from '@/engines/executors/claude/normalizer-tool'
@@ -155,4 +155,13 @@ function parseToolInput(raw: unknown): Record<string, unknown> {
 
 function toolContent(input: Record<string, unknown>): string | undefined {
   return str(input.cmd) ?? str(input.command) ?? str(input.path) ?? str(input.file_path) ?? str(input.input)
+}
+
+/**
+ * Remove the rollout. Subagent rollouts this thread spawned are left in place:
+ * they never appear in the list, and finding them would mean resolving
+ * `parent_thread_id` across the whole corpus on every delete.
+ */
+export async function deleteCodexSession(record: LocalSessionRecord): Promise<void> {
+  await rm(record.path, { force: true })
 }

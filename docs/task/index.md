@@ -98,3 +98,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**DOC-002 Serve lode.toml from the repository instead of every release**](DOC-002.md) `P3`
 - [x] [**ENG-033 Stop rendering the CLI activity indicator as chat messages**](ENG-033.md) `P2`
 - [x] [**DOC-003 Drop the remaining doc assets from releases**](DOC-003.md) `P3`
+- [x] [**SES-004 Delete local sessions from the scan list**](SES-004.md) `P2`

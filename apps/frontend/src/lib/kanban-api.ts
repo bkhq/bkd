@@ -3,6 +3,8 @@ import type {
   BusyAction,
   CategorizedCommands,
   ClaudeUsage,
+  DeleteLocalSessionsRequest,
+  DeleteLocalSessionsResult,
   EngineDiscoveryResult,
   EngineProfile,
   EngineSettings,
@@ -646,4 +648,6 @@ export const kanbanApi = {
   },
   importSession: (projectId: string, data: ImportSessionRequest) =>
     post<ImportSessionResult>(`/api/projects/${projectId}/issues/import-session`, data),
+  deleteLocalSessions: (data: DeleteLocalSessionsRequest) =>
+    post<DeleteLocalSessionsResult>('/api/sessions/bulk-delete', data),
 }

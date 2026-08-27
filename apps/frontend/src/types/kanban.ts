@@ -7,6 +7,8 @@ export type {
   CategorizedCommands,
   ClaudeUsage,
   CommandCategory,
+  DeleteLocalSessionsRequest,
+  DeleteLocalSessionsResult,
   DirectoryListing,
   EngineAvailability,
   EngineDiscoveryResult,

@@ -3,7 +3,7 @@ import { kanbanApi } from '@/lib/kanban-api'
 import { STALE_TIME } from '@/lib/query-config'
 import { useBoardStore } from '@/stores/board-store'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
-import type { ExecuteIssueRequest, ImportSessionRequest, Issue, VirtualEngine, WebhookEventType } from '@/types/kanban'
+import type { DeleteLocalSessionsRequest, ExecuteIssueRequest, ImportSessionRequest, Issue, VirtualEngine, WebhookEventType } from '@/types/kanban'
 
 export const queryKeys = {
   workspacePath: () => ['settings', 'workspacePath'] as const,
@@ -1123,6 +1123,16 @@ export function useLocalSession(
     queryFn: () => kanbanApi.getLocalSession(engine!, sessionId!, opts),
     enabled: !!engine && !!sessionId,
     staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useDeleteLocalSessions() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: DeleteLocalSessionsRequest) => kanbanApi.deleteLocalSessions(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['localSessions'] })
+    },
   })
 }
 

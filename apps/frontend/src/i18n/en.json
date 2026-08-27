@@ -311,6 +311,15 @@
       "acknowledge": "Import anyway",
       "confirm": "Import",
       "failed": "Import failed"
+    },
+    "select": "Select {{title}}",
+    "selectAll": "Select all",
+    "selectedCount": "{{count}} selected",
+    "deleteAction": "Delete",
+    "deleteConfirm": {
+      "title": "Delete {{count}} local session(s)?",
+      "body": "This removes the transcript from disk, along with any sub-agent transcripts beside it. The session will no longer be resumable and BKD keeps no copy. Sessions an active issue depends on are skipped.",
+      "partial": "{{count}} session(s) were skipped — see the list for what remains."
     }
   },
   "directory": {

@@ -1,4 +1,4 @@
-import { readdir } from 'node:fs/promises'
+import { readdir, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { ClaudeLogNormalizer } from '@/engines/executors/claude'
@@ -136,4 +136,14 @@ export async function readClaudeSession(
   }
 
   return entries
+}
+
+/**
+ * Remove the transcript and the sidecar directory beside it, which holds the
+ * session's subagent transcripts and any tool results the CLI spilled to disk.
+ */
+export async function deleteClaudeSession(record: LocalSessionRecord): Promise<void> {
+  const sidecar = record.path.replace(/\.jsonl$/, '')
+  await rm(record.path, { force: true })
+  await rm(sidecar, { recursive: true, force: true })
 }

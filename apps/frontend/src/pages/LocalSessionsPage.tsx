@@ -1,9 +1,19 @@
 import type { LocalSession } from '@bkd/shared'
-import { AlertTriangle, FolderGit2, Loader2, Search } from 'lucide-react'
+import { AlertTriangle, FolderGit2, Loader2, Search, Trash2 } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { AppLogo } from '@/components/AppLogo'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { SessionMessages } from '@/components/issue-detail/SessionMessages'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -27,7 +37,7 @@ import {
 } from '@/components/ui/select'
 import { SidePanel, SidePanelActions } from '@/components/ui/side-panel'
 import { Switch } from '@/components/ui/switch'
-import { useImportSession, useLocalSession, useLocalSessions, useProjects } from '@/hooks/use-kanban'
+import { useDeleteLocalSessions, useImportSession, useLocalSession, useLocalSessions, useProjects } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { formatDateTime, formatFileSize } from '@/lib/format'
 import {
@@ -35,6 +45,11 @@ import {
   SESSION_PANEL_MIN_WIDTH,
   useSessionPanelStore,
 } from '@/stores/session-panel-store'
+
+/** Stable identity for selection — a session id is only unique within its engine. */
+function sessionKey(session: LocalSession): string {
+  return `${session.engine}:${session.sessionId}`
+}
 
 const PAGE_SIZE = 100
 /** Entries pulled for the detail view — the tail of the transcript. */
@@ -200,10 +215,14 @@ function SessionMeta({ session }: { session: LocalSession }) {
 
 function SessionRow({
   session,
+  selected,
+  onToggleSelected,
   onOpen,
   onImport,
 }: {
   session: LocalSession
+  selected: boolean
+  onToggleSelected: (session: LocalSession) => void
   onOpen: (session: LocalSession) => void
   onImport: (session: LocalSession) => void
 }) {
@@ -212,6 +231,13 @@ function SessionRow({
   return (
     <Card>
       <CardContent className="flex items-start gap-3 p-3">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggleSelected(session)}
+          aria-label={t('sessions.select', { title: session.title || session.sessionId })}
+          className="mt-1 shrink-0"
+        />
         <button
           type="button"
           onClick={() => onOpen(session)}
@@ -339,6 +365,9 @@ export default function LocalSessionsPage() {
   const [search, setSearch] = useState('')
   const [importTarget, setImportTarget] = useState<LocalSession | null>(null)
   const [detailTarget, setDetailTarget] = useState<LocalSession | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const deleteSessions = useDeleteLocalSessions()
 
   const filters = useMemo(
     () => ({
@@ -351,6 +380,36 @@ export default function LocalSessionsPage() {
     [engine, search],
   )
   const { data, isLoading } = useLocalSessions(filters)
+
+  const sessions = data?.sessions ?? []
+  const allSelected = sessions.length > 0 && sessions.every(s => selected.has(sessionKey(s)))
+
+  const toggleSelected = (session: LocalSession) => {
+    setSelected((current) => {
+      const next = new Set(current)
+      const key = sessionKey(session)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    setSelected(allSelected ? new Set() : new Set(sessions.map(sessionKey)))
+  }
+
+  const handleDelete = () => {
+    const targets = sessions.filter(s => selected.has(sessionKey(s)))
+    deleteSessions.mutate(
+      { sessions: targets.map(s => ({ engine: s.engine, sessionId: s.sessionId })) },
+      {
+        onSuccess: () => {
+          setSelected(new Set())
+          setConfirmDelete(false)
+        },
+      },
+    )
+  }
 
   return (
     <main className="min-h-screen text-foreground animate-page-enter">
@@ -401,11 +460,39 @@ export default function LocalSessionsPage() {
           ? <p className="py-12 text-center text-sm text-muted-foreground">{t('sessions.empty')}</p>
           : null}
 
+        {sessions.length > 0
+          ? (
+              <div className="mb-2 flex items-center gap-3 px-1 text-xs text-muted-foreground">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+                  {t('sessions.selectAll')}
+                </label>
+                {selected.size > 0
+                  ? (
+                      <>
+                        <span>{t('sessions.selectedCount', { count: selected.size })}</span>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => setConfirmDelete(true)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          {t('sessions.deleteAction')}
+                        </Button>
+                      </>
+                    )
+                  : null}
+              </div>
+            )
+          : null}
+
         <div className="space-y-2">
-          {data?.sessions.map(session => (
+          {sessions.map(session => (
             <SessionRow
-              key={`${session.engine}:${session.sessionId}`}
+              key={sessionKey(session)}
               session={session}
+              selected={selected.has(sessionKey(session))}
+              onToggleSelected={toggleSelected}
               onOpen={setDetailTarget}
               onImport={setImportTarget}
             />
@@ -426,6 +513,38 @@ export default function LocalSessionsPage() {
         onClose={() => setDetailTarget(null)}
         onImport={setImportTarget}
       />
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t('sessions.deleteConfirm.title', { count: selected.size })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('sessions.deleteConfirm.body')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteSessions.data?.failed.length
+            ? (
+                <p className="text-xs text-destructive">
+                  {t('sessions.deleteConfirm.partial', { count: deleteSessions.data.failed.length })}
+                </p>
+              )
+            : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteSessions.isPending}
+              onClick={(e) => {
+                e.preventDefault()
+                handleDelete()
+              }}
+            >
+              {t('sessions.deleteAction')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <ImportDialog
         session={importTarget}
         onClose={() => {

@@ -114,6 +114,16 @@ export interface LocalSessionPreview {
   totalEntries: number
 }
 
+export interface DeleteLocalSessionsRequest {
+  sessions: Array<{ engine: 'claude-code' | 'codex', sessionId: string }>
+}
+
+export interface DeleteLocalSessionsResult {
+  deleted: string[]
+  /** Sessions left in place, with the reason — a bulk delete never fails wholesale */
+  failed: Array<{ sessionId: string, error: string }>
+}
+
 export interface ImportSessionRequest {
   engine: 'claude-code' | 'codex'
   sessionId: string

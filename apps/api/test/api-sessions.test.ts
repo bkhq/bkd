@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -183,5 +184,64 @@ describe('POST /api/projects/:projectId/issues/import-session', () => {
       }),
       404,
     )
+  })
+})
+
+describe('POST /api/sessions/bulk-delete', () => {
+  test('deletes several sessions and reports each one', async () => {
+    const a = 'aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee'
+    const b = 'bbbb2222-bbbb-cccc-dddd-eeeeeeeeeeee'
+    const dir = join(ROOT, 'claude', 'projects', '-workspace')
+    await writeFile(join(dir, `${a}.jsonl`), transcript(a, PROJECT_DIR, 'throwaway a'))
+    await writeFile(join(dir, `${b}.jsonl`), transcript(b, PROJECT_DIR, 'throwaway b'))
+    await cacheDelByPrefix('localSessions:')
+
+    const data = expectSuccess(
+      await post<{ deleted: string[], failed: Array<{ sessionId: string, error: string }> }>(
+        '/api/sessions/bulk-delete',
+        { sessions: [{ engine: 'claude-code', sessionId: a }, { engine: 'claude-code', sessionId: b }] },
+      ),
+    )
+
+    expect(data.deleted.sort()).toEqual([a, b].sort())
+    expect(data.failed).toEqual([])
+    expect(existsSync(join(dir, `${a}.jsonl`))).toBe(false)
+    expect(existsSync(join(dir, `${b}.jsonl`))).toBe(false)
+  })
+
+  test('refuses a session that an active issue still depends on', async () => {
+    const bound = 'cccc3333-bbbb-cccc-dddd-eeeeeeeeeeee'
+    const dir = join(ROOT, 'claude', 'projects', '-workspace')
+    await writeFile(join(dir, `${bound}.jsonl`), transcript(bound, PROJECT_DIR, 'still in use'))
+    await cacheDelByPrefix('localSessions:')
+
+    const projectId = await createTestProject('Bulk Delete Guard')
+    expectSuccess(await post(`/api/projects/${projectId}/issues/import-session`, {
+      engine: 'claude-code',
+      sessionId: bound,
+      importLogs: false,
+    }))
+
+    const data = expectSuccess(
+      await post<{ deleted: string[], failed: Array<{ sessionId: string, error: string }> }>(
+        '/api/sessions/bulk-delete',
+        { sessions: [{ engine: 'claude-code', sessionId: bound }] },
+      ),
+    )
+
+    expect(data.deleted).toEqual([])
+    expect(data.failed[0]!.error).toContain('active issue')
+    expect(existsSync(join(dir, `${bound}.jsonl`))).toBe(true)
+  })
+
+  test('reports an unknown session instead of failing the batch', async () => {
+    const data = expectSuccess(
+      await post<{ deleted: string[], failed: Array<{ sessionId: string, error: string }> }>(
+        '/api/sessions/bulk-delete',
+        { sessions: [{ engine: 'claude-code', sessionId: 'no-such-session' }] },
+      ),
+    )
+    expect(data.deleted).toEqual([])
+    expect(data.failed[0]!.error).toContain('not found')
   })
 })

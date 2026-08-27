@@ -1,7 +1,7 @@
-import { cacheGetOrSet } from '@/cache'
+import { cacheDelByPrefix, cacheGetOrSet } from '@/cache'
 import type { NormalizedLogEntry } from '@/engines/types'
-import { listClaudeSessions, readClaudeSession } from './claude'
-import { listCodexSessions, readCodexSession } from './codex'
+import { deleteClaudeSession, listClaudeSessions, readClaudeSession } from './claude'
+import { deleteCodexSession, listCodexSessions, readCodexSession } from './codex'
 import type { LocalSessionEngine, LocalSessionRecord } from './types'
 
 export type { LocalSession, LocalSessionEngine, LocalSessionRecord } from './types'
@@ -34,4 +34,15 @@ export async function findLocalSession(
 
 export async function readLocalSession(record: LocalSessionRecord): Promise<NormalizedLogEntry[]> {
   return record.engine === 'codex' ? readCodexSession(record) : readClaudeSession(record)
+}
+
+/**
+ * Delete a session's files. The record comes from the scan, so the path is never
+ * derived from client input. The listing cache is dropped so the row disappears
+ * on the next fetch rather than lingering for the rest of its TTL.
+ */
+export async function deleteLocalSession(record: LocalSessionRecord): Promise<void> {
+  if (record.engine === 'codex') await deleteCodexSession(record)
+  else await deleteClaudeSession(record)
+  await cacheDelByPrefix('localSessions:')
 }

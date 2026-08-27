@@ -3,8 +3,9 @@ import { db } from '@/db'
 import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
-import { findLocalSession, listLocalSessions, readLocalSession } from '@/sessions'
+import { deleteLocalSession, findLocalSession, listLocalSessions, readLocalSession } from '@/sessions'
 import type { LocalSession, LocalSessionRecord } from '@/sessions'
+import { logger } from '@/logger'
 
 const sessionsRoute = createOpenAPIRouter()
 
@@ -108,6 +109,49 @@ sessionsRoute.openapi(R.getLocalSession, async (c) => {
       totalEntries: entries.length,
     },
   }, 200)
+})
+
+/** Session ids currently claimed by a live issue — deleting those breaks follow-up. */
+function claimedSessionIds(): Set<string> {
+  const rows = db
+    .select({ externalSessionId: issuesTable.externalSessionId })
+    .from(issuesTable)
+    .where(and(eq(issuesTable.isDeleted, 0), isNotNull(issuesTable.externalSessionId)))
+    .all()
+  return new Set(rows.map(r => r.externalSessionId).filter((id): id is string => !!id))
+}
+
+sessionsRoute.openapi(R.deleteLocalSessions, async (c) => {
+  const { sessions } = c.req.valid('json')
+  const claimed = claimedSessionIds()
+
+  const deleted: string[] = []
+  const failed: Array<{ sessionId: string, error: string }> = []
+
+  for (const { engine, sessionId } of sessions) {
+    // A soft-deleted issue no longer claims its session, which is exactly the
+    // case this endpoint exists for. A live one still does.
+    if (claimed.has(sessionId)) {
+      failed.push({ sessionId, error: 'Session belongs to an active issue' })
+      continue
+    }
+
+    const record = await findLocalSession(engine, sessionId)
+    if (!record) {
+      failed.push({ sessionId, error: 'Session not found' })
+      continue
+    }
+
+    try {
+      await deleteLocalSession(record)
+      deleted.push(sessionId)
+    } catch (error) {
+      failed.push({ sessionId, error: error instanceof Error ? error.message : 'Delete failed' })
+    }
+  }
+
+  logger.info({ deleted: deleted.length, failed: failed.length }, 'local_sessions_deleted')
+  return c.json({ success: true as const, data: { deleted, failed } }, 200)
 })
 
 export default sessionsRoute

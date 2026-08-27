@@ -387,6 +387,19 @@ export const LocalSessionSchema = z.object({
   matchedProjectId: z.string().optional(),
 }).openapi('LocalSession')
 
+export const DeleteLocalSessionsSchema = z.object({
+  sessions: z.array(z.object({
+    engine: z.enum(['claude-code', 'codex']),
+    sessionId: z.string().min(1).max(200),
+  })).min(1).max(200),
+}).openapi('DeleteLocalSessions')
+
+export const DeleteLocalSessionsResultSchema = z.object({
+  deleted: z.array(z.string()),
+  /** Sessions left in place, with the reason — a bulk delete never fails wholesale */
+  failed: z.array(z.object({ sessionId: z.string(), error: z.string() })),
+}).openapi('DeleteLocalSessionsResult')
+
 export const ImportSessionSchema = z.object({
   engine: z.enum(['claude-code', 'codex']),
   sessionId: z.string().min(1).max(200),

@@ -9,6 +9,7 @@ import LocalSessionsPage from '@/pages/LocalSessionsPage'
 
 const mocks = vi.hoisted(() => ({
   importMutate: vi.fn(),
+  deleteMutate: vi.fn(),
   listSessions: vi.fn(),
   readSession: vi.fn(),
 }))
@@ -59,6 +60,11 @@ vi.mock('@/hooks/use-kanban', () => ({
       { id: 'p2', name: 'Other', directory: '/other' },
     ],
   }),
+  useDeleteLocalSessions: () => ({
+    mutate: mocks.deleteMutate,
+    isPending: false,
+    data: undefined,
+  }),
   useImportSession: () => ({
     mutate: mocks.importMutate,
     isPending: false,
@@ -86,6 +92,7 @@ function renderPage() {
 describe('local sessions page', () => {
   beforeEach(async () => {
     mocks.importMutate.mockReset()
+    mocks.deleteMutate.mockReset()
     mocks.listSessions.mockReset()
     mocks.readSession.mockReset()
     await i18n.changeLanguage('en')
@@ -183,5 +190,48 @@ describe('local sessions page', () => {
       expect.objectContaining({ projectId: 'p1', sessionId: 'session-elsewhere' }),
       expect.anything(),
     )
+  })
+})
+
+describe('local sessions deletion', () => {
+  beforeEach(async () => {
+    mocks.deleteMutate.mockReset()
+    await i18n.changeLanguage('en')
+  })
+
+  it('offers no delete control until something is selected', () => {
+    renderPage()
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+  })
+
+  it('confirms before deleting the selected sessions', () => {
+    renderPage()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /ship the login page/ }))
+    expect(screen.getByText('1 selected')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByText(/Delete 1 local session/)).toBeInTheDocument()
+    // The copy has to say the transcript leaves the disk — this is not a soft delete
+    expect(within(dialog).getByText(/removes the transcript from disk/)).toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    expect(mocks.deleteMutate).toHaveBeenCalledWith(
+      { sessions: [{ engine: 'claude-code', sessionId: 'session-matched' }] },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    )
+  })
+
+  it('selects and deselects every row at once', () => {
+    renderPage()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    expect(screen.queryByText(/selected/)).not.toBeInTheDocument()
   })
 })

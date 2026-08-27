@@ -1,8 +1,10 @@
+import { existsSync } from 'node:fs'
 import { mkdir, rm, utimes, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { listClaudeSessions, readClaudeSession } from '@/sessions/claude'
+import { deleteLocalSession } from '@/sessions'
 import { listCodexSessions, readCodexSession } from '@/sessions/codex'
 import './setup'
 
@@ -176,5 +178,35 @@ describe('readCodexSession', () => {
     expect(entries[3]!.metadata?.isResult).toBe(true)
     expect(entries[3]!.metadata?.toolCallId).toBe('call_1')
     expect(entries[4]!.content).toBe('OK')
+  })
+})
+
+describe('deleteLocalSession', () => {
+  test('removes a claude transcript together with its sidecar directory', async () => {
+    const projectDir = join(CLAUDE_ROOT, '-app-doomed')
+    const doomed = '77777777-2222-3333-4444-555555555555'
+    await mkdir(join(projectDir, doomed, 'subagents'), { recursive: true })
+    await writeFile(join(projectDir, `${doomed}.jsonl`), jsonl([
+      { type: 'user', message: { role: 'user' }, cwd: '/app/doomed', sessionId: doomed, timestamp: '2026-08-01T10:00:00.000Z' },
+    ]))
+    await writeFile(join(projectDir, doomed, 'subagents', 'agent-x.jsonl'), jsonl([{ type: 'user' }]))
+
+    const [session] = (await listClaudeSessions(CLAUDE_ROOT)).filter(s => s.sessionId === doomed)
+    expect(session).toBeDefined()
+
+    await deleteLocalSession(session!)
+
+    expect(existsSync(join(projectDir, `${doomed}.jsonl`))).toBe(false)
+    expect(existsSync(join(projectDir, doomed))).toBe(false)
+  })
+
+  test('removes a codex rollout', async () => {
+    const [session] = await listCodexSessions(CODEX_ROOT)
+    expect(existsSync(session!.path)).toBe(true)
+
+    await deleteLocalSession(session!)
+
+    expect(existsSync(session!.path)).toBe(false)
+    expect(await listCodexSessions(CODEX_ROOT)).toHaveLength(0)
   })
 })

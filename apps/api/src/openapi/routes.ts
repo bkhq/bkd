@@ -16,6 +16,8 @@ import {
   CreateProjectSchema,
   CreateWebhookSchema,
   CronJobSchema,
+  DeleteLocalSessionsResultSchema,
+  DeleteLocalSessionsSchema,
   EngineDiscoveryResultSchema,
   EngineModelSchema,
   EngineProfileSchema,
@@ -543,6 +545,23 @@ export const getLocalSession = createRoute({
       'Session preview',
     ),
     404: errorResponse('Session not found'),
+  },
+})
+
+export const deleteLocalSessions = createRoute({
+  method: 'post',
+  path: '/bulk-delete',
+  tags: ['Sessions'],
+  summary: 'Delete local session transcripts from disk',
+  operationId: 'deleteLocalSessions',
+  request: {
+    body: {
+      content: { 'application/json': { schema: DeleteLocalSessionsSchema } },
+      required: true,
+    },
+  },
+  responses: {
+    200: successResponse(DeleteLocalSessionsResultSchema, 'Deletion result'),
   },
 })
 
