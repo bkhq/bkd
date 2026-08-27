@@ -1382,11 +1382,15 @@ function UpgradeSection({ open }: { open: boolean }) {
           ) : null}
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Always enabled: the request makes lode resolve `latest` immediately,
+                which is the only way to check on demand — it advertises on its own
+                schedule otherwise. Requesting the running version is a no-op for lode,
+                so this is safe when already up to date. */}
             <Button
-              variant="default"
+              variant={status?.hasUpdate ? 'default' : 'outline'}
               size="sm"
               onClick={() => requestUpgrade.mutate(undefined)}
-              disabled={!status?.hasUpdate || busy || requestUpgrade.isPending}
+              disabled={busy || requestUpgrade.isPending}
             >
               {busy || requestUpgrade.isPending ? (
                 <Loader2 className="h-3 w-3 animate-spin" />

@@ -448,7 +448,7 @@
     "upgradeUnsupervised": "未在监管器下运行",
     "upgradeUnsupervisedHint": "更新由 lode 安装。参见 docs/deployment.md 了解如何在其下运行 BKD。",
     "upgradeUpToDate": "已是最新版本",
-    "upgradeRestart": "重启升级",
+    "upgradeRestart": "重启服务",
     "upgradeRestarting": "重启中...",
     "upgradeLastChecked": "上次检查：{{time}}",
     "cleanup": "数据清理",

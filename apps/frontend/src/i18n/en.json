@@ -449,7 +449,7 @@
     "upgradeUnsupervised": "Not running under a supervisor",
     "upgradeUnsupervisedHint": "Updates are installed by lode. See docs/deployment.md to run BKD under it.",
     "upgradeUpToDate": "Up to date",
-    "upgradeRestart": "Restart to upgrade",
+    "upgradeRestart": "Restart",
     "upgradeRestarting": "Restarting...",
     "upgradeLastChecked": "Last checked: {{time}}",
     "cleanup": "Cleanup",

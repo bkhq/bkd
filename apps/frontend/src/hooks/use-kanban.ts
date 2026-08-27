@@ -841,9 +841,13 @@ export function useUpgradeStatus(enabled = false) {
     queryFn: () => kanbanApi.getUpgradeStatus(),
     enabled,
     staleTime: STALE_TIME.FREQUENT,
-    // Poll while a request is outstanding or lode is mid-transition. `target` is the
-    // reliable signal: lode picks it up about a second after we write it and clears it
-    // once consumed, whereas the transient status can easily be missed between polls.
+    // Always poll while the panel is open: lode advertises a new version on its own
+    // schedule (5 minutes by default), and without a slow tick the panel would keep
+    // showing a snapshot taken when it opened until the page reloaded.
+    //
+    // Poll fast while a request is outstanding or lode is mid-transition. `target` is
+    // the reliable signal there: lode picks it up about a second after we write it and
+    // clears it once consumed, whereas the transient status is easily missed.
     refetchInterval: (query) => {
       const data = query.state.data
       const status = data?.status
@@ -852,7 +856,7 @@ export function useUpgradeStatus(enabled = false) {
         status === 'updating' ||
         status === 'rolling-back' ||
         status === 'starting'
-      return busy ? 2000 : false
+      return busy ? 2000 : 15_000
     },
   })
 }
