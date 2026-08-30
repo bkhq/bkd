@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-08-27
+> Updated: 2026-08-30
 
 ## Usage
 
@@ -100,3 +100,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**DOC-003 Drop the remaining doc assets from releases**](DOC-003.md) `P3`
 - [x] [**SES-004 Delete local sessions from the scan list**](SES-004.md) `P2`
 - [x] [**REL-005 Close the release window where latest has no assets**](REL-005.md) `P0`
+- [x] [**ENG-034 Stop probing the Claude CLI on every execution**](ENG-034.md) `P1`

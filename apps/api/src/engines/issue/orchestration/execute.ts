@@ -51,12 +51,6 @@ export async function executeIssue(
     const executor = engineRegistry.get(opts.engineType)
     if (!executor) throw new Error(`No executor for engine type: ${opts.engineType}`)
 
-    // Guard: reject engines that are registered but not yet executable.
-    const avail = await executor.getAvailability()
-    if (avail.executable === false) {
-      throw new Error(`Engine '${opts.engineType}' is not yet executable (spawn not implemented)`)
-    }
-
     // Resolve the effective virtual profile under the issue lock to avoid a
     // race between concurrent execute requests targeting different engines.
     const effectiveProfileId = opts.engineProfileId !== undefined
