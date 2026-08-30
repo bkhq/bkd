@@ -142,7 +142,7 @@ Each engine has an executor in `executors/<name>/executor.ts` implementing `Engi
 - **`issue/lifecycle/`** — Spawn with session fallback, completion monitoring (auto-retry on failure, pending message coalescence), settlement
 - **`issue/streams/`** — Stdout consumption via async generator, log classification, stderr drain
 - **`reconciler.ts`** — Safety net: marks stale `running`/`pending` sessions as `failed` on startup; moves orphaned `working` issues to `review`. Runs on startup + every 60s + 1s after each issue settlement.
-- **`startup-probe.ts`** — Engine discovery with 3-tier cache: memory (10 min) → DB (`appSettings`, 6h TTL) → live probe (15s per-engine timeout, all engines probed in parallel). The DB tier expires so a CLI upgrade's new model catalog is picked up; `claude-code`'s catalog is static in code and always overlaid on cached data
+- **`startup-probe.ts`** — Engine discovery with 3-tier cache: memory (10 min) → DB (`appSettings`, no expiry) → live probe (15s per-engine timeout, all engines probed in parallel). A probe spawns the engine CLIs — for Claude that includes `claude auth status`, which touches the rotating OAuth credential — so it runs only on demand: first install, a vanished binary, or the settings "probe engines" button (ENG-035). `claude-code`'s catalog is static in code and always overlaid on cached data
 
 **Execution flow:**
 

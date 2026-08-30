@@ -179,27 +179,25 @@ const PROBE_MODELS_KEY = 'probe:models'
 const PROBE_UPDATED_AT_KEY = 'probe:updatedAt'
 
 /**
- * How long persisted probe results stay valid. The stored model catalog is a
- * snapshot of what the engine CLI advertised at probe time; when the CLI is
- * upgraded, models disappear upstream and executing with one fails at the
- * provider. Expiring the rows forces a live re-probe (ENG-029).
+ * Persisted probe results do not expire. Probing spawns the engine CLIs, and for
+ * Claude that means `claude auth status`, which touches the rotating OAuth
+ * credential — so it happens only when asked for: on a first install (no rows
+ * yet), when a recorded binary has vanished, or when the operator presses
+ * "probe engines" in settings (ENG-035).
+ *
+ * The trade-off this accepts, and which the 6h TTL used to cover (ENG-029): a
+ * CLI upgrade can retire models that stay in the stored catalog until the next
+ * manual probe. It is narrow — claude-code's catalog is static in code and
+ * always overlaid on cached data, and virtual engines fetch models from their
+ * provider — so it only affects Codex, and one click fixes it.
  */
-const PROBE_DB_TTL_MS = 6 * 60 * 60 * 1000
-
 export async function getProbeResults(): Promise<ProbeData | null> {
-  const [enginesJson, modelsJson, updatedAtRaw] = await Promise.all([
+  const [enginesJson, modelsJson] = await Promise.all([
     getAppSetting(PROBE_ENGINES_KEY),
     getAppSetting(PROBE_MODELS_KEY),
-    getAppSetting(PROBE_UPDATED_AT_KEY),
   ])
 
   if (!enginesJson || !modelsJson) return null
-
-  // Rows written before ENG-029 have no timestamp — treat them as expired so
-  // the first lookup after an upgrade refreshes the catalog.
-  const updatedAt = Number(updatedAtRaw)
-  if (!updatedAtRaw || !Number.isFinite(updatedAt)) return null
-  if (Date.now() - updatedAt > PROBE_DB_TTL_MS) return null
 
   try {
     return {
@@ -218,6 +216,7 @@ export async function saveProbeResults(
   await Promise.all([
     setAppSetting(PROBE_ENGINES_KEY, JSON.stringify(engines)),
     setAppSetting(PROBE_MODELS_KEY, JSON.stringify(models)),
+    // Not read back — kept so the last probe time is inspectable in settings.
     setAppSetting(PROBE_UPDATED_AT_KEY, String(Date.now())),
   ])
 }

@@ -101,3 +101,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**SES-004 Delete local sessions from the scan list**](SES-004.md) `P2`
 - [x] [**REL-005 Close the release window where latest has no assets**](REL-005.md) `P0`
 - [x] [**ENG-034 Stop probing the Claude CLI on every execution**](ENG-034.md) `P1`
+- [x] [**ENG-035 Probe engines on demand only, never on a timer**](ENG-035.md) `P1`

@@ -251,7 +251,7 @@ export async function getEngineDiscovery(): Promise<EngineDiscovery> {
   const cached = await readFromCache()
   if (cached && !probeBinariesMissing(cached.engines)) return withFreshStaticModels(cached)
 
-  // 2. DB (expires — see PROBE_DB_TTL_MS in db/helpers.ts)
+  // 2. DB (permanent — re-probed only on demand, see getProbeResults)
   const dbData = await getProbeResults()
   if (dbData && !probeBinariesMissing(dbData.engines)) {
     logger.debug(

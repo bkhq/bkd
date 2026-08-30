@@ -1,10 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import { getProbeResults, saveProbeResults, setAppSetting } from '@/db/helpers'
 /**
- * Persisted engine probe cache (ENG-029).
+ * Persisted engine probe results (ENG-035, replacing the ENG-029 TTL).
  *
- * The DB copy is a cache, not storage: once it is older than the TTL it must
- * stop being served so a live probe can pick up a new CLI model catalog.
+ * The DB copy is storage, not a cache: probing spawns the engine CLIs, and for
+ * Claude that means `claude auth status`, which touches the rotating OAuth
+ * credential. So stored results are served however old they are, and a re-probe
+ * happens only on demand — first install, a vanished binary, or the operator
+ * pressing "probe engines".
  */
 import './setup'
 
@@ -21,16 +24,26 @@ describe('probe result persistence', () => {
     expect(result!.models.codex?.[0]?.id).toBe('gpt-5.6-sol')
   })
 
-  test('returns null once the stored results are older than the TTL', async () => {
+  test('keeps serving results however old they are', async () => {
     await saveProbeResults(engines, models)
-    // Backdate the stored timestamp beyond the TTL
-    await setAppSetting('probe:updatedAt', String(Date.now() - 7 * 60 * 60 * 1000))
-    expect(await getProbeResults()).toBeNull()
+    await setAppSetting('probe:updatedAt', String(Date.now() - 30 * 24 * 60 * 60 * 1000))
+
+    const result = await getProbeResults()
+    expect(result).not.toBeNull()
+    expect(result!.models.codex?.[0]?.id).toBe('gpt-5.6-sol')
   })
 
-  test('treats a missing timestamp (pre-upgrade rows) as expired', async () => {
+  test('serves rows that carry no timestamp', async () => {
     await saveProbeResults(engines, models)
     await setAppSetting('probe:updatedAt', '')
+
+    expect(await getProbeResults()).not.toBeNull()
+  })
+
+  test('returns null when nothing has been probed yet', async () => {
+    await saveProbeResults(engines, models)
+    await setAppSetting('probe:engines', '')
+
     expect(await getProbeResults()).toBeNull()
   })
 })
