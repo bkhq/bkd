@@ -20,7 +20,14 @@ export function isVisible(entry: NormalizedLogEntry): boolean {
   // System-message subtypes that are internal noise
   if (entry.entryType === 'system-message') {
     const subtype = entry.metadata?.subtype as string | undefined
-    if (subtype === 'init' || subtype === 'hook_response' || subtype === 'stop_hook_summary') return false
+    if (
+      subtype === 'init' ||
+      subtype === 'hook_response' ||
+      subtype === 'stop_hook_summary' ||
+      subtype === 'background_tasks_changed'
+    ) {
+      return false
+    }
   }
 
   // All other types pass through: user-message, assistant-message, tool-use,

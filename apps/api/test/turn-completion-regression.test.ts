@@ -8,9 +8,20 @@ import {
   projects as projectsTable,
 } from '@/db/schema'
 import type { EngineContext } from '@/engines/issue/context'
-import { handleTurnCompleted } from '@/engines/issue/lifecycle/turn-completion'
+import {
+  handleBackgroundTasks,
+  handleTurnCompleted,
+  handleTurnRestarted,
+  releaseBackgroundHold,
+} from '@/engines/issue/lifecycle/turn-completion'
 import { ExecutionStore } from '@/engines/issue/store/execution-store'
+import {
+  isTurnCompletionEntry,
+  isTurnRestartEntry,
+  readBackgroundTaskIds,
+} from '@/engines/issue/streams/classification'
 import type { ManagedProcess } from '@/engines/issue/types'
+import type { NormalizedLogEntry } from '@/engines/types'
 import { waitFor } from './helpers'
 import './setup'
 
@@ -60,6 +71,71 @@ async function insertPendingMessage(issueId: string, content: string) {
   })
 }
 
+function makeManaged(executionId: string, issueId: string): ManagedProcess {
+  return {
+    executionId,
+    issueId,
+    engineType: 'codex',
+    process: {
+      subprocess: { exited: Promise.resolve(0) },
+    } as any,
+    state: 'running',
+    startedAt: new Date(),
+    logs: new ExecutionStore(executionId),
+    retryCount: 0,
+    turnInFlight: true,
+    queueCancelRequested: false,
+    logicalFailure: false,
+    turnSettled: false,
+    slashCommands: [],
+    agents: [],
+    plugins: [],
+    keepAlive: false,
+    lastActivityAt: new Date(),
+    pendingInputs: [],
+    backgroundTasks: new Set<string>(),
+    autoMovedToReview: false,
+  }
+}
+
+function makeCtx(
+  executionId: string,
+  managed: ManagedProcess,
+  overrides: Partial<EngineContext> = {},
+): EngineContext {
+  return {
+    pm: {
+      get: (id: string) => (id === executionId ? ({ meta: managed } as any) : undefined),
+      getActive: () => [],
+    } as any,
+    issueOpLocks: new Map(),
+    entryCounters: new Map(),
+    turnIndexes: new Map(),
+    userMessageIds: new Map(),
+    lastErrors: new Map(),
+    lockDepth: new Map(),
+    ...overrides,
+  } as EngineContext
+}
+
+async function statusOf(issueId: string) {
+  const [row] = await db
+    .select({ statusId: issuesTable.statusId, sessionStatus: issuesTable.sessionStatus })
+    .from(issuesTable)
+    .where(eq(issuesTable.id, issueId))
+  return row
+}
+
+function entry(metadata: Record<string, unknown>): NormalizedLogEntry {
+  return {
+    entryType: 'system-message',
+    content: '',
+    turnIndex: 0,
+    timestamp: new Date().toISOString(),
+    metadata,
+  }
+}
+
 describe('turn completion pending-flush regression', () => {
   test('failed auto-flush keeps DB pending rows for retry', async () => {
     const issue = await createWorkingIssue(`turn-completion-pending-${Date.now()}`)
@@ -67,44 +143,12 @@ describe('turn completion pending-flush regression', () => {
     await insertPendingMessage(issue.id, pendingPrompt)
 
     const executionId = `exec-${Date.now()}`
-    const managed: ManagedProcess = {
-      executionId,
-      issueId: issue.id,
-      engineType: 'codex',
-      process: {
-        subprocess: { exited: Promise.resolve(0) },
-      } as any,
-      state: 'running',
-      startedAt: new Date(),
-      logs: new ExecutionStore(executionId),
-      retryCount: 0,
-      turnInFlight: true,
-      queueCancelRequested: false,
-      logicalFailure: false,
-      turnSettled: false,
-      slashCommands: [],
-      agents: [],
-      plugins: [],
-      keepAlive: false,
-      lastActivityAt: new Date(),
-      pendingInputs: [],
-    }
-
-    const ctx: EngineContext = {
-      pm: {
-        get: (id: string) => (id === executionId ? ({ meta: managed } as any) : undefined),
-        getActive: () => [],
-      } as any,
-      issueOpLocks: new Map(),
-      entryCounters: new Map(),
-      turnIndexes: new Map(),
-      userMessageIds: new Map(),
-      lastErrors: new Map(),
-      lockDepth: new Map(),
+    const managed = makeManaged(executionId, issue.id)
+    const ctx = makeCtx(executionId, managed, {
       followUpIssue: async () => {
         throw new Error('forced auto-flush follow-up failure')
       },
-    }
+    })
 
     handleTurnCompleted(ctx, issue.id, executionId)
 
@@ -119,5 +163,118 @@ describe('turn completion pending-flush regression', () => {
     const pending = await getPendingMessages(issue.id)
     expect(pending.length).toBeGreaterThanOrEqual(1)
     expect(pending.some(p => p.content === pendingPrompt)).toBe(true)
+  })
+})
+
+describe('turn completion signal attribution (ENG-036)', () => {
+  test('a subagent-scoped result does not end the main turn', () => {
+    expect(
+      isTurnCompletionEntry(entry({ turnCompleted: true, resultSubtype: 'success' })),
+    ).toBe(true)
+    expect(
+      isTurnCompletionEntry(
+        entry({
+          turnCompleted: true,
+          resultSubtype: 'success',
+          subagent: { toolCallId: 'toolu_01', type: 'general-purpose' },
+        }),
+      ),
+    ).toBe(false)
+  })
+
+  test('reads the live background task set off background_tasks_changed', () => {
+    expect(
+      readBackgroundTaskIds(
+        entry({ subtype: 'background_tasks_changed', backgroundTasks: ['t1', 't2'] }),
+      ),
+    ).toEqual(['t1', 't2'])
+    expect(
+      readBackgroundTaskIds(entry({ subtype: 'background_tasks_changed', backgroundTasks: [] })),
+    ).toEqual([])
+    expect(readBackgroundTaskIds(entry({ subtype: 'task_started', taskId: 't1' }))).toBeUndefined()
+  })
+
+  test('recognises a mid-stream init as the start of another turn', () => {
+    expect(isTurnRestartEntry(entry({ subtype: 'init' }))).toBe(true)
+    expect(isTurnRestartEntry(entry({ subtype: 'task_started' }))).toBe(false)
+  })
+})
+
+describe('background task settlement hold (ENG-036)', () => {
+  test('holds settlement while a background task is live, settles on the follow-up turn', async () => {
+    const issue = await createWorkingIssue(`bg-hold-${Date.now()}`)
+    const executionId = `exec-bg-${Date.now()}`
+    const managed = makeManaged(executionId, issue.id)
+    const ctx = makeCtx(executionId, managed)
+
+    handleBackgroundTasks(ctx, issue.id, executionId, ['bwuy4r6gx'])
+    // The CLI's first `result` arrives while the background task is still live.
+    handleTurnCompleted(ctx, issue.id, executionId)
+
+    await Bun.sleep(500)
+    expect((await statusOf(issue.id))?.statusId).toBe('working')
+    expect(managed.turnInFlight).toBe(true)
+    expect(managed.settleHeldAt).toBeDefined()
+
+    // Task drains, the CLI runs another turn and emits its own `result`.
+    handleBackgroundTasks(ctx, issue.id, executionId, [])
+    handleTurnCompleted(ctx, issue.id, executionId)
+
+    await waitFor(async () => (await statusOf(issue.id))?.statusId === 'review', 8000)
+    expect(managed.settleHeldAt).toBeUndefined()
+  })
+
+  test('a cancelled turn settles even with tasks still live', async () => {
+    const issue = await createWorkingIssue(`bg-cancel-${Date.now()}`)
+    const executionId = `exec-bgcancel-${Date.now()}`
+    const managed = makeManaged(executionId, issue.id)
+    managed.lastInterruptAt = new Date()
+    const ctx = makeCtx(executionId, managed)
+
+    handleBackgroundTasks(ctx, issue.id, executionId, ['still-running'])
+    handleTurnCompleted(ctx, issue.id, executionId)
+
+    await waitFor(async () => (await statusOf(issue.id))?.statusId === 'review', 8000)
+    expect(managed.settleHeldAt).toBeUndefined()
+  })
+
+  test('settles anyway once the hold is released with tasks still live', async () => {
+    const issue = await createWorkingIssue(`bg-cap-${Date.now()}`)
+    const executionId = `exec-bgcap-${Date.now()}`
+    const managed = makeManaged(executionId, issue.id)
+    const ctx = makeCtx(executionId, managed)
+
+    handleBackgroundTasks(ctx, issue.id, executionId, ['never-finishes'])
+    handleTurnCompleted(ctx, issue.id, executionId)
+    await Bun.sleep(300)
+    expect((await statusOf(issue.id))?.statusId).toBe('working')
+
+    releaseBackgroundHold(ctx, issue.id, executionId)
+
+    await waitFor(async () => (await statusOf(issue.id))?.statusId === 'review', 8000)
+    expect(managed.backgroundTasks.size).toBe(0)
+  })
+})
+
+describe('turn reopen (ENG-036)', () => {
+  test('a new turn on a live process reverts the auto review', async () => {
+    const issue = await createWorkingIssue(`reopen-${Date.now()}`)
+    const executionId = `exec-reopen-${Date.now()}`
+    const managed = makeManaged(executionId, issue.id)
+    const ctx = makeCtx(executionId, managed)
+
+    handleTurnCompleted(ctx, issue.id, executionId)
+    await waitFor(async () => (await statusOf(issue.id))?.statusId === 'review', 8000)
+    expect(managed.autoMovedToReview).toBe(true)
+
+    handleTurnRestarted(ctx, issue.id, executionId)
+
+    await waitFor(async () => {
+      const row = await statusOf(issue.id)
+      return row?.statusId === 'working' && row?.sessionStatus === 'running'
+    }, 5000)
+    expect(managed.turnSettled).toBe(false)
+    expect(managed.turnInFlight).toBe(true)
+    expect(managed.autoMovedToReview).toBe(false)
   })
 })

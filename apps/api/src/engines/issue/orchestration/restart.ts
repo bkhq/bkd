@@ -6,7 +6,7 @@ import { emitErrorLog } from '@/engines/issue/diagnostic'
 import { emitStateChange } from '@/engines/issue/events'
 import { monitorCompletion } from '@/engines/issue/lifecycle/completion-monitor'
 import { spawnFresh } from '@/engines/issue/lifecycle/spawn'
-import { handleTurnCompleted } from '@/engines/issue/lifecycle/turn-completion'
+import { makeStreamHooks } from '@/engines/issue/lifecycle/turn-completion'
 import { getNextTurnIndex } from '@/engines/issue/persistence/queries'
 import { ensureNoActiveProcess } from '@/engines/issue/process/guards'
 import { withIssueLock } from '@/engines/issue/process/lock'
@@ -132,7 +132,7 @@ export async function restartIssue(
       line => normalizer.parse(line),
       turnIndex,
       worktreePath,
-      () => handleTurnCompleted(ctx, issueId, executionId),
+      makeStreamHooks(ctx, issueId, executionId),
       worktreePath ? baseDir : undefined,
       workingDir,
       spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,

@@ -36,6 +36,8 @@ export interface ClaudeSystem {
   subagent_type?: string
   last_tool_name?: string
   summary?: string
+  // background_tasks_changed carries the full live task list on every change
+  tasks?: Array<{ task_id?: string, task_type?: string, description?: string }>
   usage?: ClaudeTaskUsage
   session_id?: string
   cwd?: string

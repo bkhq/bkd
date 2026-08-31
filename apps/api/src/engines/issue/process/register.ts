@@ -4,7 +4,7 @@ import { createIssueDebugLog, teeStreamToDebug } from '@/engines/issue/debug-log
 import { emitDiagnosticLog } from '@/engines/issue/diagnostic'
 import { emitStateChange } from '@/engines/issue/events'
 import { ExecutionStore } from '@/engines/issue/store/execution-store'
-import type { StreamCallbacks } from '@/engines/issue/streams/consumer'
+import type { StreamCallbacks, TurnStreamHooks } from '@/engines/issue/streams/consumer'
 import { consumeStderr, consumeStream } from '@/engines/issue/streams/consumer'
 import {
   handleStderrEntry,
@@ -27,7 +27,7 @@ export function register(
   logParser: (line: string) => NormalizedLogEntry | NormalizedLogEntry[] | null,
   turnIndex: number,
   worktreePath: string | undefined,
-  onTurnCompleted: () => void,
+  hooks: TurnStreamHooks,
   worktreeBaseDir?: string,
   spawnCwd?: string,
   externalSessionId?: string,
@@ -57,6 +57,8 @@ export function register(
     pendingInputs: [],
     spawnCwd,
     externalSessionId,
+    backgroundTasks: new Set(),
+    autoMovedToReview: false,
   }
 
   ctx.pm.register(executionId, process.subprocess, managed, {
@@ -81,7 +83,7 @@ export function register(
     getManaged: () => ctx.pm.get(executionId)?.meta,
     getTurnIndex: () => ctx.turnIndexes.get(executionId) ?? 0,
     onEntry: entry => handleStreamEntry(issueId, executionId, entry),
-    onTurnCompleted,
+    ...hooks,
     onStreamError: error => handleStreamError(ctx, issueId, executionId, error),
   }
   const stderrCallbacks = {

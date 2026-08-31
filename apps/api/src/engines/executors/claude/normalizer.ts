@@ -209,6 +209,21 @@ export class ClaudeLogNormalizer {
             ...taskUsageMetadata(data.usage),
           },
         }
+      case 'background_tasks_changed':
+        // The authoritative live set of background tasks: the CLI re-sends the
+        // full list on every change and an empty list once it drains. Carries
+        // no user-facing text — settlement reads it, the chat never shows it.
+        return {
+          entryType: 'system-message',
+          content: '',
+          timestamp: data.timestamp,
+          metadata: {
+            subtype: data.subtype,
+            backgroundTasks: (data.tasks ?? [])
+              .map(t => t.task_id)
+              .filter((id): id is string => typeof id === 'string'),
+          },
+        }
       case 'stop_hook_summary':
         // Suppress — no user-facing value
         return null

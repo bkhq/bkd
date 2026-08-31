@@ -58,6 +58,8 @@ function makeManagedProcess(
     agents: [],
     plugins: [],
     pendingInputs: [],
+    backgroundTasks: new Set<string>(),
+    autoMovedToReview: false,
     ...overrides,
   }
 }

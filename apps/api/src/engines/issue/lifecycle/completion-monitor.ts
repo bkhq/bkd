@@ -12,7 +12,7 @@ import type { EngineType, ProcessStatus } from '@/engines/types'
 import { logger } from '@/logger'
 import { settleIssue } from './settle'
 import { spawnFollowUpProcess, spawnRetry } from './spawn'
-import { flushSettleTimer } from './turn-completion'
+import { clearBackgroundHold, flushSettleTimer } from './turn-completion'
 
 // ---------- Helpers ----------
 
@@ -54,6 +54,8 @@ export function monitorCompletion(
     try {
       const exitCode = await managed.process.subprocess.exited
       dispatch(managed, { type: 'SET_EXIT_CODE', exitCode })
+      // Nothing is left to wait for once the process is gone.
+      clearBackgroundHold(managed)
       const pid = getPidFromManaged(managed)
       logger.info(
         {

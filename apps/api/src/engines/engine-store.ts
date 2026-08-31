@@ -92,7 +92,7 @@ export async function updateIssueSession(
  * Uses a single atomic UPDATE with all conditions in the WHERE clause
  * to avoid TOCTOU race conditions.
  */
-export async function autoMoveToReview(issueId: string): Promise<void> {
+export async function autoMoveToReview(issueId: string): Promise<boolean> {
   const [updated] = await db
     .update(issuesTable)
     .set({ statusId: 'review', statusUpdatedAt: new Date() })
@@ -105,9 +105,36 @@ export async function autoMoveToReview(issueId: string): Promise<void> {
     )
     .returning()
 
-  if (!updated) return
+  if (!updated) return false
 
   await cacheDel(`issue:${updated.projectId}:${issueId}`)
   emitIssueUpdated(issueId, { statusId: 'review' })
   logger.info({ issueId }, 'auto_moved_to_review')
+  return true
+}
+
+/**
+ * Undo an automatic move to review when the engine turns out not to be done
+ * (ENG-036: the CLI starts another turn after a background task reports back).
+ *
+ * Only reverses `review` — a status the user has since changed is left alone.
+ */
+export async function revertAutoReview(issueId: string): Promise<void> {
+  const [updated] = await db
+    .update(issuesTable)
+    .set({ statusId: 'working', statusUpdatedAt: new Date() })
+    .where(
+      and(
+        eq(issuesTable.id, issueId),
+        eq(issuesTable.isDeleted, 0),
+        eq(issuesTable.statusId, 'review'),
+      ),
+    )
+    .returning()
+
+  if (!updated) return
+
+  await cacheDel(`issue:${updated.projectId}:${issueId}`)
+  emitIssueUpdated(issueId, { statusId: 'working' })
+  logger.info({ issueId }, 'auto_review_reverted')
 }

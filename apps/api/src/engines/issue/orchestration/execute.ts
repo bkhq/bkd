@@ -4,7 +4,7 @@ import type { EngineContext } from '@/engines/issue/context'
 import { emitDiagnosticLog, emitErrorLog } from '@/engines/issue/diagnostic'
 import { emitStateChange } from '@/engines/issue/events'
 import { monitorCompletion } from '@/engines/issue/lifecycle/completion-monitor'
-import { handleTurnCompleted } from '@/engines/issue/lifecycle/turn-completion'
+import { makeStreamHooks } from '@/engines/issue/lifecycle/turn-completion'
 import { ensureNoActiveProcess } from '@/engines/issue/process/guards'
 import { withIssueLock } from '@/engines/issue/process/lock'
 import { register } from '@/engines/issue/process/register'
@@ -154,7 +154,7 @@ export async function executeIssue(
       line => normalizer.parse(line),
       0,
       worktreePath,
-      () => handleTurnCompleted(ctx, issueId, executionId),
+      makeStreamHooks(ctx, issueId, executionId),
       worktreePath ? baseDir : undefined,
       workingDir,
       finalExternalSessionId,

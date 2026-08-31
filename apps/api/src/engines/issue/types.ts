@@ -93,4 +93,28 @@ export interface ManagedProcess {
    * the DB in Phase 1, avoiding a mismatch if logicalFailure changes later.
    */
   settleTimerStatus?: string
+  /**
+   * Live background/subagent task ids, mirrored from the CLI's
+   * `background_tasks_changed` events. Non-empty means the engine still has
+   * work in flight even though the current turn reported completion.
+   */
+  backgroundTasks: Set<string>
+  /**
+   * Set when a turn-completion signal was withheld because background tasks
+   * were still live. Cleared when the hold is released or a new turn starts.
+   */
+  settleHeldAt?: Date
+  /** Cap timer: releases the hold if the tasks never report back. */
+  bgHoldTimer?: ReturnType<typeof setTimeout>
+  /**
+   * Armed when the task set drains: gives the CLI a moment to start the
+   * follow-up turn it normally runs off the task notification.
+   */
+  bgDrainTimer?: ReturnType<typeof setTimeout>
+  /**
+   * True when this execution auto-moved the issue to 'review'. Lets a turn
+   * that reopens afterwards put the issue back to 'working' without touching a
+   * status the user set themselves.
+   */
+  autoMovedToReview: boolean
 }

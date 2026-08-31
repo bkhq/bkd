@@ -25,6 +25,13 @@ export function dispatch(managed: ManagedProcess, action: ManagedAction): void {
         managed.settleTimer = undefined
         managed.settleTimerStatus = undefined
       }
+      // A withheld completion belongs to the turn that just ended — the new
+      // turn produces its own.
+      if (managed.bgHoldTimer) clearTimeout(managed.bgHoldTimer)
+      if (managed.bgDrainTimer) clearTimeout(managed.bgDrainTimer)
+      managed.bgHoldTimer = undefined
+      managed.bgDrainTimer = undefined
+      managed.settleHeldAt = undefined
       break
     case 'TURN_COMPLETED':
       managed.turnInFlight = false

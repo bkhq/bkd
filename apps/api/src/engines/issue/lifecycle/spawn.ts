@@ -29,7 +29,7 @@ import { resolveExecutionModel } from '@/engines/model-resolver'
 import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
 import { monitorCompletion } from './completion-monitor'
-import { handleTurnCompleted } from './turn-completion'
+import { makeStreamHooks } from './turn-completion'
 
 // ---------- Spawn helpers ----------
 
@@ -221,7 +221,7 @@ export async function spawnRetry(
     line => normalizer.parse(line),
     turnIndex,
     worktreePath,
-    () => handleTurnCompleted(ctx, issueId, executionId),
+    makeStreamHooks(ctx, issueId, executionId),
     worktreePath ? baseDir : undefined,
     workingDir,
     spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,
@@ -380,7 +380,7 @@ export async function spawnFollowUpProcess(
     line => normalizer.parse(line),
     turnIndex,
     worktreePath,
-    () => handleTurnCompleted(ctx, issueId, executionId),
+    makeStreamHooks(ctx, issueId, executionId),
     worktreePath ? baseDir : undefined,
     workingDir,
     spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,

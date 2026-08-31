@@ -217,12 +217,34 @@ describe('subagent lifecycle events', () => {
         patch: { status: 'completed', end_time: 1787382217106 },
       }),
     ).toHaveLength(0)
-    expect(
-      parseAll(normalizer, {
-        type: 'system',
-        subtype: 'background_tasks_changed',
-        tasks: [{ task_id: TASK_ID, task_type: 'local_agent', description: 'x' }],
-      }),
-    ).toHaveLength(0)
+  })
+
+  test('surfaces the live background task set', () => {
+    const normalizer = new ClaudeLogNormalizer()
+    const entries = parseAll(normalizer, {
+      type: 'system',
+      subtype: 'background_tasks_changed',
+      tasks: [
+        { task_id: TASK_ID, task_type: 'local_agent', description: 'Count files' },
+      ],
+    })
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.metadata).toMatchObject({
+      subtype: 'background_tasks_changed',
+      backgroundTasks: [TASK_ID],
+    })
+  })
+
+  test('surfaces the drained background task set', () => {
+    const normalizer = new ClaudeLogNormalizer()
+    const entries = parseAll(normalizer, {
+      type: 'system',
+      subtype: 'background_tasks_changed',
+      tasks: [],
+    })
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.metadata?.backgroundTasks).toEqual([])
   })
 })

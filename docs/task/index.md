@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-08-30
+> Updated: 2026-08-31
 
 ## Usage
 
@@ -102,3 +102,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**REL-005 Close the release window where latest has no assets**](REL-005.md) `P0`
 - [x] [**ENG-034 Stop probing the Claude CLI on every execution**](ENG-034.md) `P1`
 - [x] [**ENG-035 Probe engines on demand only, never on a timer**](ENG-035.md) `P1`
+- [x] [**ENG-036 Turn settlement misreads subagent and background-task signals**](ENG-036.md) `P1`

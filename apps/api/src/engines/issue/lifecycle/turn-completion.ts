@@ -1,8 +1,15 @@
 import { relocatePendingForProcessing, restorePendingVisibility } from '@/db/pending-messages'
-import { autoMoveToReview, getIssueWithSession, updateIssueSession } from '@/engines/engine-store'
+import {
+  autoMoveToReview,
+  getIssueWithSession,
+  revertAutoReview,
+  updateIssueSession,
+} from '@/engines/engine-store'
+import { BG_TASK_DRAIN_GRACE_MS, BG_TASK_HOLD_MS } from '@/engines/issue/constants'
 import type { EngineContext } from '@/engines/issue/context'
 import { emitIssueSettled, emitStateChange } from '@/engines/issue/events'
 import { dispatch } from '@/engines/issue/state'
+import type { TurnStreamHooks } from '@/engines/issue/streams/consumer'
 import type { ManagedProcess } from '@/engines/issue/types'
 import { sendInputToRunningProcess } from '@/engines/issue/user-message'
 import type { ProcessStatus } from '@/engines/types'
@@ -28,6 +35,33 @@ export function handleTurnCompleted(
   // stop entry, or the stream continues producing result entries after settlement).
   // Without this guard, each entry would trigger a new settlement cycle.
   if (!managed.turnInFlight) return
+
+  // Background tasks outlive the turn that started them: the CLI reports this
+  // turn complete, then runs another one on the same process once a task
+  // reports back (ENG-036). Withhold the completion until the set drains,
+  // otherwise the issue lands in 'review' while the engine is still working.
+  // A cancel is the user saying they are done waiting — settle it even with
+  // tasks still live, or the interrupt would hang until the hold cap.
+  if (managed.backgroundTasks.size > 0 && !managed.lastInterruptAt) {
+    if (!managed.settleHeldAt) {
+      managed.settleHeldAt = new Date()
+      managed.bgHoldTimer = setTimeout(() => {
+        managed.bgHoldTimer = undefined
+        logger.warn(
+          { issueId, executionId, tasks: [...managed.backgroundTasks] },
+          'issue_turn_bg_hold_expired',
+        )
+        releaseBackgroundHold(ctx, issueId, executionId)
+      }, BG_TASK_HOLD_MS)
+      logger.info(
+        { issueId, executionId, tasks: [...managed.backgroundTasks] },
+        'issue_turn_settle_held_for_background_tasks',
+      )
+    }
+    return
+  }
+  clearBackgroundHold(managed)
+
   dispatch(managed, { type: 'TURN_COMPLETED' })
   logger.debug(
     { issueId, executionId, queued: managed.pendingInputs.length },
@@ -221,7 +255,7 @@ async function settleAfterGrace(
       return
     }
 
-    await autoMoveToReview(issueId)
+    if (await autoMoveToReview(issueId)) managed.autoMovedToReview = true
     emitIssueSettled(issueId, executionId, finalStatus)
     logger.info({ issueId, executionId, finalStatus }, 'issue_turn_settled')
   } catch (err) {
@@ -249,6 +283,110 @@ export function flushSettleTimer(
   managed.settleTimer = undefined
   managed.settleTimerStatus = undefined
   void settleAfterGrace(ctx, managed.issueId, managed.executionId, managed, finalStatus)
+}
+
+// ---------- Background tasks ----------
+
+/** Drop a withheld completion and its timers. */
+export function clearBackgroundHold(managed: ManagedProcess): void {
+  if (managed.bgHoldTimer) clearTimeout(managed.bgHoldTimer)
+  if (managed.bgDrainTimer) clearTimeout(managed.bgDrainTimer)
+  managed.bgHoldTimer = undefined
+  managed.bgDrainTimer = undefined
+  managed.settleHeldAt = undefined
+}
+
+/**
+ * Mirror the CLI's live background task set. Draining it while a completion is
+ * withheld arms a short grace period: the CLI normally starts a follow-up turn
+ * off the task notification, and that turn's own `result` settles the issue. If
+ * no turn arrives, the grace period settles it here.
+ */
+export function handleBackgroundTasks(
+  ctx: EngineContext,
+  issueId: string,
+  executionId: string,
+  taskIds: string[],
+): void {
+  const managed = ctx.pm.get(executionId)?.meta
+  if (!managed) return
+  managed.backgroundTasks = new Set(taskIds)
+
+  if (managed.bgDrainTimer) {
+    clearTimeout(managed.bgDrainTimer)
+    managed.bgDrainTimer = undefined
+  }
+  if (managed.backgroundTasks.size > 0 || !managed.settleHeldAt) return
+
+  managed.bgDrainTimer = setTimeout(() => {
+    managed.bgDrainTimer = undefined
+    releaseBackgroundHold(ctx, issueId, executionId)
+  }, BG_TASK_DRAIN_GRACE_MS)
+}
+
+/**
+ * Stop waiting on background tasks and settle the withheld completion. Clears
+ * the task set so the settle path cannot immediately hold again — reached
+ * either because the tasks drained or because the hold hit its cap.
+ */
+export function releaseBackgroundHold(
+  ctx: EngineContext,
+  issueId: string,
+  executionId: string,
+): void {
+  const managed = ctx.pm.get(executionId)?.meta
+  if (!managed?.settleHeldAt) return
+  clearBackgroundHold(managed)
+  managed.backgroundTasks.clear()
+  handleTurnCompleted(ctx, issueId, executionId)
+}
+
+// ---------- Turn reopen ----------
+
+/**
+ * The engine started another turn on a process whose previous turn we already
+ * settled. Reopen it and undo the automatic move to review — a status the user
+ * has since changed themselves is left alone by `revertAutoReview`.
+ */
+export function handleTurnRestarted(
+  ctx: EngineContext,
+  issueId: string,
+  executionId: string,
+): void {
+  const managed = ctx.pm.get(executionId)?.meta
+  if (!managed || managed.state !== 'running') return
+  // Only a still-running process can reopen; a settled turn on an exited one
+  // is genuinely over.
+  if (!managed.turnSettled || managed.exitCode !== undefined) return
+
+  dispatch(managed, { type: 'START_TURN' })
+  logger.info({ issueId, executionId }, 'issue_turn_reopened')
+  emitStateChange(issueId, executionId, 'running')
+
+  void (async () => {
+    try {
+      await updateIssueSession(issueId, { sessionStatus: 'running' })
+      if (managed.autoMovedToReview) {
+        managed.autoMovedToReview = false
+        await revertAutoReview(issueId)
+      }
+    } catch (err) {
+      logger.error({ issueId, executionId, err }, 'issue_turn_reopen_failed')
+    }
+  })()
+}
+
+/** Stream hooks for one execution, wired by `register`. */
+export function makeStreamHooks(
+  ctx: EngineContext,
+  issueId: string,
+  executionId: string,
+): TurnStreamHooks {
+  return {
+    onTurnCompleted: () => handleTurnCompleted(ctx, issueId, executionId),
+    onBackgroundTasks: taskIds => handleBackgroundTasks(ctx, issueId, executionId, taskIds),
+    onTurnRestarted: () => handleTurnRestarted(ctx, issueId, executionId),
+  }
 }
 
 export async function flushQueuedInputs(

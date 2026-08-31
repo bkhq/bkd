@@ -5,7 +5,12 @@ import type { ManagedProcess } from '@/engines/issue/types'
 import { normalizeStream } from '@/engines/logs'
 import type { EngineType, NormalizedLogEntry } from '@/engines/types'
 import { logger } from '@/logger'
-import { isCancelledNoiseEntry, isTurnCompletionEntry } from './classification'
+import {
+  isCancelledNoiseEntry,
+  isTurnCompletionEntry,
+  isTurnRestartEntry,
+  readBackgroundTaskIds,
+} from './classification'
 
 const MAX_IO_LOG_CHARS = 1200
 const IO_LOG_ENABLED = (process.env.LOG_EXECUTOR_IO ?? '1') !== '0'
@@ -30,11 +35,19 @@ async function saveCategorizedCommandsToSettings(
   await refreshSlashCommandsCacheForEngine(engineType)
 }
 
-export interface StreamCallbacks {
+/** Turn lifecycle signals the stream carries, handled by the issue engine. */
+export interface TurnStreamHooks {
+  onTurnCompleted: () => void
+  /** The CLI's live background task set changed (full list, `[]` when drained). */
+  onBackgroundTasks: (taskIds: string[]) => void
+  /** The CLI started another turn on this process. */
+  onTurnRestarted: () => void
+}
+
+export interface StreamCallbacks extends TurnStreamHooks {
   getManaged: () => ManagedProcess | undefined
   getTurnIndex: () => number
   onEntry: (entry: NormalizedLogEntry) => void
-  onTurnCompleted: () => void
   onStreamError: (error: unknown) => void
 }
 
@@ -107,6 +120,12 @@ export async function consumeStream(
           }
           continue
         }
+
+        // Turn lifecycle state is read by the settle path below, so update it
+        // before the entry is emitted.
+        const backgroundTaskIds = readBackgroundTaskIds(entry)
+        if (backgroundTaskIds) callbacks.onBackgroundTasks(backgroundTaskIds)
+        if (isTurnRestartEntry(entry)) callbacks.onTurnRestarted()
 
         callbacks.onEntry(entry)
 
