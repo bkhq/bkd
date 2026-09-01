@@ -36,6 +36,7 @@ describe('resolveExecutionModel', () => {
   test('resolves auto/unknown to the engine default', async () => {
     expect(await resolveExecutionModel('claude-code', 'auto')).toBe('claude-opus-5')
     expect(await resolveExecutionModel('claude-code', 'claude-opus-4-8')).toBe('claude-opus-5')
+    expect(await resolveExecutionModel('claude-code', 'claude-fable-5-1')).toBe('claude-fable-5-1')
     expect(await resolveExecutionModel('claude-code', 'claude-fable-5')).toBe('claude-fable-5')
   })
 

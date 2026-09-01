@@ -135,6 +135,12 @@ function resolveBaseCmd(): string {
 // Known Claude models — Claude Code CLI has no `models` subcommand
 // [1m] variants use 1 million context token window
 const CLAUDE_MODELS: EngineModel[] = [
+  { id: 'claude-fable-5-1', name: 'Claude Fable 5.1', isDefault: false },
+  {
+    id: 'claude-fable-5-1[1m]',
+    name: 'Claude Fable 5.1 (1M)',
+    isDefault: false,
+  },
   { id: 'claude-fable-5', name: 'Claude Fable 5', isDefault: false },
   {
     id: 'claude-fable-5[1m]',
