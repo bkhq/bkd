@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-08-31
+> Updated: 2026-09-02
 
 ## Usage
 
@@ -103,3 +103,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-034 Stop probing the Claude CLI on every execution**](ENG-034.md) `P1`
 - [x] [**ENG-035 Probe engines on demand only, never on a timer**](ENG-035.md) `P1`
 - [x] [**ENG-036 Turn settlement misreads subagent and background-task signals**](ENG-036.md) `P1`
+- [x] [**UI-007 Upload files from the file browser**](UI-007.md) `P2`

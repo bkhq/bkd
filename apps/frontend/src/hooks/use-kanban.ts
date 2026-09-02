@@ -948,6 +948,17 @@ export function useSaveFile() {
   })
 }
 
+export function useUploadFiles() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ root, path, files, overwrite }: { root: string, path: string, files: File[], overwrite?: boolean }) =>
+      kanbanApi.uploadFiles(root, path, files, overwrite),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files'] })
+    },
+  })
+}
+
 // --- Process Manager hooks ---
 
 export function useAllProcesses(enabled = true) {

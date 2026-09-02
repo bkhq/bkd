@@ -70,6 +70,21 @@ Save text file content. Symlink traversal verified before write.
 
 **Response:** `{ size, modifiedAt }`
 
+## POST /api/files/upload/*
+
+Upload one or more files into a directory (`multipart/form-data`). The target must be an existing directory; omit the sub-path to upload into the root.
+
+| Form Field | Type | Description |
+|---|---|---|
+| `files` | `File[]` | Files to write (max 10 files, 10 MB each) |
+| `overwrite` | `"true" \| "false"` | Replace existing files (default `false`) |
+
+File names must be plain basenames (no `/`, `.` or `..`).
+
+**Response:** `201 { uploaded: [{ name, size }] }`
+
+Returns `400` if the path is not a directory or a name is invalid, `409` (`Already exists: a.txt, b.txt`) when a file already exists and `overwrite` is not set, and `404` if the directory is missing.
+
 ## DELETE /api/files/delete/*
 
 Delete a file or directory (recursive for directories). Cannot delete the root directory itself. Symlink traversal verified. This is an **irreversible** disk deletion.

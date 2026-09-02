@@ -11,6 +11,7 @@ import type {
   ExecuteIssueRequest,
   ExecuteIssueResponse,
   FileListingResult,
+  FileUploadResult,
   ImportSessionRequest,
   ImportSessionResult,
   Issue,
@@ -570,6 +571,16 @@ export const kanbanApi = {
       `/api/files/${encodedRoot}/save/${encodedPath}`,
       { method: 'PUT', body: JSON.stringify({ content }) },
     )
+  },
+
+  uploadFiles: (root: string, path: string, files: File[], overwrite = false) => {
+    const encodedRoot = encodeRootPath(root)
+    const encodedPath =
+      path && path !== '.' ? `/${path.split('/').map(encodeURIComponent).join('/')}` : ''
+    const fd = new FormData()
+    for (const file of files) fd.append('files', file)
+    if (overwrite) fd.append('overwrite', 'true')
+    return postFormData<FileUploadResult>(`/api/files/${encodedRoot}/upload${encodedPath}`, fd)
   },
 
   // Webhooks

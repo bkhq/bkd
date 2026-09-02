@@ -22,6 +22,7 @@ export type {
   FileContent,
   FileEntry,
   FileListingResult,
+  FileUploadResult,
   ImportSessionRequest,
   ImportSessionResult,
   Issue,

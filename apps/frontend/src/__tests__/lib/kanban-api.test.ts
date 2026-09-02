@@ -125,3 +125,32 @@ describe('kanbanApi error handling', () => {
     await expect(kanbanApi.getProjects()).rejects.toThrow('Something went wrong')
   })
 })
+
+describe('kanbanApi.uploadFiles', () => {
+  it('posts multipart form data to the encoded upload URL', async () => {
+    const uploaded = [{ name: 'a.txt', size: 1 }]
+    mockFetch.mockResolvedValueOnce(mockJsonResponse({ uploaded }))
+    const file = new File(['a'], 'a.txt', { type: 'text/plain' })
+
+    const result = await kanbanApi.uploadFiles('/ws/proj', 'src/lib', [file], true)
+
+    const [url, options] = mockFetch.mock.calls[0]
+    expect(url).toMatch(/^\/api\/files\/[1-9A-HJ-NP-Za-km-z]+\/upload\/src\/lib$/)
+    expect(options.method).toBe('POST')
+    const body = options.body as FormData
+    expect(body).toBeInstanceOf(FormData)
+    expect(body.getAll('files')).toEqual([file])
+    expect(body.get('overwrite')).toBe('true')
+    expect(result.uploaded).toEqual(uploaded)
+  })
+
+  it('omits the path segment and overwrite flag at the root', async () => {
+    mockFetch.mockResolvedValueOnce(mockJsonResponse({ uploaded: [] }))
+
+    await kanbanApi.uploadFiles('/ws/proj', '.', [new File(['a'], 'a.txt')])
+
+    const [url, options] = mockFetch.mock.calls[0]
+    expect(url).toMatch(/^\/api\/files\/[1-9A-HJ-NP-Za-km-z]+\/upload$/)
+    expect((options.body as FormData).get('overwrite')).toBeNull()
+  })
+})

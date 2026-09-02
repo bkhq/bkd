@@ -581,6 +581,10 @@ export interface FileContent {
 
 export type FileListingResult = DirectoryListing | FileContent
 
+export interface FileUploadResult {
+  uploaded: Array<{ name: string, size: number }>
+}
+
 // ── Process Manager ─────────────────────────────────────
 
 export interface ProcessInfo {

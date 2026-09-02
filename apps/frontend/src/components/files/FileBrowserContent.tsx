@@ -6,9 +6,10 @@ import {
   EyeOff,
   FolderOpen,
   Trash2,
+  Upload,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useCallback, useState } from 'react'
+import type { DragEvent, ReactNode } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   AlertDialog,
@@ -20,13 +21,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { useDeleteFile, useProject, useProjectFiles, useSaveFile } from '@/hooks/use-kanban'
-import { kanbanApi } from '@/lib/kanban-api'
+import { useDeleteFile, useProject, useProjectFiles, useSaveFile, useUploadFiles } from '@/hooks/use-kanban'
+import { ApiError, kanbanApi } from '@/lib/kanban-api'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import { SidePanelButton } from '@/components/ui/side-panel'
 import { FileBreadcrumb } from './FileBreadcrumb'
 import { FileList } from './FileList'
 import { FileViewer } from './FileViewer'
+
+const UPLOAD_ERROR_TTL_MS = 5000
+/** Server prefix on a 409 upload response; the remainder lists the clashing names. */
+const CONFLICT_PREFIX = /^Already exists:\s*/
 
 export function FileBrowserContent({
   headerActions,
@@ -48,12 +53,17 @@ export function FileBrowserContent({
   const [copied, setCopied] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [deleteFileConfirm, setDeleteFileConfirm] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [conflict, setConflict] = useState<{ files: File[], names: string } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: project } = useProject(projectId ?? '')
   const effectiveRoot = rootPath ?? project?.directory ?? null
 
   const deleteFileMutation = useDeleteFile()
   const saveFileMutation = useSaveFile()
+  const uploadMutation = useUploadFiles()
 
   const handleCopyPath = useCallback(() => {
     const fullPath = currentPath === '.' ? (effectiveRoot ?? '/') : (effectiveRoot ? `${effectiveRoot}/${currentPath}` : currentPath)
@@ -118,6 +128,45 @@ export function FileBrowserContent({
     )
   }, [effectiveRoot, currentPath, saveFileMutation])
 
+  const canUpload = !!effectiveRoot && listing?.type === 'directory'
+
+  const uploadFiles = useCallback((files: File[], overwrite = false) => {
+    if (!effectiveRoot || files.length === 0) return
+    setConflict(null)
+    uploadMutation.mutate(
+      { root: effectiveRoot, path: currentPath, files, overwrite },
+      {
+        onError: (err) => {
+          if (err instanceof ApiError && err.statusCode === 409) {
+            setConflict({ files, names: err.message.replace(CONFLICT_PREFIX, '') })
+            return
+          }
+          setUploadError(err.message)
+          setTimeout(setUploadError, UPLOAD_ERROR_TTL_MS, null)
+        },
+      },
+    )
+  }, [effectiveRoot, currentPath, uploadMutation])
+
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (!canUpload) return
+    e.preventDefault()
+    setIsDragOver(true)
+  }, [canUpload])
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    // Moving between children of the drop zone also fires dragleave
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+    setIsDragOver(false)
+  }, [])
+
+  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (!canUpload) return
+    e.preventDefault()
+    setIsDragOver(false)
+    uploadFiles([...e.dataTransfer.files])
+  }, [canUpload, uploadFiles])
+
   const currentFileName = currentPath.split('/').pop() ?? currentPath
 
   return (
@@ -137,6 +186,25 @@ export function FileBrowserContent({
             label={t('fileBrowser.copyPath')}
             onClick={handleCopyPath}
           />
+          {canUpload && (
+            <>
+              <SidePanelButton
+                icon={Upload}
+                label={uploadMutation.isPending ? t('fileBrowser.uploading') : t('fileBrowser.upload')}
+                onClick={() => fileInputRef.current?.click()}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  uploadFiles([...(e.target.files ?? [])])
+                  e.target.value = ''
+                }}
+              />
+            </>
+          )}
           {listing?.type === 'file' && (
             <>
               <SidePanelButton
@@ -169,50 +237,68 @@ export function FileBrowserContent({
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto min-h-0 flex flex-col">
-        {!effectiveRoot
-          ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-                <FolderOpen className="h-12 w-12" />
-                <p className="text-sm">{t('fileBrowser.noDirectory')}</p>
-              </div>
-            )
-          : isLoading
+      {uploadError && (
+        <div role="alert" className="px-3 py-1.5 text-xs text-destructive border-b border-border/60 shrink-0">
+          {uploadError}
+        </div>
+      )}
+
+      {/* Content (drop zone while a directory is shown) */}
+      <div
+        className="relative flex-1 min-h-0 flex flex-col"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {isDragOver && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center border-2 border-dashed border-primary bg-background/80 text-sm text-primary">
+            {t('fileBrowser.dropToUpload')}
+          </div>
+        )}
+        <div className="flex-1 overflow-auto min-h-0 flex flex-col">
+          {!effectiveRoot
             ? (
-                <div className="flex items-center justify-center py-16">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+                  <FolderOpen className="h-12 w-12" />
+                  <p className="text-sm">{t('fileBrowser.noDirectory')}</p>
                 </div>
               )
-            : isError
+            : isLoading
               ? (
-                  <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-                    {(error as Error)?.message || t('fileBrowser.loadError')}
+                  <div className="flex items-center justify-center py-16">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                   </div>
                 )
-              : listing?.type === 'file'
+              : isError
                 ? (
-                    <FileViewer
-                      file={listing}
-                      breadcrumb={<FileBreadcrumb path={currentPath} onNavigate={navigateTo} projectName={project?.name} />}
-                      isEditing={isEditing}
-                      onStartEdit={() => setIsEditing(true)}
-                      onCancelEdit={() => setIsEditing(false)}
-                      onSave={handleSave}
-                      isSaving={saveFileMutation.isPending}
-                    />
+                    <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
+                      {(error as Error)?.message || t('fileBrowser.loadError')}
+                    </div>
                   )
-                : listing?.type === 'directory'
+                : listing?.type === 'file'
                   ? (
-                      <FileList
-                        entries={listing.entries}
-                        onNavigate={handleEntryClick}
-                        onDelete={handleDeleteEntry}
-                        isDeleting={deleteFileMutation.isPending}
+                      <FileViewer
+                        file={listing}
                         breadcrumb={<FileBreadcrumb path={currentPath} onNavigate={navigateTo} projectName={project?.name} />}
+                        isEditing={isEditing}
+                        onStartEdit={() => setIsEditing(true)}
+                        onCancelEdit={() => setIsEditing(false)}
+                        onSave={handleSave}
+                        isSaving={saveFileMutation.isPending}
                       />
                     )
-                  : null}
+                  : listing?.type === 'directory'
+                    ? (
+                        <FileList
+                          entries={listing.entries}
+                          onNavigate={handleEntryClick}
+                          onDelete={handleDeleteEntry}
+                          isDeleting={deleteFileMutation.isPending}
+                          breadcrumb={<FileBreadcrumb path={currentPath} onNavigate={navigateTo} projectName={project?.name} />}
+                        />
+                      )
+                    : null}
+        </div>
       </div>
 
       {/* Delete confirmation for current file */}
@@ -232,6 +318,27 @@ export function FileBrowserContent({
               onClick={handleDeleteCurrentFile}
             >
               {deleteFileMutation.isPending ? t('fileBrowser.deleting') : t('fileBrowser.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Replace confirmation when an upload clashes with existing files */}
+      <AlertDialog open={!!conflict} onOpenChange={open => !open && setConflict(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('fileBrowser.uploadConflictTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('fileBrowser.uploadConflictDesc', { names: conflict?.names })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('fileBrowser.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={uploadMutation.isPending}
+              onClick={() => conflict && uploadFiles(conflict.files, true)}
+            >
+              {t('fileBrowser.replace')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

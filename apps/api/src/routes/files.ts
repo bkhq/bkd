@@ -3,6 +3,7 @@ import { basename, resolve } from 'node:path'
 import bs58 from 'bs58'
 import { getAppSetting } from '@/db/helpers'
 import { runCommand } from '@/engines/spawn'
+import { validateFiles } from '@/uploads'
 import type { Context } from 'hono'
 import { createOpenAPIRouter } from '@/openapi/hono'
 
@@ -323,6 +324,93 @@ async function handleSave(c: Context, relativePath: string) {
   }
 }
 
+// ── /files/:root/upload — multipart upload into a directory ──
+
+/** Upload names must be a plain basename so they cannot leave the target directory. */
+function isValidUploadName(name: string): boolean {
+  return name.length > 0
+    && name !== '.'
+    && name !== '..'
+    && name === basename(name)
+    && !name.includes('\0')
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function handleUpload(c: Context, relativePath: string) {
+  const resolved = await resolveRootPath(c, relativePath)
+  if ('error' in resolved) return resolved.error
+  const { target } = resolved
+
+  const contentType = c.req.header('content-type') ?? ''
+  if (!contentType.includes('multipart/form-data')) {
+    return c.json({ success: false, error: 'Expected multipart/form-data' }, 400)
+  }
+
+  let fd: FormData
+  try {
+    fd = await c.req.formData()
+  } catch {
+    return c.json({ success: false, error: 'Invalid multipart body' }, 400)
+  }
+
+  const files = fd.getAll('files').filter((entry): entry is File => entry instanceof File)
+  if (files.length === 0) {
+    return c.json({ success: false, error: 'No files provided' }, 400)
+  }
+
+  const validation = validateFiles(files)
+  if (!validation.ok) {
+    return c.json({ success: false, error: validation.error }, 400)
+  }
+
+  const invalid = files.find(file => !isValidUploadName(file.name))
+  if (invalid) {
+    return c.json({ success: false, error: `Invalid file name: ${invalid.name}` }, 400)
+  }
+
+  const overwriteRaw = fd.get('overwrite')
+  const overwrite = overwriteRaw === 'true' || overwriteRaw === '1'
+
+  try {
+    const targetStat = await stat(target)
+    if (!targetStat.isDirectory()) {
+      return c.json({ success: false, error: 'Path is not a directory' }, 400)
+    }
+
+    if (!overwrite) {
+      const existing: string[] = []
+      for (const file of files) {
+        if (await pathExists(resolve(target, file.name))) existing.push(file.name)
+      }
+      if (existing.length > 0) {
+        return c.json({ success: false, error: `Already exists: ${existing.join(', ')}` }, 409)
+      }
+    }
+
+    const uploaded: Array<{ name: string, size: number }> = []
+    for (const file of files) {
+      await Bun.write(resolve(target, file.name), file)
+      uploaded.push({ name: file.name, size: file.size })
+    }
+
+    return c.json({ success: true, data: { uploaded } }, 201)
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === 'ENOENT') {
+      return c.json({ success: false, error: 'Path not found' }, 404)
+    }
+    return c.json({ success: false, error: 'Failed to upload' }, 500)
+  }
+}
+
 const files = createOpenAPIRouter()
 
 // GET /files/:root/show — root directory listing
@@ -338,5 +426,10 @@ files.delete('/:root/delete/*', c => handleDelete(c, extractPathAfter(c, '/delet
 
 // PUT /files/:root/save/* — save text file content
 files.put('/:root/save/*', c => handleSave(c, extractPathAfter(c, '/save/')))
+
+// POST /files/:root/upload — upload into the root directory
+files.post('/:root/upload', c => handleUpload(c, '.'))
+// POST /files/:root/upload/* — upload into a sub-directory
+files.post('/:root/upload/*', c => handleUpload(c, extractPathAfter(c, '/upload/')))
 
 export default files

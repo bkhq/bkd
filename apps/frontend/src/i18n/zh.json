@@ -591,7 +591,13 @@
     "save": "保存",
     "saving": "保存中...",
     "cancel": "取消",
-    "editNotSupported": "二进制文件无法编辑"
+    "editNotSupported": "二进制文件无法编辑",
+    "upload": "上传文件",
+    "uploading": "上传中...",
+    "dropToUpload": "拖放文件到此处上传",
+    "uploadConflictTitle": "替换已有文件",
+    "uploadConflictDesc": "此目录中已存在：{{names}}。是否用上传的文件替换？",
+    "replace": "替换"
   },
   "processManager": {
     "title": "进程",

@@ -592,7 +592,13 @@
     "save": "Save",
     "saving": "Saving...",
     "cancel": "Cancel",
-    "editNotSupported": "Binary files cannot be edited"
+    "editNotSupported": "Binary files cannot be edited",
+    "upload": "Upload files",
+    "uploading": "Uploading...",
+    "dropToUpload": "Drop files to upload here",
+    "uploadConflictTitle": "Replace existing files",
+    "uploadConflictDesc": "Already in this directory: {{names}}. Replace with the uploaded files?",
+    "replace": "Replace"
   },
   "processManager": {
     "title": "Processes",
