@@ -2,12 +2,12 @@ import {
   attachClosestEdge,
   extractClosestEdge,
 } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
-import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
+import { combine } from '@atlaskit/pragmatic-drag-and-drop/utils/combine'
 import {
   draggable,
   dropTargetForElements,
   monitorForElements,
-} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
+} from '@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter'
 import { generateKeyBetween } from 'jittered-fractional-indexing'
 import {
   Archive,

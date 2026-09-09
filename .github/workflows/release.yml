@@ -14,9 +14,8 @@ permissions:
 
 env:
   VERSION: ${{ github.event.inputs.tag || github.ref_name }}
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # Pinned: lode-cli produces the asset signatures lode verifies at install time.
-  LODE_VERSION: v0.1.0
+  LODE_VERSION: v0.3.1
 
 jobs:
   validate:
@@ -49,13 +48,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
@@ -145,7 +144,7 @@ jobs:
           verifies, launches and updates it.
 
           ```bash
-          curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64.tar.gz \
+          curl -fsSL https://github.com/dotns/lode/releases/latest/download/lode-linux-x64.tar.gz \
             | sudo tar -xz -C /usr/local/bin lode lode-cli
           # an install root you own — BKD spawns coding agents, so it should not run as root
           sudo mkdir -p /opt/bkd && sudo chown "$(id -un)" /opt/bkd

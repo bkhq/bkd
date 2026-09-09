@@ -27,6 +27,7 @@ bun run dev:frontend         # Vite dev server only (port 3000, registered at bk
 bun install                  # single install for all workspaces
 bun run test                 # run tests in all workspaces (parallel)
 bun run lint                 # lint all workspaces
+bun run typecheck            # tsc --noEmit in every workspace (TS 7)
 
 # Backend (@bkd/api)
 bun run test:api             # backend tests only
@@ -259,6 +260,17 @@ Server (IssueEngine) → SSE /api/events → EventBus singleton (lib/event-bus.t
   - **Important**: ESLint enforces `import * as z from 'zod'` (not `import { z } from 'zod'`) via `no-restricted-imports`
   - Import types must use `import type` (separated style) via `@typescript-eslint/consistent-type-imports`
   - Node.js imports must use `node:` prefix
+- **TypeScript runs two majors on purpose.** The catalog pins `^7.0.2`, used by
+  `@bkd/api`, `@bkd/frontend` and `@bkd/shared`; `@bkd/root` keeps an
+  off-catalog `typescript: ^6.0.3`. typescript-eslint throws
+  `typescript-eslint does not support TS 7.0` at plugin load, so ESLint needs a
+  v6 to resolve from the repository root, while `tsc` in each workspace gets the
+  native v7 (about 4.6x faster: 14.2s -> 3.1s for a full typecheck). Do not
+  "unify" the root back onto `catalog:` — that breaks `bun run lint` outright.
+  Delete the root pin once typescript-eslint supports TS >= 7.1
+  (typescript-eslint#10940). Because the root and the workspaces resolve
+  different `tsc` binaries, always typecheck with `bun run typecheck`, never a
+  bare `bunx tsc` from the root.
 - Frontend tests: vitest + @testing-library/react (`bun run test:frontend`)
 - Backend tests: `bun:test` (`bun run test:api`). Tests use preload to set `DB_PATH` to an isolated temp DB.
 - Dev env is consolidated in a single **root `.env`** (gitignored; copy from root `.env.example`). `bun run dev` loads it via `bun --env-file=.env`; `dev:api` loads it via `bun --env-file=../../.env`; the Vite dev server reads it through `loadEnv(mode, <repo root>)` in `vite.config.ts`. nsl routes `http://bkd.localhost/api/*` → API and the rest → Vite. Do not use the `dotenv` package. `apps/api/.env` still serves production `start` and drizzle (CWD auto-load); keep dev values in sync there or rely on the root `.env`.
