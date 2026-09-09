@@ -34,6 +34,7 @@ bun run dev:frontend     # Frontend only (port 3000, route bkd.localhost/)
 bun run lint             # ESLint check (linting + formatting, all workspaces)
 bun run lint:fix         # ESLint auto-fix
 bun run format           # Same as lint:fix (formatting is handled by ESLint stylistic rules)
+bun run typecheck        # tsc --noEmit in every workspace (TS 7; see CLAUDE.md)
 
 # Testing
 bun run test             # All tests (parallel)

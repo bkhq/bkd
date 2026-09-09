@@ -35,7 +35,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Restore workspace root
-  await setAppSetting('workspace:defaultPath', '')
+  await setAppSetting('workspace:defaultPath', '/')
 
   // Cleanup
   try {

@@ -14,9 +14,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   check:
     name: ${{ matrix.name }}
@@ -29,13 +26,13 @@ jobs:
           - name: Lint
             command: bun run lint
           - name: Typecheck
-            command: bunx tsc --noEmit -p apps/api/tsconfig.json && bunx tsc --noEmit -p apps/frontend/tsconfig.json
+            command: bun run typecheck
           - name: Migrations
             command: bun run db:generate && test -z "$(git status --porcelain -- apps/api/drizzle)" || { echo 'Drizzle schema/migration/snapshot out of sync — run "bun run db:generate" and commit the generated migration + snapshot'; git status --porcelain -- apps/api/drizzle; exit 1; }
           - name: Test
             command: bun run test:api && cd apps/frontend && bunx vitest run --reporter=verbose
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -45,10 +42,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Cache dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
@@ -66,7 +63,7 @@ jobs:
     timeout-minutes: 10
     needs: check
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -74,7 +71,7 @@ jobs:
           bun-version: latest
 
       - name: Cache dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
