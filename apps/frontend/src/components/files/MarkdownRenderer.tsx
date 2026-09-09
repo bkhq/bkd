@@ -46,7 +46,7 @@ function rehypeRelativeImages({ root, path }: RelativeImageOptions) {
       if (typeof src === 'string' && src && !ABSOLUTE_RE.test(src)) {
         const encoded = new URL(src, base).pathname.replace(/^\/+/, '')
         // `pathname` is percent-encoded; decode once so rawFileUrl does not double-encode.
-        // A segment with a malformed escape stays literal (the name really contains that `%`).
+        // Malformed escapes stay literal (the name really contains that `%`).
         node.properties.src = kanbanApi.rawFileUrl(root, encoded.split('/').map(safeDecode).join('/'))
       }
     }
@@ -55,12 +55,19 @@ function rehypeRelativeImages({ root, path }: RelativeImageOptions) {
   return walk
 }
 
+/**
+ * Decode each run of well-formed `%XX` triplets; anything else (a literal `%`
+ * that is not an escape, or a run that is not valid UTF-8) stays as written.
+ * Runs are decoded together so multi-byte characters are not split.
+ */
 function safeDecode(value: string): string {
-  try {
-    return decodeURIComponent(value)
-  } catch {
-    return value
-  }
+  return value.replace(/(?:%[0-9a-f]{2})+/gi, (run) => {
+    try {
+      return decodeURIComponent(run)
+    } catch {
+      return run
+    }
+  })
 }
 
 const { raw, sanitize, harden } = defaultRehypePlugins

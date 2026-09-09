@@ -41,7 +41,7 @@ describe('markdownRenderer', () => {
   })
 
   it('decodes percent-escapes and non-ASCII names once before hitting the raw API', () => {
-    const md = '![a](./img/a%20b.png) <img src="图 1.png"> ![bad](d%zz.png)'
+    const md = '![a](./img/a%20b.png) <img src="图 1.png"> ![bad](d%zz.png) ![mixed](my%20d%zz.png) ![cut](%E4%B8.png)'
     const { container } = render(
       <MarkdownRenderer content={md} root="/ws/proj" path="my docs/guide/README.md" />,
     )
@@ -50,6 +50,8 @@ describe('markdownRenderer', () => {
       kanbanApi.rawFileUrl('/ws/proj', 'my docs/guide/img/a b.png'),
       kanbanApi.rawFileUrl('/ws/proj', 'my docs/guide/图 1.png'),
       kanbanApi.rawFileUrl('/ws/proj', 'my docs/guide/d%zz.png'),
+      kanbanApi.rawFileUrl('/ws/proj', 'my docs/guide/my d%zz.png'),
+      kanbanApi.rawFileUrl('/ws/proj', 'my docs/guide/%E4%B8.png'),
     ])
   })
 
