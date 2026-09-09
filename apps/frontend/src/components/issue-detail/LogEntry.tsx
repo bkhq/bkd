@@ -396,6 +396,7 @@ export function LogEntry({
           content={entry.content}
           timestamp={entry.timestamp}
           durationMs={durationMs}
+          isStreaming={!entry.messageId}
         />
       )
 
@@ -547,10 +548,12 @@ function AssistantMessage({
   content,
   timestamp,
   durationMs,
+  isStreaming,
 }: {
   content: string
   timestamp?: string
   durationMs?: number
+  isStreaming: boolean
 }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
@@ -593,7 +596,7 @@ function AssistantMessage({
                 )}
           </button>
         </div>
-        <MarkdownContent content={content} className="text-[14px] leading-[1.75]" />
+        <MarkdownContent content={content} className="text-[14px] leading-[1.75]" isStreaming={isStreaming} />
       </div>
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
         <DialogContent className="w-[90vw] max-w-[90vw] sm:max-w-[90vw] max-h-[90vh] flex flex-col">
