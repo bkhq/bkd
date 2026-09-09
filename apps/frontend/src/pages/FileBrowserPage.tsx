@@ -175,7 +175,7 @@ export default function FileBrowserPage() {
                 ) :
               listing?.type === 'file' ?
                   (
-                    <FileViewer file={listing} />
+                    <FileViewer file={listing} root={effectiveRoot} />
                   ) :
                 listing?.type === 'directory' ?
                     (

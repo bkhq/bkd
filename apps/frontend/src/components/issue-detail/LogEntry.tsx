@@ -18,28 +18,20 @@ import {
   Monitor as MonitorIcon,
   Octagon,
   Search,
+  SquareM,
   Terminal,
   Timer,
   Wrench,
 } from 'lucide-react'
-import { lazy, Suspense, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import type { PreviewItem } from '@/components/FilePreviewModal'
 import { FilePreviewModal } from '@/components/FilePreviewModal'
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { getCommandPreview } from '@/lib/command-preview'
 import { formatDuration, formatFileSize } from '@/lib/format'
 import type { NormalizedLogEntry, ToolAction } from '@/types/kanban'
 import { MarkdownContent } from './MarkdownContent'
-
-const MarkdownRenderer = lazy(() =>
-  import('@/components/files/MarkdownRenderer').then(m => ({ default: m.MarkdownRenderer })),
-)
 
 interface AttachmentMeta {
   id: string
@@ -396,6 +388,7 @@ export function LogEntry({
           content={entry.content}
           timestamp={entry.timestamp}
           durationMs={durationMs}
+          isStreaming={!entry.messageId}
         />
       )
 
@@ -547,64 +540,54 @@ function AssistantMessage({
   content,
   timestamp,
   durationMs,
+  isStreaming,
 }: {
   content: string
   timestamp?: string
   durationMs?: number
+  isStreaming: boolean
 }) {
   const { t } = useTranslation()
-  const [copied, setCopied] = useState(false)
-  const [viewOpen, setViewOpen] = useState(false)
+  const [copied, setCopied] = useState<'text' | 'markdown' | null>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
 
-  const handleCopy = () => {
+  const copy = (kind: 'text' | 'markdown') => {
+    const body = bodyRef.current
+    // innerText keeps paragraph breaks from the rendered layout; jsdom lacks it, hence the fallback.
+    // eslint-disable-next-line unicorn/prefer-dom-node-text-content
+    const value = kind === 'markdown' ? content : (body?.innerText || body?.textContent || '')
     navigator.clipboard
-      .writeText(content)
+      .writeText(value)
       .then(() => {
-        setCopied(true)
-        setTimeout(setCopied, 2000, false)
+        setCopied(kind)
+        setTimeout(setCopied, 2000, null)
       })
       .catch(() => {})
   }
 
+  const copyButton = (kind: 'text' | 'markdown', label: string, Icon: typeof Copy) => (
+    <button
+      type="button"
+      onClick={() => copy(kind)}
+      className="rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50 transition-colors duration-150"
+      aria-label={copied === kind ? t('session.copied') : label}
+      title={label}
+    >
+      {copied === kind ?
+          (
+            <Check className="h-3.5 w-3.5 text-emerald-500" />
+          ) :
+          (
+            <Icon className="h-3.5 w-3.5" />
+          )}
+    </button>
+  )
+
   return (
     <div className="group py-1.5 animate-message-enter">
-      <div className="relative min-w-0">
-        <div className="absolute right-0 top-0 flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150 z-10">
-          <button
-            type="button"
-            onClick={() => setViewOpen(true)}
-            className="rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50"
-            title={t('session.viewMessage')}
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50"
-            title={t('session.copyMessage')}
-          >
-            {copied ?
-                (
-                  <Check className="h-3.5 w-3.5 text-emerald-500" />
-                ) :
-                (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-          </button>
-        </div>
-        <MarkdownContent content={content} className="text-[14px] leading-[1.75]" />
+      <div ref={bodyRef} className="min-w-0">
+        <MarkdownContent content={content} className="text-[14px] leading-[1.75]" isStreaming={isStreaming} />
       </div>
-      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="w-[90vw] max-w-[90vw] sm:max-w-[90vw] max-h-[90vh] flex flex-col">
-          <DialogTitle className="sr-only">{t('session.viewMessage')}</DialogTitle>
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading...</div>}>
-              <MarkdownRenderer content={content} />
-            </Suspense>
-          </div>
-        </DialogContent>
-      </Dialog>
       <div className="flex items-center gap-2 mt-1">
         {timestamp ?
             (
@@ -621,6 +604,10 @@ function AssistantMessage({
               </span>
             ) :
           null}
+        <span className="ml-auto flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
+          {copyButton('text', t('session.copyText'), Copy)}
+          {copyButton('markdown', t('session.copyMarkdown'), SquareM)}
+        </span>
       </div>
     </div>
   )

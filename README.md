@@ -39,7 +39,7 @@ version fails to come up. Linux and macOS, x64 and arm64.
 ```bash
 # 1. lode itself — on arm64 or macOS swap in the matching asset
 #    (lode-linux-arm64 / lode-darwin-x64 / lode-darwin-arm64)
-curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64.tar.gz \
+curl -fsSL https://github.com/dotns/lode/releases/latest/download/lode-linux-x64.tar.gz \
   | sudo tar -xz -C /usr/local/bin lode lode-cli
 
 # 2. an install root you own — BKD spawns coding agents in your workspace, so it

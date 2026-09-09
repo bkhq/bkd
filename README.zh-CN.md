@@ -37,7 +37,7 @@ BKD 运行在 [lode](https://github.com/dotns/lode) supervisor 之下。lode 负
 ```bash
 # 1. 安装 lode——arm64 或 macOS 换成对应的 asset
 #    （lode-linux-arm64 / lode-darwin-x64 / lode-darwin-arm64）
-curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64.tar.gz \
+curl -fsSL https://github.com/dotns/lode/releases/latest/download/lode-linux-x64.tar.gz \
   | sudo tar -xz -C /usr/local/bin lode lode-cli
 
 # 2. 准备一个自己有写权限的安装根目录——BKD 会在你的工作区里拉起编程代理，
