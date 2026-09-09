@@ -312,7 +312,7 @@
 }
 
 /* ─── Shiki dual-theme (light/dark via CSS vars) ─── */
-/* !important needed so github-markdown-css cannot override */
+/* !important so themed wrappers cannot override */
 .shiki {
   color: var(--shiki-light) !important;
   background-color: var(--shiki-light-bg) !important;
@@ -359,15 +359,4 @@ diffs-container {
   --diffs-header-font-family: var(--font-sans);
   --diffs-font-size: 12px;
   --diffs-line-height: 20px;
-}
-
-/* ─── GFM task list checkboxes ─── */
-.markdown-body ul:has(> li > input[type='checkbox']) {
-  list-style: none;
-  padding-left: 0;
-}
-
-.markdown-body li > input[type='checkbox'] {
-  margin-right: 0.5rem;
-  accent-color: var(--primary);
 }

@@ -107,3 +107,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**DEV-004 Upgrade all workspace dependencies to latest**](DEV-004.md) `P2`
 - [x] [**UI-008 Render chat markdown with streamdown instead of Shiki highlighting**](UI-008.md) `P2`
 - [x] [**UI-009 Move assistant message actions to the footer as copy text / copy Markdown**](UI-009.md) `P2`
+- [x] [**UI-010 Render file-browser Markdown with streamdown and drop react-markdown**](UI-010.md) `P2`

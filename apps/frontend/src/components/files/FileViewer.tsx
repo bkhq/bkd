@@ -52,6 +52,8 @@ function isMarkdownFile(path: string): boolean {
 
 interface FileViewerProps {
   file: FileContent
+  /** Workspace root; lets the Markdown preview resolve relative images. */
+  root?: string | null
   breadcrumb?: React.ReactNode
   isEditing?: boolean
   onStartEdit?: () => void
@@ -62,6 +64,7 @@ interface FileViewerProps {
 
 export function FileViewer({
   file,
+  root,
   breadcrumb,
   isEditing,
   onStartEdit,
@@ -247,7 +250,7 @@ export function FileViewer({
               )
             : isMd && showRendered
               ? (
-                  <MarkdownRenderer content={file.content} />
+                  <MarkdownRenderer content={file.content} root={root} path={file.path} />
                 )
               : (
                   <div

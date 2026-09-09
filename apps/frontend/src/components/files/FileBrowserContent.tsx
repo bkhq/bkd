@@ -278,6 +278,7 @@ export function FileBrowserContent({
                 : listing?.type === 'file'
                   ? (
                       <FileViewer
+                        root={effectiveRoot}
                         file={listing}
                         breadcrumb={<FileBreadcrumb path={currentPath} onNavigate={navigateTo} projectName={project?.name} />}
                         isEditing={isEditing}
