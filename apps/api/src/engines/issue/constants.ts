@@ -1,3 +1,5 @@
+import { runtimeConfig } from '@/runtime-config'
+
 export const DEFAULT_LOG_PAGE_SIZE = 10
 export const LOG_PAGE_SIZE_KEY = 'log:pageSize'
 export const MAX_LOG_ENTRIES = 10000
@@ -8,7 +10,7 @@ export const MAX_AUTO_RETRIES = 1
 //   T+5m: second check (process alive 2min after first probe) — send interrupt
 //   T+7m: no response after interrupt — force kill
 export const GC_INTERVAL_MS = 60 * 1000 // 1 minute — frequent stall detection
-export const MAX_CONCURRENT_EXECUTIONS = Number(process.env.MAX_CONCURRENT_EXECUTIONS) || 5
+export const MAX_CONCURRENT_EXECUTIONS = runtimeConfig.MAX_CONCURRENT_EXECUTIONS
 export const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 export const STREAM_STALL_TIMEOUT_MS = 3 * 60 * 1000 // 3 minutes — check process liveness (non-destructive)
 export const STALL_LIVENESS_GRACE_MS = 2 * 60 * 1000 // 2 minutes — wait for CLI internal retry before sending interrupt
@@ -22,4 +24,4 @@ export const CANCEL_MAX_RETRIES = 3 // send interrupt up to 3 times before hard 
 export const BG_TASK_DRAIN_GRACE_MS = 3_000 // wait for the follow-up turn after the last task drains
 export const BG_TASK_HOLD_MS = 10 * 60 * 1000 // cap: stop waiting on tasks that never report back
 export const KEEPALIVE_STALL_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes — stall detection for keepAlive processes
-export const WORKTREE_DIR = process.env.WORKTREE_DIR || 'worktrees'
+export const WORKTREE_DIR = runtimeConfig.WORKTREE_DIR

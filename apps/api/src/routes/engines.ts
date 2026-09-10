@@ -1,5 +1,7 @@
+import { VirtualEngineSchema, VirtualEnginesSchema } from '@/openapi/extra-schemas'
+import { errorResponse, successResponse } from '@/openapi/schemas'
+import { createRoute } from '@hono/zod-openapi'
 import type { VirtualEngine } from '@bkd/shared'
-import { zValidator } from '@hono/zod-validator'
 import * as z from 'zod'
 import {
   getAllEngineDefaultModels,
@@ -28,8 +30,6 @@ import {
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 
-const ENGINE_TYPES = ['claude-code', 'codex'] as const
-
 const engines = createOpenAPIRouter()
 
 // GET /api/engines/available — List detected engines + models (cache → DB → live probe)
@@ -37,76 +37,77 @@ const engines = createOpenAPIRouter()
 engines.openapi(R.getAvailableEngines, async (c) => {
   const base = await getEngineDiscovery()
   const { engines, models } = await decorateDiscoveryWithVirtual(base)
-  return c.json({ success: true, data: { engines, models } })
+  return c.json({ success: true as const, data: { engines, models } }, 200)
 })
 
 // GET /api/engines/profiles — List engine profiles (built-in + virtual)
 engines.openapi(R.getEngineProfiles, async (c) => {
   const profiles = [...Object.values(BUILT_IN_PROFILES), ...(await getVirtualEngineProfiles())]
-  return c.json({ success: true, data: profiles })
+  return c.json({ success: true as const, data: profiles }, 200)
 })
 
 // GET /api/engines/claude/usage — Claude subscription rate-limit utilization (TUI /usage panel)
 engines.openapi(R.getClaudeUsage, async (c) => {
   const usage = await getClaudeUsage()
-  return c.json({ success: true, data: usage })
+  return c.json({ success: true as const, data: usage }, 200)
 })
 
 // GET /api/engines/codex/usage — Codex subscription rate-limit utilization (TUI /status panel)
 engines.openapi(R.getCodexUsage, async (c) => {
   const usage = await getCodexUsage()
-  return c.json({ success: true, data: usage })
+  return c.json({ success: true as const, data: usage }, 200)
 })
 
 // --- Virtual engines (claude-code executor + preset env vars) ---
 
-const virtualEngineSchema = z.object({
-  id: z.string().regex(/^[\w.\-:]{1,64}$/),
-  name: z.string().min(1).max(100),
-  baseEngine: z.enum(ENGINE_TYPES),
-  baseUrl: z.string().url().max(512).optional(),
-  authToken: z.string().max(512).optional(),
-  model: z.string().max(160).optional(),
-  envVars: z.record(z.string(), z.string()).refine(
-    obj => Object.keys(obj).length <= 50,
-    { message: 'Maximum 50 environment variables allowed' },
-  ),
-})
-
 // GET /api/engines/virtual — List configured virtual engines
-engines.get('/virtual', async (c) => {
+engines.openapi(createRoute({
+  method: 'get',
+  path: '/virtual',
+  tags: ['Engines'],
+  operationId: 'getEnginesVirtual',
+  responses: {
+    200: successResponse(VirtualEnginesSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), async (c) => {
   const list = await getVirtualEngines()
-  return c.json({ success: true, data: list })
+  return c.json({ success: true as const, data: list }, 200)
 })
 
 // PUT /api/engines/virtual — Replace the full virtual engine list
-engines.put(
-  '/virtual',
-  zValidator(
-    'json',
-    z.object({ engines: z.array(virtualEngineSchema).max(50) }),
-    (result, c) => {
-      if (!result.success) {
-        return c.json(
-          { success: false, error: result.error.issues.map(i => i.message).join(', ') },
-          400,
-        )
-      }
-    },
-  ),
-  async (c) => {
-    const { engines: list } = c.req.valid('json')
-    try {
-      const saved = await setVirtualEngines(list as VirtualEngine[])
-      return c.json({ success: true, data: saved })
-    } catch (error) {
-      return c.json(
-        { success: false, error: error instanceof Error ? error.message : 'Invalid virtual engines' },
-        400,
-      )
-    }
+engines.openapi(createRoute({
+  method: 'put',
+  path: '/virtual',
+  tags: ['Engines'],
+  operationId: 'putEnginesVirtual',
+  request: { body: { required: true, content: { 'application/json': { schema: z.object({ engines: z.array(VirtualEngineSchema).max(50) }) } } } },
+  responses: {
+    200: successResponse(VirtualEnginesSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
   },
-)
+}), async (c) => {
+  const { engines: list } = c.req.valid('json')
+  try {
+    const saved = await setVirtualEngines(list as VirtualEngine[])
+    return c.json({ success: true as const, data: saved }, 200)
+  } catch (error) {
+    return c.json(
+      { success: false as const, error: error instanceof Error ? error.message : 'Invalid virtual engines' },
+      400,
+    )
+  }
+})
 
 // GET /api/engines/settings — Get all engine settings (default engine + per-engine models + hidden)
 engines.openapi(R.getEngineSettings, async (c) => {
@@ -122,7 +123,7 @@ engines.openapi(R.getEngineSettings, async (c) => {
   for (const [engineType, hidden] of Object.entries(hiddenModels)) {
     engines[engineType] = { ...engines[engineType], hiddenModels: hidden }
   }
-  return c.json({ success: true, data: { defaultEngine, engines } })
+  return c.json({ success: true as const, data: { defaultEngine, engines } }, 200)
 })
 
 // PATCH /api/engines/default-engine — Update global default engine
@@ -130,32 +131,32 @@ engines.openapi(R.getEngineSettings, async (c) => {
 engines.openapi(R.setDefaultEngine, async (c) => {
   const { defaultEngine } = c.req.valid('json')
   if (!(await isKnownEngineId(defaultEngine))) {
-    return c.json({ success: false, error: 'Invalid engine type' }, 400 as const)
+    return c.json({ success: false as const, error: 'Invalid engine type' }, 400 as const)
   }
   await setDefaultEngine(defaultEngine)
-  return c.json({ success: true, data: { defaultEngine } }, 200 as const)
+  return c.json({ success: true as const, data: { defaultEngine } }, 200 as const)
 })
 
 // PATCH /api/engines/:engineType/settings — Upsert default model for an engine type
 engines.openapi(R.setEngineModel, async (c) => {
   const engineType = c.req.param('engineType')
   if (!(await isKnownEngineId(engineType))) {
-    return c.json({ success: false, error: `Unknown engine type: ${engineType}` }, 400 as const)
+    return c.json({ success: false as const, error: `Unknown engine type: ${engineType}` }, 400 as const)
   }
   const { defaultModel } = c.req.valid('json')
   await setEngineDefaultModel(engineType, defaultModel)
-  return c.json({ success: true, data: { engineType, defaultModel } }, 200 as const)
+  return c.json({ success: true as const, data: { engineType, defaultModel } }, 200 as const)
 })
 
 // PATCH /api/engines/:engineType/hidden-models — Update hidden models for an engine type
 engines.openapi(R.setHiddenModels, async (c) => {
   const engineType = c.req.param('engineType')
   if (!(await isKnownEngineId(engineType))) {
-    return c.json({ success: false, error: `Unknown engine type: ${engineType}` }, 400 as const)
+    return c.json({ success: false as const, error: `Unknown engine type: ${engineType}` }, 400 as const)
   }
   const { hiddenModels } = c.req.valid('json')
   await setEngineHiddenModels(engineType, hiddenModels)
-  return c.json({ success: true, data: { engineType, hiddenModels } }, 200 as const)
+  return c.json({ success: true as const, data: { engineType, hiddenModels } }, 200 as const)
 })
 
 // GET /api/engines/:engineType/models — List available models for an engine (real or virtual)
@@ -164,16 +165,16 @@ engines.openapi(R.getEngineModels, async (c) => {
   if (engineRegistry.get(engineType as EngineType)) {
     const models = await getEngineModels(engineType as EngineType)
     const defaultModel = models.find(m => m.isDefault)?.id
-    return c.json({ success: true, data: { engineType, defaultModel, models } }, 200 as const)
+    return c.json({ success: true as const, data: { engineType, defaultModel, models } }, 200 as const)
   }
 
   const virtual = await getVirtualEngine(engineType)
   if (!virtual) {
-    return c.json({ success: false, error: `Unknown engine type: ${engineType}` }, 400 as const)
+    return c.json({ success: false as const, error: `Unknown engine type: ${engineType}` }, 400 as const)
   }
   const models = await fetchVirtualEngineModels(virtual)
   const defaultModel = models.find(m => m.isDefault)?.id ?? virtual.model
-  return c.json({ success: true, data: { engineType, defaultModel, models } }, 200 as const)
+  return c.json({ success: true as const, data: { engineType, defaultModel, models } }, 200 as const)
 })
 
 // POST /api/engines/probe — Force a live re-probe of all engines
@@ -181,7 +182,7 @@ engines.openapi(R.probeEngines, async (c) => {
   // Also refresh virtual engines' provider model lists.
   clearVirtualModelCache()
   const result = await forceProbeEngines()
-  return c.json({ success: true, data: result })
+  return c.json({ success: true as const, data: result }, 200)
 })
 
 export default engines

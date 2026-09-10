@@ -1,6 +1,6 @@
-# CLAUDE.md
+# Project Guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Repository conventions and verified development commands.
 
 ## Project Overview
 
@@ -26,6 +26,8 @@ bun run dev:frontend         # Vite dev server only (port 3000, registered at bk
 bun install                  # single install for all workspaces
 bun run test                 # run tests in all workspaces (parallel)
 bun run lint                 # lint all workspaces
+bun run typecheck            # typecheck API and frontend
+bun run check                # lint, typecheck, tests, and frontend build
 
 # Backend (@bkd/api)
 bun run test:api             # backend tests only
@@ -51,14 +53,14 @@ bkd/
 ├── apps/
 │   ├── api/                      ← @bkd/api
 │   │   ├── src/
-│   │   │   ├── index.ts          ← Server entry (Bun.serve, static serving, graceful shutdown)
+│   │   │   ├── index.ts          ← CLI entry; loads server-main.ts for HTTP serving
 │   │   │   ├── app.ts            ← Hono router + middleware
 │   │   │   ├── config.ts         ← Hardcoded statuses (todo/working/review/done)
 │   │   │   ├── db/               ← SQLite/Drizzle schema + migrations
 │   │   │   ├── engines/          ← AI engine executors + process management
 │   │   │   ├── routes/           ← API routes
 │   │   │   ├── events/           ← SSE event system
-│   │   │   └── jobs/             ← Background jobs (upload cleanup)
+│   │   │   └── cron/             ← Persistent scheduled jobs and cleanup actions
 │   │   ├── drizzle/              ← Database migrations (auto-applied on startup)
 │   │   ├── drizzle.config.ts     ← Drizzle-kit configuration
 │   │   └── test/                 ← Backend tests (bun:test)
@@ -89,7 +91,7 @@ bkd/
 │       ├── tsconfig.json
 │       └── src/
 │           └── index.ts          ← TypeScript types (Project, Issue, etc.)
-├── scripts/compile.ts           ← Standalone binary compiler
+├── scripts/package.ts           ← Bundles the server, docs assets, frontend, and migrations
 ├── data/                         ← SQLite database (gitignored)
 ├── package.json                  ← Monorepo root + Catalogs
 └── bun.lock                     ← Single lock file
@@ -101,28 +103,28 @@ bkd/
 - **Router**: Hono — mounted at `/api` via `apps/api/src/app.ts`
 - **Database**: SQLite via `bun:sqlite` + Drizzle ORM (`apps/api/src/db/`)
   - Schema defined in `apps/api/src/db/schema.ts` using Drizzle's `sqliteTable`
-  - All tables share `commonFields` (ULID `id`, `createdAt`, `updatedAt`, `isDeleted`)
+  - Most entities share `commonFields` (`createdAt`, `updatedAt`, `isDeleted`). Projects, issues, and cron jobs use random eight-character IDs; logs and attachments use ULIDs.
   - Migrations live in `drizzle/` and run automatically on startup
   - Config: `drizzle.config.ts`
 - **Logging**: pino (`apps/api/src/logger.ts`)
-- **Static serving**: In production, `apps/api/src/index.ts` serves `apps/frontend/dist/` with SPA fallback
+- **Static serving**: In production, `apps/api/src/server-main.ts` serves `apps/frontend/dist/` with SPA fallback
 
 #### Security & Middleware (`apps/api/src/app.ts`)
 
 - **Auth**: Handled by external reverse proxy (no built-in auth middleware)
 - **Security headers**: `hono/secure-headers` (X-Frame-Options, X-Content-Type-Options, etc.)
 - **Global error handler**: `app.onError()` returns `{success: false, error}` envelope; logs via pino
-- **Input validation**: All POST/PATCH routes use `@hono/zod-validator` with Zod schemas for runtime type checking
+- **Input validation**: JSON REST routes use `createRoute` + `app.openapi()` with Zod schemas. Multipart and wildcard handlers register explicit contracts and validate their parsed fields.
 
 #### Data Layer
 
-- `apps/api/src/db/index.ts` + `apps/api/src/db/schema.ts` — SQLite/Drizzle ORM. Tables: `projects`, `issues`, `sessionTurns`, `executionProcesses`, `executionLogs`, `appSettings`. All route handlers use Drizzle queries directly.
+- `apps/api/src/db/index.ts` + `apps/api/src/db/schema.ts` — SQLite/Drizzle ORM. Tables include `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings`, `notes`, `cronJobs`, `cronJobLogs`, `webhooks`, and `webhookDeliveries`. All route handlers use Drizzle queries directly.
 - `apps/api/src/config.ts` — Hardcoded status constants (`STATUSES`, `STATUS_MAP`, `STATUS_IDS`, `DEFAULT_STATUS_ID`). Statuses are fixed (todo, working, review, done) — no DB table.
 - Migrations in `drizzle/`, auto-applied on startup.
 
 #### API Routes
 
-All routes are project-scoped under `/api/projects/:projectId/...`:
+Project resources are scoped under `/api/projects/:projectId/...`. Settings, engines, cron, notes, filesystem, terminal, and process routes are application-wide:
 
 ```
 GET/POST       /api/projects
@@ -137,16 +139,16 @@ POST           /api/projects/:projectId/issues/:id/cancel
 GET            /api/projects/:projectId/issues/:id/logs
 ```
 
-All API responses use the envelope `{ success: true, data: T } | { success: false, error: string }`. All routes validate that the project exists and enforce cross-project ownership (issues scoped to their project).
+JSON CRUD responses use the envelope `{ success: true, data: T } | { success: false, error: string }`. Project-scoped routes validate project existence and resource ownership. File downloads, conversation exports, SSE, and WebSockets have dedicated transport formats.
 
 ### Frontend (`apps/frontend/`)
 
-- **Framework**: React 19 + Vite 7 + TypeScript
+- **Framework**: React 19 + Vite 8 + TypeScript
 - **Styling**: Tailwind CSS v4 via `@tailwindcss/vite` plugin
 - **Routing**: react-router-dom v7
 - **Data fetching**: TanStack React Query v5
-- **Drag & drop**: @dnd-kit/react for kanban board
-- **Dialogs**: Radix UI (`@radix-ui/react-dialog`)
+- **Drag & drop**: @atlaskit/pragmatic-drag-and-drop for kanban board
+- **Dialogs**: shadcn/ui primitives backed by `@base-ui/react`
 - **Icons**: lucide-react
 - **i18n**: i18next + react-i18next, Chinese (zh, default) and English (en). Translations in `apps/frontend/src/i18n/{en,zh}.json`. Language persisted to localStorage (`i18n-lang`).
 - **Path alias**: `@/*` maps to `apps/frontend/src/*`
@@ -207,18 +209,29 @@ Components use the shadcn/ui pattern: `cn()` utility (`apps/frontend/src/lib/uti
 - `bun run dev:api` / `bun run dev:frontend` can be run individually in separate terminals if needed
 - Production: `bun run build` then `bun run start` — the Bun server handles both API and static file serving on port 3000
 
+## API and Runtime Baseline
+
+- SQLite transaction callbacks are synchronous. Use `.all()`, `.get()`, and `.run()` within transactions; perform asynchronous filesystem and process work outside them.
+- Issue lists default to 100 rows (maximum 200). Follow `nextCursor` while `hasMore` is true; the frontend aggregates pages for a complete board.
+- Cron cursors encode `(createdAt, id)` and must use the same descending order in filtering and sorting.
+- `/api/docs` serves local Swagger assets under the application CSP; `/api/docs/openapi.json` is the live contract. Documentation deliberately retains Swagger rather than changing renderers.
+- `runtime-config.ts` validates HTTP, logging, execution-capacity, worktree, and CORS settings at startup. External engine credentials remain in the engine environment layer.
+- Responses expose `X-Request-ID`; structured HTTP logs include request ID, status, and elapsed time without request bodies or credentials.
+- CI runs on main pushes, pull requests, and releases. Bun 1.4.0 is pinned to the runtime validated for this change; dependency installs use the frozen lockfile.
+- TypeScript 6 and React Router are retained for the existing application; framework migration is outside this remediation.
+
 ## Conventions
 
 - Use Bun APIs over Node.js equivalents (`Bun.file()`, `Bun.serve()`, `bun:sqlite`, `bun:test`)
 - Linting & formatting: @antfu/eslint-config (`eslint.config.js` at root) — no semicolons, single quotes
-- Frontend tests use vitest + @testing-library/react (`bun run test:frontend`)
+- Frontend tests use vitest + @testing-library/react (`bun run test:frontend`, noninteractive; `bun --filter @bkd/frontend test:watch` for watch mode)
 - Backend tests use `bun test` with `bun:test` (`bun run test:api`)
 - Bun auto-loads `.env` — do not use dotenv
-- IDs use ULID (via `ulid` package), not UUID
+- Projects, issues, and cron jobs use random short IDs; logs and attachments use ULIDs. Random IDs are not chronological cursors.
 - Shared types live in `packages/shared/src/index.ts` — frontend re-exports via `apps/frontend/src/types/kanban.ts`
 - API client in `apps/frontend/src/lib/kanban-api.ts` — add new endpoints here, then wrap in React Query hooks in `use-kanban.ts`
 - All user-facing strings must have i18n keys in both `en.json` and `zh.json`
-- All API routes must have Zod schemas via `@hono/zod-validator` — no `c.req.json<T>()` with compile-time-only types
+- Declare JSON REST routes with `createRoute` + `app.openapi()`. Reuse the same Zod schemas for manually parsed multipart fields. Never rely on `c.req.json<T>()` for runtime validation.
 - All route handlers must verify project existence and cross-project ownership before operating on scoped entities
 - Dependency versions shared across workspaces are managed via Catalogs in root `package.json`
 

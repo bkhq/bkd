@@ -1,3 +1,7 @@
+import { FilePatchSchema } from '@/openapi/extra-schemas'
+import { errorResponse, successResponse } from '@/openapi/schemas'
+import * as z from 'zod'
+import { createRoute } from '@hono/zod-openapi'
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { runCommand } from '@/engines/spawn'
@@ -144,11 +148,11 @@ const changes = createOpenAPIRouter()
 changes.openapi(R.getIssueChanges, async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)
-  if (!project) return c.json({ success: false, error: 'Project not found' }, 404 as const)
+  if (!project) return c.json({ success: false as const, error: 'Project not found' }, 404 as const)
 
   const issueId = c.req.param('issueId')!
   const issue = await getProjectOwnedIssue(project.id, issueId)
-  if (!issue) return c.json({ success: false, error: 'Issue not found' }, 404 as const)
+  if (!issue) return c.json({ success: false as const, error: 'Issue not found' }, 404 as const)
 
   const projectRoot = await resolveProjectDir(project.id)
   if (!projectRoot) {
@@ -156,7 +160,7 @@ changes.openapi(R.getIssueChanges, async (c) => {
     // Treat as "no changes to report" rather than an error so callers (chat
     // input file-count badge, etc.) can render cleanly without a 400.
     return c.json({
-      success: true,
+      success: true as const,
       data: { gitRepo: false, files: [], additions: 0, deletions: 0 },
     }, 200 as const)
   }
@@ -164,7 +168,7 @@ changes.openapi(R.getIssueChanges, async (c) => {
   const gitRepo = await isGitRepo(root)
   if (!gitRepo) {
     return c.json({
-      success: true,
+      success: true as const,
       data: { root, gitRepo: false, files: [], additions: 0, deletions: 0 },
     }, 200 as const)
   }
@@ -173,7 +177,7 @@ changes.openapi(R.getIssueChanges, async (c) => {
 
   if (timedOut) {
     return c.json({
-      success: true,
+      success: true as const,
       data: { root, gitRepo: true, files: [], additions: 0, deletions: 0, timedOut: true },
     }, 200 as const)
   }
@@ -187,31 +191,46 @@ changes.openapi(R.getIssueChanges, async (c) => {
   const additions = filesWithStats.reduce((sum, file) => sum + (file.additions ?? 0), 0)
   const deletions = filesWithStats.reduce((sum, file) => sum + (file.deletions ?? 0), 0)
   return c.json({
-    success: true,
+    success: true as const,
     data: { root, gitRepo: true, files: filesWithStats, additions, deletions },
   }, 200 as const)
 })
 
 // GET /api/projects/:projectId/issues/:id/changes/file?path=... — Get file patch from workspace
 // Stays as regular route since it's a sub-route not covered by OpenAPI
-changes.get('/:id/changes/file', async (c) => {
+changes.openapi(createRoute({
+  method: 'get',
+  path: '/{id}/changes/file',
+  tags: ['Issues'],
+  operationId: 'getIssuesChangesChangesFile',
+  request: { params: z.object({ projectId: z.string().min(1), id: z.string().min(1) }), query: z.object({ path: z.string().trim().min(1) }) },
+  responses: {
+    200: successResponse(FilePatchSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)
-  if (!project) return c.json({ success: false, error: 'Project not found' }, 404)
+  if (!project) return c.json({ success: false as const, error: 'Project not found' }, 404)
 
   const issueId = c.req.param('id')!
   const issue = await getProjectOwnedIssue(project.id, issueId)
-  if (!issue) return c.json({ success: false, error: 'Issue not found' }, 404)
+  if (!issue) return c.json({ success: false as const, error: 'Issue not found' }, 404)
 
   const path = c.req.query('path')?.trim()
-  if (!path) return c.json({ success: false, error: 'Missing path' }, 400)
+  if (!path) return c.json({ success: false as const, error: 'Missing path' }, 400)
 
   // SEC-019: Validate path against injection
   if (path.startsWith('-')) {
-    return c.json({ success: false, error: 'Invalid path: must not start with -' }, 400)
+    return c.json({ success: false as const, error: 'Invalid path: must not start with -' }, 400)
   }
   if (path.includes(':')) {
-    return c.json({ success: false, error: 'Invalid path: must not contain :' }, 400)
+    return c.json({ success: false as const, error: 'Invalid path: must not contain :' }, 400)
   }
 
   const projectRoot = await resolveProjectDir(project.id)
@@ -219,44 +238,44 @@ changes.get('/:id/changes/file', async (c) => {
     // No working dir → nothing to diff. Return empty patch payload instead
     // of 400 so the diff panel renders cleanly.
     return c.json({
-      success: true,
+      success: true as const,
       data: { path, patch: '', truncated: false },
-    })
+    }, 200)
   }
   const root = await resolveIssueDir(project.id, issueId, issue.useWorktree, projectRoot)
 
   // SEC-019: Validate path is inside working directory on ALL code paths
   if (!isPathInsideRoot(root, path)) {
-    return c.json({ success: false, error: 'Invalid path' }, 400)
+    return c.json({ success: false as const, error: 'Invalid path' }, 400)
   }
 
   const gitRepo = await isGitRepo(root)
   if (!gitRepo) {
     return c.json({
-      success: true,
+      success: true as const,
       data: { path, patch: '', truncated: false },
-    })
+    }, 200)
   }
 
   const { files: changedFiles, timedOut: listTimedOut } = await listChangedFiles(root)
   if (listTimedOut) {
     return c.json({
-      success: true,
+      success: true as const,
       data: { path, patch: '', truncated: false, timedOut: true },
-    })
+    }, 200)
   }
   const file = changedFiles.find(f => f.path === path)
   if (!file) {
     return c.json({
-      success: true,
+      success: true as const,
       data: { path, patch: '', truncated: false },
-    })
+    }, 200)
   }
 
   // Refuse to diff oversized files
   if (file.oversized) {
     return c.json({
-      success: true,
+      success: true as const,
       data: {
         path,
         patch: '',
@@ -268,7 +287,7 @@ changes.get('/:id/changes/file', async (c) => {
         oversized: true,
         sizeDisplay: file.sizeDisplay,
       },
-    })
+    }, 200)
   }
 
   let patch = ''
@@ -300,10 +319,10 @@ changes.get('/:id/changes/file', async (c) => {
     const oldPath = file.previousPath ?? path
     // SEC-019: Validate previousPath too
     if (oldPath.startsWith('-') || oldPath.includes(':')) {
-      return c.json({ success: false, error: 'Invalid path' }, 400)
+      return c.json({ success: false as const, error: 'Invalid path' }, 400)
     }
     if (!isPathInsideRoot(root, oldPath)) {
-      return c.json({ success: false, error: 'Invalid path' }, 400)
+      return c.json({ success: false as const, error: 'Invalid path' }, 400)
     }
     const oldShow = await runGit(['show', `HEAD:${oldPath}`], root)
     if (oldShow.code === 0) {
@@ -325,7 +344,7 @@ changes.get('/:id/changes/file', async (c) => {
   if (truncated) patch = `${patch.slice(0, maxChars)}\n\n... [truncated]`
 
   return c.json({
-    success: true,
+    success: true as const,
     data: {
       path,
       patch,
@@ -337,7 +356,7 @@ changes.get('/:id/changes/file', async (c) => {
       type: file.type,
       status: file.status,
     },
-  })
+  }, 200)
 })
 
 export default changes

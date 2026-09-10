@@ -25,16 +25,17 @@ duplicate.openapi(R.duplicateIssue, async (c) => {
     return c.json({ success: false, error: 'Issue not found' }, 404 as const)
   }
 
-  const [newIssue] = await db.transaction(async (tx) => {
+  const [newIssue] = db.transaction((tx) => {
     // Compute next issueNumber
-    const [maxNumRow] = await tx
+    const [maxNumRow] = tx
       .select({ maxNum: max(issuesTable.issueNumber) })
       .from(issuesTable)
       .where(eq(issuesTable.projectId, project.id))
+      .all()
     const issueNumber = (maxNumRow?.maxNum ?? 0) + 1
 
     // Compute sortOrder: place after the last item in todo column
-    const [lastItem] = await tx
+    const [lastItem] = tx
       .select({ sortOrder: issuesTable.sortOrder })
       .from(issuesTable)
       .where(
@@ -46,10 +47,11 @@ duplicate.openapi(R.duplicateIssue, async (c) => {
       )
       .orderBy(desc(issuesTable.sortOrder))
       .limit(1)
+      .all()
     const sortOrder = generateKeyBetween(lastItem?.sortOrder ?? null, null)
 
     // Create the new issue
-    const [created] = await tx
+    const [created] = tx
       .insert(issuesTable)
       .values({
         projectId: project.id,
@@ -64,11 +66,12 @@ duplicate.openapi(R.duplicateIssue, async (c) => {
         prompt: source.prompt,
       })
       .returning()
+      .all()
 
     if (!created) return []
 
     // Copy only user and assistant message logs (no tool calls)
-    const sourceLogs = await tx
+    const sourceLogs = tx
       .select()
       .from(logsTable)
       .where(
@@ -78,6 +81,7 @@ duplicate.openapi(R.duplicateIssue, async (c) => {
         ),
       )
       .orderBy(asc(logsTable.id))
+      .all()
 
     const messageLogs = sourceLogs.filter(
       log => log.entryType === 'user-message' || log.entryType === 'assistant-message',
@@ -91,7 +95,7 @@ duplicate.openapi(R.duplicateIssue, async (c) => {
         const newLogId = ulid()
         logIdMap.set(log.id, newLogId)
 
-        await tx.insert(logsTable).values({
+        tx.insert(logsTable).values({
           id: newLogId,
           issueId: created.id,
           turnIndex: log.turnIndex,
@@ -105,7 +109,7 @@ duplicate.openapi(R.duplicateIssue, async (c) => {
           visible: log.visible,
           createdAt: now,
           updatedAt: now,
-        })
+        }).run()
       }
     }
 

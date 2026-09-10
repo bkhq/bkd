@@ -221,6 +221,10 @@ export const FollowUpSchema = z.object({
   displayPrompt: z.string().max(500).optional(),
 }).openapi('FollowUp')
 
+export const AttachmentFollowUpSchema = FollowUpSchema.extend({
+  prompt: z.string().max(32768).openapi({ description: 'May be empty when at least one file is attached.' }),
+}).openapi('AttachmentFollowUp')
+
 export const ExecuteIssueResponseSchema = z.object({
   executionId: z.string().optional(),
   issueId: z.string(),

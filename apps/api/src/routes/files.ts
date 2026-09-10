@@ -1,3 +1,8 @@
+import { HTTPException } from 'hono/http-exception'
+import { FileListingSchema, SavedFileSchema, SaveFileSchema, UploadedFilesSchema } from '@/openapi/extra-schemas'
+import { errorResponse, successResponse } from '@/openapi/schemas'
+import * as z from 'zod'
+import { createRoute } from '@hono/zod-openapi'
 import { readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
 import bs58 from 'bs58'
@@ -68,18 +73,14 @@ export function encodeRoot(path: string): string {
 async function resolveRootPath(c: Context, relativePath: string) {
   const rootParam = c.req.param('root')
   if (!rootParam) {
-    return {
-      error: c.json({ success: false, error: 'Missing root path parameter' }, 400),
-    }
+    throw new HTTPException(400, { message: 'Missing root path parameter' })
   }
 
   let root: string
   try {
     root = resolve(decodeRoot(rootParam))
   } catch {
-    return {
-      error: c.json({ success: false, error: 'Invalid root encoding' }, 400),
-    }
+    throw new HTTPException(400, { message: 'Invalid root encoding' })
   }
 
   const target = resolve(root, relativePath)
@@ -89,16 +90,12 @@ async function resolveRootPath(c: Context, relativePath: string) {
   if (workspaceRoot && workspaceRoot !== '/') {
     const resolvedWorkspace = resolve(workspaceRoot)
     if (!isInsideRoot(root, resolvedWorkspace)) {
-      return {
-        error: c.json({ success: false, error: 'Root is outside the configured workspace' }, 403),
-      }
+      throw new HTTPException(403, { message: 'Root is outside the configured workspace' })
     }
   }
 
   if (!isInsideRoot(target, root)) {
-    return {
-      error: c.json({ success: false, error: 'Path is outside root directory' }, 403),
-    }
+    throw new HTTPException(403, { message: 'Path is outside root directory' })
   }
 
   return { root, target }
@@ -122,7 +119,6 @@ function extractPathAfter(c: Context, marker: string): string {
 
 async function handleShow(c: Context, relativePath: string) {
   const resolved = await resolveRootPath(c, relativePath)
-  if ('error' in resolved) return resolved.error
   const { root, target } = resolved
 
   const hideIgnored = c.req.query('hideIgnored') === 'true'
@@ -143,7 +139,7 @@ async function handleShow(c: Context, relativePath: string) {
 
       if (isBinaryBuffer(buf)) {
         return c.json({
-          success: true,
+          success: true as const,
           data: {
             path: relPath,
             type: 'file' as const,
@@ -152,11 +148,11 @@ async function handleShow(c: Context, relativePath: string) {
             isTruncated: false,
             isBinary: true,
           },
-        })
+        }, 200)
       }
 
       return c.json({
-        success: true,
+        success: true as const,
         data: {
           path: relPath,
           type: 'file' as const,
@@ -165,7 +161,7 @@ async function handleShow(c: Context, relativePath: string) {
           isTruncated,
           isBinary: false,
         },
-      })
+      }, 200)
     }
 
     // ── Directory: return entry listing ──
@@ -216,15 +212,15 @@ async function handleShow(c: Context, relativePath: string) {
     const relPath = target === root ? '.' : target.slice(root.length + 1)
 
     return c.json({
-      success: true,
+      success: true as const,
       data: { path: relPath, type: 'directory' as const, entries },
-    })
+    }, 200)
   } catch (err: unknown) {
     const code = (err as NodeJS.ErrnoException).code
     if (code === 'ENOENT') {
-      return c.json({ success: false, error: 'Path not found' }, 404)
+      return c.json({ success: false as const, error: 'Path not found' }, 404)
     }
-    return c.json({ success: false, error: 'Failed to read path' }, 500)
+    return c.json({ success: false as const, error: 'Failed to read path' }, 500)
   }
 }
 
@@ -232,14 +228,13 @@ async function handleShow(c: Context, relativePath: string) {
 
 async function handleRaw(c: Context, relativePath: string) {
   const resolved = await resolveRootPath(c, relativePath)
-  if ('error' in resolved) return resolved.error
   const { target } = resolved
 
   try {
     const targetStat = await stat(target)
 
     if (!targetStat.isFile()) {
-      return c.json({ success: false, error: 'Path is not a file' }, 400)
+      return c.json({ success: false as const, error: 'Path is not a file' }, 400)
     }
 
     const file = Bun.file(target)
@@ -255,9 +250,9 @@ async function handleRaw(c: Context, relativePath: string) {
   } catch (err: unknown) {
     const code = (err as NodeJS.ErrnoException).code
     if (code === 'ENOENT') {
-      return c.json({ success: false, error: 'Path not found' }, 404)
+      return c.json({ success: false as const, error: 'Path not found' }, 404)
     }
-    return c.json({ success: false, error: 'Failed to read file' }, 500)
+    return c.json({ success: false as const, error: 'Failed to read file' }, 500)
   }
 }
 
@@ -265,12 +260,11 @@ async function handleRaw(c: Context, relativePath: string) {
 
 async function handleDelete(c: Context, relativePath: string) {
   const resolved = await resolveRootPath(c, relativePath)
-  if ('error' in resolved) return resolved.error
   const { target, root } = resolved
 
   // Prevent deleting the root directory itself
   if (target === root) {
-    return c.json({ success: false, error: 'Cannot delete root directory' }, 400)
+    return c.json({ success: false as const, error: 'Cannot delete root directory' }, 400)
   }
 
   try {
@@ -278,49 +272,43 @@ async function handleDelete(c: Context, relativePath: string) {
     const isDir = targetStat.isDirectory()
     await rm(target, { recursive: isDir })
 
-    return c.json({ success: true, data: { deleted: true } })
+    return c.json({ success: true as const, data: { deleted: true } }, 200)
   } catch (err: unknown) {
     const code = (err as NodeJS.ErrnoException).code
     if (code === 'ENOENT') {
-      return c.json({ success: false, error: 'Path not found' }, 404)
+      return c.json({ success: false as const, error: 'Path not found' }, 404)
     }
-    return c.json({ success: false, error: 'Failed to delete' }, 500)
+    return c.json({ success: false as const, error: 'Failed to delete' }, 500)
   }
 }
 
 // ── /files/:root/save — save text file content ──
 
-const MAX_SAVE_SIZE = 5 * 1024 * 1024 // 5 MB
-
 async function handleSave(c: Context, relativePath: string) {
   const resolved = await resolveRootPath(c, relativePath)
-  if ('error' in resolved) return resolved.error
   const { target } = resolved
 
+  const parsed = SaveFileSchema.safeParse(await c.req.json().catch(() => {
+    throw new HTTPException(400, { message: 'Invalid JSON' })
+  }))
+  if (!parsed.success) {
+    return c.json({ success: false as const, error: parsed.error.issues.map(i => i.message).join(', ') }, 400)
+  }
+  const body = parsed.data
   try {
-    const body = await c.req.json<{ content: string }>()
-    if (typeof body.content !== 'string') {
-      return c.json({ success: false, error: 'Missing required field: content' }, 400)
-    }
-
-    // SEC: Limit content size to prevent memory/disk abuse
-    if (Buffer.byteLength(body.content, 'utf-8') > MAX_SAVE_SIZE) {
-      return c.json({ success: false, error: `Content exceeds maximum size of ${MAX_SAVE_SIZE / 1024 / 1024} MB` }, 400)
-    }
-
     await writeFile(target, body.content, 'utf-8')
 
     const fileStat = await stat(target)
     return c.json({
-      success: true,
+      success: true as const,
       data: { size: fileStat.size, modifiedAt: fileStat.mtime.toISOString() },
-    })
+    }, 200)
   } catch (err: unknown) {
     const code = (err as NodeJS.ErrnoException).code
     if (code === 'ENOENT') {
-      return c.json({ success: false, error: 'Path not found' }, 404)
+      return c.json({ success: false as const, error: 'Path not found' }, 404)
     }
-    return c.json({ success: false, error: 'Failed to save file' }, 500)
+    return c.json({ success: false as const, error: 'Failed to save file' }, 500)
   }
 }
 
@@ -346,34 +334,33 @@ async function pathExists(path: string): Promise<boolean> {
 
 async function handleUpload(c: Context, relativePath: string) {
   const resolved = await resolveRootPath(c, relativePath)
-  if ('error' in resolved) return resolved.error
   const { target } = resolved
 
   const contentType = c.req.header('content-type') ?? ''
   if (!contentType.includes('multipart/form-data')) {
-    return c.json({ success: false, error: 'Expected multipart/form-data' }, 400)
+    return c.json({ success: false as const, error: 'Expected multipart/form-data' }, 400)
   }
 
   let fd: FormData
   try {
     fd = await c.req.formData()
   } catch {
-    return c.json({ success: false, error: 'Invalid multipart body' }, 400)
+    return c.json({ success: false as const, error: 'Invalid multipart body' }, 400)
   }
 
   const files = fd.getAll('files').filter((entry): entry is File => entry instanceof File)
   if (files.length === 0) {
-    return c.json({ success: false, error: 'No files provided' }, 400)
+    return c.json({ success: false as const, error: 'No files provided' }, 400)
   }
 
   const validation = validateFiles(files)
   if (!validation.ok) {
-    return c.json({ success: false, error: validation.error }, 400)
+    return c.json({ success: false as const, error: validation.error }, 400)
   }
 
   const invalid = files.find(file => !isValidUploadName(file.name))
   if (invalid) {
-    return c.json({ success: false, error: `Invalid file name: ${invalid.name}` }, 400)
+    return c.json({ success: false as const, error: `Invalid file name: ${invalid.name}` }, 400)
   }
 
   const overwriteRaw = fd.get('overwrite')
@@ -382,7 +369,7 @@ async function handleUpload(c: Context, relativePath: string) {
   try {
     const targetStat = await stat(target)
     if (!targetStat.isDirectory()) {
-      return c.json({ success: false, error: 'Path is not a directory' }, 400)
+      return c.json({ success: false as const, error: 'Path is not a directory' }, 400)
     }
 
     if (!overwrite) {
@@ -391,7 +378,7 @@ async function handleUpload(c: Context, relativePath: string) {
         if (await pathExists(resolve(target, file.name))) existing.push(file.name)
       }
       if (existing.length > 0) {
-        return c.json({ success: false, error: `Already exists: ${existing.join(', ')}` }, 409)
+        return c.json({ success: false as const, error: `Already exists: ${existing.join(', ')}` }, 409)
       }
     }
 
@@ -401,20 +388,35 @@ async function handleUpload(c: Context, relativePath: string) {
       uploaded.push({ name: file.name, size: file.size })
     }
 
-    return c.json({ success: true, data: { uploaded } }, 201)
+    return c.json({ success: true as const, data: { uploaded } }, 201)
   } catch (err: unknown) {
     const code = (err as NodeJS.ErrnoException).code
     if (code === 'ENOENT') {
-      return c.json({ success: false, error: 'Path not found' }, 404)
+      return c.json({ success: false as const, error: 'Path not found' }, 404)
     }
-    return c.json({ success: false, error: 'Failed to upload' }, 500)
+    return c.json({ success: false as const, error: 'Failed to upload' }, 500)
   }
 }
 
 const files = createOpenAPIRouter()
 
 // GET /files/:root/show — root directory listing
-files.get('/:root/show', c => handleShow(c, '.'))
+files.openapi(createRoute({
+  method: 'get',
+  path: '/{root}/show',
+  tags: ['Files'],
+  operationId: 'getFilesShow',
+  request: { params: z.object({ root: z.string().min(1) }), query: z.object({ hideIgnored: z.enum(['true', 'false']).optional() }) },
+  responses: {
+    200: successResponse(FileListingSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), c => handleShow(c, '.'))
 // GET /files/:root/show/* — browse any sub-path
 files.get('/:root/show/*', c => handleShow(c, extractPathAfter(c, '/show/')))
 
@@ -431,5 +433,107 @@ files.put('/:root/save/*', c => handleSave(c, extractPathAfter(c, '/save/')))
 files.post('/:root/upload', c => handleUpload(c, '.'))
 // POST /files/:root/upload/* — upload into a sub-directory
 files.post('/:root/upload/*', c => handleUpload(c, extractPathAfter(c, '/upload/')))
+
+files.openAPIRegistry.registerPath(createRoute({
+  method: 'get',
+  path: '/{root}/show/{path}',
+  tags: ['Files'],
+  operationId: 'getFilesShowPath',
+  request: { params: z.object({ root: z.string().min(1), path: z.string().min(1) }), query: z.object({ hideIgnored: z.enum(['true', 'false']).optional() }) },
+  responses: {
+    200: successResponse(FileListingSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}))
+
+files.openAPIRegistry.registerPath(createRoute({
+  method: 'get',
+  path: '/{root}/raw/{path}',
+  tags: ['Files'],
+  operationId: 'getFilesRawPath',
+  request: { params: z.object({ root: z.string().min(1), path: z.string().min(1) }) },
+  responses: {
+    200: { description: 'File content', content: { 'application/octet-stream': { schema: z.string().openapi({ format: 'binary' }) } } },
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}))
+
+files.openAPIRegistry.registerPath(createRoute({
+  method: 'delete',
+  path: '/{root}/delete/{path}',
+  tags: ['Files'],
+  operationId: 'deleteFilesDeletePath',
+  request: { params: z.object({ root: z.string().min(1), path: z.string().min(1) }) },
+  responses: {
+    200: successResponse(z.object({ deleted: z.boolean() }), 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}))
+
+files.openAPIRegistry.registerPath(createRoute({
+  method: 'put',
+  path: '/{root}/save/{path}',
+  tags: ['Files'],
+  operationId: 'putFilesSavePath',
+  request: { params: z.object({ root: z.string().min(1), path: z.string().min(1) }), body: { required: true, content: { 'application/json': { schema: SaveFileSchema } } } },
+  responses: {
+    200: successResponse(SavedFileSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}))
+
+files.openAPIRegistry.registerPath(createRoute({
+  method: 'post',
+  path: '/{root}/upload',
+  tags: ['Files'],
+  operationId: 'postFilesUpload',
+  request: { params: z.object({ root: z.string().min(1) }), body: { required: true, content: { 'multipart/form-data': { schema: z.object({ files: z.array(z.string().openapi({ type: 'string', format: 'binary' })), overwrite: z.enum(['true', 'false', '1', '0']).optional() }) } } } },
+  responses: {
+    201: successResponse(UploadedFilesSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}))
+
+files.openAPIRegistry.registerPath(createRoute({
+  method: 'post',
+  path: '/{root}/upload/{path}',
+  tags: ['Files'],
+  operationId: 'postFilesUploadPath',
+  request: { params: z.object({ root: z.string().min(1), path: z.string().min(1) }), body: { required: true, content: { 'multipart/form-data': { schema: z.object({ files: z.array(z.string().openapi({ type: 'string', format: 'binary' })), overwrite: z.enum(['true', 'false', '1', '0']).optional() }) } } } },
+  responses: {
+    201: successResponse(UploadedFilesSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}))
 
 export default files

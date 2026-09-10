@@ -40,3 +40,63 @@ Realigned `docs/task/` and `docs/plan/` with the current PMA formats.
   index files.
 - Replaced the restated PMA rules in `AGENTS.md` / `CLAUDE.md` *Project Development* with a
   pointer to `/pma` plus the project-specific facts, per the project-injection reference.
+
+---
+
+## 2026-09-10 05:53 [BUG-P1]
+
+Converged every `data/`-relative path on a single `DATA_DIR`
+(`20260910-0528-uploads-root-dir` / `20260910-0533-uploads-root-dir`).
+
+- `UPLOAD_DIR` was `resolve(process.cwd(), 'data/uploads')` — the only persistent path
+  derived from the cwd. lode runs BKD from `<dir>/versions/<version>/`, so attachments were
+  written into the per-version directory: after an upgrade they resolved against the new
+  version dir (`404 Attachment file missing`), and pruning the old version dir deleted them.
+  The same split was already visible in dev — `data/db` and `data/logs` in the repo root,
+  251 attachment files under `apps/api/data/uploads`.
+- `BKD_DATA_DIR` is the documented override for the data directory
+  (`docs/deployment.md`, successor to the launcher's `--data-dir`), but only `pid-lock.ts`
+  implemented it. `root.ts` now exports `resolveDataDir(env)` / `DATA_DIR`
+  (`BKD_DATA_DIR` ?? `<ROOT_DIR>/data`), and uploads, the app log, issue debug logs, the
+  cleanup route, the PID lock and the default DB path all hang off it.
+- A relative `DB_PATH` deliberately keeps its `ROOT_DIR` base — `.env.example` ships
+  `DB_PATH=data/db/bkd.db`, which would otherwise become `<DATA_DIR>/data/db/bkd.db`.
+  Only the default moved to `DATA_DIR`.
+- `GET .../attachments/:id` now resolves `storedName` inside `UPLOAD_DIR` and falls back to
+  the pre-change cwd location when the primary file is absent, so attachments written before
+  this change stay readable. Both branches keep the SEC-025 containment check, and the
+  resolution no longer trusts the DB's `storagePath` string.
+- `upload-cleanup` imports `UPLOAD_DIR` instead of recomputing it, so the base cannot drift
+  again. It intentionally does not prune the legacy directory.
+- `BKD_DATA_DIR` documented in both `.env.example` files.
+- Dev checkout: the 251 files under `apps/api/data/uploads` were moved into `data/uploads`
+  (no name collisions) and the empty `apps/api/data` tree removed.
+- Verified: `bun run lint`, `bun run typecheck`, `bun run test:api` (676 pass),
+  `bun run test:frontend` (96 pass), `bun run build`.
+
+---
+
+## 2026-09-10 06:14 [BUG-P1]
+
+Follow-up to the `DATA_DIR` convergence: `DB_PATH` now resolves from `DATA_DIR` too
+(`20260910-0528-uploads-root-dir`).
+
+- The first pass kept a relative `DB_PATH` anchored at `ROOT_DIR` to protect the shipped
+  `DB_PATH=data/db/bkd.db` example. That preserved exactly the kind of exception the task
+  set out to remove, leaving `DATA_DIR` as "the single source, except for the database".
+- `resolveDbPath()` now treats `DATA_DIR` as the only base: absolute `DB_PATH` verbatim,
+  relative resolved inside `DATA_DIR`, default `<DATA_DIR>/db/bkd.db`. With `BKD_DATA_DIR`
+  unset the default is byte-identical to the old `<ROOT_DIR>/data/db/bkd.db`.
+- Compatibility: a relative `DB_PATH` changes meaning (`data/db/bkd.db` was
+  `<ROOT_DIR>/data/db/bkd.db`, now `<DATA_DIR>/data/db/bkd.db`). When the new location holds
+  no database but the old one does, the old file is used — an empty database created beside a
+  populated one is indistinguishable from data loss. `docs/bkd.lode.toml` already suggests an
+  absolute path and is unaffected.
+- `pid-lock.ts` and `db/reset.ts` each carried their own copy of the old parsing rule; both
+  now call `resolveDbPath()`, so there is a single implementation.
+- Shipped examples moved to the `DATA_DIR`-relative form (`DB_PATH=db/bkd.db`) in both
+  `.env.example` files; `docs/development.md` gained a `BKD_DATA_DIR` row and the corrected
+  `DB_PATH` default; the stale "ROOT_DIR-relative defaults" comment in
+  `scripts/migrate-to-lode.ts` was fixed.
+- Verified: `bun run lint`, `bun run typecheck`, `bun run test:api` (677 pass),
+  `bun run test:frontend` (96 pass), `bun run build`.

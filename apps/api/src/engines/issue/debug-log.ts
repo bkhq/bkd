@@ -1,12 +1,12 @@
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { ROOT_DIR } from '@/root'
+import { DATA_DIR } from '@/root'
 
 // ---------- Per-issue debug file logger ----------
 // Writes raw process I/O and lifecycle events to data/logs/issues/<issueId>/
 // Enabled when global LOG_LEVEL is 'debug' or 'trace'.
 
-const ISSUE_LOG_DIR = join(ROOT_DIR, 'data', 'logs', 'issues')
+const ISSUE_LOG_DIR = join(DATA_DIR, 'logs', 'issues')
 const DEBUG_LEVELS = new Set(['debug', 'trace'])
 const ENABLED = DEBUG_LEVELS.has(process.env.LOG_LEVEL ?? 'info')
 

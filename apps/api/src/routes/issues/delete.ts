@@ -56,11 +56,12 @@ del.openapi(R.deleteIssue, async (c) => {
   }
 
   // Soft-delete the issue only — keep logs/tools/attachments intact for restore
-  await db.transaction(async (tx) => {
-    await tx
+  db.transaction((tx) => {
+    tx
       .update(issuesTable)
       .set({ isDeleted: 1 })
       .where(eq(issuesTable.id, issueId))
+      .run()
   })
 
   // Invalidate caches

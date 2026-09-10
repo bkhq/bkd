@@ -1,14 +1,14 @@
 # BKD - Task List
 
-> Updated: 2026-09-02
+> Updated: 2026-09-10
 
 ## Usage
 
-Each task is a single line linking to its detail file. All detailed information lives in `docs/task/PREFIX-NNN.md`.
+Each task is a single line linking to its detail file. All detailed information lives in `docs/task/<timestamp>-<feature-slug>.md`.
 
 ### Format
 
-- [ ] [**PREFIX-001 Short imperative title**](PREFIX-001.md) `P1`
+- [ ] [**20260907-1428-add-endpoint Add endpoint**](20260907-1428-add-endpoint.md) `P1`
 
 ### Status Markers
 
@@ -23,9 +23,11 @@ Each task is a single line linking to its detail file. All detailed information 
 
 ### Rules
 
-- Only update the checkbox marker; never delete the line.
+- Update or delete task entries and their detail files as needed; keep them consistent.
+- Record change history and deletion reasons in `docs/changelog.md`; update affected dependency and plan references.
 - New tasks append to the end.
-- See each `PREFIX-NNN.md` for full details.
+- See each `<timestamp>-<feature-slug>.md` for full details.
+- Task IDs are UTC minute-precision timestamps plus a feature slug; do not allocate category or sequence numbers. Existing `PREFIX-NNN` files stay valid under their current names.
 
 ---
 
@@ -104,4 +106,8 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-035 Probe engines on demand only, never on a timer**](ENG-035.md) `P1`
 - [x] [**ENG-036 Turn settlement misreads subagent and background-task signals**](ENG-036.md) `P1`
 - [x] [**UI-007 Upload files from the file browser**](UI-007.md) `P2`
+- [x] [**CRON-004 Stop serving soft-deleted cron jobs over the API**](CRON-004.md) `P1`
 - [x] [**ENG-037 Show Codex subscription usage in the settings usage panel**](ENG-037.md) `P2`
+- [x] [**AUDIT-001 Fix API and repository audit findings**](AUDIT-001.md) `P1`
+- [x] [**20260910-0528-uploads-root-dir Resolve data paths from a single DATA_DIR**](20260910-0528-uploads-root-dir.md) `P1`
+- [ ] [**20260910-0555-dedupe-issue-log-dir Deduplicate the ISSUE_LOG_DIR constant**](20260910-0555-dedupe-issue-log-dir.md) `P3`

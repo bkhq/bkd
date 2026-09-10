@@ -1,9 +1,10 @@
+import { HTTPException } from 'hono/http-exception'
 import { unlink } from 'node:fs/promises'
 import { and, desc, eq, max } from 'drizzle-orm'
 import { generateKeyBetween } from 'jittered-fractional-indexing'
-import * as z from 'zod'
+import type * as z from 'zod'
 import { cacheDel } from '@/cache'
-import { STATUS_IDS } from '@/config'
+import { CreateIssueSchema } from '@/openapi/schemas'
 import { db } from '@/db'
 import { findProject, getDefaultEngine, getEngineDefaultModel, getServerUrl } from '@/db/helpers'
 import { attachments as attachmentsTable, issues as issuesTable } from '@/db/schema'
@@ -26,19 +27,7 @@ const create = createOpenAPIRouter()
 
 // ── Body parsing ─────────────────────────────────────
 
-const createBodySchema = z.object({
-  title: z.string().min(1).max(500),
-  tags: z.array(z.string().max(50)).max(10).optional(),
-  statusId: z.enum(STATUS_IDS),
-  useWorktree: z.boolean().optional(),
-  keepAlive: z.boolean().optional(),
-  // Accepts a real engine type or a virtual engine id; resolved server-side.
-  engineType: z.string().regex(/^[\w.\-:]{1,64}$/).optional(),
-  model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
-  permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
-})
-
-type CreateBody = z.infer<typeof createBodySchema>
+type CreateBody = z.infer<typeof CreateIssueSchema>
 
 async function parseCreateBody(c: {
   req: {
@@ -52,7 +41,9 @@ async function parseCreateBody(c: {
 > {
   const contentType = c.req.header('content-type') ?? ''
   if (contentType.includes('multipart/form-data')) {
-    const fd = await c.req.formData()
+    const fd = await c.req.formData().catch(() => {
+      throw new HTTPException(400, { message: 'Invalid multipart body' })
+    })
     const raw: Record<string, unknown> = {}
     for (const [key, value] of fd.entries()) {
       // Skip File entries (key === 'files'); only string scalars feed the body
@@ -73,7 +64,7 @@ async function parseCreateBody(c: {
         raw[key] = value
       }
     }
-    const parsed = createBodySchema.safeParse(raw)
+    const parsed = CreateIssueSchema.safeParse(raw)
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues.map(i => i.message).join(', ') }
     }
@@ -85,8 +76,10 @@ async function parseCreateBody(c: {
   }
 
   // JSON path
-  const raw = await c.req.json()
-  const parsed = createBodySchema.safeParse(raw)
+  const raw = await c.req.json().catch(() => {
+    throw new HTTPException(400, { message: 'Invalid JSON' })
+  })
+  const parsed = CreateIssueSchema.safeParse(raw)
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues.map(i => i.message).join(', ') }
   }
@@ -201,16 +194,17 @@ create.post('/', async (c) => {
     // review → working: auto-downgrade so the execution engine picks it up
     const effectiveStatusId = body.statusId === 'review' ? 'working' : body.statusId
 
-    const [newIssue] = await db.transaction(async (tx) => {
+    const [newIssue] = db.transaction((tx) => {
       // Compute next issueNumber across ALL issues (including soft-deleted) to avoid reuse
-      const [maxNumRow] = await tx
+      const [maxNumRow] = tx
         .select({ maxNum: max(issuesTable.issueNumber) })
         .from(issuesTable)
         .where(eq(issuesTable.projectId, project.id))
+        .all()
       const issueNumber = (maxNumRow?.maxNum ?? 0) + 1
 
       // Compute sortOrder: place after the last item in the target status column
-      const [lastItem] = await tx
+      const [lastItem] = tx
         .select({ sortOrder: issuesTable.sortOrder })
         .from(issuesTable)
         .where(
@@ -222,9 +216,10 @@ create.post('/', async (c) => {
         )
         .orderBy(desc(issuesTable.sortOrder))
         .limit(1)
+        .all()
       const sortOrder = generateKeyBetween(lastItem?.sortOrder ?? null, null)
 
-      const inserted = await tx
+      const inserted = tx
         .insert(issuesTable)
         .values({
           projectId: project.id,
@@ -242,12 +237,13 @@ create.post('/', async (c) => {
           prompt: issuePrompt,
         })
         .returning()
+        .all()
 
       // Attachment rows share the transaction with the issue insert so a
       // failure here rolls back the issue too — kept in lockstep with the
       // unlink-on-failure logic in the outer catch.
       if (savedFiles.length > 0) {
-        await tx.insert(attachmentsTable).values(
+        tx.insert(attachmentsTable).values(
           savedFiles.map(f => ({
             id: f.id,
             issueId: inserted[0]!.id,
@@ -258,7 +254,7 @@ create.post('/', async (c) => {
             size: f.size,
             storagePath: f.storagePath,
           })),
-        )
+        ).run()
       }
 
       return inserted

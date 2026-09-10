@@ -3,8 +3,55 @@ import { eq } from 'drizzle-orm'
 import { startCron } from '@/cron'
 import { db } from '@/db'
 import { cronJobs } from '@/db/schema'
-import { del, expectError, expectSuccess } from './helpers'
+import { del, expectError, expectSuccess, get } from './helpers'
 import './setup'
+
+describe('GET /api/cron', () => {
+  test('never returns soft-deleted jobs', async () => {
+    const suffix = Date.now()
+    const [active] = db.insert(cronJobs).values({
+      name: `list-active-${suffix}`,
+      cron: '0 0 * * * *',
+      taskType: 'custom',
+      taskConfig: JSON.stringify({ action: 'test' }),
+    }).returning().all()
+    const [removed] = db.insert(cronJobs).values({
+      name: `list-deleted-${suffix}`,
+      cron: '0 0 * * * *',
+      taskType: 'custom',
+      taskConfig: JSON.stringify({ action: 'test' }),
+      isDeleted: 1,
+    }).returning().all()
+
+    const unpaginated = await get<{ id: string }[]>('/api/cron')
+    const jobs = expectSuccess(unpaginated)
+    expect(jobs.map(j => j.id)).toContain(active.id)
+    expect(jobs.map(j => j.id)).not.toContain(removed.id)
+    expect(jobs.find(j => j.id === active.id)).not.toHaveProperty('isDeleted')
+
+    const paginated = await get<{ jobs: { id: string }[] }>('/api/cron?limit=100')
+    const page = expectSuccess(paginated).jobs
+    expect(page.map(j => j.id)).toContain(active.id)
+    expect(page.map(j => j.id)).not.toContain(removed.id)
+  })
+})
+
+describe('GET /api/cron/:jobId/logs', () => {
+  test('returns 404 for a soft-deleted job', async () => {
+    const [job] = db.insert(cronJobs).values({
+      name: `logs-deleted-${Date.now()}`,
+      cron: '0 0 * * * *',
+      taskType: 'custom',
+      taskConfig: JSON.stringify({ action: 'test' }),
+      isDeleted: 1,
+    }).returning().all()
+
+    const result = await get(`/api/cron/${job.id}/logs`)
+
+    expect(result.status).toBe(404)
+    expect(expectError(result, 404)).toBe('Job not found')
+  })
+})
 
 describe('DELETE /api/cron/:jobId', () => {
   test('soft-deletes a cron job by id', async () => {

@@ -72,4 +72,12 @@ export default antfu({
     'react/unsupported-syntax': 'off',
     'react/component-hook-factories': 'off',
   },
+}, {
+  files: ['apps/api/**/*.ts'],
+  rules: {
+    'no-restricted-syntax': ['error', {
+      selector: 'CallExpression[callee.property.name="transaction"] > :matches(ArrowFunctionExpression, FunctionExpression)[async=true]',
+      message: 'SQLite transactions must stay synchronous; execute queries with .all(), .get(), or .run().',
+    }],
+  },
 })

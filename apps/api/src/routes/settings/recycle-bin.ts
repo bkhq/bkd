@@ -1,4 +1,6 @@
-import { zValidator } from '@hono/zod-validator'
+import { DeletedIssuesSchema } from '@/openapi/extra-schemas'
+import { errorResponse, successResponse } from '@/openapi/schemas'
+import { createRoute } from '@hono/zod-openapi'
 import { eq, inArray } from 'drizzle-orm'
 import * as z from 'zod'
 import { cacheDelByPrefix } from '@/cache'
@@ -10,7 +12,21 @@ import { createOpenAPIRouter } from '@/openapi/hono'
 const recycleBin = createOpenAPIRouter()
 
 // GET /api/settings/deleted-issues — list all soft-deleted issues
-recycleBin.get('/deleted-issues', async (c) => {
+recycleBin.openapi(createRoute({
+  method: 'get',
+  path: '/deleted-issues',
+  tags: ['Settings'],
+  operationId: 'getSettingsRecycleBinDeletedIssues',
+  responses: {
+    200: successResponse(DeletedIssuesSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), async (c) => {
   const rows = await db
     .select({
       id: issuesTable.id,
@@ -45,49 +61,56 @@ recycleBin.get('/deleted-issues', async (c) => {
     deletedAt: r.updatedAt?.toISOString() ?? null,
   }))
 
-  return c.json({ success: true, data: items })
+  return c.json({ success: true as const, data: items }, 200)
 })
 
 // POST /api/settings/deleted-issues/:id/restore — restore a soft-deleted issue
-recycleBin.post(
-  '/deleted-issues/:id/restore',
-  zValidator('param', z.object({ id: z.string().min(1).max(32) }), (result, c) => {
-    if (!result.success) {
-      return c.json({ success: false, error: 'Invalid issue ID' }, 400)
-    }
-  }),
-  async (c) => {
-    const issueId = c.req.valid('param').id
-    const [existing] = await db.select().from(issuesTable).where(eq(issuesTable.id, issueId))
-
-    if (!existing || existing.isDeleted !== 1) {
-      return c.json({ success: false, error: 'Deleted issue not found' }, 404)
-    }
-
-    // Check that the parent project still exists (not hard-deleted)
-    const [project] = await db
-      .select()
-      .from(projectsTable)
-      .where(eq(projectsTable.id, existing.projectId))
-
-    if (!project) {
-      return c.json({ success: false, error: 'Parent project no longer exists' }, 400)
-    }
-
-    // Restore project (if soft-deleted) and issue atomically
-    await db.transaction(async (tx) => {
-      if (project.isDeleted === 1) {
-        await tx.update(projectsTable).set({ isDeleted: 0 }).where(eq(projectsTable.id, project.id))
-      }
-      await tx.update(issuesTable).set({ isDeleted: 0 }).where(eq(issuesTable.id, issueId))
-    })
-
-    // Invalidate cached issue lookups for this project to avoid stale data
-    await cacheDelByPrefix(`issue:${existing.projectId}:`)
-
-    logger.info({ issueId, projectId: existing.projectId }, 'issue_restored')
-    return c.json({ success: true, data: { id: issueId } })
+recycleBin.openapi(createRoute({
+  method: 'post',
+  path: '/deleted-issues/{id}/restore',
+  tags: ['Settings'],
+  operationId: 'postSettingsRecycleBinDeletedIssuesRestore',
+  request: { params: z.object({ id: z.string().min(1).max(32) }) },
+  responses: {
+    200: successResponse(z.object({ id: z.string() }), 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
   },
-)
+}), async (c) => {
+  const issueId = c.req.valid('param').id
+  const [existing] = await db.select().from(issuesTable).where(eq(issuesTable.id, issueId))
+
+  if (!existing || existing.isDeleted !== 1) {
+    return c.json({ success: false as const, error: 'Deleted issue not found' }, 404)
+  }
+
+  // Check that the parent project still exists (not hard-deleted)
+  const [project] = await db
+    .select()
+    .from(projectsTable)
+    .where(eq(projectsTable.id, existing.projectId))
+
+  if (!project) {
+    return c.json({ success: false as const, error: 'Parent project no longer exists' }, 400)
+  }
+
+  // Restore project (if soft-deleted) and issue atomically
+  db.transaction((tx) => {
+    if (project.isDeleted === 1) {
+      tx.update(projectsTable).set({ isDeleted: 0 }).where(eq(projectsTable.id, project.id)).run()
+    }
+    tx.update(issuesTable).set({ isDeleted: 0 }).where(eq(issuesTable.id, issueId)).run()
+  })
+
+  // Invalidate cached issue lookups for this project to avoid stale data
+  await cacheDelByPrefix(`issue:${existing.projectId}:`)
+
+  logger.info({ issueId, projectId: existing.projectId }, 'issue_restored')
+  return c.json({ success: true as const, data: { id: issueId } }, 200)
+})
 
 export default recycleBin

@@ -1,3 +1,6 @@
+import { SystemInfoSchema } from '@/openapi/extra-schemas'
+import { errorResponse, successResponse } from '@/openapi/schemas'
+import { createRoute } from '@hono/zod-openapi'
 import { arch, platform } from 'node:os'
 import { getServerName, getServerUrl } from '@/db/helpers'
 import { createOpenAPIRouter } from '@/openapi/hono'
@@ -8,12 +11,26 @@ const about = createOpenAPIRouter()
 const startedAt = Date.now()
 
 // GET /api/settings/system-info
-about.get('/system-info', async (c) => {
+about.openapi(createRoute({
+  method: 'get',
+  path: '/system-info',
+  tags: ['Settings'],
+  operationId: 'getSettingsAboutSystemInfo',
+  responses: {
+    200: successResponse(SystemInfoSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), async (c) => {
   const versionInfo = getVersionInfo()
   const [serverName, serverUrl] = await Promise.all([getServerName(), getServerUrl()])
 
   return c.json({
-    success: true,
+    success: true as const,
     data: {
       app: {
         version: versionInfo.version,
@@ -37,7 +54,7 @@ about.get('/system-info', async (c) => {
         pid: process.pid,
       },
     },
-  })
+  }, 200)
 })
 
 export default about

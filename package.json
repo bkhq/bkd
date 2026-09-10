@@ -25,12 +25,14 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "eslint . --fix",
-    "format:check": "eslint . --fix-dry-run",
+    "format:check": "eslint .",
     "db:generate": "bun --filter @bkd/api db:generate",
     "db:migrate": "bun --filter @bkd/api db:migrate",
     "db:reset": "bun apps/api/src/db/reset.ts",
     "clean": "bash ./scripts/clean.sh",
-    "package": "bun scripts/package.ts"
+    "package": "bun scripts/package.ts",
+    "typecheck": "bun --filter @bkd/api --filter @bkd/frontend typecheck",
+    "check": "bun run lint && bun run typecheck && bun run test && bun run build"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^9.1.0",

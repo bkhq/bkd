@@ -14,7 +14,10 @@
     "dev": "nsl run --name bkd vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "^2.0.1",

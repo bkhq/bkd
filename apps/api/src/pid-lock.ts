@@ -1,8 +1,9 @@
 import { closeSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 import { dirname, resolve } from 'node:path'
+import { resolveDbPath } from './db/migrations-source'
 import { logger } from './logger'
-import { ROOT_DIR } from './root'
+import { DATA_DIR } from './root'
 
 // ---------- Constants ----------
 
@@ -15,21 +16,11 @@ const HTTP_PROBE_TIMEOUT_MS = 2000
  * so the lock always protects the correct database instance.
  *
  * Resolution order:
- *   1. Sibling of DB_PATH (e.g. `data/db/bkd.pid` next to `data/db/bkd.db`)
- *   2. BKD_DATA_DIR/bkd.pid
- *   3. <ROOT_DIR>/data/bkd.pid
+ *   1. Sibling of DB_PATH (e.g. `db/bkd.pid` next to `db/bkd.db`)
+ *   2. <DATA_DIR>/bkd.pid
  */
 function getLockDir(): string {
-  if (process.env.DB_PATH) {
-    return dirname(
-      process.env.DB_PATH.startsWith('/')
-        ? process.env.DB_PATH
-        : resolve(ROOT_DIR, process.env.DB_PATH),
-    )
-  }
-  return process.env.BKD_DATA_DIR
-    ? resolve(process.env.BKD_DATA_DIR)
-    : resolve(ROOT_DIR, 'data')
+  return process.env.DB_PATH ? dirname(resolveDbPath()) : DATA_DIR
 }
 
 function getPidFilePath(): string {

@@ -1,4 +1,7 @@
 import type { Context } from 'hono'
+import { createRoute } from '@hono/zod-openapi'
+import * as z from 'zod'
+import { errorResponse, IssueLogsResponseSchema, successResponse } from '@/openapi/schemas'
 import { findProject, getAppSetting } from '@/db/helpers'
 import { issueEngine } from '@/engines/issue'
 import { DEFAULT_LOG_PAGE_SIZE, LOG_PAGE_SIZE_KEY } from '@/engines/issue/constants'
@@ -230,5 +233,22 @@ logs.get('/:id/logs/filter/*', async (c) => {
     ...filterOpts.opts,
   })
 })
+
+// Hono keeps wildcard dispatch; the contract describes the filter path explicitly.
+logs.openAPIRegistry.registerPath(createRoute({
+  method: 'get',
+  path: '/{id}/logs/filter/{filter}',
+  tags: ['Issue Logs'],
+  operationId: 'getFilteredIssueLogs',
+  request: {
+    params: z.object({ projectId: z.string(), id: z.string(), filter: z.string().openapi({ description: 'Slash-separated filter keys and values, such as types/assistant-message/turn/0' }) }),
+    query: z.object({ cursor: z.string().optional(), before: z.string().optional(), limit: z.coerce.number().int().min(1).max(1000).optional() }),
+  },
+  responses: {
+    200: successResponse(IssueLogsResponseSchema, 'Filtered conversation logs'),
+    400: errorResponse('Invalid filters'),
+    404: errorResponse('Project or issue not found'),
+  },
+}))
 
 export default logs

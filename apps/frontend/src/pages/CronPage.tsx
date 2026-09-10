@@ -139,12 +139,10 @@ function CronJobList({
   jobs,
   onSelectJob,
   onDeleteJob,
-  isDeletedView,
 }: {
   jobs: CronJob[]
   onSelectJob: (job: CronJob) => void
-  onDeleteJob?: (job: CronJob) => void
-  isDeletedView?: boolean
+  onDeleteJob: (job: CronJob) => void
 }) {
   const { t } = useTranslation()
 
@@ -166,43 +164,32 @@ function CronJobList({
           style={{ animationDelay: `${index * 60}ms` }}
         >
           <Card
-            className={`h-full cursor-pointer transition-all hover:shadow-md group ${isDeletedView ? 'bg-card/40 opacity-70 hover:opacity-100 hover:bg-card/60' : 'bg-card/70 hover:bg-card hover:border-primary/20'}`}
+            className="h-full cursor-pointer transition-all hover:shadow-md group bg-card/70 hover:bg-card hover:border-primary/20"
             onClick={() => onSelectJob(job)}
           >
             <CardContent className="py-3 px-4">
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="min-w-0 flex-1">
-                  <p className={`text-sm font-medium transition-colors truncate ${isDeletedView ? 'line-through text-muted-foreground group-hover:text-foreground' : 'group-hover:text-primary'}`}>
+                  <p className="text-sm font-medium transition-colors truncate group-hover:text-primary">
                     {job.name}
                   </p>
                   <p className="text-[11px] text-muted-foreground font-mono">
                     {job.cron}
                   </p>
                 </div>
-                {isDeletedView
-                  ? (
-                      <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px]">
-                        <Trash2 className="mr-0.5 h-2.5 w-2.5" />
-                        {t('cron.deleted')}
-                      </Badge>
-                    )
-                  : (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <StatusBadge status={job.enabled ? job.status : 'disabled'} />
-                        <JobActionButton job={job} />
-                        {onDeleteJob && <JobDeleteButton job={job} onDelete={onDeleteJob} />}
-                      </div>
-                    )}
+                <div className="flex items-center gap-1 shrink-0">
+                  <StatusBadge status={job.enabled ? job.status : 'disabled'} />
+                  <JobActionButton job={job} />
+                  <JobDeleteButton job={job} onDelete={onDeleteJob} />
+                </div>
               </div>
               <div className="space-y-1 text-[11px] text-muted-foreground">
-                {!isDeletedView && (
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-2.5 w-2.5 shrink-0" />
-                    <span className="ml-auto font-mono truncate">
-                      {job.nextExecution ? formatDateTime(job.nextExecution) : '-'}
-                    </span>
-                  </div>
-                )}
+                <div className="flex items-center gap-1">
+                  <Clock className="h-2.5 w-2.5 shrink-0" />
+                  <span className="ml-auto font-mono truncate">
+                    {job.nextExecution ? formatDateTime(job.nextExecution) : '-'}
+                  </span>
+                </div>
                 {job.lastRun && (
                   <div className="flex items-center gap-1">
                     <Timer className="h-2.5 w-2.5 shrink-0" />
@@ -322,19 +309,13 @@ function CronJobLogView({
       <div className="mb-3">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold">{job.name}</h2>
-          {job.isDeleted && (
-            <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px]">
-              <Trash2 className="mr-0.5 h-2.5 w-2.5" />
-              {t('cron.deleted')}
-            </Badge>
-          )}
         </div>
         <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
           <span className="font-mono">{job.cron}</span>
-          {!job.isDeleted && <StatusBadge status={job.enabled ? job.status : 'disabled'} />}
-          {!job.isDeleted && <JobActionButton job={job} />}
-          {!job.isDeleted && <JobDeleteButton job={job} onDelete={onDelete} />}
-          {job.nextExecution && !job.isDeleted && (
+          <StatusBadge status={job.enabled ? job.status : 'disabled'} />
+          <JobActionButton job={job} />
+          <JobDeleteButton job={job} onDelete={onDelete} />
+          {job.nextExecution && (
             <span className="text-[11px]">
               {t('cron.nextExecution')}
               :
@@ -461,10 +442,6 @@ export default function CronPage() {
   const deleteCronJob = useDeleteCronJob()
   const [selectedJob, setSelectedJob] = useState<CronJob | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<CronJob | null>(null)
-  const [showDeleted, setShowDeleted] = useState(false)
-
-  const activeJobs = jobs?.filter(j => !j.isDeleted) ?? []
-  const deletedJobs = jobs?.filter(j => j.isDeleted) ?? []
   // Keep the detail view in sync with live query data after pause/resume
   const liveSelectedJob = selectedJob
     ? (jobs?.find(j => j.id === selectedJob.id) ?? selectedJob)
@@ -498,13 +475,7 @@ export default function CronPage() {
           </h1>
           {jobs && (
             <Badge variant="secondary" className="ml-1">
-              {activeJobs.length}
-              {deletedJobs.length > 0 && (
-                <span className="text-muted-foreground/60 ml-0.5">
-                  +
-                  {deletedJobs.length}
-                </span>
-              )}
+              {jobs.length}
             </Badge>
           )}
           <div className="ml-auto flex items-center gap-2">
@@ -548,38 +519,11 @@ export default function CronPage() {
             onDelete={requestDelete}
           />
         ) : (
-          <>
-            <CronJobList
-              jobs={activeJobs}
-              onSelectJob={setSelectedJob}
-              onDeleteJob={requestDelete}
-            />
-            {deletedJobs.length > 0 && (
-              <div className="mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowDeleted(!showDeleted)}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3"
-                >
-                  <ChevronRight className={`h-3.5 w-3.5 transition-transform ${showDeleted ? 'rotate-90' : ''}`} />
-                  <Trash2 className="h-3 w-3" />
-                  {t('cron.deletedJobs')}
-                  <span className="ml-1 opacity-60">
-                    (
-                    {deletedJobs.length}
-                    )
-                  </span>
-                </button>
-                {showDeleted && (
-                  <CronJobList
-                    jobs={deletedJobs}
-                    onSelectJob={setSelectedJob}
-                    isDeletedView
-                  />
-                )}
-              </div>
-            )}
-          </>
+          <CronJobList
+            jobs={jobs ?? []}
+            onSelectJob={setSelectedJob}
+            onDeleteJob={requestDelete}
+          />
         )}
 
         <AlertDialog

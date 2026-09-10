@@ -18,14 +18,14 @@ import type {
 
 import { getAppSetting } from '@/db/helpers'
 import { logger } from '@/logger'
-import { ROOT_DIR } from '@/root'
+import { DATA_DIR } from '@/root'
 import { ClaudeLogNormalizer } from './normalizer'
 import { ClaudeProtocolHandler } from './protocol'
 
 const NPX_FALLBACK = 'npx -y @anthropic-ai/claude-code'
 
 /** Base directory for per-issue debug logs */
-const ISSUE_LOG_DIR = join(ROOT_DIR, 'data', 'logs', 'issues')
+const ISSUE_LOG_DIR = join(DATA_DIR, 'logs', 'issues')
 
 /**
  * Fallback auth probe for CLIs without `claude auth status` (pre-2.x).

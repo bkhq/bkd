@@ -50,3 +50,6 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-017 Global local session scanner and session-to-issue import**](PLAN-017.md) `2026-08-22`
 - [x] [**PLAN-018 Migrate distribution and self-upgrade to lode**](PLAN-018.md) `2026-08-24`
 - [x] [**PLAN-019 Upload files from the file browser**](PLAN-019.md) `2026-09-02`
+- [x] [**PLAN-020 Stop serving soft-deleted cron jobs over the API**](PLAN-020.md) `2026-09-08`
+- [x] [**PLAN-021 API and repository audit remediation**](PLAN-021.md) `2026-09-10`
+- [x] [**20260910-0533-uploads-root-dir Resolve data paths from a single DATA_DIR**](20260910-0533-uploads-root-dir.md) `2026-09-10`

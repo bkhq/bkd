@@ -1,8 +1,9 @@
 import { mkdir } from 'node:fs/promises'
 import { extname, resolve } from 'node:path'
 import { ulid } from 'ulid'
+import { DATA_DIR } from '@/root'
 
-export const UPLOAD_DIR = resolve(process.cwd(), 'data/uploads')
+export const UPLOAD_DIR = resolve(DATA_DIR, 'uploads')
 export const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 export const MAX_FILES = 10
 

@@ -53,7 +53,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.4.0
 
       - uses: actions/cache@v5
         with:
@@ -72,7 +72,7 @@ jobs:
       - name: Build app package
         run: |
           set -euo pipefail
-          bun install
+          bun install --frozen-lockfile
           VERSION_NUM="${VERSION#v}"
           # Dry run (workflow_dispatch with no tag): VERSION is the branch name.
           # `package.ts` takes `dev` for exactly this case.

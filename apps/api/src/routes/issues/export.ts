@@ -1,5 +1,7 @@
+import { ExportSchema } from '@/openapi/extra-schemas'
+import { errorResponse } from '@/openapi/schemas'
+import { createRoute } from '@hono/zod-openapi'
 import { and, asc, eq, inArray } from 'drizzle-orm'
-import { zValidator } from '@hono/zod-validator'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as z from 'zod'
 import { db } from '@/db'
@@ -73,29 +75,39 @@ const exportQuerySchema = z.object({
 })
 
 // GET /api/projects/:projectId/issues/:id/export — Export issue logs
-exportRoute.get('/:id/export', zValidator('query', exportQuerySchema), async (c) => {
+exportRoute.openapi(createRoute({
+  method: 'get',
+  path: '/{id}/export',
+  tags: ['Issues'],
+  operationId: 'getIssuesExportExport',
+  request: { params: z.object({ projectId: z.string().min(1), id: z.string().min(1) }), query: exportQuerySchema },
+  responses: {
+    200: { description: 'Conversation export', content: { 'application/json': { schema: ExportSchema } } },
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)
   if (!project) {
-    return c.json({ success: false, error: 'Project not found' }, 404)
+    return c.json({ success: false as const, error: 'Project not found' }, 404)
   }
 
   const issueId = c.req.param('id')!
   const issue = await getProjectOwnedIssue(project.id, issueId)
   if (!issue) {
-    return c.json({ success: false, error: 'Issue not found' }, 404)
+    return c.json({ success: false as const, error: 'Issue not found' }, 404)
   }
 
   const logs = getAllLogs(issueId)
   const filename = `issue-${issue.issueNumber}-${issue.id}`
 
-  const json = JSON.stringify({ issue: { id: issue.id, title: issue.title, issueNumber: issue.issueNumber }, logs }, null, 2)
-  return new Response(json, {
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Content-Disposition': `attachment; filename="${filename}.json"`,
-    },
-  })
+  c.header('Content-Disposition', `attachment; filename="${filename}.json"`)
+  return c.json({ issue: { id: issue.id, title: issue.title, issueNumber: issue.issueNumber }, logs }, 200)
 })
 
 export default exportRoute

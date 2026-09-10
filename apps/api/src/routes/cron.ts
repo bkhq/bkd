@@ -1,4 +1,5 @@
-import { and, desc, eq, lt } from 'drizzle-orm'
+import { and, desc, eq, lt, or } from 'drizzle-orm'
+import * as z from 'zod'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 import { db } from '@/db'
@@ -6,11 +7,16 @@ import { cronJobLogs, cronJobs } from '@/db/schema'
 import { getAction, getActionsHelp, validateActionConfig } from '@/cron/actions'
 import { executeTask } from '@/cron/executor'
 import { getBaker, isValidCron, normalizeCron, SUPPORTED_CRON_FORMATS, syncJob } from '@/cron/index'
-import { serializeJob } from '@/cron/serialize'
+import { serializeJob, serializeJobs } from '@/cron/serialize'
 import { logger } from '@/logger'
 import type { TaskConfig } from '@/cron/executor'
 
 const cronRoute = createOpenAPIRouter()
+
+const cursorSchema = z.object({
+  t: z.number().int().nonnegative().max(8640000000000),
+  id: z.string().min(1).max(32),
+})
 
 /** Find a non-deleted job strictly by nanoid id (name is a display field, never an identifier) */
 function findJob(id: string) {
@@ -37,62 +43,62 @@ cronRoute.openapi(R.listCronActions, (c) => {
   return c.json({ success: true, data: { help: getActionsHelp() } })
 })
 
-// GET /api/cron — list cron jobs with optional pagination and deletion filter
+// GET /api/cron — list cron jobs with optional pagination (soft-deleted jobs are never returned)
 cronRoute.openapi(R.listCronJobs, (c) => {
-  const { deleted, limit, cursor } = c.req.valid('query')
+  const { limit, cursor } = c.req.valid('query')
 
   // No pagination requested — return all (backward compatible)
   if (!limit && !cursor) {
     const rows = db
       .select()
       .from(cronJobs)
-      .orderBy(desc(cronJobs.createdAt))
+      .where(eq(cronJobs.isDeleted, 0))
+      .orderBy(desc(cronJobs.createdAt), desc(cronJobs.id))
       .all()
 
-    const filtered = deleted === 'only'
-      ? rows.filter(r => r.isDeleted === 1)
-      : deleted === 'false'
-        ? rows.filter(r => r.isDeleted === 0)
-        : rows
-
-    return c.json({ success: true, data: filtered.map(serializeJob) })
+    return c.json({ success: true, data: serializeJobs(rows) }, 200)
   }
 
   // Paginated mode
   const pageLimit = limit ?? 20
-  const conditions: ReturnType<typeof eq>[] = []
-
-  if (deleted === 'only') {
-    conditions.push(eq(cronJobs.isDeleted, 1))
-  } else if (deleted === 'false' || !deleted) {
-    conditions.push(eq(cronJobs.isDeleted, 0))
-  }
-  // deleted === 'true' means include all, no filter
+  const conditions: (ReturnType<typeof eq> | undefined)[] = [eq(cronJobs.isDeleted, 0)]
 
   if (cursor) {
-    conditions.push(lt(cronJobs.id, cursor))
+    try {
+      const value = cursorSchema.parse(JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')))
+      const timestamp = new Date(value.t * 1000)
+      conditions.push(or(
+        lt(cronJobs.createdAt, timestamp),
+        and(eq(cronJobs.createdAt, timestamp), lt(cronJobs.id, value.id)),
+      ))
+    } catch {
+      return c.json({ success: false, error: 'Invalid cursor' }, 400)
+    }
   }
 
   const rows = db
     .select()
     .from(cronJobs)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(cronJobs.createdAt))
+    .where(and(...conditions))
+    .orderBy(desc(cronJobs.createdAt), desc(cronJobs.id))
     .limit(pageLimit + 1)
     .all()
 
   const hasMore = rows.length > pageLimit
   const page = hasMore ? rows.slice(0, pageLimit) : rows
-  const nextCursor = hasMore ? page.at(-1)!.id : null
+  const last = page.at(-1)
+  const nextCursor = hasMore && last
+    ? Buffer.from(JSON.stringify({ t: Math.floor(last.createdAt.getTime() / 1000), id: last.id })).toString('base64url')
+    : null
 
   return c.json({
     success: true,
     data: {
-      jobs: page.map(serializeJob),
+      jobs: serializeJobs(page),
       hasMore,
       nextCursor,
     },
-  })
+  }, 200)
 })
 
 // POST /api/cron — create a new cron job
@@ -170,13 +176,7 @@ cronRoute.openapi(R.getCronJobLogs, (c) => {
   const jobId = c.req.param('jobId')
   const { status, limit, cursor } = c.req.valid('query')
 
-  // Verify job exists (including soft-deleted — allow viewing logs for deleted jobs)
-  const [job] = db
-    .select()
-    .from(cronJobs)
-    .where(eq(cronJobs.id, jobId))
-    .all()
-
+  const job = findJob(jobId)
   if (!job) {
     return c.json({ success: false, error: 'Job not found' }, 404 as const)
   }

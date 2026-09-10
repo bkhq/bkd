@@ -10,13 +10,30 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
-import { APP_DIR, ROOT_DIR } from '@/root'
+import { APP_DIR, DATA_DIR, ROOT_DIR } from '@/root'
 import { embeddedMigrations } from './embedded-migrations'
 
-/** Absolute path to the SQLite database file. */
+/**
+ * Absolute path to the SQLite database file.
+ *
+ * `DATA_DIR` is the single base: an absolute `DB_PATH` is used verbatim, a relative one
+ * resolves inside `DATA_DIR`, and the default is `<DATA_DIR>/db/bkd.db`.
+ *
+ * Compatibility: a relative `DB_PATH` used to resolve against `ROOT_DIR`, so the shipped
+ * example `data/db/bkd.db` meant `<ROOT_DIR>/data/db/bkd.db`. When the new location holds
+ * no database but the old one does, keep the old file — creating an empty database beside
+ * a populated one looks exactly like data loss.
+ */
 export function resolveDbPath(): string {
-  const raw = process.env.DB_PATH || 'data/db/bkd.db'
-  return raw.startsWith('/') ? raw : resolve(ROOT_DIR, raw)
+  const raw = process.env.DB_PATH
+  if (!raw) return resolve(DATA_DIR, 'db/bkd.db')
+  if (raw.startsWith('/')) return raw
+
+  const path = resolve(DATA_DIR, raw)
+  if (existsSync(path)) return path
+
+  const legacyPath = resolve(ROOT_DIR, raw)
+  return existsSync(legacyPath) ? legacyPath : path
 }
 
 export interface MigrationsSource {

@@ -268,7 +268,8 @@ Server (IssueEngine) → SSE /api/events → EventBus singleton (lib/event-bus.t
 | `HOST`                      | Listen address                          | `0.0.0.0`                       |
 | `PORT`                      | Listen port                             | `3000`                          |
 | `ROOT_DIR`                  | Workspace root directory                | auto-detected                   |
-| `DB_PATH`                   | SQLite database path                    | `data/db/bkd.db`                |
+| `BKD_DATA_DIR`              | Data directory (`db/`, `logs/`, `uploads/`) | `<ROOT_DIR>/data`           |
+| `DB_PATH`                   | SQLite database path, relative to `BKD_DATA_DIR` | `db/bkd.db`            |
 | `LOG_LEVEL`                 | Log level                               | `info` (binary) / `debug` (dev) |
 | `SERVICE_NAME`              | Logger name prefix                      | `bkd`                           |
 | `LOG_EXECUTOR_IO`           | Log executor stdin/stdout               | `1`                             |

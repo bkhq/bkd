@@ -75,7 +75,7 @@ bun scripts/migrate-to-lode.ts --root /opt/bkd --apply --prune
 - `secureHeaders()` — security response headers
 - `compress()` — gzip/deflate (skipped for SSE routes: paths ending in `/stream` or `/api/events`)
 - `httpLogger()` — pino-based request logging
-- `@hono/zod-validator` — Zod schema validation on all POST/PATCH routes
+- `@hono/zod-openapi` — Shared Zod request validation and REST contracts; multipart handlers explicitly validate the same schemas
 - Global error handler: returns `{success: false, error}` envelope
 
 #### Data Layer
@@ -192,11 +192,11 @@ Deployment, migration from the old launcher, and the `lode.toml` reference: `doc
 
 ### Frontend (`apps/frontend/src/`)
 
-- **Framework**: React 19 + Vite 7 + TypeScript
+- **Framework**: React 19 + Vite 8 + TypeScript
 - **Styling**: Tailwind CSS v4 via `@tailwindcss/vite` + shadcn/ui components
 - **Routing**: react-router-dom v7 (all pages lazy-loaded)
 - **Data fetching**: TanStack React Query v5 (`staleTime: 30s`, `retry: 1`)
-- **Drag & drop**: @dnd-kit/react for kanban board
+- **Drag & drop**: @atlaskit/pragmatic-drag-and-drop for kanban board
 - **Syntax highlighting**: Shiki (slim bundle via custom Vite plugin)
 - **i18n**: i18next + react-i18next, Chinese (zh, default) and English (en). Translations in `src/i18n/{en,zh}.json`
 - **Path alias**: `@/*` maps to `src/*`
@@ -266,7 +266,7 @@ Server (IssueEngine) → SSE /api/events → EventBus singleton (lib/event-bus.t
 - Shared types live in `packages/shared/src/index.ts`
 - API client in `apps/frontend/src/lib/kanban-api.ts` — add new endpoints here, wrap in React Query hooks in `use-kanban.ts`
 - All user-facing strings must have i18n keys in both `en.json` and `zh.json`
-- All API routes must have Zod schemas via `@hono/zod-validator`
+- REST routes must use shared Zod schemas and OpenAPI metadata; multipart handlers must explicitly validate the same schemas. See `AGENTS.md` for the API and quality-gate baseline.
 - All route handlers must verify project existence and cross-project ownership
 - Dependency versions shared across workspaces are managed via Catalogs in root `package.json`
 - Component styling: `cn()` utility combining `clsx` + `tailwind-merge`, with `class-variance-authority` for variants

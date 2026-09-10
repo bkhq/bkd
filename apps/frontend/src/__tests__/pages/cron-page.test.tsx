@@ -20,7 +20,6 @@ const job: CronJob = {
   status: 'scheduled',
   nextExecution: null,
   lastRun: null,
-  isDeleted: false,
   createdAt: '2026-08-20T00:00:00.000Z',
   updatedAt: '2026-08-20T00:00:00.000Z',
 }
@@ -45,7 +44,6 @@ describe('cron page deletion', () => {
   beforeEach(async () => {
     mocks.deleteMutate.mockReset()
     mocks.deleteReset.mockReset()
-    job.isDeleted = false
     await i18n.changeLanguage('en')
   })
 
@@ -68,18 +66,5 @@ describe('cron page deletion', () => {
       'cron-1',
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     )
-  })
-
-  it('does not offer deletion for an already deleted cron job', () => {
-    job.isDeleted = true
-
-    render(
-      <MemoryRouter>
-        <CronPage />
-      </MemoryRouter>,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: /Deleted Jobs/ }))
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
   })
 })

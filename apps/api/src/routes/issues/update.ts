@@ -73,7 +73,7 @@ update.openapi(R.bulkUpdateIssues, async (c) => {
     }
   }
 
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     for (const u of body.updates) {
       if (!projectIssueIdSet.has(u.id)) continue
 
@@ -113,11 +113,12 @@ update.openapi(R.bulkUpdateIssues, async (c) => {
         toCancel.push(u.id)
       }
 
-      const [row] = await tx
+      const [row] = tx
         .update(issuesTable)
         .set(changes)
         .where(eq(issuesTable.id, u.id))
         .returning()
+        .all()
       if (row) {
         updated.push(serializeIssue(row))
       }

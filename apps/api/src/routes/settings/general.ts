@@ -1,7 +1,10 @@
+import { runtimeConfig } from '@/runtime-config'
+import { EnabledSchema, EnvironmentSchema, WriteFilterRuleSchema } from '@/openapi/extra-schemas'
+import { errorResponse, successResponse } from '@/openapi/schemas'
+import { createRoute } from '@hono/zod-openapi'
 import { stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { resolve } from 'node:path'
-import { zValidator } from '@hono/zod-validator'
 import * as z from 'zod'
 import {
   deleteAppSetting,
@@ -29,7 +32,7 @@ const WORKSPACE_PATH_KEY = 'workspace:defaultPath'
 // GET /api/settings/workspace-path
 general.openapi(R.getWorkspacePath, async (c) => {
   const value = await getAppSetting(WORKSPACE_PATH_KEY)
-  return c.json({ success: true, data: { path: value ?? homedir() } })
+  return c.json({ success: true as const, data: { path: value ?? homedir() } }, 200)
 })
 
 // PATCH /api/settings/workspace-path
@@ -41,14 +44,14 @@ general.openapi(R.setWorkspacePath, async (c) => {
   try {
     const s = await stat(resolved)
     if (!s.isDirectory()) {
-      return c.json({ success: false, error: 'Path is not a directory' }, 400 as const)
+      return c.json({ success: false as const, error: 'Path is not a directory' }, 400 as const)
     }
   } catch {
-    return c.json({ success: false, error: 'Path does not exist' }, 400 as const)
+    return c.json({ success: false as const, error: 'Path does not exist' }, 400 as const)
   }
 
   await setAppSetting(WORKSPACE_PATH_KEY, resolved)
-  return c.json({ success: true, data: { path: resolved } }, 200 as const)
+  return c.json({ success: true as const, data: { path: resolved } }, 200 as const)
 })
 
 // --- Write Filter Rules ---
@@ -66,88 +69,104 @@ general.openapi(R.getWriteFilterRules, async (c) => {
   } else {
     rules = DEFAULT_FILTER_RULES
   }
-  return c.json({ success: true, data: rules })
+  return c.json({ success: true as const, data: rules }, 200)
 })
 
 // PUT /api/settings/write-filter-rules
 general.openapi(R.setWriteFilterRules, async (c) => {
   const { rules } = c.req.valid('json')
   await setAppSetting(WRITE_FILTER_RULES_KEY, JSON.stringify(rules))
-  return c.json({ success: true, data: rules })
+  return c.json({ success: true as const, data: rules }, 200)
 })
 
 // PATCH /api/settings/write-filter-rules/:id
-general.patch(
-  '/write-filter-rules/:id',
-  zValidator('json', z.object({ enabled: z.boolean() }), (result, c) => {
-    if (!result.success) {
-      return c.json(
-        {
-          success: false,
-          error: result.error.issues.map(i => i.message).join(', '),
-        },
-        400,
-      )
-    }
-  }),
-  async (c) => {
-    const ruleId = c.req.param('id')
-    const { enabled } = c.req.valid('json')
-
-    const raw = await getAppSetting(WRITE_FILTER_RULES_KEY)
-    let rules: WriteFilterRule[]
-    if (raw) {
-      try {
-        rules = JSON.parse(raw) as WriteFilterRule[]
-      } catch {
-        rules = []
-      }
-    } else {
-      rules = [...DEFAULT_FILTER_RULES]
-    }
-
-    const rule = rules.find(r => r.id === ruleId)
-    if (!rule) {
-      return c.json({ success: false, error: `Rule not found: ${ruleId}` }, 404)
-    }
-
-    const updatedRules = rules.map(r => (r.id === ruleId ? { ...r, enabled } : r))
-    await setAppSetting(WRITE_FILTER_RULES_KEY, JSON.stringify(updatedRules))
-    return c.json({
-      success: true,
-      data: updatedRules.find(r => r.id === ruleId),
-    })
+general.openapi(createRoute({
+  method: 'patch',
+  path: '/write-filter-rules/{id}',
+  tags: ['Settings'],
+  operationId: 'patchSettingsGeneralWriteFilterRules',
+  request: { params: z.object({ id: z.string().min(1) }), body: { required: true, content: { 'application/json': { schema: z.object({ enabled: z.boolean() }) } } } },
+  responses: {
+    200: successResponse(WriteFilterRuleSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
   },
-)
+}), async (c) => {
+  const ruleId = c.req.param('id')
+  const { enabled } = c.req.valid('json')
+
+  const raw = await getAppSetting(WRITE_FILTER_RULES_KEY)
+  let rules: WriteFilterRule[]
+  if (raw) {
+    try {
+      rules = JSON.parse(raw) as WriteFilterRule[]
+    } catch {
+      rules = []
+    }
+  } else {
+    rules = [...DEFAULT_FILTER_RULES]
+  }
+
+  const rule = rules.find(r => r.id === ruleId)
+  if (!rule) {
+    return c.json({ success: false as const, error: `Rule not found: ${ruleId}` }, 404)
+  }
+
+  const updatedRules = rules.map(r => (r.id === ruleId ? { ...r, enabled } : r))
+  await setAppSetting(WRITE_FILTER_RULES_KEY, JSON.stringify(updatedRules))
+  return c.json({
+    success: true as const,
+    data: { ...rule, enabled },
+  }, 200)
+})
 
 // --- Worktree Auto-Cleanup ---
 
 // GET /api/settings/worktree-auto-cleanup
-general.get('/worktree-auto-cleanup', async (c) => {
+general.openapi(createRoute({
+  method: 'get',
+  path: '/worktree-auto-cleanup',
+  tags: ['Settings'],
+  operationId: 'getSettingsGeneralWorktreeAutoCleanup',
+  responses: {
+    200: successResponse(EnabledSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), async (c) => {
   const value = await getAppSetting(WORKTREE_AUTO_CLEANUP_KEY)
-  return c.json({ success: true, data: { enabled: value === 'true' } })
+  return c.json({ success: true as const, data: { enabled: value === 'true' } }, 200)
 })
 
 // PATCH /api/settings/worktree-auto-cleanup
-general.patch(
-  '/worktree-auto-cleanup',
-  zValidator('json', z.object({ enabled: z.boolean() }), (result, c) => {
-    if (!result.success) {
-      return c.json(
-        {
-          success: false,
-          error: result.error.issues.map(i => i.message).join(', '),
-        },
-        400,
-      )
-    }
-  }),
-  async (c) => {
-    const { enabled } = c.req.valid('json')
-    await setAppSetting(WORKTREE_AUTO_CLEANUP_KEY, String(enabled))
-    return c.json({ success: true, data: { enabled } })
+general.openapi(createRoute({
+  method: 'patch',
+  path: '/worktree-auto-cleanup',
+  tags: ['Settings'],
+  operationId: 'patchSettingsGeneralWorktreeAutoCleanup',
+  request: { body: { required: true, content: { 'application/json': { schema: z.object({ enabled: z.boolean() }) } } } },
+  responses: {
+    200: successResponse(EnabledSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
   },
-)
+}), async (c) => {
+  const { enabled } = c.req.valid('json')
+  await setAppSetting(WORKTREE_AUTO_CLEANUP_KEY, String(enabled))
+  return c.json({ success: true as const, data: { enabled } }, 200)
+})
 
 // --- Log Page Size ---
 
@@ -155,30 +174,30 @@ general.patch(
 general.openapi(R.getLogPageSize, async (c) => {
   const value = await getAppSetting(LOG_PAGE_SIZE_KEY)
   return c.json({
-    success: true,
+    success: true as const,
     data: { size: value ? Number(value) : DEFAULT_LOG_PAGE_SIZE },
-  })
+  }, 200)
 })
 
 // PATCH /api/settings/log-page-size
 general.openapi(R.setLogPageSize, async (c) => {
   const { size } = c.req.valid('json')
   await setAppSetting(LOG_PAGE_SIZE_KEY, String(size))
-  return c.json({ success: true, data: { size } })
+  return c.json({ success: true as const, data: { size } }, 200)
 })
 
 // --- Max Concurrent Executions ---
 
 const MAX_CONCURRENT_KEY = 'engine:maxConcurrentExecutions'
-const DEFAULT_MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT_EXECUTIONS) || 5
+const DEFAULT_MAX_CONCURRENT = runtimeConfig.MAX_CONCURRENT_EXECUTIONS
 
 // GET /api/settings/max-concurrent-executions
 general.openapi(R.getMaxConcurrent, async (c) => {
   const value = await getAppSetting(MAX_CONCURRENT_KEY)
   return c.json({
-    success: true,
+    success: true as const,
     data: { value: value ? Number(value) : DEFAULT_MAX_CONCURRENT },
-  })
+  }, 200)
 })
 
 // PATCH /api/settings/max-concurrent-executions
@@ -190,7 +209,7 @@ general.openapi(R.setMaxConcurrent, async (c) => {
   const { issueEngine } = await import('@/engines/issue')
   issueEngine.setMaxConcurrent(value)
 
-  return c.json({ success: true, data: { value } })
+  return c.json({ success: true as const, data: { value } }, 200)
 })
 
 // --- Server Info ---
@@ -198,7 +217,7 @@ general.openapi(R.setMaxConcurrent, async (c) => {
 // GET /api/settings/server-info
 general.openapi(R.getServerInfo, async (c) => {
   const [name, url] = await Promise.all([getServerName(), getServerUrl()])
-  return c.json({ success: true, data: { name, url } })
+  return c.json({ success: true as const, data: { name, url } }, 200)
 })
 
 // PATCH /api/settings/server-info
@@ -225,9 +244,9 @@ general.openapi(R.setServerInfo, async (c) => {
 
   const [currentName, currentUrl] = await Promise.all([getServerName(), getServerUrl()])
   return c.json({
-    success: true,
+    success: true as const,
     data: { name: currentName, url: currentUrl },
-  })
+  }, 200)
 })
 
 // --- Slash Commands (cached from engine init, per-engine) ---
@@ -237,7 +256,7 @@ general.openapi(R.getGlobalSlashCommands, async (c) => {
   const validEngines = ['claude-code', 'codex']
   const rawEngine = c.req.query('engine')
   if (rawEngine && !validEngines.includes(rawEngine)) {
-    return c.json({ success: false, error: `Invalid engine type: ${rawEngine}` }, 400 as const)
+    return c.json({ success: false as const, error: `Invalid engine type: ${rawEngine}` }, 400 as const)
   }
   const engine = rawEngine as import('@/engines/types').EngineType | undefined
   let categorized = getCachedCategorizedCommands(engine)
@@ -251,73 +270,117 @@ general.openapi(R.getGlobalSlashCommands, async (c) => {
     await refreshSlashCommandsCache()
     categorized = getCachedCategorizedCommands(engine)
   }
-  return c.json({ success: true, data: categorized }, 200 as const)
+  return c.json({ success: true as const, data: categorized }, 200 as const)
 })
 
 // --- Dangerously Skip Permissions ---
 
 // GET /api/settings/skip-permissions
-general.get('/skip-permissions', async (c) => {
+general.openapi(createRoute({
+  method: 'get',
+  path: '/skip-permissions',
+  tags: ['Settings'],
+  operationId: 'getSettingsGeneralSkipPermissions',
+  responses: {
+    200: successResponse(EnabledSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), async (c) => {
   const value = await getAppSetting(SKIP_PERMISSIONS_KEY)
-  return c.json({ success: true, data: { enabled: value === 'true' } })
+  return c.json({ success: true as const, data: { enabled: value === 'true' } }, 200)
 })
 
 // PATCH /api/settings/skip-permissions
-general.patch(
-  '/skip-permissions',
-  zValidator('json', z.object({ enabled: z.boolean() }), (result, c) => {
-    if (!result.success) {
-      return c.json(
-        {
-          success: false,
-          error: result.error.issues.map(i => i.message).join(', '),
-        },
-        400,
-      )
-    }
-  }),
-  async (c) => {
-    const { enabled } = c.req.valid('json')
-    await setAppSetting(SKIP_PERMISSIONS_KEY, String(enabled))
-    return c.json({ success: true, data: { enabled } })
+general.openapi(createRoute({
+  method: 'patch',
+  path: '/skip-permissions',
+  tags: ['Settings'],
+  operationId: 'patchSettingsGeneralSkipPermissions',
+  request: { body: { required: true, content: { 'application/json': { schema: z.object({ enabled: z.boolean() }) } } } },
+  responses: {
+    200: successResponse(EnabledSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
   },
-)
+}), async (c) => {
+  const { enabled } = c.req.valid('json')
+  await setAppSetting(SKIP_PERMISSIONS_KEY, String(enabled))
+  return c.json({ success: true as const, data: { enabled } }, 200)
+})
 
 // --- Disable AskUserQuestion ---
 
 // GET /api/settings/disable-ask-user
-general.get('/disable-ask-user', async (c) => {
+general.openapi(createRoute({
+  method: 'get',
+  path: '/disable-ask-user',
+  tags: ['Settings'],
+  operationId: 'getSettingsGeneralDisableAskUser',
+  responses: {
+    200: successResponse(EnabledSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), async (c) => {
   const value = await getAppSetting(DISABLE_ASK_USER_KEY)
-  return c.json({ success: true, data: { enabled: value !== 'false' } })
+  return c.json({ success: true as const, data: { enabled: value !== 'false' } }, 200)
 })
 
 // PATCH /api/settings/disable-ask-user
-general.patch(
-  '/disable-ask-user',
-  zValidator('json', z.object({ enabled: z.boolean() }), (result, c) => {
-    if (!result.success) {
-      return c.json(
-        {
-          success: false,
-          error: result.error.issues.map(i => i.message).join(', '),
-        },
-        400,
-      )
-    }
-  }),
-  async (c) => {
-    const { enabled } = c.req.valid('json')
-    await setAppSetting(DISABLE_ASK_USER_KEY, String(enabled))
-    return c.json({ success: true, data: { enabled } })
+general.openapi(createRoute({
+  method: 'patch',
+  path: '/disable-ask-user',
+  tags: ['Settings'],
+  operationId: 'patchSettingsGeneralDisableAskUser',
+  request: { body: { required: true, content: { 'application/json': { schema: z.object({ enabled: z.boolean() }) } } } },
+  responses: {
+    200: successResponse(EnabledSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
   },
-)
+}), async (c) => {
+  const { enabled } = c.req.valid('json')
+  await setAppSetting(DISABLE_ASK_USER_KEY, String(enabled))
+  return c.json({ success: true as const, data: { enabled } }, 200)
+})
 
 // --- Global Engine Environment Variables ---
 
 export const GLOBAL_ENV_VARS_KEY = 'engine:globalEnvVars'
 
 // GET /api/settings/global-env-vars
-general.get('/global-env-vars', async (c) => {
+general.openapi(createRoute({
+  method: 'get',
+  path: '/global-env-vars',
+  tags: ['Settings'],
+  operationId: 'getSettingsGeneralGlobalEnvVars',
+  responses: {
+    200: successResponse(EnvironmentSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), async (c) => {
   const raw = await getAppSetting(GLOBAL_ENV_VARS_KEY)
   let vars: Record<string, string> = {}
   if (raw) {
@@ -325,42 +388,42 @@ general.get('/global-env-vars', async (c) => {
       vars = JSON.parse(raw) as Record<string, string>
     } catch { /* ignore */ }
   }
-  return c.json({ success: true, data: vars })
+  return c.json({ success: true as const, data: vars }, 200)
 })
 
 // PUT /api/settings/global-env-vars
-general.put(
-  '/global-env-vars',
-  zValidator(
-    'json',
-    z.object({
-      vars: z.record(z.string(), z.string())
-        .refine(
-          obj => Object.keys(obj).length <= 50,
-          { message: 'Maximum 50 environment variables allowed' },
-        )
-        .refine(
-          obj => Object.entries(obj).every(
-            ([k, v]) => !/[\r\n]/.test(k) && !/[\r\n]/.test(v),
-          ),
-          { message: 'Environment variable keys and values must not contain line breaks' },
+general.openapi(createRoute({
+  method: 'put',
+  path: '/global-env-vars',
+  tags: ['Settings'],
+  operationId: 'putSettingsGeneralGlobalEnvVars',
+  request: { body: { required: true, content: { 'application/json': { schema: z.object({
+    vars: z.record(z.string(), z.string())
+      .refine(
+        obj => Object.keys(obj).length <= 50,
+        { message: 'Maximum 50 environment variables allowed' },
+      )
+      .refine(
+        obj => Object.entries(obj).every(
+          ([k, v]) => !/[\r\n]/.test(k) && !/[\r\n]/.test(v),
         ),
-    }),
-    (result, c) => {
-      if (!result.success) {
-        return c.json(
-          { success: false, error: result.error.issues.map(i => i.message).join(', ') },
-          400,
-        )
-      }
-    },
-  ),
-  async (c) => {
-    const { vars } = c.req.valid('json')
-    await setAppSetting(GLOBAL_ENV_VARS_KEY, JSON.stringify(vars))
-    await refreshGlobalEnvCache()
-    return c.json({ success: true, data: vars })
+        { message: 'Environment variable keys and values must not contain line breaks' },
+      ),
+  }) } } } },
+  responses: {
+    200: successResponse(EnvironmentSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
   },
-)
+}), async (c) => {
+  const { vars } = c.req.valid('json')
+  await setAppSetting(GLOBAL_ENV_VARS_KEY, JSON.stringify(vars))
+  await refreshGlobalEnvCache()
+  return c.json({ success: true as const, data: vars }, 200)
+})
 
 export default general

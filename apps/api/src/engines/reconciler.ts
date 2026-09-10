@@ -96,9 +96,9 @@ export async function reconcileStaleWorkingIssues(): Promise<number> {
   if (stillReconciledIssues.length === 0) return 0
 
   // Batch update in a single transaction
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     if (stillNeedsSessionFix.length > 0) {
-      await tx
+      tx
         .update(issuesTable)
         .set({
           sessionStatus: 'failed',
@@ -106,12 +106,14 @@ export async function reconcileStaleWorkingIssues(): Promise<number> {
           statusUpdatedAt: now,
         })
         .where(inArray(issuesTable.id, stillNeedsSessionFix))
+        .run()
     }
     if (stillNeedsStatusOnly.length > 0) {
-      await tx
+      tx
         .update(issuesTable)
         .set({ statusId: 'review', statusUpdatedAt: now })
         .where(inArray(issuesTable.id, stillNeedsStatusOnly))
+        .run()
     }
   })
 

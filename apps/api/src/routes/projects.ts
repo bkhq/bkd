@@ -282,21 +282,22 @@ projects.openapi(R.deleteProject, async (c) => {
     }
   }
 
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     // Collect issue IDs before soft-deleting
-    const projectIssues = await tx
+    const projectIssues = tx
       .select({ id: issuesTable.id })
       .from(issuesTable)
       .where(and(eq(issuesTable.projectId, existing.id), eq(issuesTable.isDeleted, 0)))
+      .all()
     const issueIds = projectIssues.map(i => i.id)
 
     // Soft-delete all issues in this project — keep logs/tools/attachments intact for restore
     if (issueIds.length > 0) {
-      await tx.update(issuesTable).set({ isDeleted: 1 }).where(inArray(issuesTable.id, issueIds))
+      tx.update(issuesTable).set({ isDeleted: 1 }).where(inArray(issuesTable.id, issueIds)).run()
     }
 
     // Soft-delete the project
-    await tx.update(projectsTable).set({ isDeleted: 1 }).where(eq(projectsTable.id, existing.id))
+    tx.update(projectsTable).set({ isDeleted: 1 }).where(eq(projectsTable.id, existing.id)).run()
   })
 
   // Invalidate caches

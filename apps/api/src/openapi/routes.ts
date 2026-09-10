@@ -7,6 +7,7 @@
 import { createRoute } from '@hono/zod-openapi'
 import * as z from 'zod'
 import {
+  AttachmentFollowUpSchema,
   BulkUpdateSchema,
   CategorizedCommandsSchema,
   ClaudeUsageSchema,
@@ -132,7 +133,7 @@ export const createProject = createRoute({
   tags: ['Projects'],
   summary: 'Create project',
   operationId: 'createProject',
-  request: { body: { content: { 'application/json': { schema: CreateProjectSchema } } } },
+  request: { body: { required: true, content: { 'application/json': { schema: CreateProjectSchema } } } },
   responses: {
     201: successResponse(ProjectSchema, 'Created project'),
     400: errorResponse('Validation error'),
@@ -146,7 +147,7 @@ export const sortProject = createRoute({
   tags: ['Projects'],
   summary: 'Reorder a project',
   operationId: 'sortProject',
-  request: { body: { content: { 'application/json': { schema: SortProjectSchema } } } },
+  request: { body: { required: true, content: { 'application/json': { schema: SortProjectSchema } } } },
   responses: {
     200: successResponse(z.null(), 'Success'),
     404: errorResponse('Project not found'),
@@ -174,7 +175,7 @@ export const updateProject = createRoute({
   operationId: 'updateProject',
   request: {
     params: z.object({ projectId: z.string() }),
-    body: { content: { 'application/json': { schema: UpdateProjectSchema } } },
+    body: { required: true, content: { 'application/json': { schema: UpdateProjectSchema } } },
   },
   responses: {
     200: successResponse(ProjectSchema, 'Updated project'),
@@ -237,8 +238,8 @@ export const listIssues = createRoute({
   request: {
     params: projectParam,
     query: z.object({
-      // Optional keyset pagination. Omit both to return the full list (default).
-      limit: z.coerce.number().int().min(1).max(200).optional(),
+      // Keyset pagination defaults to 100 issues; follow nextCursor to continue.
+      limit: z.coerce.number().int().min(1).max(200).default(100),
       cursor: z.string().optional(),
     }),
   },
@@ -261,7 +262,10 @@ export const createIssue = createRoute({
   operationId: 'createIssue',
   request: {
     params: projectParam,
-    body: { content: { 'application/json': { schema: CreateIssueSchema } } },
+    body: { required: true, content: {
+      'application/json': { schema: CreateIssueSchema },
+      'multipart/form-data': { schema: CreateIssueSchema.extend({ files: z.array(z.string().openapi({ type: 'string', format: 'binary' })).optional() }) },
+    } },
   },
   responses: {
     201: successResponse(IssueSchema, 'Created issue'),
@@ -292,7 +296,7 @@ export const updateIssue = createRoute({
   operationId: 'updateIssue',
   request: {
     params: projectIssueParams,
-    body: { content: { 'application/json': { schema: UpdateIssueSchema } } },
+    body: { required: true, content: { 'application/json': { schema: UpdateIssueSchema } } },
   },
   responses: {
     200: successResponse(IssueSchema, 'Updated issue'),
@@ -321,7 +325,7 @@ export const bulkUpdateIssues = createRoute({
   operationId: 'bulkUpdateIssues',
   request: {
     params: projectParam,
-    body: { content: { 'application/json': { schema: BulkUpdateSchema } } },
+    body: { required: true, content: { 'application/json': { schema: BulkUpdateSchema } } },
   },
   responses: {
     200: successResponse(z.array(IssueSchema), 'Updated issues'),
@@ -353,7 +357,7 @@ export const executeIssue = createRoute({
   operationId: 'executeIssue',
   request: {
     params: projectIssueParams,
-    body: { content: { 'application/json': { schema: ExecuteIssueSchema } } },
+    body: { required: true, content: { 'application/json': { schema: ExecuteIssueSchema } } },
   },
   responses: {
     200: successResponse(ExecuteIssueResponseSchema, 'Execution started'),
@@ -375,7 +379,10 @@ export const followUpIssue = createRoute({
   operationId: 'followUpIssue',
   request: {
     params: projectIssueParams,
-    body: { content: { 'application/json': { schema: FollowUpSchema } } },
+    body: { required: true, content: {
+      'application/json': { schema: FollowUpSchema },
+      'multipart/form-data': { schema: AttachmentFollowUpSchema.extend({ files: z.array(z.string().openapi({ type: 'string', format: 'binary' })).optional() }) },
+    } },
   },
   responses: {
     200: successResponse(ExecuteIssueResponseSchema, 'Follow-up sent'),
@@ -648,7 +655,7 @@ export const setDefaultEngine = createRoute({
   summary: 'Set default engine',
   operationId: 'setDefaultEngine',
   request: {
-    body: { content: { 'application/json': { schema: z.object({ defaultEngine: z.string() }) } } },
+    body: { required: true, content: { 'application/json': { schema: z.object({ defaultEngine: z.string() }) } } },
   },
   responses: {
     200: successResponse(z.object({ defaultEngine: z.string() }), 'Updated'),
@@ -664,7 +671,7 @@ export const setEngineModel = createRoute({
   operationId: 'setEngineModel',
   request: {
     params: z.object({ engineType: z.string() }),
-    body: { content: { 'application/json': { schema: z.object({ defaultModel: z.string().min(1) }) } } },
+    body: { required: true, content: { 'application/json': { schema: z.object({ defaultModel: z.string().min(1) }) } } },
   },
   responses: {
     200: successResponse(z.object({ engineType: z.string(), defaultModel: z.string() }), 'Updated'),
@@ -680,7 +687,7 @@ export const setHiddenModels = createRoute({
   operationId: 'setHiddenModels',
   request: {
     params: z.object({ engineType: z.string() }),
-    body: { content: { 'application/json': { schema: z.object({ hiddenModels: z.array(z.string()).max(500) }) } } },
+    body: { required: true, content: { 'application/json': { schema: z.object({ hiddenModels: z.array(z.string()).max(500) }) } } },
   },
   responses: {
     200: successResponse(z.object({ engineType: z.string(), hiddenModels: z.array(z.string()) }), 'Updated'),
@@ -727,12 +734,12 @@ export const listCronJobs = createRoute({
   operationId: 'listCronJobs',
   request: {
     query: z.object({
-      deleted: z.enum(['true', 'false', 'only']).optional(),
       limit: z.coerce.number().int().min(1).max(100).optional(),
       cursor: z.string().optional(),
     }),
   },
   responses: {
+    400: errorResponse('Invalid cursor or pagination'),
     200: successResponse(z.union([
       z.array(CronJobSchema),
       z.object({ jobs: z.array(CronJobSchema), hasMore: z.boolean(), nextCursor: z.string().nullable() }),
@@ -757,7 +764,7 @@ export const createCronJob = createRoute({
   tags: ['Cron'],
   summary: 'Create cron job',
   operationId: 'createCronJob',
-  request: { body: { content: { 'application/json': { schema: CreateCronJobSchema } } } },
+  request: { body: { required: true, content: { 'application/json': { schema: CreateCronJobSchema } } } },
   responses: {
     201: successResponse(CronJobSchema, 'Created job'),
     400: errorResponse('Validation error'),
@@ -924,6 +931,7 @@ export const listWorktrees = createRoute({
   tags: ['Worktrees'],
   summary: 'List worktrees for project',
   operationId: 'listWorktrees',
+  request: { params: z.object({ projectId: z.string() }) },
   responses: {
     200: successResponse(z.array(WorktreeEntrySchema), 'Worktree list'),
     404: errorResponse('Project not found'),
@@ -936,7 +944,7 @@ export const deleteWorktree = createRoute({
   tags: ['Worktrees'],
   summary: 'Force-delete a worktree',
   operationId: 'deleteWorktree',
-  request: { params: z.object({ issueId: z.string() }) },
+  request: { params: z.object({ projectId: z.string(), issueId: z.string() }) },
   responses: {
     200: successResponse(z.object({ issueId: z.string() }), 'Deleted'),
     400: errorResponse('Invalid issueId'),
@@ -965,7 +973,7 @@ export const createNote = createRoute({
   tags: ['Notes'],
   summary: 'Create note',
   operationId: 'createNote',
-  request: { body: { content: { 'application/json': { schema: CreateNoteSchema } } } },
+  request: { body: { required: true, content: { 'application/json': { schema: CreateNoteSchema } } } },
   responses: {
     201: successResponse(NoteSchema, 'Created note'),
     500: errorResponse('Internal error'),
@@ -980,7 +988,7 @@ export const updateNote = createRoute({
   operationId: 'updateNote',
   request: {
     params: z.object({ noteId: z.string() }),
-    body: { content: { 'application/json': { schema: UpdateNoteSchema } } },
+    body: { required: true, content: { 'application/json': { schema: UpdateNoteSchema } } },
   },
   responses: {
     200: successResponse(NoteSchema, 'Updated note'),
@@ -1022,7 +1030,7 @@ export const createWebhook = createRoute({
   tags: ['Webhooks'],
   summary: 'Create webhook',
   operationId: 'createWebhook',
-  request: { body: { content: { 'application/json': { schema: CreateWebhookSchema } } } },
+  request: { body: { required: true, content: { 'application/json': { schema: CreateWebhookSchema } } } },
   responses: {
     201: successResponse(WebhookSchema, 'Created webhook'),
     400: errorResponse('Validation error'),
@@ -1037,7 +1045,7 @@ export const updateWebhook = createRoute({
   operationId: 'updateWebhook',
   request: {
     params: z.object({ webhookId: z.string() }),
-    body: { content: { 'application/json': { schema: UpdateWebhookSchema } } },
+    body: { required: true, content: { 'application/json': { schema: UpdateWebhookSchema } } },
   },
   responses: {
     200: successResponse(WebhookSchema, 'Updated webhook'),
@@ -1102,7 +1110,7 @@ export const setWorkspacePath = createRoute({
   tags: ['Settings'],
   summary: 'Set workspace path',
   operationId: 'setWorkspacePath',
-  request: { body: { content: { 'application/json': { schema: z.object({ path: z.string().min(1).max(1024) }) } } } },
+  request: { body: { required: true, content: { 'application/json': { schema: z.object({ path: z.string().min(1).max(1024) }) } } } },
   responses: {
     200: successResponse(z.object({ path: z.string() }), 'Updated'),
     400: errorResponse('Invalid path'),
@@ -1125,7 +1133,7 @@ export const setServerInfo = createRoute({
   summary: 'Update server name and/or URL',
   operationId: 'setServerInfo',
   request: {
-    body: { content: { 'application/json': { schema: z.object({ name: z.string().max(128).optional(), url: z.string().max(1024).optional() }) } } },
+    body: { required: true, content: { 'application/json': { schema: z.object({ name: z.string().max(128).optional(), url: z.string().max(1024).optional() }) } } },
   },
   responses: { 200: successResponse(z.object({ name: z.string(), url: z.string() }), 'Updated') },
 })
@@ -1145,7 +1153,7 @@ export const setLogPageSize = createRoute({
   tags: ['Settings'],
   summary: 'Set log page size',
   operationId: 'setLogPageSize',
-  request: { body: { content: { 'application/json': { schema: z.object({ size: z.number().int().min(5).max(200) }) } } } },
+  request: { body: { required: true, content: { 'application/json': { schema: z.object({ size: z.number().int().min(5).max(200) }) } } } },
   responses: { 200: successResponse(z.object({ size: z.number().int() }), 'Updated') },
 })
 
@@ -1164,7 +1172,7 @@ export const setMaxConcurrent = createRoute({
   tags: ['Settings'],
   summary: 'Set max concurrent executions',
   operationId: 'setMaxConcurrent',
-  request: { body: { content: { 'application/json': { schema: z.object({ value: z.number().int().min(1).max(50) }) } } } },
+  request: { body: { required: true, content: { 'application/json': { schema: z.object({ value: z.number().int().min(1).max(50) }) } } } },
   responses: { 200: successResponse(z.object({ value: z.number().int() }), 'Updated') },
 })
 
@@ -1183,7 +1191,7 @@ export const setWriteFilterRules = createRoute({
   tags: ['Settings'],
   summary: 'Replace all write filter rules',
   operationId: 'setWriteFilterRules',
-  request: { body: { content: { 'application/json': { schema: z.object({ rules: z.array(WriteFilterRuleSchema) }) } } } },
+  request: { body: { required: true, content: { 'application/json': { schema: z.object({ rules: z.array(WriteFilterRuleSchema) }) } } } },
   responses: { 200: successResponse(z.array(WriteFilterRuleSchema), 'Updated') },
 })
 

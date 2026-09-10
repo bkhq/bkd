@@ -111,6 +111,10 @@ Useful fields:
 
 ### List or get issues
 
+Issue lists default to 100 rows (maximum 200 per request). Follow the top-level
+`nextCursor` while `hasMore` is true to retrieve a complete board. Cron pagination
+also uses opaque cursors; never compare or construct them from random resource IDs.
+
 ```bash
 curl -s "$BKD_URL/projects/{projectId}/issues" | jq
 curl -s "$BKD_URL/projects/{projectId}/issues/{issueId}" | jq
@@ -215,7 +219,6 @@ Useful query params:
 
 - `limit`
 - `cursor`
-- `deleted=false|true|only`
 
 ### List cron actions
 
