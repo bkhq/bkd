@@ -10,6 +10,7 @@ import {
   BulkUpdateSchema,
   CategorizedCommandsSchema,
   ClaudeUsageSchema,
+  CodexUsageSchema,
   CreateCronJobSchema,
   CreateIssueSchema,
   CreateNoteSchema,
@@ -615,6 +616,17 @@ export const getClaudeUsage = createRoute({
   operationId: 'getClaudeUsage',
   responses: {
     200: successResponse(ClaudeUsageSchema, 'Claude usage utilization'),
+  },
+})
+
+export const getCodexUsage = createRoute({
+  method: 'get',
+  path: '/codex/usage',
+  tags: ['Engines'],
+  summary: 'Get Codex subscription usage utilization',
+  operationId: 'getCodexUsage',
+  responses: {
+    200: successResponse(CodexUsageSchema, 'Codex usage utilization'),
   },
 })
 

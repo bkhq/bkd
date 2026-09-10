@@ -346,6 +346,20 @@ export const ClaudeUsageSchema = z.object({
   modelWindows: z.array(ClaudeUsageModelWindowSchema).optional(),
 }).openapi('ClaudeUsage')
 
+const CodexUsageWindowSchema = z.object({
+  usedPercentage: z.number(),
+  windowMinutes: z.number().nullable(),
+  resetsAt: z.string().nullable(),
+}).nullable()
+
+export const CodexUsageSchema = z.object({
+  available: z.boolean(),
+  reason: z.enum(['not_installed', 'unauthenticated', 'unsupported', 'upstream_error']).optional(),
+  primary: CodexUsageWindowSchema.optional(),
+  secondary: CodexUsageWindowSchema.optional(),
+  planType: z.string().nullable().optional(),
+}).openapi('CodexUsage')
+
 // ── Cron schemas ───────────────────────────────────────
 
 export const CronJobSchema = z.object({

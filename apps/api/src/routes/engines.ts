@@ -11,6 +11,7 @@ import {
 } from '@/db/helpers'
 import { engineRegistry } from '@/engines/executors'
 import { getClaudeUsage } from '@/engines/executors/claude/usage'
+import { getCodexUsage } from '@/engines/executors/codex/usage'
 import type { EngineType } from '@/engines/types'
 import { forceProbeEngines, getEngineDiscovery, getEngineModels } from '@/engines/startup-probe'
 import { BUILT_IN_PROFILES } from '@/engines/types'
@@ -48,6 +49,12 @@ engines.openapi(R.getEngineProfiles, async (c) => {
 // GET /api/engines/claude/usage — Claude subscription rate-limit utilization (TUI /usage panel)
 engines.openapi(R.getClaudeUsage, async (c) => {
   const usage = await getClaudeUsage()
+  return c.json({ success: true, data: usage })
+})
+
+// GET /api/engines/codex/usage — Codex subscription rate-limit utilization (TUI /status panel)
+engines.openapi(R.getCodexUsage, async (c) => {
+  const usage = await getCodexUsage()
   return c.json({ success: true, data: usage })
 })
 

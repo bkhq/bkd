@@ -507,6 +507,31 @@ export interface ClaudeUsage {
   modelWindows?: ClaudeUsageModelWindow[]
 }
 
+/** A Codex rate-limit window from the app-server `RateLimitSnapshot`. */
+export interface CodexUsageWindow {
+  /** Percentage of the window consumed (0–100). */
+  usedPercentage: number
+  /** Window length in minutes (e.g. 300 for 5 hours), if known. */
+  windowMinutes: number | null
+  /** ISO timestamp when the window resets, if known. */
+  resetsAt: string | null
+}
+
+/**
+ * Codex subscription rate-limit utilization (the TUI `/status` panel).
+ * `available: false` carries a reason for the unavailable state.
+ */
+export interface CodexUsage {
+  available: boolean
+  reason?: 'not_installed' | 'unauthenticated' | 'unsupported' | 'upstream_error'
+  /** Shorter rate-limit window (may be absent even when available). */
+  primary?: CodexUsageWindow | null
+  /** Longer rate-limit window. */
+  secondary?: CodexUsageWindow | null
+  /** Plan label reported by the backend, e.g. "pro". */
+  planType?: string | null
+}
+
 // ── Event Bus ────────────────────────────────────────────
 
 export interface ChangesSummary {

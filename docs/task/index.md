@@ -104,3 +104,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-035 Probe engines on demand only, never on a timer**](ENG-035.md) `P1`
 - [x] [**ENG-036 Turn settlement misreads subagent and background-task signals**](ENG-036.md) `P1`
 - [x] [**UI-007 Upload files from the file browser**](UI-007.md) `P2`
+- [x] [**ENG-037 Show Codex subscription usage in the settings usage panel**](ENG-037.md) `P2`

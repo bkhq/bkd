@@ -27,7 +27,7 @@ const NPX_FALLBACK = ['npx', '-y', '@openai/codex']
  * Used by getAvailability() to determine if the engine is truly installed.
  * Returns null if no binary is found.
  */
-function resolveBinaryOnly(): string | null {
+export function resolveBinaryOnly(): string | null {
   // 1. Check /work/bin first (container / custom deploy)
   if (existsSync('/work/bin/codex')) return '/work/bin/codex'
   // 2. Check PATH
@@ -59,14 +59,14 @@ function resolveBaseCmd(): string[] {
   _cachedBaseCmd = NPX_FALLBACK
   return _cachedBaseCmd
 }
-const JSONRPC_TIMEOUT = 15000
+export const JSONRPC_TIMEOUT = 15000
 
 /**
  * Lightweight JSON-RPC session over a stdio process.
  * Shares a single ReadableStream reader and buffer across calls
  * so no data is lost between sequential requests.
  */
-class JsonRpcSession {
+export class JsonRpcSession {
   private reader: ReadableStreamDefaultReader<Uint8Array>
   private decoder = new TextDecoder()
   private buffer = ''
