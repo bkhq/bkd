@@ -2,7 +2,8 @@
 
 - **status**: completed
 - **createdAt**: 2026-05-22
-- **task**: ENG-013
+- **approvedAt**: 2026-05-22
+- **relatedTask**: ENG-013
 
 ## Goal
 

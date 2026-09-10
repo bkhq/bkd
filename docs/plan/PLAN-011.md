@@ -2,6 +2,8 @@
 
 - **status**: completed
 - **createdAt**: 2026-05-16
+- **approvedAt**: 2026-05-16
+- **relatedTask**: CLI-001, CLI-002
 
 ## Context (Investigation)
 

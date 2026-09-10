@@ -1,14 +1,14 @@
 # BKD - Plan Index
 
-> Updated: 2026-09-02
+> Updated: 2026-09-10
 
 ## Usage
 
-Each plan is a single line linking to its detail file. All detailed information lives in `docs/plan/PLAN-NNN.md`.
+Each plan is a single line linking to its detail file. All detailed information lives in `docs/plan/<timestamp>-<feature-slug>.md`.
 
 ### Format
 
-- [ ] [**PLAN-001 Short plan title**](PLAN-001.md) `YYYY-MM-DD`
+- [ ] [**20260907-1440-add-endpoint Add endpoint**](20260907-1440-add-endpoint.md) `YYYY-MM-DD`
 
 ### Status Markers
 
@@ -21,9 +21,11 @@ Each plan is a single line linking to its detail file. All detailed information 
 
 ### Rules
 
-- Only update the checkbox marker; never delete the line.
+- Update or delete plan entries and their detail files as needed; keep them consistent.
+- Record change history and deletion reasons in `docs/changelog.md`; update affected task and plan references.
 - New plans append to the end.
-- See each `PLAN-NNN.md` for full details.
+- See each `<timestamp>-<feature-slug>.md` for full details.
+- Plan IDs are UTC minute-precision timestamps plus a feature slug; do not allocate sequence numbers. Existing `PLAN-NNN` files stay valid under their current names.
 
 ---
 

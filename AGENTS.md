@@ -224,19 +224,44 @@ Components use the shadcn/ui pattern: `cn()` utility (`apps/frontend/src/lib/uti
 
 ## Project Development
 
-Use the /pma skill to manage project development with a strict three-phase workflow:
+This repository follows the PMA workflow. The actual rules live in the `/pma`
+skill and the stack skills below — do not duplicate them here. If a rule in
+this file ever conflicts with `/pma`, treat `/pma` as the source of truth and
+update this file.
 
-1. Investigation
-2. Proposal
-3. Implement -> Verify -> Record
+### Skill stack
 
-Rules:
+- `/pma` — workflow control, three-phase gate, task and plan tracking
+- `/pma-bun` — implementation baseline for the Bun/Hono API (`apps/api`)
+- `/pma-web` — implementation baseline for the React/Vite frontend (`apps/frontend`)
+- `/pma-cr` — code review on the local diff before commit or PR
 
-- Do not implement before explicit confirmation (`proceed` / `开始实现`).
-- Track tasks in `docs/task/index.md` and `docs/task/PREFIX-NNN.md`.
-- Track non-trivial plans in `docs/plan/index.md` and `docs/plan/PLAN-NNN.md`.
-- Task IDs use `PREFIX-NNN` format (e.g. `AUTH-001`); never skip or reuse IDs.
-- **BEFORE starting any task**: claim it atomically (`[ ] -> [-]` in index, set detail `status: in_progress`, set `owner`).
-- On completion: set task index marker to `[x]` and detail `status: completed`.
-- Keep status updates immediate; do not defer synchronization.
-- `docs/task.md` is retained as legacy history during migration; new workflow uses PMA docs as primary source.
+### Triggers
+
+Any feature, bug fix, refactor, planning, progress tracking, or multi-agent
+execution goes through `/pma` (investigate → proposal → implement). Ceremony is
+tiered by complexity per `/pma` *Task Tiers*: only trivial changes take the fast
+path; everything else waits for explicit approval such as `proceed`.
+
+### Project-specific facts
+
+- Primary language / runtime: TypeScript on Bun 1.4
+- Database / storage: SQLite via `bun:sqlite` + Drizzle ORM (`apps/api/drizzle/`)
+- Dev URL routing: nsl on, host `bkd.localhost` (`/api/*` → API, rest → Vite)
+- Deployment target: `bkd-server.tar.gz` release artifact supervised by lode
+- Quality-gate command: `bun run check`
+- Fast path: enabled (default)
+
+### Local divergences
+
+Any deliberate deviation from a skill rule (Hard Lock relaxation, alternative
+library, non-default layout) is recorded in `docs/decisions/<YYYY-MM-DD>-<slug>.md`
+with a sunset date. Do not silently override skill rules in this file.
+
+### Documentation entry points
+
+- Tasks: `docs/task/index.md`
+- Plans: `docs/plan/index.md`
+- Decisions: `docs/decisions/`
+- Architecture: `docs/architecture.md`
+- Changelog: `docs/changelog.md`

@@ -1,6 +1,6 @@
 # PLAN-003 Migrate claude executor to @anthropic-ai/claude-agent-sdk
 
-- **status**: closed — won't do (superseded by ENG-007: claude-code-sdk removed, SDK route abandoned)
+- **status**: rejected
 - **createdAt**: 2026-04-17
 - **approvedAt**: 2026-04-17
 - **relatedTask**: ENG-001
@@ -200,3 +200,7 @@ Per step:
 1. **Do nothing** — maintain ~2100 L of hand-rolled protocol. Cost: every CLI upgrade risks control-protocol drift; past incidents (`hook_callback` field-shape changes) required reverse-engineering. Rejected.
 2. **Partial migration** — use SDK only for new capabilities (`supportedCommands`, `supportedModels`) while keeping hand-rolled spawn. Keeps two code paths permanently; rejected as a long-term state but acceptable as an intermediate (Step 1 essentially achieves this).
 3. **Switch to the Anthropic HTTP SDK (`@anthropic-ai/sdk`)** — bypasses the `claude` binary entirely. Would lose Claude Code–specific features (slash commands, hooks, plugin discovery, session resume semantics, ExitPlanMode). Rejected — we explicitly want Claude Code behavior, not raw messages API.
+
+## Annotations
+
+- Rejected — superseded by ENG-007: `claude-code-sdk` was removed and the SDK route abandoned.

@@ -1,6 +1,6 @@
 # PLAN-001 Project whiteboard mindmap technical design
 
-- **status**: implementing
+- **status**: rejected
 - **createdAt**: 2026-04-14 15:00
 - **approvedAt**: 2026-04-14 15:30
 - **relatedTask**: WB-001
@@ -252,4 +252,6 @@ Single table creation with indexes. No data migration needed (new feature).
 
 ## Annotations
 
-(User annotations and responses. Keep all history.)
+- 2026-05-09: Rejected — the whiteboard / mindmap feature was removed from BKD (see PLAN-005).
+
+(Current user annotations and responses. Record historical decisions in `docs/changelog.md`.)
