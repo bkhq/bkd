@@ -100,3 +100,20 @@ Follow-up to the `DATA_DIR` convergence: `DB_PATH` now resolves from `DATA_DIR` 
   `scripts/migrate-to-lode.ts` was fixed.
 - Verified: `bun run lint`, `bun run typecheck`, `bun run test:api` (677 pass),
   `bun run test:frontend` (96 pass), `bun run build`.
+
+---
+
+## 2026-09-10 07:26 [decision]
+
+Dropped Claude Fable 5 from the `claude-code` model catalog, keeping only 5.1
+(`20260910-0724-drop-fable-5`).
+
+- `CLAUDE_MODELS` no longer lists `claude-fable-5` / `claude-fable-5[1m]`; the 5.1 pair and
+  the Opus/Sonnet entries are unchanged.
+- This reverses the reason 86f9d78 kept Fable 5 listed. `pickExecutionModel` keeps a pinned
+  selection only while it exists in the catalog, so an issue pinned to `claude-fable-5` now
+  resolves to the catalog default (`claude-opus-5`) on its next execution rather than staying
+  on Fable 5. Requested with that behaviour understood; no data migration — the stored
+  `model` value is simply no longer matched.
+- Verified: `bun run lint` (0 errors), `bun run typecheck`, `bun run test:api`
+  (677 pass), `bun run test:frontend` (96 pass), `bun run build`.

@@ -4,7 +4,7 @@ import { pickExecutionModel, resolveExecutionModel } from '@/engines/model-resol
 import type { EngineModel } from '@/engines/types'
 
 const MODELS: EngineModel[] = [
-  { id: 'claude-fable-5', name: 'Claude Fable 5', isDefault: false },
+  { id: 'claude-fable-5-1', name: 'Claude Fable 5.1', isDefault: false },
   { id: 'claude-opus-5', name: 'Claude Opus 5', isDefault: true },
   { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', isDefault: false },
 ]
@@ -37,7 +37,8 @@ describe('resolveExecutionModel', () => {
     expect(await resolveExecutionModel('claude-code', 'auto')).toBe('claude-opus-5')
     expect(await resolveExecutionModel('claude-code', 'claude-opus-4-8')).toBe('claude-opus-5')
     expect(await resolveExecutionModel('claude-code', 'claude-fable-5-1')).toBe('claude-fable-5-1')
-    expect(await resolveExecutionModel('claude-code', 'claude-fable-5')).toBe('claude-fable-5')
+    // Fable 5 is gone from the catalog; a pinned issue falls back to the default.
+    expect(await resolveExecutionModel('claude-code', 'claude-fable-5')).toBe('claude-opus-5')
   })
 
   test('claude-code ignores a stale cached model list (static catalog wins)', async () => {
