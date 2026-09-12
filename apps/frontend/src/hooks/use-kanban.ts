@@ -89,6 +89,7 @@ export function useCreateProject() {
       description?: string
       directory?: string
       repositoryUrl?: string
+      tags?: string[]
     }) => kanbanApi.createProject(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects() })
@@ -107,6 +108,7 @@ export function useUpdateProject() {
       repositoryUrl?: string
       systemPrompt?: string
       envVars?: Record<string, string>
+      tags?: string[] | null
       defaultEngine?: string | null
       defaultModel?: string | null
       sortOrder?: number

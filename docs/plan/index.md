@@ -1,6 +1,6 @@
 # BKD - Plan Index
 
-> Updated: 2026-09-10
+> Updated: 2026-09-12
 
 ## Usage
 
@@ -53,3 +53,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-020 Stop serving soft-deleted cron jobs over the API**](PLAN-020.md) `2026-09-08`
 - [x] [**PLAN-021 API and repository audit remediation**](PLAN-021.md) `2026-09-10`
 - [x] [**20260910-0533-uploads-root-dir Resolve data paths from a single DATA_DIR**](20260910-0533-uploads-root-dir.md) `2026-09-10`
+- [x] [**20260912-1945-project-tags Tag and filter projects by tag**](20260912-1945-project-tags.md) `2026-09-12`

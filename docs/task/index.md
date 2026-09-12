@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-09-10
+> Updated: 2026-09-12
 
 ## Usage
 
@@ -112,3 +112,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20260910-0528-uploads-root-dir Resolve data paths from a single DATA_DIR**](20260910-0528-uploads-root-dir.md) `P1`
 - [ ] [**20260910-0555-dedupe-issue-log-dir Deduplicate the ISSUE_LOG_DIR constant**](20260910-0555-dedupe-issue-log-dir.md) `P3`
 - [x] [**20260910-0724-drop-fable-5 Drop Claude Fable 5 from the model catalog**](20260910-0724-drop-fable-5.md) `P2`
+- [x] [**20260912-1920-project-tags Tag and filter projects by tag**](20260912-1920-project-tags.md) `P2`

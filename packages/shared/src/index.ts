@@ -10,6 +10,8 @@ export interface Project {
   repositoryUrl?: string
   systemPrompt?: string
   envVars?: Record<string, string>
+  /** Free-form classification tags; undefined when the project has none */
+  tags?: string[]
   /** Per-project default engine; undefined = inherit global default */
   defaultEngine?: EngineType
   /** Per-project default model; undefined = inherit global default */

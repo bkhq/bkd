@@ -8,11 +8,11 @@ import { emitIssueUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
+import { serializeTags } from '@/utils/tags'
 import {
   flushPendingAsFollowUp,
   parseProjectEnvVars,
   serializeIssue,
-  serializeTags,
   triggerIssueExecution,
 } from './_shared'
 

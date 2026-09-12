@@ -117,3 +117,35 @@ Dropped Claude Fable 5 from the `claude-code` model catalog, keeping only 5.1
   `model` value is simply no longer matched.
 - Verified: `bun run lint` (0 errors), `bun run typecheck`, `bun run test:api`
   (677 pass), `bun run test:frontend` (96 pass), `bun run build`.
+
+---
+
+## 2026-09-12 19:55 [progress]
+
+Projects can carry free-form tags, and the dashboard filters by them
+(`20260912-1920-project-tags`).
+
+- `projects.tags` is a single TEXT column holding a JSON array (migration `0024`), the same
+  denormalized shape `issues.tag` already uses. No tag table, no registry, no per-tag
+  colour or rename — a normalized `tags` + `project_tags` pair was rejected as unjustified
+  at a scale where the whole project list ships in one response.
+- `parseTags` / `serializeTags` moved from `routes/issues/_shared.ts` to `utils/tags.ts` so
+  the projects route does not have to import from the issues route. `normalizeTags` is new:
+  it trims, collapses internal whitespace, and drops case-insensitive duplicates keeping
+  first-seen casing, so `web` / `Web` / `web ` cannot become three tags. Both project write
+  handlers call it, so create and update cannot diverge.
+- Contract: `tags` on `Project`, `CreateProject`, and `UpdateProject`; at most 20 tags of at
+  most 50 chars each. `null` and `[]` both clear the set; omitting the field leaves it
+  untouched. Purely additive — existing clients and the `bkd` skill are unaffected.
+- Dashboard: a chip row above the grid (`All` + one chip per tag, single-select, not
+  persisted) narrows the active project list; tags render as badges on each card. The
+  archived section is untouched.
+- Drag reordering is disabled while a filter is active. `HomePage` derives the fractional
+  sort key from the *rendered* neighbours, so a drop inside a filtered subset would have
+  silently reordered against an unrelated project.
+- Verified: `bun run lint` (0 errors, 2 pre-existing warnings), `bun run typecheck`,
+  `bun run test:api` (684 pass, 1 fail), `bun run test:frontend` (99 pass),
+  `bun run build`, and `bun run db:generate` reporting no further changes. The single API
+  failure is `api-execution > async execution transitions to running then completed`, a
+  pre-existing 5s-timeout flake under full-suite load — reproduced identically on a clean
+  `HEAD` worktree (676 pass, 1 fail) and passing in isolation.

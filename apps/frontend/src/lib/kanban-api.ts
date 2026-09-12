@@ -213,6 +213,7 @@ export const kanbanApi = {
     repositoryUrl?: string
     systemPrompt?: string
     envVars?: Record<string, string>
+    tags?: string[]
   }) => post<Project>('/api/projects', data),
   updateProject: (
     id: string,
@@ -223,6 +224,7 @@ export const kanbanApi = {
       repositoryUrl?: string
       systemPrompt?: string
       envVars?: Record<string, string>
+      tags?: string[] | null
       defaultEngine?: string | null
       defaultModel?: string | null
       sortOrder?: number

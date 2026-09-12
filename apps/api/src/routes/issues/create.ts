@@ -15,11 +15,11 @@ import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import type { SavedFile } from '@/uploads'
 import { saveUploadedFile, validateFiles } from '@/uploads'
+import { serializeTags } from '@/utils/tags'
 import { buildIssueUrl, dispatch as webhookDispatch } from '@/webhooks/dispatcher'
 import {
   parseProjectEnvVars,
   serializeIssue,
-  serializeTags,
   triggerIssueExecution,
 } from './_shared'
 

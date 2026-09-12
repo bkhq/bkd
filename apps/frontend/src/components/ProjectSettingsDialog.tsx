@@ -61,7 +61,7 @@ import {
   useUnarchiveProject,
   useUpdateProject,
 } from '@/hooks/use-kanban'
-import { formatModelName } from '@/lib/format'
+import { formatModelName, parseTagInput } from '@/lib/format'
 import { kanbanApi } from '@/lib/kanban-api'
 import type { Project } from '@/types/kanban'
 
@@ -231,6 +231,10 @@ function WorktreeSection({ project }: { project: Project }) {
   )
 }
 
+function tagsToText(tags: string[] | undefined): string {
+  return (tags ?? []).join(', ')
+}
+
 function envVarsToText(vars: Record<string, string>): string {
   return Object.entries(vars)
     .map(([k, v]) => `${k}=${v}`)
@@ -265,6 +269,7 @@ export function ProjectSettingsDialog({
   const [description, setDescription] = useState(project.description ?? '')
   const [directory, setDirectory] = useState(project.directory ?? '')
   const [repositoryUrl, setRepositoryUrl] = useState(project.repositoryUrl ?? '')
+  const [tagsText, setTagsText] = useState(() => tagsToText(project.tags))
   const [systemPrompt, setSystemPrompt] = useState(project.systemPrompt ?? '')
   const [envVarsText, setEnvVarsText] = useState(envVarsToText(project.envVars ?? {}))
   const [defaultEngine, setDefaultEngine] = useState(project.defaultEngine ?? '')
@@ -284,6 +289,7 @@ export function ProjectSettingsDialog({
       setDescription(project.description ?? '')
       setDirectory(project.directory ?? '')
       setRepositoryUrl(project.repositoryUrl ?? '')
+      setTagsText(tagsToText(project.tags))
       setSystemPrompt(project.systemPrompt ?? '')
       setEnvVarsText(envVarsToText(project.envVars ?? {}))
       setDefaultEngine(project.defaultEngine ?? '')
@@ -297,6 +303,7 @@ export function ProjectSettingsDialog({
     description.trim() !== (project.description ?? '') ||
     directory.trim() !== (project.directory ?? '') ||
     repositoryUrl.trim() !== (project.repositoryUrl ?? '') ||
+    tagsText !== tagsToText(project.tags) ||
     systemPrompt !== (project.systemPrompt ?? '') ||
     envVarsText !== envVarsToText(project.envVars ?? {}) ||
     defaultEngine !== (project.defaultEngine ?? '') ||
@@ -314,6 +321,7 @@ export function ProjectSettingsDialog({
         description: description.trim() || undefined,
         directory: directory.trim() || undefined,
         repositoryUrl: repositoryUrl.trim() || undefined,
+        tags: parseTagInput(tagsText),
         systemPrompt,
         envVars: cleanedEnvVars,
         defaultEngine: defaultEngine || null,
@@ -430,6 +438,8 @@ export function ProjectSettingsDialog({
                 setDirectory={setDirectory}
                 repositoryUrl={repositoryUrl}
                 setRepositoryUrl={setRepositoryUrl}
+                tagsText={tagsText}
+                setTagsText={setTagsText}
                 dirPickerOpen={dirPickerOpen}
                 setDirPickerOpen={setDirPickerOpen}
                 detectingRemote={detectingRemote}
@@ -507,6 +517,8 @@ function GeneralSection({
   setDirectory,
   repositoryUrl,
   setRepositoryUrl,
+  tagsText,
+  setTagsText,
   dirPickerOpen,
   setDirPickerOpen,
   detectingRemote,
@@ -521,6 +533,8 @@ function GeneralSection({
   setDirectory: (v: string) => void
   repositoryUrl: string
   setRepositoryUrl: (v: string) => void
+  tagsText: string
+  setTagsText: (v: string) => void
   dirPickerOpen: boolean
   setDirPickerOpen: (v: boolean) => void
   detectingRemote: boolean
@@ -556,6 +570,18 @@ function GeneralSection({
           rows={3}
           className="w-full resize-none"
         />
+      </Field>
+
+      <Field>
+        <Label>{t('project.tags')}</Label>
+        <Input
+          type="text"
+          value={tagsText}
+          onChange={e => setTagsText(e.target.value)}
+          placeholder={t('project.tagsPlaceholder')}
+          className="w-full"
+        />
+        <p className="text-[11px] text-muted-foreground">{t('project.tagsHint')}</p>
       </Field>
 
       <Field>

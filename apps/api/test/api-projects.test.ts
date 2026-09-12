@@ -12,6 +12,7 @@ interface Project {
   description?: string
   directory?: string
   repositoryUrl?: string
+  tags?: string[]
   createdAt: string
   updatedAt: string
 }
@@ -141,6 +142,82 @@ describe('PATCH /api/projects/:id', () => {
       name: 'Update',
     })
     expect(result.status).toBe(404)
+  })
+})
+
+describe('project tags', () => {
+  test('creates a project with tags and reads them back', async () => {
+    const created = expectSuccess(
+      await post<Project>('/api/projects', { name: 'Tagged', tags: ['work', 'rust'] }),
+    )
+    expect(created.tags).toEqual(['work', 'rust'])
+
+    const fetched = expectSuccess(await get<Project>(`/api/projects/${created.id}`))
+    expect(fetched.tags).toEqual(['work', 'rust'])
+
+    const list = expectSuccess(await get<Project[]>('/api/projects'))
+    expect(list.find(p => p.id === created.id)?.tags).toEqual(['work', 'rust'])
+  })
+
+  test('omits tags for a project created without them', async () => {
+    const created = expectSuccess(await post<Project>('/api/projects', { name: 'Untagged' }))
+    expect(created.tags).toBeUndefined()
+  })
+
+  test('normalizes whitespace and drops case-insensitive duplicates', async () => {
+    const created = expectSuccess(
+      await post<Project>('/api/projects', {
+        name: 'Normalized',
+        tags: ['  Web  ', 'web', 'side   project'],
+      }),
+    )
+    expect(created.tags).toEqual(['Web', 'side project'])
+  })
+
+  test('update replaces the whole tag set', async () => {
+    const created = expectSuccess(
+      await post<Project>('/api/projects', { name: 'Retag', tags: ['old'] }),
+    )
+    const updated = expectSuccess(
+      await patch<Project>(`/api/projects/${created.id}`, { tags: ['new', 'fresh'] }),
+    )
+    expect(updated.tags).toEqual(['new', 'fresh'])
+  })
+
+  test('update without tags leaves them untouched', async () => {
+    const created = expectSuccess(
+      await post<Project>('/api/projects', { name: 'KeepTags', tags: ['keep'] }),
+    )
+    const updated = expectSuccess(
+      await patch<Project>(`/api/projects/${created.id}`, { name: 'KeepTagsRenamed' }),
+    )
+    expect(updated.tags).toEqual(['keep'])
+  })
+
+  test('empty array and null both clear tags', async () => {
+    const a = expectSuccess(await post<Project>('/api/projects', { name: 'ClearA', tags: ['x'] }))
+    expect(expectSuccess(await patch<Project>(`/api/projects/${a.id}`, { tags: [] })).tags)
+      .toBeUndefined()
+
+    const b = expectSuccess(await post<Project>('/api/projects', { name: 'ClearB', tags: ['x'] }))
+    expect(expectSuccess(await patch<Project>(`/api/projects/${b.id}`, { tags: null })).tags)
+      .toBeUndefined()
+  })
+
+  test('rejects an oversized tag', async () => {
+    const result = await post<Project>('/api/projects', {
+      name: 'LongTag',
+      tags: ['a'.repeat(51)],
+    })
+    expect(result.status).toBe(400)
+  })
+
+  test('rejects too many tags', async () => {
+    const result = await post<Project>('/api/projects', {
+      name: 'ManyTags',
+      tags: Array.from({ length: 21 }, (_, i) => `tag${i}`),
+    })
+    expect(result.status).toBe(400)
   })
 })
 

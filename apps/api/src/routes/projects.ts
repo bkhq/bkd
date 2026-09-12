@@ -15,6 +15,7 @@ import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 import { toISO } from '@/utils/date'
 import { isGitRepoFresh } from '@/utils/git'
+import { normalizeTags, parseTags, serializeTags } from '@/utils/tags'
 
 const aliasId = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 8)
 
@@ -30,6 +31,7 @@ function serializeProject(row: ProjectRow) {
     repositoryUrl: row.repositoryUrl ?? undefined,
     systemPrompt: row.systemPrompt ?? undefined,
     envVars: row.envVars ? (JSON.parse(row.envVars) as Record<string, string>) : undefined,
+    tags: parseTags(row.tags) ?? undefined,
     defaultEngine: (row.defaultEngine ?? undefined) as EngineType | undefined,
     defaultModel: row.defaultModel ?? undefined,
     sortOrder: row.sortOrder,
@@ -144,6 +146,7 @@ projects.openapi(R.createProject, async (c) => {
       repositoryUrl: body.repositoryUrl || null,
       systemPrompt: body.systemPrompt ?? null,
       envVars: body.envVars ? JSON.stringify(body.envVars) : null,
+      tags: serializeTags(normalizeTags(body.tags)),
       defaultEngine: body.defaultEngine || null,
       defaultModel: body.defaultModel || null,
       sortOrder,
@@ -205,6 +208,9 @@ projects.openapi(R.updateProject, async (c) => {
   }
   if (body.envVars !== undefined) {
     updates.envVars = Object.keys(body.envVars).length > 0 ? JSON.stringify(body.envVars) : null
+  }
+  if (body.tags !== undefined) {
+    updates.tags = serializeTags(normalizeTags(body.tags))
   }
   if (body.defaultEngine !== undefined) {
     if (body.defaultEngine && !(await isKnownEngineId(body.defaultEngine))) {

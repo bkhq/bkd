@@ -60,3 +60,11 @@ export function getProjectInitials(name: string): string {
   }
   return trimmed.slice(0, 2).toUpperCase()
 }
+
+/** Split a comma-separated tag field into tags; the server normalizes further. */
+export function parseTagInput(value: string): string[] {
+  return value
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+}

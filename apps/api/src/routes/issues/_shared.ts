@@ -15,6 +15,7 @@ import type { EngineType } from '@/engines/types'
 import { emitIssueLogRemoved, emitIssueUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
 import { toISO } from '@/utils/date'
+import { parseTags } from '@/utils/tags'
 
 export type IssueRow = typeof issuesTable.$inferSelect
 
@@ -46,28 +47,6 @@ export function serializeIssue(row: IssueRow) {
     createdAt: toISO(row.createdAt),
     updatedAt: toISO(row.updatedAt),
   }
-}
-
-/** Parse JSON-encoded tags from DB text column into string array. */
-export function parseTags(raw: string | null | undefined): string[] | null {
-  if (!raw) return null
-  let candidates: string[]
-  try {
-    const parsed = JSON.parse(raw)
-    candidates = Array.isArray(parsed) ? parsed : [raw]
-  } catch {
-    candidates = [raw]
-  }
-  const valid = candidates.filter(
-    (s): s is string => typeof s === 'string' && s.length > 0 && s.length <= 50,
-  )
-  return valid.length > 0 ? valid : null
-}
-
-/** Serialize tags array to JSON string for DB storage, or null if empty. */
-export function serializeTags(tags: string[] | null | undefined): string | null {
-  if (!tags || tags.length === 0) return null
-  return JSON.stringify(tags)
 }
 
 export async function getProjectOwnedIssue(projectId: string, issueId: string) {
