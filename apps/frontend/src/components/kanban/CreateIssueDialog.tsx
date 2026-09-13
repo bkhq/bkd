@@ -26,12 +26,21 @@ import {
 import { resolveDefaultEngine } from '@/lib/engine-defaults'
 import { formatModelName } from '@/lib/format'
 import { tStatus } from '@/lib/i18n-utils'
-import type { StatusDefinition } from '@/lib/statuses'
-import { STATUSES } from '@/lib/statuses'
+import type { StatusId } from '@/lib/statuses'
+import { STATUS_MAP } from '@/lib/statuses'
 import { usePanelStore } from '@/stores/panel-store'
 import type { EngineAvailability, EngineModel, EngineProfile } from '@/types/kanban'
 
 // ── Data ──────────────────────────────────────────────
+
+/**
+ * Creation offers only two outcomes: queue the issue (`todo`) or create it and
+ * start executing (`working`; the server treats `review` the same way). Fold
+ * whatever status the caller passed in onto those two.
+ */
+function toCreateStatus(statusId: string | undefined): StatusId {
+  return statusId === 'working' || statusId === 'review' ? 'working' : 'todo'
+}
 
 const PERMISSIONS = [
   { id: 'auto' },
@@ -70,10 +79,9 @@ export function CreateIssueForm({
   )
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const firstStatusId = STATUSES[0].id
   const [input, setInput] = useState('')
   const [tag, setTag] = useState('')
-  const [statusId, setStatusId] = useState(initialStatusId ?? firstStatusId)
+  const [statusId, setStatusId] = useState<StatusId>(() => toCreateStatus(initialStatusId))
   const [engineType, setEngineType] = useState('')
   const [modelId, setModelId] = useState('')
   const [permission, setPermission] = useState<PermissionId>('auto')
@@ -130,8 +138,8 @@ export function CreateIssueForm({
   }, [])
 
   useEffect(() => {
-    setStatusId(initialStatusId ?? firstStatusId)
-  }, [initialStatusId, firstStatusId])
+    setStatusId(toCreateStatus(initialStatusId))
+  }, [initialStatusId])
 
   useEffect(() => {
     if (autoFocus) {
@@ -141,7 +149,7 @@ export function CreateIssueForm({
 
   const handleSubmit = useCallback(() => {
     const trimmed = input.trim()
-    if (!trimmed || !statusId) return
+    if (!trimmed) return
     const permissionMap: Record<PermissionId, string | undefined> = {
       auto: 'auto',
       ask: 'supervised',
@@ -298,7 +306,7 @@ export function CreateIssueForm({
             />
           </PropertyRow>
           <PropertyRow label={t('issue.status')}>
-            <StatusSelect statuses={STATUSES} value={statusId} onChange={setStatusId} />
+            <StatusToggle value={statusId} onChange={setStatusId} />
           </PropertyRow>
           <PropertyRow label={t('createIssue.worktree')}>
             <WorktreeToggle value={useWorktree} onChange={setUseWorktree} disabled={!projectIsGitRepo} />
@@ -385,50 +393,29 @@ function PropertyRow({ label, children }: { label: string, children: React.React
 // ── Select components ────────────────────────────────
 // All replaced with shadcn DropdownMenu; no more useClickOutside / manual open state
 
-function StatusSelect({
-  statuses,
+function StatusToggle({
   value,
   onChange,
 }: {
-  statuses: StatusDefinition[]
-  value: string
-  onChange: (id: string) => void
+  value: StatusId
+  onChange: (id: StatusId) => void
 }) {
   const { t } = useTranslation()
-  const current = statuses.find(s => s.id === value)
+  const current = STATUS_MAP.get(value)
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={(
-          <button
-            type="button"
-            className="flex items-center gap-1.5 text-sm hover:text-foreground transition-colors w-full"
-          />
-        )}
-      >
-        <span
-          className="h-2 w-2 rounded-full shrink-0"
-          style={{ backgroundColor: current?.color }}
-        />
-        <span className="truncate">
-          {current ? tStatus(t, current.name) : t('issue.selectStatus')}
-        </span>
-        <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-[160px]">
-        {statuses.map(s => (
-          <DropdownMenuItem
-            key={s.id}
-            onSelect={() => onChange(s.id)}
-            className={s.id === value ? 'bg-accent/50' : ''}
-          >
-            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-            <span>{tStatus(t, s.name)}</span>
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="flex items-center gap-2 w-full">
+      <Switch
+        checked={value === 'working'}
+        onCheckedChange={checked => onChange(checked ? 'working' : 'todo')}
+        className="shrink-0"
+      />
+      <span
+        className="h-2 w-2 rounded-full shrink-0"
+        style={{ backgroundColor: current?.color }}
+      />
+      <span className="text-sm truncate">{current ? tStatus(t, current.name) : value}</span>
+    </div>
   )
 }
 

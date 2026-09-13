@@ -149,3 +149,24 @@ Projects can carry free-form tags, and the dashboard filters by them
   failure is `api-execution > async execution transitions to running then completed`, a
   pre-existing 5s-timeout flake under full-suite load — reproduced identically on a clean
   `HEAD` worktree (676 pass, 1 fail) and passing in isolation.
+
+---
+
+## 2026-09-13 00:40 [progress]
+
+Replaced the create-issue status dropdown with a switch
+(`20260913-0023-create-issue-status-toggle`).
+
+- Creation only ever produced two outcomes — queue (`todo`) or create and execute
+  (`working`, which the server also derives from `review`) — so the four-status dropdown
+  offered choices that collapsed server-side. The status property row now uses the same
+  `Switch` control as the worktree row, with the status dot and name beside it.
+- `initialStatusId` from a board column is folded onto the two states: `working` and
+  `review` preselect on, everything else (including the `done` column's `+` button)
+  preselects off, so creating from the `done` column now queues a `todo` issue instead of
+  a pre-completed one.
+- No new i18n keys: the label reuses `statusName.Todo` / `statusName.Working`.
+- Added 4 regression cases (`create-issue-status.test.tsx`). `bun run check`: lint 0 errors
+  (2 pre-existing warnings), typecheck clean, 120 frontend tests pass; the API suite keeps
+  the documented `async execution transitions to running then completed` timeout flake
+  (684 pass, 1 fail), which passes in isolation and touches no changed code.
