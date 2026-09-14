@@ -152,6 +152,19 @@ Projects can carry free-form tags, and the dashboard filters by them
 
 ---
 
+## 2026-09-13 00:42 [BUG-P1]
+
+Fixed message-list overlap and streaming scroll instability
+(`20260912-2116-message-list-rendering` / `20260912-2124-message-list-rendering`).
+
+- Align virtual measurements with message IDs and preserve the visible anchor across history insertion, live-window trimming, and the 80-row layout threshold.
+- Follow streaming and delayed height changes without restarting smooth-scroll animations; preserve deliberate upward scrolling and reset state for a new conversation.
+- Skip unchanged conversation-row renders and repeated HTML sanitization. In the browser sample, 30 updates dropped from 1,818 sanitizations to 30 while retaining tool, command-output, task-plan, and duration updates.
+- Added 17 regression cases. All 116 frontend tests, repository lint (two existing warnings), API/frontend typecheck, and containerized frontend build passed. Browser history, width-change, expansion/collapse, and streaming checks passed.
+- `bun run check` retains the previously documented API-suite failure: `async execution transitions to running then completed` / `waitFor timed out after 5000ms` (684 pass, 1 skip, 1 fail, 1 error). The test passed in isolation in the same container; backend code is unchanged.
+
+---
+
 ## 2026-09-13 00:40 [progress]
 
 Replaced the create-issue status dropdown with a switch

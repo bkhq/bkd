@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-09-12
+> Updated: 2026-09-13
 
 ## Usage
 
@@ -113,5 +113,7 @@ Each task is a single line linking to its detail file. All detailed information 
 - [ ] [**20260910-0555-dedupe-issue-log-dir Deduplicate the ISSUE_LOG_DIR constant**](20260910-0555-dedupe-issue-log-dir.md) `P3`
 - [x] [**20260910-0724-drop-fable-5 Drop Claude Fable 5 from the model catalog**](20260910-0724-drop-fable-5.md) `P2`
 - [x] [**20260912-1920-project-tags Tag and filter projects by tag**](20260912-1920-project-tags.md) `P2`
+
+- [x] [**20260912-2116-message-list-rendering Investigate message list stutter and overlapping rows**](20260912-2116-message-list-rendering.md) `P1`
 
 - [x] [**20260913-0023-create-issue-status-toggle Replace the create-issue status dropdown with a toggle**](20260913-0023-create-issue-status-toggle.md) `P2`

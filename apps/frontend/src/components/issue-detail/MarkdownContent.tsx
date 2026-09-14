@@ -132,10 +132,13 @@ export function MarkdownContent({
   const { images, text } = useMemo(() => splitImages(content), [content])
   const formatted = useMemo(() => preprocessContent(text), [text])
   const [html, setHtml] = useState('')
+  const sanitizedHtml = useMemo(() => html ? DOMPurify.sanitize(html) : '', [html])
 
   useEffect(() => {
-    setHtml('')
-    if (!formatted) return
+    if (!formatted) {
+      setHtml('')
+      return
+    }
     let cancelled = false
     void codeToHtml(formatted, 'markdown').then((result) => {
       if (!cancelled) setHtml(result)
@@ -158,8 +161,8 @@ export function MarkdownContent({
       ))}
       {formatted
         ? (
-            html
-              ? <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+            sanitizedHtml
+              ? <div dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
               : <pre className="whitespace-pre-wrap break-words">{formatted}</pre>
           )
         : null}

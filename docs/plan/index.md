@@ -1,6 +1,6 @@
 # BKD - Plan Index
 
-> Updated: 2026-09-12
+> Updated: 2026-09-13
 
 ## Usage
 
@@ -54,3 +54,5 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-021 API and repository audit remediation**](PLAN-021.md) `2026-09-10`
 - [x] [**20260910-0533-uploads-root-dir Resolve data paths from a single DATA_DIR**](20260910-0533-uploads-root-dir.md) `2026-09-10`
 - [x] [**20260912-1945-project-tags Tag and filter projects by tag**](20260912-1945-project-tags.md) `2026-09-12`
+
+- [x] [**20260912-2124-message-list-rendering Stabilize message-list layout and streaming updates**](20260912-2124-message-list-rendering.md) `2026-09-12`
