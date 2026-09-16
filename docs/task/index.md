@@ -117,3 +117,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20260912-2116-message-list-rendering Investigate message list stutter and overlapping rows**](20260912-2116-message-list-rendering.md) `P1`
 
 - [x] [**20260913-0023-create-issue-status-toggle Replace the create-issue status dropdown with a toggle**](20260913-0023-create-issue-status-toggle.md) `P2`
+
+- [x] [**20260916-0520-sidebar-active-project-scroll Keep the active project visible in the sidebar rail**](20260916-0520-sidebar-active-project-scroll.md) `P2`

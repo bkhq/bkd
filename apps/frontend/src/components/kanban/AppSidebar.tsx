@@ -1,5 +1,5 @@
 import { Eye, Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { AppLogo } from '@/components/AppLogo'
@@ -27,6 +27,13 @@ function ProjectButton({
 }) {
   const btnRef = useRef<HTMLButtonElement>(null)
   const [tooltip, setTooltip] = useState<{ x: number, y: number } | null>(null)
+
+  // The rail hides its scrollbar, so an active project outside the visible
+  // range leaves no on-screen trace of which project is selected.
+  useEffect(() => {
+    if (!isActive) return
+    btnRef.current?.scrollIntoView({ block: 'center' })
+  }, [isActive])
 
   const showTooltip = () => {
     const rect = btnRef.current?.getBoundingClientRect()

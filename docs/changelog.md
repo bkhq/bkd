@@ -183,3 +183,24 @@ Replaced the create-issue status dropdown with a switch
   (2 pre-existing warnings), typecheck clean, 120 frontend tests pass; the API suite keeps
   the documented `async execution transitions to running then completed` timeout flake
   (684 pass, 1 fail), which passes in isolation and touches no changed code.
+
+---
+
+## 2026-09-16 05:25 [BUG-P1]
+
+Centered the sidebar rail on the active project
+(`20260916-0520-sidebar-active-project-scroll`).
+
+- `AppSidebar` renders projects in a scroll container with a hidden scrollbar, and never
+  scrolled the active entry into view. With enough projects the selection highlight sat
+  outside the visible range, so nothing on screen told the user which project was open —
+  the list view made it obvious because the rail is the only project indicator there.
+- `ProjectButton` now calls `scrollIntoView({ block: 'center' })` when it becomes active,
+  which covers both mount and a project switch. Pages that pass an empty
+  `activeProjectId` (the review page) still do not scroll.
+- The page shells are `h-full` with no scrolling ancestor, so centering moves the rail only.
+- `MobileSidebar` has the same pattern in its drawer list; left untouched, not reported.
+- Added 3 regression cases (`app-sidebar.test.tsx`). `bun run check`: lint 0 errors
+  (2 pre-existing warnings), typecheck clean, 123 frontend tests pass; the API suite keeps
+  the documented `async execution transitions to running then completed` timeout flake
+  (684 pass, 1 fail), which passes in isolation and touches no changed code.
