@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { CodexProtocolHandler } from '@/engines/executors/codex'
+import { toSpawnedProtocolHandler } from '@/engines/executors/codex/executor'
 
 /** Create a mock stdin (FileSink-like) that captures written data. */
 function createMockStdin() {
@@ -832,5 +833,64 @@ describe('CodexProtocolHandler', () => {
 
     handler.close()
     stdout.close()
+  })
+
+  describe('liveness (onActivity)', () => {
+    test('a content-free message refreshes activity', async () => {
+      const { sink } = createMockStdin()
+      const stdout = createMockStdout()
+      const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+      let calls = 0
+      handler.onActivity = () => {
+        calls++
+      }
+
+      // Reasoning item with no displayable text — the normalizer drops it,
+      // but it still proves the process is working.
+      stdout.push(JSON.stringify({
+        method: 'item/completed',
+        params: { item: { type: 'reasoning', id: 'r1', summary: [], content: [] } },
+      }))
+      await tick()
+
+      expect(calls).toBe(1)
+      handler.close()
+    })
+
+    test('an unparseable line refreshes activity', async () => {
+      const { sink } = createMockStdin()
+      const stdout = createMockStdout()
+      const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+      let calls = 0
+      handler.onActivity = () => {
+        calls++
+      }
+
+      stdout.push('not json at all')
+      await tick()
+
+      expect(calls).toBe(1)
+      handler.close()
+    })
+
+    test('the spawned-process wrapper forwards onActivity to the handler', async () => {
+      const { sink } = createMockStdin()
+      const stdout = createMockStdout()
+      const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+      const wrapper = toSpawnedProtocolHandler(handler, 'issue-1')
+      expect(wrapper.onActivity).toBeUndefined()
+
+      let calls = 0
+      // register() assigns onActivity on the wrapper, not on the handler
+      wrapper.onActivity = () => {
+        calls++
+      }
+      stdout.push(JSON.stringify({ method: 'thread/tokenUsage/updated', params: {} }))
+      await tick()
+
+      expect(calls).toBe(1)
+      expect(wrapper.onActivity).toBeDefined()
+      handler.close()
+    })
   })
 })

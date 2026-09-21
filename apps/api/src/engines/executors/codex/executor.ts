@@ -62,6 +62,42 @@ function resolveBaseCmd(): string[] {
 export const JSONRPC_TIMEOUT = 15000
 
 /**
+ * Adapt a CodexProtocolHandler to the generic SpawnedProcess.protocolHandler
+ * shape. `onActivity` is forwarded to the handler because register() assigns
+ * it on this wrapper, while only the handler's read loop can fire it.
+ */
+export function toSpawnedProtocolHandler(
+  handler: CodexProtocolHandler,
+  issueId: string | undefined,
+): NonNullable<SpawnedProcess['protocolHandler']> {
+  return {
+    interrupt: async () => {
+      if (handler.threadId && handler.turnId) {
+        await handler.interrupt(handler.threadId, handler.turnId)
+      }
+    },
+    close: () => handler.close(),
+    sendUserMessage: (content: string) => {
+      // turn/start is async: without this catch a rejected follow-up
+      // (RPC error, request timeout) would silently drop the user's
+      // message and surface only as an unhandled rejection.
+      handler.sendUserMessage(content).catch((error: unknown) => {
+        logger.error(
+          { issueId, threadId: handler.threadId, error },
+          'codex_send_user_message_failed',
+        )
+      })
+    },
+    get onActivity() {
+      return handler.onActivity
+    },
+    set onActivity(fn) {
+      handler.onActivity = fn
+    },
+  }
+}
+
+/**
  * Lightweight JSON-RPC session over a stdio process.
  * Shares a single ReadableStream reader and buffer across calls
  * so no data is lost between sequential requests.
@@ -382,25 +418,7 @@ export class CodexExecutor implements EngineExecutor {
           void handler.interrupt(handler.threadId, handler.turnId).catch(() => {})
         }
       },
-      protocolHandler: {
-        interrupt: async () => {
-          if (handler.threadId && handler.turnId) {
-            await handler.interrupt(handler.threadId, handler.turnId)
-          }
-        },
-        close: () => handler.close(),
-        sendUserMessage: (content: string) => {
-          // turn/start is async: without this catch a rejected follow-up
-          // (RPC error, request timeout) would silently drop the user's
-          // message and surface only as an unhandled rejection.
-          handler.sendUserMessage(content).catch((error: unknown) => {
-            logger.error(
-              { issueId: env.issueId, threadId: handler.threadId, error },
-              'codex_send_user_message_failed',
-            )
-          })
-        },
-      },
+      protocolHandler: toSpawnedProtocolHandler(handler, env.issueId),
       externalSessionId: handler.threadId,
       spawnCommand: cmd.join(' '),
     }
@@ -452,25 +470,7 @@ export class CodexExecutor implements EngineExecutor {
           void handler.interrupt(handler.threadId, handler.turnId).catch(() => {})
         }
       },
-      protocolHandler: {
-        interrupt: async () => {
-          if (handler.threadId && handler.turnId) {
-            await handler.interrupt(handler.threadId, handler.turnId)
-          }
-        },
-        close: () => handler.close(),
-        sendUserMessage: (content: string) => {
-          // turn/start is async: without this catch a rejected follow-up
-          // (RPC error, request timeout) would silently drop the user's
-          // message and surface only as an unhandled rejection.
-          handler.sendUserMessage(content).catch((error: unknown) => {
-            logger.error(
-              { issueId: env.issueId, threadId: handler.threadId, error },
-              'codex_send_user_message_failed',
-            )
-          })
-        },
-      },
+      protocolHandler: toSpawnedProtocolHandler(handler, env.issueId),
       externalSessionId: handler.threadId,
       spawnCommand: cmd.join(' '),
     }

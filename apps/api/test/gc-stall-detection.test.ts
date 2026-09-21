@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test'
+import { CodexProtocolHandler } from '@/engines/executors/codex'
+import { toSpawnedProtocolHandler } from '@/engines/executors/codex/executor'
 import {
   IDLE_TIMEOUT_MS,
   STALL_INTERRUPT_GRACE_MS,
@@ -483,5 +485,87 @@ describe('gcSweep — stream stall detection', () => {
     expect(managed.stallDetectedAt).toBeUndefined()
     expect(managed.stallProbeAt).toBeUndefined()
     expect(mockEmitDiagnosticLog).not.toHaveBeenCalled()
+  })
+})
+
+describe('gcSweep — codex turn without displayable output', () => {
+  afterEach(() => {
+    mockEmitDiagnosticLog.mockClear()
+  })
+
+  /**
+   * Build a codex ManagedProcess whose protocol handler is wired the way
+   * register() wires it: onActivity refreshes lastActivityAt and clears stall
+   * state. The process starts past the liveness grace, so without fresh
+   * activity the next sweep would interrupt it.
+   */
+  function makeCodexProcess(pid: number) {
+    const encoder = new TextEncoder()
+    let controller!: ReadableStreamDefaultController<Uint8Array>
+    const stdout = new ReadableStream<Uint8Array>({
+      start(c) {
+        controller = c
+      },
+    })
+    const stdin = { write() {}, flush() {}, end() {} } as unknown as import('bun').FileSink
+    const handler = new CodexProtocolHandler(stdin, stdout, 5000)
+    const interruptMock = mock(() => {})
+    const wrapper = toSpawnedProtocolHandler(handler, 'issue-codex')
+    wrapper.interrupt = interruptMock
+
+    const managed = makeManagedProcess({
+      issueId: 'issue-codex',
+      executionId: 'exec-codex',
+      engineType: 'codex',
+      turnInFlight: true,
+      lastActivityAt: new Date(Date.now() - STREAM_STALL_TIMEOUT_MS - STALL_LIVENESS_GRACE_MS - 60_000),
+      stallDetectedAt: new Date(Date.now() - STALL_LIVENESS_GRACE_MS - 60_000),
+      process: {
+        subprocess: { pid },
+        protocolHandler: wrapper,
+      } as unknown as ManagedProcess['process'],
+    })
+    wrapper.onActivity = () => {
+      managed.lastActivityAt = new Date()
+      managed.stallDetectedAt = undefined
+      managed.stallProbeAt = undefined
+    }
+
+    return {
+      managed,
+      handler,
+      interruptMock,
+      push: (line: string) => controller.enqueue(encoder.encode(`${line}\n`)),
+    }
+  }
+
+  const tick = () => new Promise(r => setTimeout(r, 30))
+
+  test('content-free output keeps a live turn from being interrupted', async () => {
+    const { managed, handler, interruptMock, push } = makeCodexProcess(process.pid)
+    const { ctx, forceKillCalls } = makeContext([{ id: 'exec-codex', meta: managed }])
+
+    push(JSON.stringify({
+      method: 'item/completed',
+      params: { item: { type: 'reasoning', id: 'r1', summary: [], content: [] } },
+    }))
+    await tick()
+    gcSweep(ctx)
+
+    expect(interruptMock).not.toHaveBeenCalled()
+    expect(forceKillCalls).not.toContain('exec-codex')
+    expect(managed.stallDetectedAt).toBeUndefined()
+    handler.close()
+  })
+
+  test('a dead codex process with no output is still terminated', () => {
+    const { managed, handler } = makeCodexProcess(999999999)
+    managed.stallDetectedAt = undefined
+    const { ctx, forceKillCalls } = makeContext([{ id: 'exec-codex', meta: managed }])
+
+    gcSweep(ctx)
+
+    expect(forceKillCalls).toContain('exec-codex')
+    handler.close()
   })
 })
