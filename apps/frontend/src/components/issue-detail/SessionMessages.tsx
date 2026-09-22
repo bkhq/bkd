@@ -1,7 +1,7 @@
 import type { ChatMessage, NormalizedLogEntry, TaskPlanChatMessage } from '@bkd/shared'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { CheckCircle2, ChevronDown, Circle, ListTodo, Loader2 } from 'lucide-react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useChatMessages } from '@/hooks/use-chat-messages'
 import { useViewModeStore } from '@/stores/view-mode-store'
@@ -53,6 +53,19 @@ const ChatMessageRow = memo(({ message }: { message: ChatMessage }) => {
     default:
       return null
   }
+}, ({ message: previous }, { message: next }) => {
+  if (previous === next) return true
+  if (previous.type !== next.type || previous.id !== next.id) return false
+  // Grouped tools derive state from multiple entries; let those updates through.
+  if (previous.type === 'tool-group' || next.type === 'tool-group') return false
+  if (previous.entry !== next.entry) return false
+  if (previous.type === 'assistant' && next.type === 'assistant') {
+    return previous.durationMs === next.durationMs
+  }
+  if (previous.type === 'user' && next.type === 'user') {
+    return previous.commandOutput === next.commandOutput
+  }
+  return true
 })
 
 // ── Task Plan ────────────────────────────────────────────
@@ -133,7 +146,8 @@ function TaskPlanMessage({ message }: { message: TaskPlanChatMessage }) {
 
 // ── SessionMessages (main export) ────────────────────────
 
-export function SessionMessages(props: {
+export function SessionMessages({ sessionKey, ...props }: {
+  sessionKey?: string
   logs: NormalizedLogEntry[]
   scrollRef?: React.RefObject<HTMLDivElement | null>
   isRunning?: boolean
@@ -144,7 +158,7 @@ export function SessionMessages(props: {
   isLoadingOlder?: boolean
   onLoadOlder?: () => void
 }) {
-  return <LegacySessionMessages {...props} />
+  return <LegacySessionMessages key={sessionKey} {...props} />
 }
 
 /** Threshold: below this count, render without virtualization for simpler layout. */
@@ -175,79 +189,78 @@ function LegacySessionMessages({
   const fullWidthChat = useViewModeStore(s => s.fullWidthChat)
 
   // Transform flat entries → grouped ChatMessage[]
-  const { messages, pendingMessages } = useChatMessages(logs)
+  const { messages } = useChatMessages(logs)
 
   const useVirtual = messages.length >= VIRTUALIZE_THRESHOLD
 
-  // Auto-scroll to bottom on new messages
+  const contentRef = useRef<HTMLDivElement>(null)
   const nearBottomRef = useRef(true)
-  useEffect(() => {
-    const el = scrollRef?.current
-    if (!el) return
-    const handler = () => {
-      nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 150
-    }
-    el.addEventListener('scroll', handler, { passive: true })
-    return () => el.removeEventListener('scroll', handler)
+  const scrollFrameRef = useRef(0)
+  const lastScrollTopRef = useRef(0)
+  const scheduleFollow = useCallback(() => {
+    if (scrollFrameRef.current) return
+    scrollFrameRef.current = requestAnimationFrame(() => {
+      scrollFrameRef.current = 0
+      const el = scrollRef?.current
+      if (!el || !nearBottomRef.current) return
+      if (el.scrollHeight - el.scrollTop - el.clientHeight > 1) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'instant' })
+      }
+      lastScrollTopRef.current = el.scrollTop
+    })
   }, [scrollRef])
 
-  const initialScrollDone = useRef(false)
   useEffect(() => {
-    if (initialScrollDone.current || (messages.length === 0 && pendingMessages.length === 0)) return
     const el = scrollRef?.current
-    if (!el) return
-    // Double-rAF ensures the lazy-loaded content has been painted before
-    // we measure scrollHeight.  A single rAF fires before the browser
-    // composites the first meaningful paint of the Suspense child.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        el.scrollTo({ top: el.scrollHeight })
-        initialScrollDone.current = true
-      })
-    })
-  }, [messages.length, pendingMessages.length, scrollRef])
-
-  const prevLenRef = useRef(messages.length)
-  const prevFirstIdRef = useRef(messages[0]?.id)
-  const firstMessageId = messages[0]?.id
-  // Track last message content length so streaming updates trigger auto-scroll
-  const lastMsg = messages.at(-1)
-  const lastContentLen = lastMsg?.type === 'assistant'
-    ? (lastMsg.entry.content?.length ?? 0)
-    : 0
-
-  useEffect(() => {
-    if (!initialScrollDone.current) return
-    const wasOlderPrepend =
-      messages.length > prevLenRef.current &&
-      prevFirstIdRef.current &&
-      firstMessageId !== prevFirstIdRef.current
-
-    if (
-      !wasOlderPrepend &&
-      nearBottomRef.current &&
-      (messages.length !== prevLenRef.current || isRunning)
-    ) {
-      const el = scrollRef?.current
-      el?.scrollTo({
-        top: el.scrollHeight,
-        behavior: 'smooth',
-      })
+    const content = contentRef.current
+    if (!el || !content) return
+    const previousAnchor = el.style.overflowAnchor
+    el.style.overflowAnchor = 'none'
+    lastScrollTopRef.current = el.scrollTop
+    const handler = () => {
+      const top = el.scrollTop
+      const gap = el.scrollHeight - top - el.clientHeight
+      if (top < lastScrollTopRef.current && gap > 1) {
+        nearBottomRef.current = false
+      } else if (gap < 150) {
+        nearBottomRef.current = true
+      }
+      lastScrollTopRef.current = top
     }
-    prevLenRef.current = messages.length
-    prevFirstIdRef.current = firstMessageId
-  }, [firstMessageId, isRunning, lastContentLen, messages.length, scrollRef])
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) nearBottomRef.current = false
+    }
+    const observer = new ResizeObserver(scheduleFollow)
+    observer.observe(content)
+    observer.observe(el)
+    el.addEventListener('scroll', handler, { passive: true })
+    el.addEventListener('wheel', onWheel, { passive: true })
+    scheduleFollow()
+    return () => {
+      observer.disconnect()
+      el.removeEventListener('scroll', handler)
+      el.removeEventListener('wheel', onWheel)
+      el.style.overflowAnchor = previousAnchor
+      cancelAnimationFrame(scrollFrameRef.current)
+      scrollFrameRef.current = 0
+    }
+  }, [scrollRef, scheduleFollow])
 
-  if (messages.length === 0 && pendingMessages.length === 0 && !isRunning) return null
+  useLayoutEffect(() => {
+    scheduleFollow()
+  }, [messages, isRunning, scheduleFollow])
 
   return (
-    <div className={`flex flex-col py-2 px-5${fullWidthChat ? '' : ' max-w-4xl'}`}>
+    <div ref={contentRef} className={`flex flex-col py-2 px-5${fullWidthChat ? '' : ' max-w-4xl'}`}>
       {hasOlderLogs && onLoadOlder ?
           (
             <div className="flex justify-center py-2">
               <button
                 type="button"
-                onClick={onLoadOlder}
+                onClick={() => {
+                  nearBottomRef.current = false
+                  onLoadOlder()
+                }}
                 disabled={isLoadingOlder}
                 className="rounded-md border border-border/40 bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -256,16 +269,11 @@ function LegacySessionMessages({
             </div>
           ) :
         null}
-      {useVirtual ?
-          (
-            <VirtualMessageList
-              messages={messages}
-              scrollRef={scrollRef}
-            />
-          ) :
-          messages.map(msg => (
-            <ChatMessageRow key={msg.id} message={msg} />
-          ))}
+      <VirtualMessageList
+        messages={messages}
+        scrollRef={scrollRef}
+        virtualize={useVirtual}
+      />
       <ThinkingIndicator
         isRunning={isRunning}
         isCancelling={isCancelling}
@@ -281,38 +289,66 @@ function LegacySessionMessages({
 function VirtualMessageList({
   messages,
   scrollRef,
+  virtualize,
 }: {
   messages: ChatMessage[]
   scrollRef?: React.RefObject<HTMLDivElement | null>
+  virtualize: boolean
 }) {
+  const listRef = useRef<HTMLDivElement>(null)
+  const [scrollMargin, setScrollMargin] = useState<number | null>(null)
+  const getItemKey = useCallback((index: number) => messages[index].id, [messages])
   const getScrollElement = useCallback(
     () => scrollRef?.current ?? null,
     [scrollRef],
   )
 
+  useEffect(() => {
+    const el = scrollRef?.current
+    const list = listRef.current
+    if (!el || !list?.parentElement) return
+    const updateMargin = () => {
+      setScrollMargin(list.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop)
+    }
+    updateMargin()
+    const observer = new ResizeObserver(updateMargin)
+    observer.observe(list.parentElement)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [scrollRef])
+
   const virtualizer = useVirtualizer({
     count: messages.length,
+    getItemKey,
     getScrollElement,
     estimateSize: () => 60,
     overscan: 15,
+    scrollMargin: scrollMargin ?? 0,
+    anchorTo: 'end',
   })
 
+  const totalSize = virtualizer.getTotalSize()
+  // Normal-flow rows still share measurements and anchors with the virtual layout.
+  const items = virtualize
+    ? virtualizer.getVirtualItems()
+    : messages.map((_, index) => ({ index, start: 0 }))
+
   return (
-    <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-      {virtualizer.getVirtualItems().map((item) => {
+    <div ref={listRef} style={{ height: virtualize ? totalSize : undefined, position: 'relative' }}>
+      {items.map((item) => {
         const msg = messages[item.index]
         return (
           <div
             key={msg.id}
             data-index={item.index}
             ref={virtualizer.measureElement}
-            style={{
+            style={virtualize ? {
               position: 'absolute',
               top: 0,
               left: 0,
               width: '100%',
-              transform: `translateY(${item.start}px)`,
-            }}
+              transform: `translateY(${item.start - (scrollMargin ?? 0)}px)`,
+            } : { display: 'flow-root' }}
           >
             <ChatMessageRow message={msg} />
           </div>

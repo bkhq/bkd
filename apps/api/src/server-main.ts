@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { serveStatic, websocket } from 'hono/bun'
 import app from './app'
+import { runtimeConfig } from './runtime-config'
 import { issueEngine } from './engines/issue'
 import { migrateSlashCommandsKey, refreshSlashCommandsCache } from './engines/issue/queries'
 import {
@@ -86,8 +87,8 @@ initWebhookDispatcher()
 // Start periodic webhook delivery cleanup (keeps last 100 per webhook)
 const stopDeliveryCleanup = startDeliveryCleanup()
 
-const listenHost = process.env.HOST ?? '0.0.0.0'
-const listenPort = Number(process.env.PORT ?? 3000)
+const listenHost = runtimeConfig.HOST
+const listenPort = runtimeConfig.PORT
 
 // --- Static file serving ---
 // In package mode, static files live in APP_DIR/public/.

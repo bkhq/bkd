@@ -35,6 +35,7 @@ export const projects = sqliteTable('projects', {
   description: text('description'),
   directory: text('directory'),
   repositoryUrl: text('repository_url'),
+  tags: text('tags'), // JSON: string[]
   systemPrompt: text('system_prompt'),
   envVars: text('env_vars'), // JSON: Record<string, string>
   defaultEngine: text('default_engine'), // null = inherit global default

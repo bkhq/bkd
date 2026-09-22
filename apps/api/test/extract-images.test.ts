@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { attachments as attachmentsTable } from '@/db/schema'
 import { extractImageDataUris, rewriteEntryImages } from '@/engines/issue/pipeline/extract-images'
+import { UPLOAD_DIR } from '@/uploads'
 import { createTestIssue, createTestProject, expectSuccess } from './helpers'
 import './setup'
 
@@ -39,7 +40,7 @@ describe('extractImageDataUris (ENG-018)', () => {
     expect(rows.length).toBe(1)
     expect(rows[0]!.mimeType).toBe('image/png')
     expect(rows[0]!.size).toBeGreaterThan(0)
-    expect(existsSync(resolve(process.cwd(), rows[0]!.storagePath))).toBe(true)
+    expect(existsSync(resolve(UPLOAD_DIR, rows[0]!.storedName))).toBe(true)
   })
 
   test('leaves content without data-URIs unchanged', async () => {
@@ -78,6 +79,6 @@ describe('extractImageDataUris (ENG-018)', () => {
       .all()
     expect(rows.length).toBe(1)
     expect(rows[0]!.mimeType).toBe('image/png')
-    expect(existsSync(resolve(process.cwd(), rows[0]!.storagePath))).toBe(true)
+    expect(existsSync(resolve(UPLOAD_DIR, rows[0]!.storedName))).toBe(true)
   })
 })

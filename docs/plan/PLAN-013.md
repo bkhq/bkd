@@ -2,7 +2,8 @@
 
 - **status**: completed
 - **createdAt**: 2026-07-17
-- **task**: DEV-002
+- **approvedAt**: 2026-07-17
+- **relatedTask**: DEV-002
 
 ## Context (investigation findings)
 

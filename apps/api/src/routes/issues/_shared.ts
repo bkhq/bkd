@@ -1,9 +1,7 @@
 import { mkdir, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import * as z from 'zod'
 import { cacheDel, cacheGetOrSet } from '@/cache'
-import { STATUS_IDS } from '@/config'
 import { db } from '@/db'
 import { getAppSetting } from '@/db/helpers'
 import {
@@ -17,78 +15,7 @@ import type { EngineType } from '@/engines/types'
 import { emitIssueLogRemoved, emitIssueUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
 import { toISO } from '@/utils/date'
-
-const fractionalKeyRegex = /^[a-z0-9]+$/i
-
-export const createIssueSchema = z.object({
-  title: z.string().min(1).max(500),
-  tags: z.array(z.string().max(50)).max(10).optional(),
-  statusId: z.enum(STATUS_IDS),
-  useWorktree: z.boolean().optional(),
-  keepAlive: z.boolean().optional(),
-  engineType: z.string().regex(/^[\w.\-:]{1,64}$/).optional(),
-  model: z
-    .string()
-    .regex(/^[\w./:\-[\]]{1,160}$/)
-    .optional(),
-  permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
-})
-
-export const bulkUpdateSchema = z.object({
-  updates: z
-    .array(
-      z.object({
-        id: z.string(),
-        statusId: z.enum(STATUS_IDS).optional(),
-        sortOrder: z.string().min(1).max(50).regex(fractionalKeyRegex).optional(),
-      }),
-    )
-    .superRefine((updates, ctx) => {
-      const seen = new Set<string>()
-      for (const [index, update] of updates.entries()) {
-        if (seen.has(update.id)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Duplicate issue id in bulk updates',
-            path: [index, 'id'],
-          })
-          continue
-        }
-        seen.add(update.id)
-      }
-    })
-    .max(1000),
-})
-
-export const updateIssueSchema = z.object({
-  title: z.string().min(1).max(500).optional(),
-  tags: z.array(z.string().max(50)).max(10).nullable().optional(),
-  statusId: z.enum(STATUS_IDS).optional(),
-  sortOrder: z.string().min(1).max(50).regex(fractionalKeyRegex).optional(),
-  isPinned: z.boolean().optional(),
-  keepAlive: z.boolean().optional(),
-})
-
-export const executeIssueSchema = z.object({
-  engineType: z.string().regex(/^[\w.\-:]{1,64}$/),
-  prompt: z.string().min(1).max(32768),
-  model: z
-    .string()
-    .regex(/^[\w./:\-[\]]{1,160}$/)
-    .optional(),
-  permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
-})
-
-export const followUpSchema = z.object({
-  prompt: z.string().min(1).max(32768),
-  model: z
-    .string()
-    .regex(/^[\w./:\-[\]]{1,160}$/)
-    .optional(),
-  permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
-  busyAction: z.enum(['queue', 'cancel']).optional(),
-  displayPrompt: z.string().max(500).optional(),
-})
+import { parseTags } from '@/utils/tags'
 
 export type IssueRow = typeof issuesTable.$inferSelect
 
@@ -120,28 +47,6 @@ export function serializeIssue(row: IssueRow) {
     createdAt: toISO(row.createdAt),
     updatedAt: toISO(row.updatedAt),
   }
-}
-
-/** Parse JSON-encoded tags from DB text column into string array. */
-export function parseTags(raw: string | null | undefined): string[] | null {
-  if (!raw) return null
-  let candidates: string[]
-  try {
-    const parsed = JSON.parse(raw)
-    candidates = Array.isArray(parsed) ? parsed : [raw]
-  } catch {
-    candidates = [raw]
-  }
-  const valid = candidates.filter(
-    (s): s is string => typeof s === 'string' && s.length > 0 && s.length <= 50,
-  )
-  return valid.length > 0 ? valid : null
-}
-
-/** Serialize tags array to JSON string for DB storage, or null if empty. */
-export function serializeTags(tags: string[] | null | undefined): string | null {
-  if (!tags || tags.length === 0) return null
-  return JSON.stringify(tags)
 }
 
 export async function getProjectOwnedIssue(projectId: string, issueId: string) {

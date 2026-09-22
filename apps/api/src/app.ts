@@ -1,7 +1,10 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { swaggerUI } from '@hono/swagger-ui'
+import swaggerScript from 'swagger-ui-dist/swagger-ui-bundle.js' with { type: 'text' }
+import swaggerStyles from 'swagger-ui-dist/swagger-ui.css' with { type: 'text' }
 import { compress } from 'hono/compress'
 import { cors } from 'hono/cors'
+import { HTTPException } from 'hono/http-exception'
 import { secureHeaders } from 'hono/secure-headers'
 import { getEngineDiscovery } from './engines/startup-probe'
 import { httpLogger, logger } from './logger'
@@ -11,6 +14,7 @@ import sessionsRoute from './routes/sessions'
 import notesRoutes from './routes/notes'
 import terminalRoute from './routes/terminal'
 import { VERSION } from './version'
+import { runtimeConfig } from './runtime-config'
 
 const app = new OpenAPIHono()
 
@@ -32,14 +36,14 @@ app.use(secureHeaders({
 }))
 
 // --- CORS ---
-const allowedOrigin = process.env.ALLOWED_ORIGIN ?? '*'
+const allowedOrigin = runtimeConfig.ALLOWED_ORIGIN
 app.use('/api/*', cors({
   origin: allowedOrigin === '*'
     ? '*'
     : allowedOrigin.split(',').map(o => o.trim()),
-  allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type'],
-  exposeHeaders: ['Content-Length'],
+  exposeHeaders: ['Content-Length', 'X-Request-ID'],
   maxAge: 600,
   credentials: allowedOrigin !== '*',
 }))
@@ -55,8 +59,25 @@ app.use('*', async (c, next) => {
 // --- HTTP request logging ---
 app.use(httpLogger())
 
+// Reject unsupported request formats before validators can ignore the body.
+app.use('/api/*', async (c, next) => {
+  if (['POST', 'PUT', 'PATCH'].includes(c.req.method) && c.req.raw.body !== null) {
+    const mediaType = c.req.header('content-type')?.split(';')[0]?.trim().toLowerCase()
+    const acceptsMultipart = /^\/api\/projects\/[^/]+\/issues(?:\/[^/]+\/follow-up)?\/?$/.test(c.req.path)
+      || /^\/api\/files\/[^/]+\/upload(?:\/|$)/.test(c.req.path)
+    if (mediaType !== 'application/json' && !(acceptsMultipart && mediaType === 'multipart/form-data')) {
+      return c.json({ success: false, error: 'Unsupported media type' }, 415)
+    }
+  }
+  await next()
+})
+
 // --- API docs ---
-app.get('/api/docs', swaggerUI({ url: '/api/docs/openapi.json' }))
+app.get('/api/docs/assets/swagger-ui-dist/swagger-ui-bundle.js', c =>
+  c.body(swaggerScript, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }))
+app.get('/api/docs/assets/swagger-ui-dist/swagger-ui.css', c =>
+  c.body(swaggerStyles, 200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }))
+app.get('/api/docs', swaggerUI({ url: '/api/docs/openapi.json', baseUrl: '/api/docs/assets' }))
 app.doc31('/api/docs/openapi.json', {
   openapi: '3.1.0',
   info: {
@@ -101,6 +122,9 @@ app.all('/api/*', (c) => {
 
 // --- API-002: Global error handler ---
 app.onError((err, c) => {
+  if (err instanceof HTTPException && err.status < 500) {
+    return c.json({ success: false, error: err.message }, err.status)
+  }
   // Log the error
   logger.error(
     {
@@ -108,22 +132,10 @@ app.onError((err, c) => {
       stack: err.stack,
       path: c.req.path,
       method: c.req.method,
+      requestId: c.res.headers.get('X-Request-ID'),
     },
     'unhandled_error',
   )
-
-  // JSON request-body parse errors — only match errors from body parsing,
-  // not from application-level JSON.parse() of stored metadata etc.
-  // Bun/Hono body parsing produces messages like "JSON Parse error: ..."
-  // or "Unexpected token ... in JSON at position ...".
-  if (err instanceof SyntaxError) {
-    const msg = err.message
-    const isBodyParse =
-      msg.startsWith('JSON Parse error') || /^Unexpected (token|end of JSON)/.test(msg)
-    if (isBodyParse) {
-      return c.json({ success: false, error: 'Invalid JSON' }, 400)
-    }
-  }
 
   // All other errors
   return c.json({ success: false, error: 'Internal server error' }, 500)

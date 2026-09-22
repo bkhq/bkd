@@ -50,19 +50,22 @@ export async function runIssueLogRetention(): Promise<string> {
     .from(issuesLogsToolsCall)
     .where(inArray(issuesLogsToolsCall.issueId, issueIds))
 
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     // Delete attachments referencing these issue logs
-    await tx
+    tx
       .delete(attachments)
       .where(inArray(attachments.issueId, issueIds))
+      .run()
     if (toolCallCount > 0) {
-      await tx
+      tx
         .delete(issuesLogsToolsCall)
         .where(inArray(issuesLogsToolsCall.issueId, issueIds))
+        .run()
     }
-    await tx
+    tx
       .delete(issueLogs)
       .where(inArray(issueLogs.issueId, issueIds))
+      .run()
   })
 
   logger.info(

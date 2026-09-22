@@ -101,8 +101,8 @@ const versionDir = currentVersion ? resolve(APP_BASE, `v${currentVersion}`) : nu
 const hasVersionDir = !!versionDir && existsSync(versionDir)
 
 // User data is never touched — report it so the operator can see it stays put.
-// These are the ROOT_DIR-relative defaults: DB_PATH, BKD_DATA_DIR and WORKTREE_DIR can
-// each override one of them, which is what the warning below is for.
+// These are the defaults: BKD_DATA_DIR moves `data/` as a whole, DB_PATH moves the database
+// within it, and WORKTREE_DIR moves the worktrees — which is what the warning below is for.
 for (const dir of ['data/db', 'data/uploads', 'data/logs', 'worktrees']) {
   if (existsSync(resolve(ROOT, dir))) step(`Preserved (untouched): ${dir}`)
 }

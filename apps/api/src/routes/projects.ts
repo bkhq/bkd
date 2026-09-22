@@ -15,6 +15,7 @@ import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 import { toISO } from '@/utils/date'
 import { isGitRepoFresh } from '@/utils/git'
+import { normalizeTags, parseTags, serializeTags } from '@/utils/tags'
 
 const aliasId = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 8)
 
@@ -30,6 +31,7 @@ function serializeProject(row: ProjectRow) {
     repositoryUrl: row.repositoryUrl ?? undefined,
     systemPrompt: row.systemPrompt ?? undefined,
     envVars: row.envVars ? (JSON.parse(row.envVars) as Record<string, string>) : undefined,
+    tags: parseTags(row.tags) ?? undefined,
     defaultEngine: (row.defaultEngine ?? undefined) as EngineType | undefined,
     defaultModel: row.defaultModel ?? undefined,
     sortOrder: row.sortOrder,
@@ -144,6 +146,7 @@ projects.openapi(R.createProject, async (c) => {
       repositoryUrl: body.repositoryUrl || null,
       systemPrompt: body.systemPrompt ?? null,
       envVars: body.envVars ? JSON.stringify(body.envVars) : null,
+      tags: serializeTags(normalizeTags(body.tags)),
       defaultEngine: body.defaultEngine || null,
       defaultModel: body.defaultModel || null,
       sortOrder,
@@ -205,6 +208,9 @@ projects.openapi(R.updateProject, async (c) => {
   }
   if (body.envVars !== undefined) {
     updates.envVars = Object.keys(body.envVars).length > 0 ? JSON.stringify(body.envVars) : null
+  }
+  if (body.tags !== undefined) {
+    updates.tags = serializeTags(normalizeTags(body.tags))
   }
   if (body.defaultEngine !== undefined) {
     if (body.defaultEngine && !(await isKnownEngineId(body.defaultEngine))) {
@@ -282,21 +288,22 @@ projects.openapi(R.deleteProject, async (c) => {
     }
   }
 
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     // Collect issue IDs before soft-deleting
-    const projectIssues = await tx
+    const projectIssues = tx
       .select({ id: issuesTable.id })
       .from(issuesTable)
       .where(and(eq(issuesTable.projectId, existing.id), eq(issuesTable.isDeleted, 0)))
+      .all()
     const issueIds = projectIssues.map(i => i.id)
 
     // Soft-delete all issues in this project — keep logs/tools/attachments intact for restore
     if (issueIds.length > 0) {
-      await tx.update(issuesTable).set({ isDeleted: 1 }).where(inArray(issuesTable.id, issueIds))
+      tx.update(issuesTable).set({ isDeleted: 1 }).where(inArray(issuesTable.id, issueIds)).run()
     }
 
     // Soft-delete the project
-    await tx.update(projectsTable).set({ isDeleted: 1 }).where(eq(projectsTable.id, existing.id))
+    tx.update(projectsTable).set({ isDeleted: 1 }).where(eq(projectsTable.id, existing.id)).run()
   })
 
   // Invalidate caches

@@ -18,7 +18,8 @@
     "test:watch": "bun test --preload ./test/preload.ts --watch test/",
     "db:generate": "bunx drizzle-kit generate",
     "db:migrate": "bunx drizzle-kit migrate",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src test"
   },
   "dependencies": {
     "@hono/swagger-ui": "^0.6.1",
@@ -32,6 +33,7 @@
     "jittered-fractional-indexing": "catalog:",
     "nanoid": "^6.0.1",
     "pino": "^10.3.1",
+    "swagger-ui-dist": "5.32.15",
     "ulid": "^3.0.2",
     "zod": "catalog:"
   },

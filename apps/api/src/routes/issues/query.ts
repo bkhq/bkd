@@ -57,8 +57,7 @@ function keysetCondition(cur: IssueCursor): SQL | undefined {
 }
 
 // GET /api/projects/:projectId/issues — List issues.
-// Without `limit`, returns the full list (default). With `limit`, returns a
-// keyset page plus `nextCursor`/`hasMore`; pass `cursor` to fetch the next page.
+// Returns a bounded keyset page; pass `cursor` to fetch the next page.
 query.openapi(R.listIssues, async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)

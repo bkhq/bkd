@@ -1,4 +1,5 @@
-import { zValidator } from '@hono/zod-validator'
+import { errorResponse, successResponse } from '@/openapi/schemas'
+import { createRoute } from '@hono/zod-openapi'
 import { upgradeWebSocket } from 'hono/bun'
 import * as z from 'zod'
 import { createOpenAPIRouter } from '@/openapi/hono'
@@ -135,17 +136,48 @@ const app = createOpenAPIRouter()
 // GET /terminal/:id — Check if a terminal session is alive
 // NOTE: /terminal/ws/:id below has a static 'ws' segment that Hono's trie router
 // matches before this :id param, so there is no conflict.
-app.get('/terminal/:id', (c) => {
+app.openapi(createRoute({
+  method: 'get',
+  path: '/terminal/{id}',
+  tags: ['Terminal'],
+  operationId: 'getTerminalTerminal',
+  request: { params: z.object({ id: z.string().min(1) }) },
+  responses: {
+    200: successResponse(z.object({ id: z.string() }), 'Success'),
+    429: errorResponse('Session limit reached'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), (c) => {
   const id = c.req.param('id')
   const entry = terminalPM.get(id)
   if (!entry) {
-    return c.json({ success: false, error: 'Session not found' }, 404)
+    return c.json({ success: false as const, error: 'Session not found' }, 404)
   }
-  return c.json({ success: true, data: { id } })
+  return c.json({ success: true as const, data: { id } }, 200)
 })
 
 // POST /terminal — Create a new terminal session (spawn PTY)
-app.post('/terminal', (c) => {
+app.openapi(createRoute({
+  method: 'post',
+  path: '/terminal',
+  tags: ['Terminal'],
+  operationId: 'postTerminalTerminal',
+  responses: {
+    200: successResponse(z.object({ id: z.string() }), 'Success'),
+    429: errorResponse('Session limit reached'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), (c) => {
   const id = crypto.randomUUID()
 
   // We need a reference the PTY data callback can close over
@@ -189,12 +221,12 @@ app.post('/terminal', (c) => {
   } catch {
     // Concurrency limit reached
     proc.kill()
-    return c.json({ success: false, error: 'Session limit reached' }, 429)
+    return c.json({ success: false as const, error: 'Session limit reached' }, 429)
   }
 
   logger.info({ id, pid: proc.pid, shell: defaultShell }, 'terminal_session_created')
 
-  return c.json({ success: true, data: { id } })
+  return c.json({ success: true as const, data: { id } }, 200)
 })
 
 // GET /terminal/ws/:id — WebSocket for bidirectional I/O on an existing session
@@ -204,7 +236,7 @@ app.get(
   (c, next) => {
     const id = c.req.param('id') ?? ''
     if (!terminalPM.has(id)) {
-      return c.json({ success: false, error: 'Session not found' }, 404)
+      return c.json({ success: false as const, error: 'Session not found' }, 404)
     }
     return next()
   },
@@ -318,44 +350,67 @@ app.get(
 )
 
 // POST /terminal/:id/resize — Resize terminal (REST fallback, also supported via WS binary protocol)
-app.post(
-  '/terminal/:id/resize',
-  zValidator(
-    'json',
-    z.object({
-      cols: z.number().int().min(1).max(MAX_COLS),
-      rows: z.number().int().min(1).max(MAX_ROWS),
-    }),
-  ),
-  (c) => {
-    const id = c.req.param('id')
-    const entry = terminalPM.get(id)
-    if (!entry) {
-      return c.json({ success: false, error: 'Session not found' }, 404)
-    }
-
-    const { cols, rows } = c.req.valid('json')
-    try {
-      entry.meta.pty.terminal?.resize(cols, rows)
-    } catch {
-      /* terminal closed */
-    }
-    return c.json({ success: true })
+app.openapi(createRoute({
+  method: 'post',
+  path: '/terminal/{id}/resize',
+  tags: ['Terminal'],
+  operationId: 'postTerminalTerminalResize',
+  request: { params: z.object({ id: z.string().min(1) }), body: { required: true, content: { 'application/json': { schema: z.object({
+    cols: z.number().int().min(1).max(MAX_COLS),
+    rows: z.number().int().min(1).max(MAX_ROWS),
+  }) } } } },
+  responses: {
+    200: successResponse(z.null(), 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
   },
-)
-
-// DELETE /terminal/:id — Kill terminal session
-app.delete('/terminal/:id', (c) => {
+}), (c) => {
   const id = c.req.param('id')
   const entry = terminalPM.get(id)
   if (!entry) {
-    return c.json({ success: false, error: 'Session not found' }, 404)
+    return c.json({ success: false as const, error: 'Session not found' }, 404)
+  }
+
+  const { cols, rows } = c.req.valid('json')
+  try {
+    entry.meta.pty.terminal?.resize(cols, rows)
+  } catch {
+    /* terminal closed */
+  }
+  return c.json({ success: true as const, data: null }, 200)
+})
+
+// DELETE /terminal/:id — Kill terminal session
+app.openapi(createRoute({
+  method: 'delete',
+  path: '/terminal/{id}',
+  tags: ['Terminal'],
+  operationId: 'deleteTerminalTerminal',
+  request: { params: z.object({ id: z.string().min(1) }) },
+  responses: {
+    200: successResponse(z.null(), 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), (c) => {
+  const id = c.req.param('id')
+  const entry = terminalPM.get(id)
+  if (!entry) {
+    return c.json({ success: false as const, error: 'Session not found' }, 404)
   }
 
   logger.info({ id, pid: entry.handle.pid }, 'terminal_session_killed')
   killSession(id)
 
-  return c.json({ success: true })
+  return c.json({ success: true as const, data: null }, 200)
 })
 
 export default app

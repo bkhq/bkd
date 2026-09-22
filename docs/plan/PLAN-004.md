@@ -1,6 +1,6 @@
 # PLAN-004 Enable AskUserQuestion in claude-code-sdk executor (web UI answer flow)
 
-- **status**: closed — won't do (superseded by ENG-007: claude-code-sdk removed, SDK route abandoned)
+- **status**: rejected
 - **createdAt**: 2026-04-18
 - **approvedAt**:
 - **relatedTask**: ENG-002
@@ -399,3 +399,7 @@ AskUserQuestion.
 4. **Replace the SDK's AskUserQuestion with a custom MCP tool** — possible,
    but duplicates what Claude Code already ships with. Adds maintenance
    surface for no user-visible benefit.
+
+## Annotations
+
+- Rejected — superseded by ENG-007: `claude-code-sdk` was removed and the SDK route abandoned.

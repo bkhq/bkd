@@ -1,8 +1,10 @@
+import { GitRemoteSchema } from '@/openapi/extra-schemas'
+import { errorResponse, successResponse } from '@/openapi/schemas'
+import { createRoute } from '@hono/zod-openapi'
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { getAppSetting } from '@/db/helpers'
 import { runCommand } from '@/engines/spawn'
-import { zValidator } from '@hono/zod-validator'
 import * as z from 'zod'
 import { createOpenAPIRouter } from '@/openapi/hono'
 
@@ -17,75 +19,76 @@ async function runGit(args: string[], cwd: string): Promise<{ code: number, stdo
 const git = createOpenAPIRouter()
 
 // POST /api/git/detect-remote — Detect git remote URL from a directory
-git.post(
-  '/detect-remote',
-  zValidator('json', detectRemoteSchema, (result, c) => {
-    if (!result.success) {
-      return c.json(
-        {
-          success: false,
-          error: result.error.issues.map(i => i.message).join(', '),
-        },
-        400,
-      )
-    }
-  }),
-  async (c) => {
-    const { directory } = c.req.valid('json')
-    const dir = resolve(directory)
-
-    // SEC-030: Validate directory is within workspace root
-    const workspaceRoot = await getAppSetting('workspace:defaultPath')
-    if (workspaceRoot && workspaceRoot !== '/') {
-      const resolvedWorkspace = resolve(workspaceRoot)
-      const isInside = dir === resolvedWorkspace || dir.startsWith(`${resolvedWorkspace}/`)
-      if (!isInside) {
-        return c.json({ success: false, error: 'Directory is outside the configured workspace' }, 403)
-      }
-    }
-
-    // Check directory exists
-    try {
-      const s = await stat(dir)
-      if (!s.isDirectory()) {
-        return c.json({ success: false, error: 'not_a_directory' }, 400)
-      }
-    } catch {
-      return c.json({ success: false, error: 'directory_not_found' }, 404)
-    }
-
-    // Check if it's a git repo
-    const revParse = await runGit(['rev-parse', '--is-inside-work-tree'], dir)
-    if (revParse.code !== 0 || revParse.stdout.trim() !== 'true') {
-      return c.json({ success: false, error: 'not_a_git_repo' }, 400)
-    }
-
-    // Try to get remote URL — prefer 'origin', fall back to first remote
-    const originUrl = await runGit(['remote', 'get-url', 'origin'], dir)
-    if (originUrl.code === 0 && originUrl.stdout.trim()) {
-      const url = normalizeGitUrl(originUrl.stdout.trim())
-      return c.json({ success: true, data: { url, remote: 'origin' } })
-    }
-
-    // List all remotes and try the first one
-    const remoteList = await runGit(['remote'], dir)
-    if (remoteList.code === 0 && remoteList.stdout.trim()) {
-      const firstRemote = remoteList.stdout.trim().split('\n')[0]
-      if (firstRemote) {
-        const remoteUrl = await runGit(['remote', 'get-url', firstRemote], dir)
-        if (remoteUrl.code === 0 && remoteUrl.stdout.trim()) {
-          const url = normalizeGitUrl(remoteUrl.stdout.trim())
-          return c.json({
-            success: true,
-            data: { url, remote: firstRemote },
-          })
-        }
-      }
-    }
-
-    return c.json({ success: false, error: 'no_remote_found' }, 404)
+git.openapi(createRoute({
+  method: 'post',
+  path: '/detect-remote',
+  tags: ['Git'],
+  operationId: 'postGitDetectRemote',
+  request: { body: { required: true, content: { 'application/json': { schema: detectRemoteSchema } } } },
+  responses: {
+    200: successResponse(GitRemoteSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
   },
-)
+}), async (c) => {
+  const { directory } = c.req.valid('json')
+  const dir = resolve(directory)
+
+  // SEC-030: Validate directory is within workspace root
+  const workspaceRoot = await getAppSetting('workspace:defaultPath')
+  if (workspaceRoot && workspaceRoot !== '/') {
+    const resolvedWorkspace = resolve(workspaceRoot)
+    const isInside = dir === resolvedWorkspace || dir.startsWith(`${resolvedWorkspace}/`)
+    if (!isInside) {
+      return c.json({ success: false as const, error: 'Directory is outside the configured workspace' }, 403)
+    }
+  }
+
+  // Check directory exists
+  try {
+    const s = await stat(dir)
+    if (!s.isDirectory()) {
+      return c.json({ success: false as const, error: 'not_a_directory' }, 400)
+    }
+  } catch {
+    return c.json({ success: false as const, error: 'directory_not_found' }, 404)
+  }
+
+  // Check if it's a git repo
+  const revParse = await runGit(['rev-parse', '--is-inside-work-tree'], dir)
+  if (revParse.code !== 0 || revParse.stdout.trim() !== 'true') {
+    return c.json({ success: false as const, error: 'not_a_git_repo' }, 400)
+  }
+
+  // Try to get remote URL — prefer 'origin', fall back to first remote
+  const originUrl = await runGit(['remote', 'get-url', 'origin'], dir)
+  if (originUrl.code === 0 && originUrl.stdout.trim()) {
+    const url = normalizeGitUrl(originUrl.stdout.trim())
+    return c.json({ success: true as const, data: { url, remote: 'origin' } }, 200)
+  }
+
+  // List all remotes and try the first one
+  const remoteList = await runGit(['remote'], dir)
+  if (remoteList.code === 0 && remoteList.stdout.trim()) {
+    const firstRemote = remoteList.stdout.trim().split('\n')[0]
+    if (firstRemote) {
+      const remoteUrl = await runGit(['remote', 'get-url', firstRemote], dir)
+      if (remoteUrl.code === 0 && remoteUrl.stdout.trim()) {
+        const url = normalizeGitUrl(remoteUrl.stdout.trim())
+        return c.json({
+          success: true as const,
+          data: { url, remote: firstRemote },
+        }, 200)
+      }
+    }
+  }
+
+  return c.json({ success: false as const, error: 'no_remote_found' }, 404)
+})
 
 /** Convert SSH git URLs to HTTPS format for browser use */
 function normalizeGitUrl(url: string): string {

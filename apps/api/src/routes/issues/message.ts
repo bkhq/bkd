@@ -1,3 +1,8 @@
+import { HTTPException } from 'hono/http-exception'
+import { PendingMessagesSchema, RecalledMessageSchema } from '@/openapi/extra-schemas'
+import { AttachmentFollowUpSchema, errorResponse, FollowUpSchema, successResponse } from '@/openapi/schemas'
+import { createRoute } from '@hono/zod-openapi'
+import * as z from 'zod'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import { db } from '@/db'
 import { findProject } from '@/db/helpers'
@@ -11,7 +16,6 @@ import { saveUploadedFile, validateFiles } from '@/uploads'
 import {
   ensureWorking,
   flushPendingAsFollowUp,
-  followUpSchema,
   getProjectOwnedIssue,
   normalizePrompt,
 } from './_shared'
@@ -53,54 +57,27 @@ async function parseFollowUpBody(c: {
 > {
   const contentType = c.req.header('content-type') ?? ''
   if (contentType.includes('multipart/form-data')) {
-    const fd = await c.req.formData()
-    const prompt = fd.get('prompt')
-    if (typeof prompt !== 'string') {
-      return { ok: false, error: 'Prompt is required' }
+    const fd = await c.req.formData().catch(() => {
+      throw new HTTPException(400, { message: 'Invalid multipart body' })
+    })
+    const raw = Object.fromEntries(['prompt', 'model', 'permissionMode', 'busyAction', 'displayPrompt']
+      .filter(key => fd.has(key))
+      .map(key => [key, fd.get(key)]))
+    const files = fd.getAll('files').filter((entry): entry is File => entry instanceof File)
+    // Attachment-only messages may have an empty prompt; all limits still apply.
+    const schema = files.length > 0 ? AttachmentFollowUpSchema : FollowUpSchema
+    const parsed = schema.safeParse(raw)
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues.map(i => i.message).join(', ') }
     }
-    const model = fd.get('model')
-    const permissionMode = fd.get('permissionMode')
-    const busyAction = fd.get('busyAction')
-    const displayPrompt = fd.get('displayPrompt')
-    const files: File[] = []
-    for (const entry of fd.getAll('files')) {
-      if (entry instanceof File) files.push(entry)
-    }
-
-    // Validate fields to match followUpSchema constraints
-    const validBusyActions = ['queue', 'cancel']
-    if (typeof busyAction === 'string' && !validBusyActions.includes(busyAction)) {
-      return { ok: false, error: 'busyAction must be "queue" or "cancel"' }
-    }
-    const validPermissionModes = ['auto', 'supervised', 'plan']
-    if (typeof permissionMode === 'string' && !validPermissionModes.includes(permissionMode)) {
-      return {
-        ok: false,
-        error: 'permissionMode must be "auto", "supervised", or "plan"',
-      }
-    }
-    const modelPattern = /^[\w./:\-[\]]{1,160}$/
-    if (typeof model === 'string' && !modelPattern.test(model)) {
-      return {
-        ok: false,
-        error: 'model must match /^[\\w./:\\-[\\]]{1,160}$/',
-      }
-    }
-
-    return {
-      ok: true,
-      prompt,
-      model: typeof model === 'string' ? model : undefined,
-      permissionMode: typeof permissionMode === 'string' ? permissionMode : undefined,
-      busyAction: typeof busyAction === 'string' ? busyAction : undefined,
-      displayPrompt: typeof displayPrompt === 'string' ? displayPrompt : undefined,
-      files,
-    }
+    return { ok: true, ...parsed.data, files }
   }
 
   // JSON path with Zod validation
-  const raw = await c.req.json()
-  const parsed = followUpSchema.safeParse(raw)
+  const raw = await c.req.json().catch(() => {
+    throw new HTTPException(400, { message: 'Invalid JSON' })
+  })
+  const parsed = FollowUpSchema.safeParse(raw)
   if (!parsed.success) {
     return {
       ok: false,
@@ -162,39 +139,39 @@ message.post('/:id/follow-up', async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)
   if (!project) {
-    return c.json({ success: false, error: 'Project not found' }, 404)
+    return c.json({ success: false as const, error: 'Project not found' }, 404)
   }
 
   const issueId = c.req.param('id')!
   const parsed = await parseFollowUpBody(c)
   if (!parsed.ok) {
-    return c.json({ success: false, error: parsed.error }, 400)
+    return c.json({ success: false as const, error: parsed.error }, 400)
   }
 
   const { files } = parsed
   const prompt = normalizePrompt(parsed.prompt)
   if (!prompt && files.length === 0) {
-    return c.json({ success: false, error: 'Prompt is required' }, 400)
+    return c.json({ success: false as const, error: 'Prompt is required' }, 400)
   }
 
   // Validate files
   if (files.length > 0) {
     const validation = validateFiles(files)
     if (!validation.ok) {
-      return c.json({ success: false, error: validation.error }, 400)
+      return c.json({ success: false as const, error: validation.error }, 400)
     }
   }
 
   const issue = await getProjectOwnedIssue(project.id, issueId)
   if (!issue) {
-    return c.json({ success: false, error: 'Issue not found' }, 404)
+    return c.json({ success: false as const, error: 'Issue not found' }, 404)
   }
 
   // Reject model changes while the session is actively running
   const isActive = issue.sessionStatus === 'running' || issue.sessionStatus === 'pending'
   if (isActive && parsed.model && parsed.model !== (issue.model ?? '')) {
     return c.json(
-      { success: false, error: 'Cannot change model while session is running. Wait for completion or cancel first.' },
+      { success: false as const, error: 'Cannot change model while session is running. Wait for completion or cancel first.' },
       409,
     )
   }
@@ -222,11 +199,11 @@ message.post('/:id/follow-up', async (c) => {
   })
   if (issue.statusId === 'todo') {
     const messageId = await upsertAndNotify(issueId, prompt, pendingMeta('pending'), savedFiles)
-    return c.json({ success: true, data: { issueId, messageId, queued: true } })
+    return c.json({ success: true as const, data: { issueId, messageId, queued: true } }, 200)
   }
   if (issue.statusId === 'done') {
     const messageId = await upsertAndNotify(issueId, prompt, pendingMeta('done'), savedFiles)
-    return c.json({ success: true, data: { issueId, messageId, queued: true } })
+    return c.json({ success: true as const, data: { issueId, messageId, queued: true } }, 200)
   }
 
   // When the engine is actively processing a turn, queue message as pending
@@ -237,7 +214,7 @@ message.post('/:id/follow-up', async (c) => {
       { issueId, promptChars: prompt.length, fileCount: files.length },
       'followup_queued_during_active_turn',
     )
-    return c.json({ success: true, data: { issueId, messageId, queued: true } })
+    return c.json({ success: true as const, data: { issueId, messageId, queued: true } }, 200)
   }
 
   if (issue.statusId === 'working' && pendingBefore.length > 0) {
@@ -247,13 +224,13 @@ message.post('/:id/follow-up', async (c) => {
       { issueId, pendingCount: pendingBefore.length + 1 },
       'followup_queued_behind_existing_pending',
     )
-    return c.json({ success: true, data: { issueId, messageId, queued: true } })
+    return c.json({ success: true as const, data: { issueId, messageId, queued: true } }, 200)
   }
 
   try {
     const guard = await ensureWorking(issue)
     if (!guard.ok) {
-      return c.json({ success: false, error: guard.reason! }, 400)
+      return c.json({ success: false as const, error: guard.reason! }, 400)
     }
     const firstWord = prompt.split(/\s/)[0] ?? ''
     const categorized = issueEngine.getCategorizedCommands(
@@ -286,13 +263,13 @@ message.post('/:id/follow-up', async (c) => {
     }
 
     return c.json({
-      success: true,
+      success: true as const,
       data: {
         executionId: result.executionId,
         issueId,
         messageId: result.messageId,
       },
-    })
+    }, 200)
   } catch (error) {
     // When follow-up fails (e.g. process failed to start), save the current
     // message as pending so it won't be lost. It will be auto-processed on
@@ -307,15 +284,15 @@ message.post('/:id/follow-up', async (c) => {
     try {
       const messageId = await upsertAndNotify(issueId, prompt, pendingMeta('pending'), savedFiles)
       return c.json({
-        success: true,
+        success: true as const,
         data: { issueId, messageId, queued: true },
-      })
+      }, 200)
     } catch (persistError) {
       logger.error({ issueId, error: persistError }, 'followup_failed_persist_pending_failed')
     }
     return c.json(
       {
-        success: false,
+        success: false as const,
         error: 'Follow-up failed',
       },
       400,
@@ -324,17 +301,32 @@ message.post('/:id/follow-up', async (c) => {
 })
 
 // GET /api/projects/:projectId/issues/:id/pending — List pending messages
-message.get('/:id/pending', async (c) => {
+message.openapi(createRoute({
+  method: 'get',
+  path: '/{id}/pending',
+  tags: ['Issues'],
+  operationId: 'getIssuesMessagePending',
+  request: { params: z.object({ projectId: z.string().min(1), id: z.string().min(1) }) },
+  responses: {
+    200: successResponse(PendingMessagesSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)
   if (!project) {
-    return c.json({ success: false, error: 'Project not found' }, 404)
+    return c.json({ success: false as const, error: 'Project not found' }, 404)
   }
 
   const issueId = c.req.param('id')!
   const issue = await getProjectOwnedIssue(project.id, issueId)
   if (!issue) {
-    return c.json({ success: false, error: 'Issue not found' }, 404)
+    return c.json({ success: false as const, error: 'Issue not found' }, 404)
   }
 
   const { getPendingMessages } = await import('@/db/pending-messages')
@@ -347,46 +339,61 @@ message.get('/:id/pending', async (c) => {
     createdAt: row.createdAt,
   }))
 
-  return c.json({ success: true, data: entries })
+  return c.json({ success: true as const, data: entries }, 200)
 })
 
 // DELETE /api/projects/:projectId/issues/:id/pending?messageId=... — Recall pending message
-message.delete('/:id/pending', async (c) => {
+message.openapi(createRoute({
+  method: 'delete',
+  path: '/{id}/pending',
+  tags: ['Issues'],
+  operationId: 'deleteIssuesMessagePending',
+  request: { params: z.object({ projectId: z.string().min(1), id: z.string().min(1) }), query: z.object({ messageId: z.string().trim().regex(/^[0-9A-Z]{26}$/) }) },
+  responses: {
+    200: successResponse(RecalledMessageSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), async (c) => {
   const projectId = c.req.param('projectId')!
   const project = await findProject(projectId)
   if (!project) {
-    return c.json({ success: false, error: 'Project not found' }, 404)
+    return c.json({ success: false as const, error: 'Project not found' }, 404)
   }
 
   const issueId = c.req.param('id')!
   const issue = await getProjectOwnedIssue(project.id, issueId)
   if (!issue) {
-    return c.json({ success: false, error: 'Issue not found' }, 404)
+    return c.json({ success: false as const, error: 'Issue not found' }, 404)
   }
 
   const messageId = c.req.query('messageId')?.trim()
   if (!messageId || messageId.length > 26 || !/^[0-9A-Z]{26}$/.test(messageId)) {
-    return c.json({ success: false, error: 'messageId must be a valid ULID' }, 400)
+    return c.json({ success: false as const, error: 'messageId must be a valid ULID' }, 400)
   }
 
   const { deletePendingMessage } = await import('@/db/pending-messages')
   const result = await deletePendingMessage(issueId, messageId)
   if (!result) {
-    return c.json({ success: false, error: 'No pending message found' }, 404)
+    return c.json({ success: false as const, error: 'No pending message found' }, 404)
   }
 
   // Notify frontend to remove the pending message from display
   emitIssueLogRemoved(issueId, [result.id])
 
   return c.json({
-    success: true,
+    success: true as const,
     data: {
       id: result.id,
       content: result.content,
       metadata: result.metadata,
       attachments: result.attachments,
     },
-  })
+  }, 200)
 })
 
 export default message

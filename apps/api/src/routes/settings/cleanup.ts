@@ -1,7 +1,9 @@
+import { CleanupResultSchema, CleanupStatsSchema } from '@/openapi/extra-schemas'
+import { errorResponse, successResponse } from '@/openapi/schemas'
+import { createRoute } from '@hono/zod-openapi'
 import { existsSync } from 'node:fs'
 import { readdir, rm, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { zValidator } from '@hono/zod-validator'
 import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import * as z from 'zod'
 import { db } from '@/db'
@@ -15,75 +17,86 @@ import {
 import { removeWorktree, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
-import { ROOT_DIR } from '@/root'
+import { DATA_DIR } from '@/root'
 
-const ISSUE_LOG_DIR = join(ROOT_DIR, 'data', 'logs', 'issues')
+const ISSUE_LOG_DIR = join(DATA_DIR, 'logs', 'issues')
 
 const cleanup = createOpenAPIRouter()
 
 // GET /api/settings/cleanup/stats — get sizes of cleanable data
-cleanup.get('/cleanup/stats', async (c) => {
+cleanup.openapi(createRoute({
+  method: 'get',
+  path: '/cleanup/stats',
+  tags: ['Settings'],
+  operationId: 'getSettingsCleanupCleanupStats',
+  responses: {
+    200: successResponse(CleanupStatsSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), async (c) => {
   const [logsResult, worktreesResult, deletedIssuesResult] = await Promise.all([
     getLogsStats(),
     getWorktreesStats(),
     getDeletedIssuesStats(),
   ])
   return c.json({
-    success: true,
+    success: true as const,
     data: {
       logs: logsResult,
       worktrees: worktreesResult,
       deletedIssues: deletedIssuesResult,
     },
-  })
+  }, 200)
 })
 
 // POST /api/settings/cleanup — run cleanup for specified targets
-cleanup.post(
-  '/cleanup',
-  zValidator(
-    'json',
-    z.object({
-      targets: z.array(z.enum(['logs', 'worktrees', 'deletedIssues'])).min(1),
-    }),
-    (result, c) => {
-      if (!result.success) {
-        return c.json(
-          {
-            success: false,
-            error: result.error.issues.map(i => i.message).join(', '),
-          },
-          400,
-        )
-      }
-    },
-  ),
-  async (c) => {
-    const { targets } = c.req.valid('json')
-    const results: Record<string, { cleaned: number }> = {}
-
-    for (const target of targets) {
-      try {
-        switch (target) {
-          case 'logs':
-            results.logs = await cleanupLogs()
-            break
-          case 'worktrees':
-            results.worktrees = await cleanupWorktrees()
-            break
-          case 'deletedIssues':
-            results.deletedIssues = await cleanupDeletedIssues()
-            break
-        }
-      } catch (err) {
-        logger.error({ target, err }, 'cleanup_target_failed')
-        results[target] = { cleaned: 0 }
-      }
-    }
-
-    return c.json({ success: true, data: results })
+cleanup.openapi(createRoute({
+  method: 'post',
+  path: '/cleanup',
+  tags: ['Settings'],
+  operationId: 'postSettingsCleanupCleanup',
+  request: { body: { required: true, content: { 'application/json': { schema: z.object({
+    targets: z.array(z.enum(['logs', 'worktrees', 'deletedIssues'])).min(1),
+  }) } } } },
+  responses: {
+    200: successResponse(CleanupResultSchema, 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
   },
-)
+}), async (c) => {
+  const { targets } = c.req.valid('json')
+  const results: Record<string, { cleaned: number }> = {}
+
+  for (const target of targets) {
+    try {
+      switch (target) {
+        case 'logs':
+          results.logs = await cleanupLogs()
+          break
+        case 'worktrees':
+          results.worktrees = await cleanupWorktrees()
+          break
+        case 'deletedIssues':
+          results.deletedIssues = await cleanupDeletedIssues()
+          break
+      }
+    } catch (err) {
+      logger.error({ target, err }, 'cleanup_target_failed')
+      results[target] = { cleaned: 0 }
+    }
+  }
+
+  return c.json({ success: true as const, data: results }, 200)
+})
 
 // --- Stats helpers ---
 

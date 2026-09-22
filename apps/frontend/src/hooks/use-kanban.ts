@@ -12,6 +12,7 @@ export const queryKeys = {
   engineSettings: () => ['engines', 'settings'] as const,
   virtualEngines: () => ['engines', 'virtual'] as const,
   claudeUsage: () => ['engines', 'claude', 'usage'] as const,
+  codexUsage: () => ['engines', 'codex', 'usage'] as const,
   projects: () => ['projects'] as const,
   archivedProjects: () => ['projects', 'archived'] as const,
   project: (id: string) => ['projects', id] as const,
@@ -88,6 +89,7 @@ export function useCreateProject() {
       description?: string
       directory?: string
       repositoryUrl?: string
+      tags?: string[]
     }) => kanbanApi.createProject(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects() })
@@ -106,6 +108,7 @@ export function useUpdateProject() {
       repositoryUrl?: string
       systemPrompt?: string
       envVars?: Record<string, string>
+      tags?: string[] | null
       defaultEngine?: string | null
       defaultModel?: string | null
       sortOrder?: number
@@ -484,6 +487,15 @@ export function useClaudeUsage(enabled = false) {
   return useQuery({
     queryKey: queryKeys.claudeUsage(),
     queryFn: () => kanbanApi.getClaudeUsage(),
+    enabled,
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+export function useCodexUsage(enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.codexUsage(),
+    queryFn: () => kanbanApi.getCodexUsage(),
     enabled,
     staleTime: STALE_TIME.STANDARD,
   })

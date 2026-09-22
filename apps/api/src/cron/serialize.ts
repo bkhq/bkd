@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm'
+import { desc, eq, inArray, max } from 'drizzle-orm'
 import { db } from '@/db'
 import type { cronJobs } from '@/db/schema'
 import { cronJobLogs } from '@/db/schema'
@@ -22,12 +22,28 @@ export interface SerializedCronJob {
   status: string
   nextExecution: string | null
   lastRun: LastRun | null
-  isDeleted: boolean
   createdAt: string
   updatedAt: string
 }
 
-export function serializeJob(row: typeof cronJobs.$inferSelect): SerializedCronJob {
+export function serializeJobs(rows: (typeof cronJobs.$inferSelect)[]): SerializedCronJob[] {
+  const latestByJob = new Map<string, typeof cronJobLogs.$inferSelect>()
+  for (let offset = 0; offset < rows.length; offset += 500) {
+    const ids = rows.slice(offset, offset + 500).map(row => row.id)
+    const latestIds = db.select({ id: max(cronJobLogs.id) })
+      .from(cronJobLogs)
+      .where(inArray(cronJobLogs.jobId, ids))
+      .groupBy(cronJobLogs.jobId)
+    const logs = db.select().from(cronJobLogs).where(inArray(cronJobLogs.id, latestIds)).all()
+    for (const log of logs) latestByJob.set(log.jobId, log)
+  }
+  return rows.map(row => serializeJob(row, latestByJob.get(row.id) ?? null))
+}
+
+export function serializeJob(
+  row: typeof cronJobs.$inferSelect,
+  latestLog: typeof cronJobLogs.$inferSelect | null = db.select().from(cronJobLogs).where(eq(cronJobLogs.jobId, row.id)).orderBy(desc(cronJobLogs.id)).limit(1).get() ?? null,
+): SerializedCronJob {
   let status = 'unknown'
   let nextExecution: string | null = null
 
@@ -49,19 +65,6 @@ export function serializeJob(row: typeof cronJobs.$inferSelect): SerializedCronJ
 
   // Fetch latest log entry for lastRun
   let lastRun: LastRun | null = null
-  const [latestLog] = db
-    .select({
-      status: cronJobLogs.status,
-      startedAt: cronJobLogs.startedAt,
-      durationMs: cronJobLogs.durationMs,
-      result: cronJobLogs.result,
-      error: cronJobLogs.error,
-    })
-    .from(cronJobLogs)
-    .where(eq(cronJobLogs.jobId, row.id))
-    .orderBy(desc(cronJobLogs.id))
-    .limit(1)
-    .all()
 
   if (latestLog) {
     lastRun = {
@@ -83,7 +86,6 @@ export function serializeJob(row: typeof cronJobs.$inferSelect): SerializedCronJ
     status,
     nextExecution,
     lastRun,
-    isDeleted: row.isDeleted === 1,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }

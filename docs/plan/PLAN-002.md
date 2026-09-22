@@ -1,6 +1,6 @@
 # PLAN-002 Whiteboard UI overhaul — edges, collapse badges, markdown rendering
 
-- **status**: implementing
+- **status**: rejected
 - **createdAt**: 2026-04-15 17:00
 - **approvedAt**: 2026-04-15 17:30
 - **relatedTask**: WB-002
@@ -91,4 +91,6 @@ Files: `whiteboard-layout.ts`
 
 ## Annotations
 
-(User annotations and responses. Keep all history.)
+- 2026-05-09: Rejected — the whiteboard / mindmap feature was removed from BKD (see PLAN-005).
+
+(Current user annotations and responses. Record historical decisions in `docs/changelog.md`.)

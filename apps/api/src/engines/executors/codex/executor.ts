@@ -27,7 +27,7 @@ const NPX_FALLBACK = ['npx', '-y', '@openai/codex']
  * Used by getAvailability() to determine if the engine is truly installed.
  * Returns null if no binary is found.
  */
-function resolveBinaryOnly(): string | null {
+export function resolveBinaryOnly(): string | null {
   // 1. Check /work/bin first (container / custom deploy)
   if (existsSync('/work/bin/codex')) return '/work/bin/codex'
   // 2. Check PATH
@@ -59,14 +59,50 @@ function resolveBaseCmd(): string[] {
   _cachedBaseCmd = NPX_FALLBACK
   return _cachedBaseCmd
 }
-const JSONRPC_TIMEOUT = 15000
+export const JSONRPC_TIMEOUT = 15000
+
+/**
+ * Adapt a CodexProtocolHandler to the generic SpawnedProcess.protocolHandler
+ * shape. `onActivity` is forwarded to the handler because register() assigns
+ * it on this wrapper, while only the handler's read loop can fire it.
+ */
+export function toSpawnedProtocolHandler(
+  handler: CodexProtocolHandler,
+  issueId: string | undefined,
+): NonNullable<SpawnedProcess['protocolHandler']> {
+  return {
+    interrupt: async () => {
+      if (handler.threadId && handler.turnId) {
+        await handler.interrupt(handler.threadId, handler.turnId)
+      }
+    },
+    close: () => handler.close(),
+    sendUserMessage: (content: string) => {
+      // turn/start is async: without this catch a rejected follow-up
+      // (RPC error, request timeout) would silently drop the user's
+      // message and surface only as an unhandled rejection.
+      handler.sendUserMessage(content).catch((error: unknown) => {
+        logger.error(
+          { issueId, threadId: handler.threadId, error },
+          'codex_send_user_message_failed',
+        )
+      })
+    },
+    get onActivity() {
+      return handler.onActivity
+    },
+    set onActivity(fn) {
+      handler.onActivity = fn
+    },
+  }
+}
 
 /**
  * Lightweight JSON-RPC session over a stdio process.
  * Shares a single ReadableStream reader and buffer across calls
  * so no data is lost between sequential requests.
  */
-class JsonRpcSession {
+export class JsonRpcSession {
   private reader: ReadableStreamDefaultReader<Uint8Array>
   private decoder = new TextDecoder()
   private buffer = ''
@@ -382,25 +418,7 @@ export class CodexExecutor implements EngineExecutor {
           void handler.interrupt(handler.threadId, handler.turnId).catch(() => {})
         }
       },
-      protocolHandler: {
-        interrupt: async () => {
-          if (handler.threadId && handler.turnId) {
-            await handler.interrupt(handler.threadId, handler.turnId)
-          }
-        },
-        close: () => handler.close(),
-        sendUserMessage: (content: string) => {
-          // turn/start is async: without this catch a rejected follow-up
-          // (RPC error, request timeout) would silently drop the user's
-          // message and surface only as an unhandled rejection.
-          handler.sendUserMessage(content).catch((error: unknown) => {
-            logger.error(
-              { issueId: env.issueId, threadId: handler.threadId, error },
-              'codex_send_user_message_failed',
-            )
-          })
-        },
-      },
+      protocolHandler: toSpawnedProtocolHandler(handler, env.issueId),
       externalSessionId: handler.threadId,
       spawnCommand: cmd.join(' '),
     }
@@ -452,25 +470,7 @@ export class CodexExecutor implements EngineExecutor {
           void handler.interrupt(handler.threadId, handler.turnId).catch(() => {})
         }
       },
-      protocolHandler: {
-        interrupt: async () => {
-          if (handler.threadId && handler.turnId) {
-            await handler.interrupt(handler.threadId, handler.turnId)
-          }
-        },
-        close: () => handler.close(),
-        sendUserMessage: (content: string) => {
-          // turn/start is async: without this catch a rejected follow-up
-          // (RPC error, request timeout) would silently drop the user's
-          // message and surface only as an unhandled rejection.
-          handler.sendUserMessage(content).catch((error: unknown) => {
-            logger.error(
-              { issueId: env.issueId, threadId: handler.threadId, error },
-              'codex_send_user_message_failed',
-            )
-          })
-        },
-      },
+      protocolHandler: toSpawnedProtocolHandler(handler, env.issueId),
       externalSessionId: handler.threadId,
       spawnCommand: cmd.join(' '),
     }

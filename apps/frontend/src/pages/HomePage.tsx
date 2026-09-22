@@ -26,7 +26,7 @@ import {
   StickyNote,
   TerminalSquare,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { AppLogo } from '@/components/AppLogo'
@@ -50,10 +50,13 @@ import type { Project } from '@/types/kanban'
 function SortableProjectCard({
   project,
   index,
+  sortable,
   onClick,
 }: {
   project: Project
   index: number
+  /** Reordering is disabled while a tag filter hides part of the list. */
+  sortable: boolean
   onClick: () => void
 }) {
   const { t } = useTranslation()
@@ -66,7 +69,7 @@ function SortableProjectCard({
 
   useEffect(() => {
     const el = cardRef.current
-    if (!el) return
+    if (!el || !sortable) return
     return combine(
       draggable({
         element: el,
@@ -88,7 +91,7 @@ function SortableProjectCard({
         onDrop: () => setClosestEdge(null),
       }),
     )
-  }, [project.id, index])
+  }, [project.id, index, sortable])
 
   const handleCopyPath = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -172,6 +175,15 @@ function SortableProjectCard({
                 {stats.issueCount}
               </span>
             </div>
+            {project.tags && project.tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {project.tags.map(tag => (
+                  <Badge key={tag} variant="outline" className="text-[10px] font-normal">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
         {closestEdge === 'right' && (
@@ -506,6 +518,33 @@ function DesktopHeaderControls({
   )
 }
 
+/* -- Tag filter ----------------------------------------- */
+
+function TagFilterChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+        active ?
+          'border-primary bg-primary/10 text-primary' :
+          'border-border text-muted-foreground hover:text-foreground hover:bg-foreground/[0.05]'
+      }`}
+    >
+      {label}
+    </button>
+  )
+}
+
 /* -- Main page ------------------------------------------ */
 
 export default function HomePage() {
@@ -514,6 +553,7 @@ export default function HomePage() {
   const { data: projects, isLoading } = useProjects()
   const [showCreate, setShowCreate] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [activeTag, setActiveTag] = useState<string | null>(null)
   const isMobile = useIsMobile()
   const globalProjectPath = useViewModeStore(s => s.projectPath)
   const sortProject = useSortProject()
@@ -574,6 +614,23 @@ export default function HomePage() {
     })
   }, [])
 
+  const allTags = useMemo(() => {
+    const tags = new Set<string>()
+    for (const project of projects ?? []) {
+      for (const tag of project.tags ?? []) tags.add(tag)
+    }
+    return [...tags].sort((a, b) => a.localeCompare(b))
+  }, [projects])
+
+  // A tag that disappears (last project untagged or deleted) must not keep filtering
+  useEffect(() => {
+    if (activeTag && !allTags.includes(activeTag)) setActiveTag(null)
+  }, [activeTag, allTags])
+
+  const visibleProjects = activeTag ?
+      projects?.filter(p => p.tags?.includes(activeTag)) :
+    projects
+
   // Mobile always uses list mode
   const projectPath = useCallback(
     (projectId: string) => (isMobile ? `/projects/${projectId}/issues` : globalProjectPath(projectId)),
@@ -615,6 +672,24 @@ export default function HomePage() {
               )}
         </div>
 
+        {allTags.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-1.5">
+            <TagFilterChip
+              label={t('project.filterAllTags')}
+              active={activeTag === null}
+              onClick={() => setActiveTag(null)}
+            />
+            {allTags.map(tag => (
+              <TagFilterChip
+                key={tag}
+                label={tag}
+                active={activeTag === tag}
+                onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+              />
+            ))}
+          </div>
+        )}
+
         {isLoading ?
             (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -638,11 +713,12 @@ export default function HomePage() {
             ) :
             (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {projects?.map((project, index) => (
+                {visibleProjects?.map((project, index) => (
                   <SortableProjectCard
                     key={project.id}
                     project={project}
                     index={index}
+                    sortable={activeTag === null}
                     onClick={() => navigate(projectPath(project.id))}
                   />
                 ))}

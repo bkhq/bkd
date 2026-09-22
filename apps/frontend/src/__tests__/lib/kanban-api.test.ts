@@ -77,6 +77,20 @@ describe('kanbanApi.updateProject', () => {
 })
 
 describe('kanbanApi.getIssues', () => {
+  it('loads every page when the server bounds its default response', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ success: true, data: [{ id: 'first' }], hasMore: true, nextCursor: 'next-page' }),
+    })
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ success: true, data: [{ id: 'second' }], hasMore: false, nextCursor: null }),
+    })
+    expect(await kanbanApi.getIssues('proj-1')).toEqual([{ id: 'first' }, { id: 'second' }])
+    expect(mockFetch.mock.calls[1][0]).toBe('/api/projects/proj-1/issues?cursor=next-page')
+  })
   it('calls GET /api/projects/:projectId/issues', async () => {
     mockFetch.mockResolvedValueOnce(mockJsonResponse([]))
 

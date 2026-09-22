@@ -138,6 +138,8 @@ function threadParamsToRpc(params: ThreadStartParams): Record<string, unknown> {
 export class CodexProtocolHandler {
   /** Stream of notification lines (JSONL) for downstream normalizeLog consumption. */
   readonly notifications: ReadableStream<Uint8Array>
+  /** Liveness hook — fires whenever raw stdout arrives, even output the normalizer drops. */
+  onActivity?: () => void
 
   private readonly stdin: StdinWriter
   private readonly pending = new Map<number | string, PendingRequest>()
@@ -354,6 +356,9 @@ export class CodexProtocolHandler {
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
+          // Any stdout proves the turn is alive — refresh before parsing, since
+          // content-free and unparseable lines never become log entries.
+          this.onActivity?.()
           buffer += decoder.decode(value, { stream: true })
           const lines = buffer.split('\n')
           buffer = lines.pop() ?? ''

@@ -26,6 +26,19 @@ export const ROOT_DIR = process.env.ROOT_DIR ?
       resolve(import.meta.dir, '../../..')
 
 /**
+ * Persistent data directory — the parent of `db/`, `logs/` and `uploads/`.
+ *
+ * `BKD_DATA_DIR` overrides it (documented in `docs/deployment.md` as the successor to the
+ * old launcher's `--data-dir`); otherwise it is `<ROOT_DIR>/data`. Never derive it from the
+ * process cwd: lode runs BKD from `<dir>/versions/<version>/`, which moves on every upgrade.
+ */
+export function resolveDataDir(env: Record<string, string | undefined>): string {
+  return env.BKD_DATA_DIR ? resolve(env.BKD_DATA_DIR) : resolve(ROOT_DIR, 'data')
+}
+
+export const DATA_DIR = resolveDataDir(process.env)
+
+/**
  * App package directory (package mode only).
  *
  * In package mode this equals `import.meta.dir` — the version directory holding

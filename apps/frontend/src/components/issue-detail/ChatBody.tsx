@@ -295,6 +295,7 @@ export function ChatBody({
               }
             >
               <LazySessionMessages
+                sessionKey={issueId}
                 logs={logs}
                 scrollRef={scrollRef}
                 isRunning={isThinking}

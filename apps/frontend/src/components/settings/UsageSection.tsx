@@ -1,15 +1,25 @@
-import type { ClaudeUsage, ClaudeUsageWindow } from '@bkd/shared'
+import type { ClaudeUsage, ClaudeUsageWindow, CodexUsage, CodexUsageWindow } from '@bkd/shared'
+import type { TFunction } from 'i18next'
+import type { ReactNode } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { EngineIcon } from '@/components/EngineIcons'
 import { Button } from '@/components/ui/button'
-import { useClaudeUsage } from '@/hooks/use-kanban'
+import { useClaudeUsage, useCodexUsage } from '@/hooks/use-kanban'
 import { cn } from '@/lib/utils'
 
-const REASON_KEYS: Record<NonNullable<ClaudeUsage['reason']>, string> = {
+const CLAUDE_REASON_KEYS: Record<NonNullable<ClaudeUsage['reason']>, string> = {
   no_credentials: 'settings.usageUnavailableNoCredentials',
   api_key_mode: 'settings.usageUnavailableApiKey',
   token_expired: 'settings.usageUnavailableTokenExpired',
   upstream_error: 'settings.usageUnavailableUpstream',
+}
+
+const CODEX_REASON_KEYS: Record<NonNullable<CodexUsage['reason']>, string> = {
+  not_installed: 'settings.usageCodexUnavailableNotInstalled',
+  unauthenticated: 'settings.usageCodexUnavailableUnauthenticated',
+  unsupported: 'settings.usageCodexUnavailableUnsupported',
+  upstream_error: 'settings.usageCodexUnavailableUpstream',
 }
 
 function barColor(pct: number): string {
@@ -18,7 +28,15 @@ function barColor(pct: number): string {
   return 'bg-primary'
 }
 
-function UsageBar({ label, window: w }: { label: string, window: ClaudeUsageWindow }) {
+/** Label a Codex window by its length, e.g. 300 → "5-hour window". */
+function windowLabel(t: TFunction, minutes: number | null): string {
+  if (minutes === null || minutes <= 0) return t('settings.usageWindowUnknown')
+  if (minutes % 1440 === 0) return t('settings.usageWindowDays', { n: minutes / 1440 })
+  if (minutes % 60 === 0) return t('settings.usageWindowHours', { n: minutes / 60 })
+  return t('settings.usageWindowMinutes', { n: minutes })
+}
+
+function UsageBar({ label, window: w }: { label: string, window: ClaudeUsageWindow | CodexUsageWindow }) {
   const { t } = useTranslation()
   const pct = Math.max(0, Math.min(100, w.usedPercentage))
   return (
@@ -44,25 +62,97 @@ function UsageBar({ label, window: w }: { label: string, window: ClaudeUsageWind
   )
 }
 
-export function UsageSection({ open }: { open: boolean }) {
+function Notice({ children }: { children: ReactNode }) {
+  return <div className="flex items-center gap-2 rounded-md border px-3 py-3 text-sm text-muted-foreground">{children}</div>
+}
+
+function EngineBlock({ engineType, label, children }: { engineType: string, label: string, children: ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-1.5 text-xs font-medium">
+        <EngineIcon engineType={engineType} className="size-3.5" />
+        {label}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+interface BodyProps<T> {
+  data: T | undefined
+  isLoading: boolean
+  isError: boolean
+}
+
+function ClaudeUsageBody({ data, isLoading, isError }: BodyProps<ClaudeUsage>) {
   const { t } = useTranslation()
-  const { data, isLoading, isError, isFetching, refetch } = useClaudeUsage(open)
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+      <Notice>
         <Loader2 className="size-3.5 animate-spin" />
         {t('settings.usageLoading')}
-      </div>
+      </Notice>
     )
   }
-
-  if (isError || !data) {
-    return <div className="py-4 text-sm text-muted-foreground">{t('settings.usageLoadError')}</div>
+  if (isError || !data) return <Notice>{t('settings.usageLoadError')}</Notice>
+  if (!data.available) {
+    return <Notice>{t(data.reason ? CLAUDE_REASON_KEYS[data.reason] : 'settings.usageUnavailableUpstream')}</Notice>
   }
 
   const modelWindows = data.modelWindows ?? []
-  const hasWindows = data.available && (data.fiveHour || data.sevenDay || modelWindows.length > 0)
+  if (!data.fiveHour && !data.sevenDay && modelWindows.length === 0) {
+    return <Notice>{t('settings.usageNoWindowData')}</Notice>
+  }
+
+  return (
+    <div className="space-y-4 rounded-md border px-3 py-3">
+      {data.fiveHour ? <UsageBar label={t('settings.usageFiveHour')} window={data.fiveHour} /> : null}
+      {data.sevenDay ? <UsageBar label={t('settings.usageSevenDay')} window={data.sevenDay} /> : null}
+      {modelWindows.map(w => (
+        <UsageBar key={w.model} label={t('settings.usageSevenDayModel', { model: w.model })} window={w} />
+      ))}
+    </div>
+  )
+}
+
+function CodexUsageBody({ data, isLoading, isError }: BodyProps<CodexUsage>) {
+  const { t } = useTranslation()
+
+  if (isLoading) {
+    return (
+      <Notice>
+        <Loader2 className="size-3.5 animate-spin" />
+        {t('settings.usageLoading')}
+      </Notice>
+    )
+  }
+  if (isError || !data) return <Notice>{t('settings.usageLoadError')}</Notice>
+  if (!data.available) {
+    return <Notice>{t(data.reason ? CODEX_REASON_KEYS[data.reason] : 'settings.usageCodexUnavailableUpstream')}</Notice>
+  }
+  if (!data.primary && !data.secondary) return <Notice>{t('settings.usageNoWindowData')}</Notice>
+
+  return (
+    <div className="space-y-4 rounded-md border px-3 py-3">
+      {data.planType ?
+          <p className="text-[11px] text-muted-foreground">{t('settings.usagePlan', { plan: data.planType })}</p> :
+        null}
+      {data.primary ?
+          <UsageBar label={windowLabel(t, data.primary.windowMinutes)} window={data.primary} /> :
+        null}
+      {data.secondary ?
+          <UsageBar label={windowLabel(t, data.secondary.windowMinutes)} window={data.secondary} /> :
+        null}
+    </div>
+  )
+}
+
+export function UsageSection({ open }: { open: boolean }) {
+  const { t } = useTranslation()
+  const claude = useClaudeUsage(open)
+  const codex = useCodexUsage(open)
+  const isFetching = claude.isFetching || codex.isFetching
 
   return (
     <div className="space-y-4">
@@ -72,7 +162,10 @@ export function UsageSection({ open }: { open: boolean }) {
           variant="ghost"
           size="sm"
           className="h-7 gap-1.5 text-xs"
-          onClick={() => refetch()}
+          onClick={() => {
+            claude.refetch()
+            codex.refetch()
+          }}
           disabled={isFetching}
         >
           <RefreshCw className={cn('size-3.5', isFetching && 'animate-spin')} />
@@ -80,27 +173,13 @@ export function UsageSection({ open }: { open: boolean }) {
         </Button>
       </div>
 
-      {!data.available ?
-          (
-            <div className="rounded-md border px-3 py-3 text-sm text-muted-foreground">
-              {t(data.reason ? REASON_KEYS[data.reason] : 'settings.usageUnavailableUpstream')}
-            </div>
-          ) :
-          !hasWindows ?
-              (
-                <div className="rounded-md border px-3 py-3 text-sm text-muted-foreground">
-                  {t('settings.usageNoWindowData')}
-                </div>
-              ) :
-              (
-                <div className="space-y-4 rounded-md border px-3 py-3">
-                  {data.fiveHour ? <UsageBar label={t('settings.usageFiveHour')} window={data.fiveHour} /> : null}
-                  {data.sevenDay ? <UsageBar label={t('settings.usageSevenDay')} window={data.sevenDay} /> : null}
-                  {modelWindows.map(w => (
-                    <UsageBar key={w.model} label={t('settings.usageSevenDayModel', { model: w.model })} window={w} />
-                  ))}
-                </div>
-              )}
+      <EngineBlock engineType="claude-code" label={t('settings.usageEngineClaude')}>
+        <ClaudeUsageBody data={claude.data} isLoading={claude.isLoading} isError={claude.isError} />
+      </EngineBlock>
+
+      <EngineBlock engineType="codex" label={t('settings.usageEngineCodex')}>
+        <CodexUsageBody data={codex.data} isLoading={codex.isLoading} isError={codex.isError} />
+      </EngineBlock>
     </div>
   )
 }

@@ -6,6 +6,7 @@ export type {
   BusyAction,
   CategorizedCommands,
   ClaudeUsage,
+  CodexUsage,
   CommandCategory,
   DeleteLocalSessionsRequest,
   DeleteLocalSessionsResult,

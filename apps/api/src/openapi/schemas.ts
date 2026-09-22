@@ -85,6 +85,8 @@ const envVarsSchema = z.record(z.string(), z.string().max(10000)).optional()
 // Accepts a real engine type or a virtual engine id (resolved at issue create).
 const projectDefaultEngineSchema = z.string().regex(/^[\w.\-:]{1,64}$/).nullable().optional()
 const projectDefaultModelSchema = z.string().max(200).nullable().optional()
+// Free-form classification tags. null/[] clears them.
+const projectTagsSchema = z.array(z.string().min(1).max(50)).max(20).nullable().optional()
 
 export const ProjectSchema = z.object({
   id: z.string(),
@@ -95,6 +97,7 @@ export const ProjectSchema = z.object({
   repositoryUrl: z.string().optional(),
   systemPrompt: z.string().optional(),
   envVars: z.record(z.string(), z.string()).optional(),
+  tags: z.array(z.string()).optional(),
   defaultEngine: z.string().optional(),
   defaultModel: z.string().optional(),
   sortOrder: z.string(),
@@ -112,6 +115,7 @@ export const CreateProjectSchema = z.object({
   repositoryUrl: z.string().url().optional().or(z.literal('')),
   systemPrompt: z.string().max(32768).optional(),
   envVars: envVarsSchema,
+  tags: projectTagsSchema,
   defaultEngine: projectDefaultEngineSchema,
   defaultModel: projectDefaultModelSchema,
 }).openapi('CreateProject')
@@ -124,6 +128,7 @@ export const UpdateProjectSchema = z.object({
   repositoryUrl: z.string().url().optional().or(z.literal('')),
   systemPrompt: z.string().max(32768).optional(),
   envVars: envVarsSchema,
+  tags: projectTagsSchema,
   defaultEngine: projectDefaultEngineSchema,
   defaultModel: projectDefaultModelSchema,
   sortOrder: z.string().min(1).max(50).regex(/^[a-z0-9]+$/i).optional(),
@@ -220,6 +225,10 @@ export const FollowUpSchema = z.object({
   busyAction: z.enum(['queue', 'cancel']).optional(),
   displayPrompt: z.string().max(500).optional(),
 }).openapi('FollowUp')
+
+export const AttachmentFollowUpSchema = FollowUpSchema.extend({
+  prompt: z.string().max(32768).openapi({ description: 'May be empty when at least one file is attached.' }),
+}).openapi('AttachmentFollowUp')
 
 export const ExecuteIssueResponseSchema = z.object({
   executionId: z.string().optional(),
@@ -345,6 +354,20 @@ export const ClaudeUsageSchema = z.object({
   sevenDay: ClaudeUsageWindowSchema.optional(),
   modelWindows: z.array(ClaudeUsageModelWindowSchema).optional(),
 }).openapi('ClaudeUsage')
+
+const CodexUsageWindowSchema = z.object({
+  usedPercentage: z.number(),
+  windowMinutes: z.number().nullable(),
+  resetsAt: z.string().nullable(),
+}).nullable()
+
+export const CodexUsageSchema = z.object({
+  available: z.boolean(),
+  reason: z.enum(['not_installed', 'unauthenticated', 'unsupported', 'upstream_error']).optional(),
+  primary: CodexUsageWindowSchema.optional(),
+  secondary: CodexUsageWindowSchema.optional(),
+  planType: z.string().nullable().optional(),
+}).openapi('CodexUsage')
 
 // ── Cron schemas ───────────────────────────────────────
 

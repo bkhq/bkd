@@ -1,14 +1,14 @@
 # BKD - Plan Index
 
-> Updated: 2026-09-02
+> Updated: 2026-09-13
 
 ## Usage
 
-Each plan is a single line linking to its detail file. All detailed information lives in `docs/plan/PLAN-NNN.md`.
+Each plan is a single line linking to its detail file. All detailed information lives in `docs/plan/<timestamp>-<feature-slug>.md`.
 
 ### Format
 
-- [ ] [**PLAN-001 Short plan title**](PLAN-001.md) `YYYY-MM-DD`
+- [ ] [**20260907-1440-add-endpoint Add endpoint**](20260907-1440-add-endpoint.md) `YYYY-MM-DD`
 
 ### Status Markers
 
@@ -21,9 +21,11 @@ Each plan is a single line linking to its detail file. All detailed information 
 
 ### Rules
 
-- Only update the checkbox marker; never delete the line.
+- Update or delete plan entries and their detail files as needed; keep them consistent.
+- Record change history and deletion reasons in `docs/changelog.md`; update affected task and plan references.
 - New plans append to the end.
-- See each `PLAN-NNN.md` for full details.
+- See each `<timestamp>-<feature-slug>.md` for full details.
+- Plan IDs are UTC minute-precision timestamps plus a feature slug; do not allocate sequence numbers. Existing `PLAN-NNN` files stay valid under their current names.
 
 ---
 
@@ -48,4 +50,10 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-017 Global local session scanner and session-to-issue import**](PLAN-017.md) `2026-08-22`
 - [x] [**PLAN-018 Migrate distribution and self-upgrade to lode**](PLAN-018.md) `2026-08-24`
 - [x] [**PLAN-019 Upload files from the file browser**](PLAN-019.md) `2026-09-02`
-- [x] [**PLAN-020 Upgrade all workspace dependencies to latest**](PLAN-020.md) `2026-09-09`
+- [x] [**PLAN-020 Stop serving soft-deleted cron jobs over the API**](PLAN-020.md) `2026-09-08`
+- [x] [**PLAN-021 API and repository audit remediation**](PLAN-021.md) `2026-09-10`
+- [x] [**20260910-0533-uploads-root-dir Resolve data paths from a single DATA_DIR**](20260910-0533-uploads-root-dir.md) `2026-09-10`
+- [x] [**20260912-1945-project-tags Tag and filter projects by tag**](20260912-1945-project-tags.md) `2026-09-12`
+
+- [x] [**20260912-2124-message-list-rendering Stabilize message-list layout and streaming updates**](20260912-2124-message-list-rendering.md) `2026-09-12`
+- [x] [**20260909-0230-upgrade-dependencies Upgrade all workspace dependencies to latest**](20260909-0230-upgrade-dependencies.md) `2026-09-09`

@@ -93,19 +93,20 @@ export async function upsertPendingMessage(
 ): Promise<string> {
   const { ulid } = await import('ulid')
   const messageId = ulid()
-  await db.transaction(async (tx) => {
-    const [maxRow] = await tx
+  db.transaction((tx) => {
+    const [maxRow] = tx
       .select({
         maxEntry: max(issueLogs.entryIndex),
         maxTurn: max(issueLogs.turnIndex),
       })
       .from(issueLogs)
       .where(eq(issueLogs.issueId, issueId))
+      .all()
     const entryIndex = (maxRow?.maxEntry ?? -1) + 1
     const turnIndex = (maxRow?.maxTurn ?? -1) + 1
 
     const displayPrompt = metadata.displayPrompt as string | undefined
-    await tx.insert(issueLogs).values({
+    tx.insert(issueLogs).values({
       id: messageId,
       issueId,
       turnIndex,
@@ -115,7 +116,7 @@ export async function upsertPendingMessage(
       metadata: JSON.stringify(metadata),
       timestamp: new Date().toISOString(),
       visible: 1,
-    })
+    }).run()
   })
   return messageId
 }

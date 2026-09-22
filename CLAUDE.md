@@ -76,7 +76,7 @@ bun scripts/migrate-to-lode.ts --root /opt/bkd --apply --prune
 - `secureHeaders()` — security response headers
 - `compress()` — gzip/deflate (skipped for SSE routes: paths ending in `/stream` or `/api/events`)
 - `httpLogger()` — pino-based request logging
-- `@hono/zod-validator` — Zod schema validation on all POST/PATCH routes
+- `@hono/zod-openapi` — Shared Zod request validation and REST contracts; multipart handlers explicitly validate the same schemas
 - Global error handler: returns `{success: false, error}` envelope
 
 #### Data Layer
@@ -193,11 +193,11 @@ Deployment, migration from the old launcher, and the `lode.toml` reference: `doc
 
 ### Frontend (`apps/frontend/src/`)
 
-- **Framework**: React 19 + Vite 7 + TypeScript
+- **Framework**: React 19 + Vite 8 + TypeScript
 - **Styling**: Tailwind CSS v4 via `@tailwindcss/vite` + shadcn/ui components
 - **Routing**: react-router-dom v7 (all pages lazy-loaded)
 - **Data fetching**: TanStack React Query v5 (`staleTime: 30s`, `retry: 1`)
-- **Drag & drop**: @dnd-kit/react for kanban board
+- **Drag & drop**: @atlaskit/pragmatic-drag-and-drop for kanban board
 - **Syntax highlighting**: Shiki (slim bundle via custom Vite plugin)
 - **i18n**: i18next + react-i18next, Chinese (zh, default) and English (en). Translations in `src/i18n/{en,zh}.json`
 - **Path alias**: `@/*` maps to `src/*`
@@ -278,7 +278,7 @@ Server (IssueEngine) → SSE /api/events → EventBus singleton (lib/event-bus.t
 - Shared types live in `packages/shared/src/index.ts`
 - API client in `apps/frontend/src/lib/kanban-api.ts` — add new endpoints here, wrap in React Query hooks in `use-kanban.ts`
 - All user-facing strings must have i18n keys in both `en.json` and `zh.json`
-- All API routes must have Zod schemas via `@hono/zod-validator`
+- REST routes must use shared Zod schemas and OpenAPI metadata; multipart handlers must explicitly validate the same schemas. See `AGENTS.md` for the API and quality-gate baseline.
 - All route handlers must verify project existence and cross-project ownership
 - Dependency versions shared across workspaces are managed via Catalogs in root `package.json`
 - Component styling: `cn()` utility combining `clsx` + `tailwind-merge`, with `class-variance-authority` for variants
@@ -295,17 +295,44 @@ Server (IssueEngine) → SSE /api/events → EventBus singleton (lib/event-bus.t
 
 ## Project Development
 
-Use the /pma skill to manage project development with a strict three-phase workflow:
+This repository follows the PMA workflow. The actual rules live in the `/pma`
+skill and the stack skills below — do not duplicate them here. If a rule in
+this file ever conflicts with `/pma`, treat `/pma` as the source of truth and
+update this file.
 
-1. Investigation
-2. Proposal
-3. Implement -> Verify -> Record
+### Skill stack
 
-Rules:
+- `/pma` — workflow control, three-phase gate, task and plan tracking
+- `/pma-bun` — implementation baseline for the Bun/Hono API (`apps/api`)
+- `/pma-web` — implementation baseline for the React/Vite frontend (`apps/frontend`)
+- `/pma-cr` — code review on the local diff before commit or PR
 
-- Do not implement before explicit confirmation (`proceed` / `开始实现`).
-- Track tasks in `docs/task/index.md` and `docs/task/PREFIX-NNN.md`.
-- Track non-trivial plans in `docs/plan/index.md` and `docs/plan/PLAN-NNN.md`.
-- Task IDs use `PREFIX-NNN` format (e.g. `AUTH-001`); never skip or reuse IDs.
-- **BEFORE starting any task**: claim it atomically (`[ ] -> [-]` in index, set detail `status: in_progress`, set `owner`).
-- On completion: set task index marker to `[x]` and detail `status: completed`.
+### Triggers
+
+Any feature, bug fix, refactor, planning, progress tracking, or multi-agent
+execution goes through `/pma` (investigate → proposal → implement). Ceremony is
+tiered by complexity per `/pma` *Task Tiers*: only trivial changes take the fast
+path; everything else waits for explicit approval such as `proceed`.
+
+### Project-specific facts
+
+- Primary language / runtime: TypeScript on Bun 1.4
+- Database / storage: SQLite via `bun:sqlite` + Drizzle ORM (`apps/api/drizzle/`)
+- Dev URL routing: nsl on, host `bkd.localhost` (`/api/*` → API, rest → Vite)
+- Deployment target: `bkd-server.tar.gz` release artifact supervised by lode
+- Quality-gate command: `bun run check`
+- Fast path: enabled (default)
+
+### Local divergences
+
+Any deliberate deviation from a skill rule (Hard Lock relaxation, alternative
+library, non-default layout) is recorded in `docs/decisions/<YYYY-MM-DD>-<slug>.md`
+with a sunset date. Do not silently override skill rules in this file.
+
+### Documentation entry points
+
+- Tasks: `docs/task/index.md`
+- Plans: `docs/plan/index.md`
+- Decisions: `docs/decisions/`
+- Architecture: `docs/architecture.md`
+- Changelog: `docs/changelog.md`

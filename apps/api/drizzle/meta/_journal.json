@@ -169,6 +169,13 @@
       "when": 1786494493557,
       "tag": "0023_lame_james_howlett",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1789242096647,
+      "tag": "0024_careless_agent_zero",
+      "breakpoints": true
     }
   ]
 }

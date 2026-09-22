@@ -3,6 +3,7 @@ import type {
   BusyAction,
   CategorizedCommands,
   ClaudeUsage,
+  CodexUsage,
   DeleteLocalSessionsRequest,
   DeleteLocalSessionsResult,
   EngineDiscoveryResult,
@@ -81,7 +82,6 @@ export interface CronJob {
     result: string | null
     error: string | null
   } | null
-  isDeleted: boolean
   createdAt: string
   updatedAt: string
 }
@@ -105,7 +105,7 @@ export interface CronJobLogsResponse {
 
 const DEFAULT_TIMEOUT_MS = 30_000 // 30 seconds
 
-async function request<T>(url: string, options?: RequestInit & { timeoutMs?: number }): Promise<T> {
+async function requestEnvelope<T>(url: string, options?: RequestInit & { timeoutMs?: number }) {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchOptions } = options ?? {}
 
   // Wire up AbortController for timeout, chaining with any existing signal
@@ -132,11 +132,15 @@ async function request<T>(url: string, options?: RequestInit & { timeoutMs?: num
   }
   clearTimeout(timer)
 
-  const json = (await res.json()) as ApiResponse<T>
+  const json = (await res.json()) as ApiResponse<T> & { nextCursor?: string | null, hasMore?: boolean }
   if (!json.success) {
     throw new ApiError(json.error, res.status)
   }
-  return json.data
+  return json
+}
+
+async function request<T>(url: string, options?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  return (await requestEnvelope<T>(url, options)).data
 }
 
 function get<T>(url: string) {
@@ -209,6 +213,7 @@ export const kanbanApi = {
     repositoryUrl?: string
     systemPrompt?: string
     envVars?: Record<string, string>
+    tags?: string[]
   }) => post<Project>('/api/projects', data),
   updateProject: (
     id: string,
@@ -219,6 +224,7 @@ export const kanbanApi = {
       repositoryUrl?: string
       systemPrompt?: string
       envVars?: Record<string, string>
+      tags?: string[] | null
       defaultEngine?: string | null
       defaultModel?: string | null
       sortOrder?: number
@@ -241,7 +247,18 @@ export const kanbanApi = {
   // Issues
   getReviewIssues: () =>
     get<Array<Issue & { projectName: string, projectAlias: string }>>('/api/issues/review'),
-  getIssues: (projectId: string) => get<Issue[]>(`/api/projects/${projectId}/issues`),
+  getIssues: async (projectId: string): Promise<Issue[]> => {
+    const issues: Issue[] = []
+    let cursor: string | null = null
+    do {
+      const page: { data: Issue[], nextCursor?: string | null, hasMore?: boolean } = await requestEnvelope<Issue[]>(
+        `/api/projects/${projectId}/issues${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
+      )
+      issues.push(...page.data)
+      cursor = page.hasMore ? page.nextCursor ?? null : null
+    } while (cursor)
+    return issues
+  },
   createIssue: (
     projectId: string,
     data: {
@@ -405,6 +422,7 @@ export const kanbanApi = {
   getEngineAvailability: () => get<EngineDiscoveryResult>('/api/engines/available'),
   getEngineProfiles: () => get<EngineProfile[]>('/api/engines/profiles'),
   getClaudeUsage: () => get<ClaudeUsage>('/api/engines/claude/usage'),
+  getCodexUsage: () => get<CodexUsage>('/api/engines/codex/usage'),
   getEngineSettings: () => get<EngineSettings>('/api/engines/settings'),
   updateEngineModelSetting: (engineType: string, data: { defaultModel: string }) =>
     patch<{ engineType: string, defaultModel: string }>(

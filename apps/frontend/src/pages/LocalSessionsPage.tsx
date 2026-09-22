@@ -353,7 +353,7 @@ function SessionDetailDrawer({
               </p>
             )
           : null}
-        {data ? <SessionMessages logs={data.entries} scrollRef={scrollRef} /> : null}
+        {data ? <SessionMessages sessionKey={sessionKey(session)} logs={data.entries} scrollRef={scrollRef} /> : null}
       </div>
     </SidePanel>
   )

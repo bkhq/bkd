@@ -1,8 +1,8 @@
 import { readdir, stat, unlink } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { logger } from '@/logger'
+import { UPLOAD_DIR } from '@/uploads'
 
-const UPLOAD_DIR = resolve(process.cwd(), 'data/uploads')
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 export async function runUploadCleanup(): Promise<string> {

@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useCreateProject, useWorkspacePath } from '@/hooks/use-kanban'
+import { parseTagInput } from '@/lib/format'
 import { kanbanApi } from '@/lib/kanban-api'
 import type { Project } from '@/types/kanban'
 
@@ -35,6 +36,7 @@ export function CreateProjectDialog({
   const [description, setDescription] = useState('')
   const [directory, setDirectory] = useState(defaultDir)
   const [repositoryUrl, setRepositoryUrl] = useState('')
+  const [tags, setTags] = useState('')
   const [dirPickerOpen, setDirPickerOpen] = useState(false)
   const [detectingRemote, setDetectingRemote] = useState(false)
   const createProject = useCreateProject()
@@ -52,6 +54,7 @@ export function CreateProjectDialog({
     setDescription('')
     setDirectory(defaultDir)
     setRepositoryUrl('')
+    setTags('')
     setError('')
   }
 
@@ -61,6 +64,7 @@ export function CreateProjectDialog({
     const trimmedName = name.trim()
     if (!trimmedName) return
     setError('')
+    const tagList = parseTagInput(tags)
     createProject.mutate(
       {
         name: trimmedName,
@@ -68,6 +72,7 @@ export function CreateProjectDialog({
         description: description.trim() || undefined,
         directory: directory.trim() || undefined,
         repositoryUrl: repositoryUrl.trim() || undefined,
+        tags: tagList.length > 0 ? tagList : undefined,
       },
       {
         onSuccess: (project) => {
@@ -138,6 +143,18 @@ export function CreateProjectDialog({
               rows={3}
               className="w-full resize-none"
             />
+          </Field>
+
+          <Field>
+            <Label>{t('project.tags')}</Label>
+            <Input
+              type="text"
+              value={tags}
+              onChange={e => setTags(e.target.value)}
+              placeholder={t('project.tagsPlaceholder')}
+              className="w-full"
+            />
+            <p className="text-[11px] text-muted-foreground">{t('project.tagsHint')}</p>
           </Field>
 
           <Field>
