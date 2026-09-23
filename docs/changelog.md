@@ -204,3 +204,23 @@ Centered the sidebar rail on the active project
   (2 pre-existing warnings), typecheck clean, 123 frontend tests pass; the API suite keeps
   the documented `async execution transitions to running then completed` timeout flake
   (684 pass, 1 fail), which passes in isolation and touches no changed code.
+
+## 2026-09-22 17:12 [progress]
+
+20260922-1703-mobile-desktop-ui-parity / 20260922-1704: aligned mobile and desktop UI
+and finished the BKD rename.
+
+- Global page links (Review, Cron, Local sessions) now come from one list,
+  `lib/global-pages.ts`, rendered by the desktop rail, the mobile sheet and both
+  home-page menus. The mobile sheet header shows the configured server name
+  (fallback `BKD`) and the SSE connection indicator. `/cron` and `/sessions` render
+  the desktop rail and the mobile menu trigger like `/review`.
+- Create-issue dialog is full-screen and scrollable below `md`. Dialog width
+  overrides use the `sm:` prefix so the base `sm:max-w-sm` no longer wins between
+  640 and 767px (`CreateIssueDialog`, `SettingsLayout`, `FilePreviewModal`,
+  `DirectoryPicker`, `CreateProjectDialog`, local-sessions import dialog).
+- Mobile touch targets: list-panel and kanban header buttons are 36px below `md`;
+  search, tag, description and title-edit inputs use 16px text below `md`.
+- Branding: `AppLogo` alt, `manifest.json`, package descriptions and the bundle
+  defines (`__BITK_*` -> `__BKD_*`) now say BKD. Favicon glyph stays `BK`.
+- Discovered and filed separately: 20260922-1712-api-execution-suite-order-flake.

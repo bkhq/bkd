@@ -4,6 +4,8 @@ import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { AppLogo } from '@/components/AppLogo'
+import { AppSidebar } from '@/components/kanban/AppSidebar'
+import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -103,7 +105,7 @@ function ImportDialog({
 
   return (
     <Dialog open={!!session} onOpenChange={open => !open && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t('sessions.import.title')}</DialogTitle>
           <DialogDescription>{session?.title || session?.sessionId}</DialogDescription>
@@ -361,6 +363,7 @@ function SessionDetailDrawer({
 
 export default function LocalSessionsPage() {
   const { t } = useTranslation()
+  const isMobile = useIsMobile()
   const [engine, setEngine] = useState('all')
   const [search, setSearch] = useState('')
   const [importTarget, setImportTarget] = useState<LocalSession | null>(null)
@@ -412,146 +415,150 @@ export default function LocalSessionsPage() {
   }
 
   return (
-    <main className="min-h-screen text-foreground animate-page-enter">
-      <section className="mx-auto max-w-6xl px-4 py-4 md:px-6 md:py-8">
-        <div className="mb-4 flex items-center gap-2.5 md:mb-6">
-          <Link to="/" aria-label={t('sidebar.home')}>
-            <AppLogo className="h-8 w-8" />
-          </Link>
-          <h1 className="text-lg font-semibold tracking-tight md:text-xl">
-            {t('sessions.title')}
-          </h1>
-          {data ? <Badge variant="secondary" className="ml-1">{data.total}</Badge> : null}
-        </div>
-
-        <p className="mb-4 text-xs text-muted-foreground">{t('sessions.description')}</p>
-
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px] flex-1">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={t('sessions.searchPlaceholder')}
-              className="pl-8"
-            />
+    <div className="flex h-full text-foreground overflow-hidden animate-page-enter">
+      {!isMobile ? <AppSidebar activeProjectId="" /> : null}
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <section className="mx-auto max-w-6xl px-4 py-4 md:px-6 md:py-8">
+          <div className="mb-4 flex items-center gap-2.5 md:mb-6">
+            {isMobile ? <MobileSidebar activeProjectId="" /> : null}
+            <Link to="/" aria-label={t('sidebar.home')}>
+              <AppLogo className="h-8 w-8" />
+            </Link>
+            <h1 className="text-lg font-semibold tracking-tight md:text-xl">
+              {t('sessions.title')}
+            </h1>
+            {data ? <Badge variant="secondary" className="ml-1">{data.total}</Badge> : null}
           </div>
-          <Select value={engine} onValueChange={value => setEngine(value ?? 'all')}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('sessions.allEngines')}</SelectItem>
-              <SelectItem value="claude-code">claude-code</SelectItem>
-              <SelectItem value="codex">codex</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
 
-        {isLoading
-          ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            )
-          : null}
+          <p className="mb-4 text-xs text-muted-foreground">{t('sessions.description')}</p>
 
-        {!isLoading && data?.sessions.length === 0
-          ? <p className="py-12 text-center text-sm text-muted-foreground">{t('sessions.empty')}</p>
-          : null}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[200px] flex-1">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder={t('sessions.searchPlaceholder')}
+                className="pl-8"
+              />
+            </div>
+            <Select value={engine} onValueChange={value => setEngine(value ?? 'all')}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('sessions.allEngines')}</SelectItem>
+                <SelectItem value="claude-code">claude-code</SelectItem>
+                <SelectItem value="codex">codex</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-        {sessions.length > 0
-          ? (
-              <div className="mb-2 flex items-center gap-3 px-1 text-xs text-muted-foreground">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={allSelected} onChange={toggleAll} />
-                  {t('sessions.selectAll')}
-                </label>
-                {selected.size > 0
-                  ? (
-                      <>
-                        <span>{t('sessions.selectedCount', { count: selected.size })}</span>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => setConfirmDelete(true)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          {t('sessions.deleteAction')}
-                        </Button>
-                      </>
-                    )
-                  : null}
-              </div>
-            )
-          : null}
-
-        <div className="space-y-2">
-          {sessions.map(session => (
-            <SessionRow
-              key={sessionKey(session)}
-              session={session}
-              selected={selected.has(sessionKey(session))}
-              onToggleSelected={toggleSelected}
-              onOpen={setDetailTarget}
-              onImport={setImportTarget}
-            />
-          ))}
-        </div>
-
-        {data?.hasMore
-          ? (
-              <p className="py-4 text-center text-xs text-muted-foreground">
-                {t('sessions.truncated', { count: PAGE_SIZE })}
-              </p>
-            )
-          : null}
-      </section>
-
-      <SessionDetailDrawer
-        session={detailTarget}
-        onClose={() => setDetailTarget(null)}
-        onImport={setImportTarget}
-      />
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t('sessions.deleteConfirm.title', { count: selected.size })}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('sessions.deleteConfirm.body')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteSessions.data?.failed.length
+          {isLoading
             ? (
-                <p className="text-xs text-destructive">
-                  {t('sessions.deleteConfirm.partial', { count: deleteSessions.data.failed.length })}
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              )
+            : null}
+
+          {!isLoading && data?.sessions.length === 0
+            ? <p className="py-12 text-center text-sm text-muted-foreground">{t('sessions.empty')}</p>
+            : null}
+
+          {sessions.length > 0
+            ? (
+                <div className="mb-2 flex items-center gap-3 px-1 text-xs text-muted-foreground">
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+                    {t('sessions.selectAll')}
+                  </label>
+                  {selected.size > 0
+                    ? (
+                        <>
+                          <span>{t('sessions.selectedCount', { count: selected.size })}</span>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => setConfirmDelete(true)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {t('sessions.deleteAction')}
+                          </Button>
+                        </>
+                      )
+                    : null}
+                </div>
+              )
+            : null}
+
+          <div className="space-y-2">
+            {sessions.map(session => (
+              <SessionRow
+                key={sessionKey(session)}
+                session={session}
+                selected={selected.has(sessionKey(session))}
+                onToggleSelected={toggleSelected}
+                onOpen={setDetailTarget}
+                onImport={setImportTarget}
+              />
+            ))}
+          </div>
+
+          {data?.hasMore
+            ? (
+                <p className="py-4 text-center text-xs text-muted-foreground">
+                  {t('sessions.truncated', { count: PAGE_SIZE })}
                 </p>
               )
             : null}
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleteSessions.isPending}
-              onClick={(e) => {
-                e.preventDefault()
-                handleDelete()
-              }}
-            >
-              {t('sessions.deleteAction')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        </section>
 
-      <ImportDialog
-        session={importTarget}
-        onClose={() => {
-          setImportTarget(null)
-          setDetailTarget(null)
-        }}
-      />
-    </main>
+        <SessionDetailDrawer
+          session={detailTarget}
+          onClose={() => setDetailTarget(null)}
+          onImport={setImportTarget}
+        />
+        <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t('sessions.deleteConfirm.title', { count: selected.size })}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('sessions.deleteConfirm.body')}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {deleteSessions.data?.failed.length
+              ? (
+                  <p className="text-xs text-destructive">
+                    {t('sessions.deleteConfirm.partial', { count: deleteSessions.data.failed.length })}
+                  </p>
+                )
+              : null}
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={deleteSessions.isPending}
+                onClick={(e) => {
+                  e.preventDefault()
+                  handleDelete()
+                }}
+              >
+                {t('sessions.deleteAction')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <ImportDialog
+          session={importTarget}
+          onClose={() => {
+            setImportTarget(null)
+            setDetailTarget(null)
+          }}
+        />
+      </main>
+    </div>
   )
 }

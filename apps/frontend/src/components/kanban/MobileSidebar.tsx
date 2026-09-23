@@ -1,4 +1,4 @@
-import { ChevronRight, Menu, Plus, Settings, StickyNote, TerminalSquare } from 'lucide-react'
+import { ChevronRight, Menu, Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -8,9 +8,12 @@ import { CreateProjectDialog } from '@/components/CreateProjectDialog'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
+import { useEventConnection } from '@/hooks/use-event-connection'
 import { useProjects } from '@/hooks/use-kanban'
 import { getProjectInitials } from '@/lib/format'
+import { GLOBAL_PAGES } from '@/lib/global-pages'
 import { useNotesStore } from '@/stores/notes-store'
+import { useServerStore } from '@/stores/server-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import type { Project } from '@/types/kanban'
 
@@ -36,6 +39,8 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
   const { data: projects } = useProjects()
   const [showCreate, setShowCreate] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const serverName = useServerStore(s => s.name)
+  const connected = useEventConnection()
 
   // Mobile always uses list mode
   const mobileProjectPath = useCallback((projectId: string) => `/projects/${projectId}/issues`, [])
@@ -57,7 +62,7 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
           <SheetTitle className="sr-only">{t('sidebar.menu')}</SheetTitle>
 
           <div className="flex flex-col h-full">
-            {/* Header -- links to homepage (BitK is the brand name) */}
+            {/* Header -- links to homepage; same name source as the document title */}
             <button
               type="button"
               onClick={() => {
@@ -67,7 +72,13 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
               className="flex items-center gap-3 px-4 py-3 border-b hover:bg-accent/50 active:bg-accent transition-colors"
             >
               <AppLogo className="h-8 w-8" />
-              <span className="text-sm font-semibold">BitK</span>
+              <span className="text-sm font-semibold truncate">{serverName ?? 'BKD'}</span>
+              <span
+                className={`ml-auto shrink-0 ${connected ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}
+                title={connected ? t('session.connected') : t('session.disconnected')}
+              >
+                {connected ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+              </span>
             </button>
 
             {/* Project list */}
@@ -150,6 +161,20 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
                 <StickyNote className="h-4 w-4 text-muted-foreground" />
                 {t('notes.title')}
               </button>
+              {GLOBAL_PAGES.map(({ id, path, icon: Icon, labelKey }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    void navigate(path)
+                  }}
+                  className="flex items-center gap-3 w-full px-4 min-h-[44px] text-sm text-foreground/80 hover:bg-accent/50 active:bg-accent transition-colors"
+                >
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  {t(labelKey)}
+                </button>
+              ))}
               <button
                 type="button"
                 onClick={() => setShowSettings(true)}

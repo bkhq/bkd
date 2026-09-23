@@ -52,3 +52,13 @@ describe('appSidebar project rail', () => {
     expect(scrollIntoView).not.toHaveBeenCalled()
   })
 })
+
+describe('appSidebar global pages', () => {
+  it('links to review, cron and local sessions', () => {
+    const { getByLabelText } = render(<AppSidebar activeProjectId="" />)
+
+    expect(getByLabelText('viewMode.review')).toBeInTheDocument()
+    expect(getByLabelText('cron.title')).toBeInTheDocument()
+    expect(getByLabelText('sessions.title')).toBeInTheDocument()
+  })
+})

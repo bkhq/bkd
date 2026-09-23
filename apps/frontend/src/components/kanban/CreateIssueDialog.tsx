@@ -25,6 +25,7 @@ import {
 } from '@/hooks/use-kanban'
 import { resolveDefaultEngine } from '@/lib/engine-defaults'
 import { formatModelName } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { tStatus } from '@/lib/i18n-utils'
 import type { StatusId } from '@/lib/statuses'
 import { STATUS_MAP } from '@/lib/statuses'
@@ -230,7 +231,7 @@ export function CreateIssueForm({
           onPaste={handlePaste}
           placeholder={t('issue.describeWork')}
           rows={4}
-          className="w-full bg-transparent text-sm resize-none border-none shadow-none outline-none placeholder:text-muted-foreground/50 px-3 pt-3 pb-2 min-h-25 focus-visible:ring-0 rounded-b-none!"
+          className="w-full bg-transparent text-base md:text-sm resize-none border-none shadow-none outline-none placeholder:text-muted-foreground/50 px-3 pt-3 pb-2 min-h-25 focus-visible:ring-0 rounded-b-none!"
           disabled={createIssue.isPending}
         />
 
@@ -282,7 +283,7 @@ export function CreateIssueForm({
             >
               <Paperclip className="h-3.5 w-3.5" />
             </button>
-            <span className="text-[11px] text-muted-foreground/50">{t('issue.cmdEnterSubmit')}</span>
+            <span className="hidden text-[11px] text-muted-foreground/50 md:inline">{t('issue.cmdEnterSubmit')}</span>
           </div>
           <span className="text-[11px] text-muted-foreground/50 tabular-nums">
             {input.length}
@@ -302,7 +303,7 @@ export function CreateIssueForm({
               value={tag}
               onChange={e => setTag(e.target.value)}
               placeholder={t('issue.tagPlaceholder')}
-              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
+              className="w-full bg-transparent text-base md:text-sm outline-none placeholder:text-muted-foreground/50"
             />
           </PropertyRow>
           <PropertyRow label={t('issue.status')}>
@@ -363,7 +364,12 @@ export function CreateIssueDialog() {
       disablePointerDismissal
     >
       <DialogContent
-        className="max-w-[calc(100%-2rem)] md:max-w-[580px]"
+        className={cn(
+          // Mobile: full-screen, scrollable
+          'inset-0 top-0 left-0 h-dvh w-full max-w-none translate-x-0 translate-y-0 rounded-none overflow-y-auto sm:max-w-none',
+          // Desktop (md+): centered dialog
+          'md:inset-auto md:top-1/2 md:left-1/2 md:h-auto md:max-w-[580px] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-xl',
+        )}
         aria-describedby={undefined}
       >
         <DialogTitle>{t('issue.createTask')}</DialogTitle>

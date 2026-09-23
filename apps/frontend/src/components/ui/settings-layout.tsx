@@ -52,7 +52,7 @@ export function SettingsLayout({
         showCloseButton={false}
         className={cn(
           // Mobile: full-screen
-          'inset-0 top-0 left-0 h-dvh w-full max-w-none translate-x-0 translate-y-0 rounded-none',
+          'inset-0 top-0 left-0 h-dvh w-full max-w-none translate-x-0 translate-y-0 rounded-none sm:max-w-none',
           // Desktop (md+): centered dialog
           'md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2',
           'md:h-[min(460px,65dvh)] md:w-full md:max-w-2xl md:rounded-xl',

@@ -121,11 +121,11 @@ const buildArgs = [
   '--outfile',
   serverOut,
   '--define',
-  `__BITK_VERSION__="${version}"`,
+  `__BKD_VERSION__="${version}"`,
   '--define',
-  `__BITK_COMMIT__="${commit}"`,
+  `__BKD_COMMIT__="${commit}"`,
   '--define',
-  '__BITK_PACKAGE_MODE__=true',
+  '__BKD_PACKAGE_MODE__=true',
 ]
 
 const build = Bun.spawn(buildArgs, {

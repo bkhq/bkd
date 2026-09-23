@@ -19,6 +19,8 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { AppLogo } from '@/components/AppLogo'
+import { AppSidebar } from '@/components/kanban/AppSidebar'
+import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +35,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useCronJobs, useDeleteCronJob, usePauseCronJob, useResumeCronJob } from '@/hooks/use-kanban'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { formatDateTime, formatDuration } from '@/lib/format'
 import type { CronJob, CronJobLog, CronJobLogsResponse } from '@/lib/kanban-api'
 import { kanbanApi } from '@/lib/kanban-api'
@@ -438,6 +441,7 @@ function LogEntry({ log }: { log: CronJobLog }) {
 
 export default function CronPage() {
   const { t } = useTranslation()
+  const isMobile = useIsMobile()
   const { data: jobs, isLoading } = useCronJobs()
   const deleteCronJob = useDeleteCronJob()
   const [selectedJob, setSelectedJob] = useState<CronJob | null>(null)
@@ -463,102 +467,106 @@ export default function CronPage() {
   }
 
   return (
-    <main className="min-h-screen text-foreground animate-page-enter">
-      <section className="mx-auto max-w-6xl px-4 py-4 md:px-6 md:py-8">
-        {/* Header */}
-        <div className="mb-4 flex items-center gap-2.5 md:mb-6">
-          <Link to="/" aria-label={t('sidebar.home')}>
-            <AppLogo className="h-8 w-8" />
-          </Link>
-          <h1 className="text-lg font-semibold tracking-tight md:text-xl">
-            {t('cron.title')}
-          </h1>
-          {jobs && (
-            <Badge variant="secondary" className="ml-1">
-              {jobs.length}
-            </Badge>
-          )}
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground"
-              onClick={useTerminalStore.getState().toggle}
-              aria-label={t('terminal.title')}
-            >
-              <TerminalSquare className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground"
-              onClick={useNotesStore.getState().toggle}
-              aria-label={t('notes.title')}
-            >
-              <StickyNote className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Content */}
-        {isLoading ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="rounded-lg border bg-card/30 animate-pulse p-4 space-y-2">
-                <div className="h-3.5 w-24 rounded bg-muted" />
-                <div className="h-3 w-32 rounded bg-muted" />
-                <div className="h-3 w-40 rounded bg-muted mt-3" />
-              </div>
-            ))}
-          </div>
-        ) : liveSelectedJob ? (
-          <CronJobLogView
-            key={liveSelectedJob.id}
-            job={liveSelectedJob}
-            onBack={() => setSelectedJob(null)}
-            onDelete={requestDelete}
-          />
-        ) : (
-          <CronJobList
-            jobs={jobs ?? []}
-            onSelectJob={setSelectedJob}
-            onDeleteJob={requestDelete}
-          />
-        )}
-
-        <AlertDialog
-          open={!!deleteTarget}
-          onOpenChange={(open) => {
-            if (!open && !deleteCronJob.isPending) setDeleteTarget(null)
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{t('cron.deleteConfirmTitle')}</AlertDialogTitle>
-              <AlertDialogDescription>
-                {t('cron.deleteConfirm', { name: deleteTarget?.name })}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            {deleteCronJob.error && (
-              <p role="alert" className="text-sm text-destructive">
-                {deleteCronJob.error.message}
-              </p>
+    <div className="flex h-full text-foreground overflow-hidden animate-page-enter">
+      {!isMobile ? <AppSidebar activeProjectId="" /> : null}
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <section className="mx-auto max-w-6xl px-4 py-4 md:px-6 md:py-8">
+          {/* Header */}
+          <div className="mb-4 flex items-center gap-2.5 md:mb-6">
+            {isMobile ? <MobileSidebar activeProjectId="" /> : null}
+            <Link to="/" aria-label={t('sidebar.home')}>
+              <AppLogo className="h-8 w-8" />
+            </Link>
+            <h1 className="text-lg font-semibold tracking-tight md:text-xl">
+              {t('cron.title')}
+            </h1>
+            {jobs && (
+              <Badge variant="secondary" className="ml-1">
+                {jobs.length}
+              </Badge>
             )}
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleteCronJob.isPending}>
-                {t('common.cancel')}
-              </AlertDialogCancel>
-              <AlertDialogAction
-                variant="destructive"
-                disabled={deleteCronJob.isPending}
-                onClick={confirmDelete}
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground"
+                onClick={useTerminalStore.getState().toggle}
+                aria-label={t('terminal.title')}
               >
-                {deleteCronJob.isPending ? t('cron.deleting') : t('cron.delete')}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </section>
-    </main>
+                <TerminalSquare className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground"
+                onClick={useNotesStore.getState().toggle}
+                aria-label={t('notes.title')}
+              >
+                <StickyNote className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Content */}
+          {isLoading ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-lg border bg-card/30 animate-pulse p-4 space-y-2">
+                  <div className="h-3.5 w-24 rounded bg-muted" />
+                  <div className="h-3 w-32 rounded bg-muted" />
+                  <div className="h-3 w-40 rounded bg-muted mt-3" />
+                </div>
+              ))}
+            </div>
+          ) : liveSelectedJob ? (
+            <CronJobLogView
+              key={liveSelectedJob.id}
+              job={liveSelectedJob}
+              onBack={() => setSelectedJob(null)}
+              onDelete={requestDelete}
+            />
+          ) : (
+            <CronJobList
+              jobs={jobs ?? []}
+              onSelectJob={setSelectedJob}
+              onDeleteJob={requestDelete}
+            />
+          )}
+
+          <AlertDialog
+            open={!!deleteTarget}
+            onOpenChange={(open) => {
+              if (!open && !deleteCronJob.isPending) setDeleteTarget(null)
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('cron.deleteConfirmTitle')}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t('cron.deleteConfirm', { name: deleteTarget?.name })}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {deleteCronJob.error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {deleteCronJob.error.message}
+                </p>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleteCronJob.isPending}>
+                  {t('common.cancel')}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  disabled={deleteCronJob.isPending}
+                  onClick={confirmDelete}
+                >
+                  {deleteCronJob.isPending ? t('cron.deleting') : t('cron.delete')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </section>
+      </main>
+    </div>
   )
 }

@@ -40,7 +40,7 @@ beforeAll(() => {
   gitRoot = mkdtempSync(join(tmpdir(), 'bkd-worktree-repo-'))
   gitSync(['init'], gitRoot)
   gitSync(['config', 'user.email', 'test@example.com'], gitRoot)
-  gitSync(['config', 'user.name', 'BitK Test'], gitRoot)
+  gitSync(['config', 'user.name', 'BKD Test'], gitRoot)
 
   writeFileSync(join(gitRoot, 'README.md'), 'test repo\n')
   gitSync(['add', '.'], gitRoot)

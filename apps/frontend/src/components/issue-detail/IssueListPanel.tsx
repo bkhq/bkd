@@ -96,7 +96,7 @@ export function IssueListPanel({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            className="h-9 w-9 md:h-7 md:w-7 text-muted-foreground hover:text-foreground"
             onClick={() => setShowSettings(true)}
           >
             <Settings className="h-3.5 w-3.5" />
@@ -105,7 +105,7 @@ export function IssueListPanel({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              className="h-9 w-9 md:h-7 md:w-7 text-muted-foreground hover:text-foreground"
               onClick={() => toggleFileBrowser(projectId, project?.directory ?? undefined)}
               aria-label={t('viewMode.files')}
               title={t('viewMode.files')}
@@ -116,7 +116,7 @@ export function IssueListPanel({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            className="h-9 w-9 md:h-7 md:w-7 text-muted-foreground hover:text-foreground"
             onClick={() => toggleProcessManager()}
             aria-label={t('processManager.title')}
             title={t('processManager.title')}
@@ -126,7 +126,7 @@ export function IssueListPanel({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            className="h-9 w-9 md:h-7 md:w-7 text-muted-foreground hover:text-foreground"
             onClick={() => openCreateDialog()}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -143,7 +143,7 @@ export function IssueListPanel({
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder={t('common.search')}
-            className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/40"
+            className="flex-1 bg-transparent text-base md:text-xs outline-none placeholder:text-muted-foreground/40"
           />
         </div>
       </div>

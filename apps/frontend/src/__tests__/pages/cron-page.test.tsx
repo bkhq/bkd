@@ -24,6 +24,8 @@ const job: CronJob = {
   updatedAt: '2026-08-20T00:00:00.000Z',
 }
 
+vi.mock('@/components/kanban/AppSidebar', () => ({ AppSidebar: () => null }))
+vi.mock('@/components/kanban/MobileSidebar', () => ({ MobileSidebar: () => null }))
 vi.mock('@/hooks/use-kanban', () => ({
   useCronJobs: () => ({ data: [job], isLoading: false }),
   useDeleteCronJob: () => ({

@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-09-13
+> Updated: 2026-09-22
 
 ## Usage
 
@@ -119,3 +119,7 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20260913-0023-create-issue-status-toggle Replace the create-issue status dropdown with a toggle**](20260913-0023-create-issue-status-toggle.md) `P2`
 
 - [x] [**20260916-0520-sidebar-active-project-scroll Keep the active project visible in the sidebar rail**](20260916-0520-sidebar-active-project-scroll.md) `P2`
+
+- [x] [**20260922-1703-mobile-desktop-ui-parity Align mobile and desktop UI and finish the BKD rename**](20260922-1703-mobile-desktop-ui-parity.md) `P1`
+
+- [ ] [**20260922-1712-api-execution-suite-order-flake Auto-execute test times out in the full API suite**](20260922-1712-api-execution-suite-order-flake.md) `P2`
