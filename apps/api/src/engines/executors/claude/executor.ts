@@ -141,6 +141,12 @@ const CLAUDE_MODELS: EngineModel[] = [
     name: 'Claude Fable 5.1 (1M)',
     isDefault: false,
   },
+  { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', isDefault: false },
+  {
+    id: 'claude-opus-5-5[1m]',
+    name: 'Claude Opus 5.5 (1M)',
+    isDefault: false,
+  },
   { id: 'claude-opus-5', name: 'Claude Opus 5', isDefault: true },
   {
     id: 'claude-opus-5[1m]',
