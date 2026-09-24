@@ -224,3 +224,23 @@ and finished the BKD rename.
 - Branding: `AppLogo` alt, `manifest.json`, package descriptions and the bundle
   defines (`__BITK_*` -> `__BKD_*`) now say BKD. Favicon glyph stays `BK`.
 - Discovered and filed separately: 20260922-1712-api-execution-suite-order-flake.
+
+## 2026-09-24 08:05 [progress]
+
+20260923-1133-grok-engine: added Grok Build (`grok`) as a third engine type.
+
+- `executors/grok/`: headless executor (`-p ... --output-format streaming-messages-json
+  --permission-mode bypassPermissions`, `-s` for a new session, `-r` to resume, SIGTERM
+  to cancel) and a self-contained normalizer that maps Grok's tool set and decodes its
+  typed JSON tool results. Availability and models come from `grok --version` and
+  `grok models`.
+- `'grok'` wired into `EngineType`, built-in profiles, the executor registry, slash-command
+  cache, virtual-engine reserved ids, settings validation, and safe-env (`XAI_API_KEY`,
+  `GROK_HOME`). The context-usage pipeline stage now also runs for grok.
+- `register.ts`: the stdout-pipe-broke diagnostic is skipped after an interrupt — grok
+  closes stdout before exiting on SIGTERM, which is shutdown, not breakage.
+- Out of scope: local session browser/import, virtual engines based on grok, slash-command
+  discovery, usage panel, mid-turn messages, interactive permission approval.
+- Verified end to end on grok 1.0.41 against an isolated API instance: execute, follow-up
+  with context, cancel mid-command, resume after cancel; token/cost and context window
+  recorded.

@@ -128,6 +128,7 @@ The most complex subsystem — bridges API routes and CLI-based AI agents.
 |--------|----------|-----|----------|
 | `claude-code` | `stream-json` | `claude` binary | Streaming JSON over stdout; process exits after each turn |
 | `codex` | `json-rpc` | `codex app-server` | JSONL JSON-RPC over stdio; process **stays alive** between turns |
+| `grok` | `stream-json` | `grok -p` (Grok Build) | `streaming-messages-json` over stdout, one prompt per process; follow-up resumes with `-r`, cancel is SIGTERM |
 
 Each executor implements `EngineExecutor`: `spawn`, `spawnFollowUp`, `cancel`, `getAvailability`, `getModels`, `normalizeLog`.
 
@@ -152,6 +153,9 @@ engines/
 │   │   ├── executor.ts         — Codex executor (long-lived process)
 │   │   ├── protocol.ts         — JSON-RPC protocol handler
 │   │   └── normalizer.ts       — Log normalization (most complex)
+│   ├── grok/
+│   │   ├── executor.ts         — Grok Build headless executor
+│   │   └── normalizer.ts       — Log normalization (self-contained)
 └── issue/
     ├── engine.ts               — IssueEngine singleton facade
     ├── orchestration/          — execute, follow-up, restart, cancel

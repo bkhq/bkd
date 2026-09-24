@@ -123,3 +123,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20260922-1703-mobile-desktop-ui-parity Align mobile and desktop UI and finish the BKD rename**](20260922-1703-mobile-desktop-ui-parity.md) `P1`
 
 - [ ] [**20260922-1712-api-execution-suite-order-flake Auto-execute test times out in the full API suite**](20260922-1712-api-execution-suite-order-flake.md) `P2`
+- [x] [**20260923-1133-grok-engine Add Grok Build CLI as an engine**](20260923-1133-grok-engine.md) `P1`
