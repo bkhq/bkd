@@ -119,6 +119,10 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20260913-0023-create-issue-status-toggle Replace the create-issue status dropdown with a toggle**](20260913-0023-create-issue-status-toggle.md) `P2`
 
 - [x] [**20260916-0520-sidebar-active-project-scroll Keep the active project visible in the sidebar rail**](20260916-0520-sidebar-active-project-scroll.md) `P2`
+- [x] [**DEV-004 Upgrade all workspace dependencies to latest**](DEV-004.md) `P2`
+- [x] [**UI-008 Render chat markdown with streamdown instead of Shiki highlighting**](UI-008.md) `P2`
+- [x] [**UI-009 Move assistant message actions to the footer as copy text / copy Markdown**](UI-009.md) `P2`
+- [x] [**UI-010 Render file-browser Markdown with streamdown and drop react-markdown**](UI-010.md) `P2`
 
 - [x] [**20260922-1703-mobile-desktop-ui-parity Align mobile and desktop UI and finish the BKD rename**](20260922-1703-mobile-desktop-ui-parity.md) `P1`
 

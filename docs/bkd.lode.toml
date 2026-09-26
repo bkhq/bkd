@@ -48,8 +48,8 @@ exec = "bun"
 runtime  = "bun"
 # CHANGE ME on arm64 (bun-linux-aarch64.zip) or macOS (bun-darwin-x64.zip /
 # bun-darwin-aarch64.zip).
-download = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.0/bun-linux-x64.zip"
-version  = "1.4.0"
+download = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-linux-x64.zip"
+version  = "1.4.2"
 
 # Defaults for the server; a host env var of the same name overrides them.
 [env]

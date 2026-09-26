@@ -26,7 +26,7 @@ bun run dev:frontend         # Vite dev server only (port 3000, registered at bk
 bun install                  # single install for all workspaces
 bun run test                 # run tests in all workspaces (parallel)
 bun run lint                 # lint all workspaces
-bun run typecheck            # typecheck API and frontend
+bun run typecheck            # tsc --noEmit in API and frontend (TS 7)
 bun run check                # lint, typecheck, tests, and frontend build
 
 # Backend (@bkd/api)

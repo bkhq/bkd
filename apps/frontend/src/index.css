@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+@source '../node_modules/streamdown/dist/*.js';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -311,7 +312,7 @@
 }
 
 /* ─── Shiki dual-theme (light/dark via CSS vars) ─── */
-/* !important needed so github-markdown-css cannot override */
+/* !important so themed wrappers cannot override */
 .shiki {
   color: var(--shiki-light) !important;
   background-color: var(--shiki-light-bg) !important;
@@ -331,25 +332,6 @@
 }
 
 /* Shiki markdown source rendering (AI messages) */
-.markdown-shiki .shiki,
-.markdown-shiki .shiki span {
-  background-color: transparent;
-}
-
-.markdown-shiki .shiki {
-  padding: 0.5rem;
-  overflow-x: auto;
-  font-family: var(--font-mono);
-  font-size: inherit;
-  line-height: inherit;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.markdown-shiki .shiki code {
-  font-family: inherit;
-}
-
 /* Tool code surface */
 .code-surface {
   border: 0;
@@ -377,15 +359,4 @@ diffs-container {
   --diffs-header-font-family: var(--font-sans);
   --diffs-font-size: 12px;
   --diffs-line-height: 20px;
-}
-
-/* ─── GFM task list checkboxes ─── */
-.markdown-body ul:has(> li > input[type='checkbox']) {
-  list-style: none;
-  padding-left: 0;
-}
-
-.markdown-body li > input[type='checkbox'] {
-  margin-right: 0.5rem;
-  accent-color: var(--primary);
 }

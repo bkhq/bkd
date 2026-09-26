@@ -24,7 +24,7 @@ Every release ships the operator files, so no repo checkout is needed:
 ```bash
 # 1. lode itself — on arm64 or macOS swap in the matching asset
 #    (lode-linux-arm64 / lode-darwin-x64 / lode-darwin-arm64)
-curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64.tar.gz \
+curl -fsSL https://github.com/dotns/lode/releases/latest/download/lode-linux-x64.tar.gz \
   | sudo tar -xz -C /usr/local/bin lode lode-cli
 
 # 2. an install root you own — lode writes state.json, versions/, runtime/ and
@@ -61,15 +61,24 @@ The sections below explain each part of that config.
 ## 1. Install lode
 
 Grab the binary for your host from the [lode releases](https://github.com/dotns/lode/releases)
-and put `lode` + the `lode-cli` symlink on `PATH`:
+and put `lode` + the `lode-cli` symlink on `PATH`. `releases/latest/download/`
+always resolves to the newest release, so the command never goes stale:
 
 ```bash
-curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64.tar.gz \
+curl -fsSL https://github.com/dotns/lode/releases/latest/download/lode-linux-x64.tar.gz \
   | sudo tar -xz -C /usr/local/bin lode lode-cli
 lode --version
 ```
 
-Pin the version you install — lode is the trust root of the update path.
+On a production host, pin the version instead — lode is the trust root of the
+update path, and you want to know which one you are running:
+
+```bash
+curl -fsSL https://github.com/dotns/lode/releases/download/v0.3.1/lode-linux-x64.tar.gz \
+  | sudo tar -xz -C /usr/local/bin lode lode-cli
+```
+
+Either way, `lode-cli self-update` moves an installed lode forward later.
 
 ## 2. Write `lode.toml`
 
@@ -100,8 +109,8 @@ exec = "bun"                 # `lode <args>` → passthrough, e.g. `lode run ser
 # or install bun yourself and drop this block (a bun on PATH always wins over the cache).
 [runtime]
 runtime  = "bun"
-download = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.0/bun-linux-x64.zip"
-version  = "1.4.0"
+download = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-linux-x64.zip"
+version  = "1.4.2"
 
 [env]
 ROOT_DIR = "/opt/bkd"     # keeps data/ outside the per-version directory — required

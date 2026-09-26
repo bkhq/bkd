@@ -205,6 +205,20 @@ Centered the sidebar rail on the active project
   the documented `async execution transitions to running then completed` timeout flake
   (684 pass, 1 fail), which passes in isolation and touches no changed code.
 
+## 2026-09-22 04:00 [decision]
+
+Merged `main` into `release` for the release -> main promotion (#145).
+
+- `release` carried the dependency-upgrade plan as `PLAN-020`, while `main` had
+  already allocated `PLAN-020` to the cron soft-delete fix. Renamed the release
+  plan to `20260909-0230-upgrade-dependencies.md` (its 2026-09-09 02:30 creation time)
+  and updated the references in `DEV-004` and the plan index. `PLAN-020` on
+  `main` is unchanged.
+- `MarkdownContent` conflict resolved in favour of the streamdown renderer from
+  #144; the Shiki memoization fix from the message-list work no longer applies
+  because that code path was removed. The message-list test for it was
+  superseded by the streamdown tests.
+
 ## 2026-09-22 17:12 [progress]
 
 20260922-1703-mobile-desktop-ui-parity / 20260922-1704: aligned mobile and desktop UI

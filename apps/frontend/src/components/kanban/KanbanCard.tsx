@@ -3,11 +3,11 @@ import {
   extractClosestEdge,
 } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
-import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
+import { combine } from '@atlaskit/pragmatic-drag-and-drop/utils/combine'
 import {
   draggable,
   dropTargetForElements,
-} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
+} from '@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter'
 import { Pin } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 import { IssueContextMenu, IssueContextMenuButton } from '@/components/issue-detail/IssueContextMenu'
