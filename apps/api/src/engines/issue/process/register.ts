@@ -126,9 +126,11 @@ export function register(
       debugLog.event('stdout_stream_ended')
       logger.debug({ issueId, executionId }, 'consume_stream_promise_resolved')
 
-      // Detect stdout pipe breakage: stream ended but process is still alive
+      // Detect stdout pipe breakage: stream ended but process is still alive.
+      // After an interrupt the engine may close stdout before it exits (grok
+      // on SIGTERM), which is shutdown, not breakage.
       const m = ctx.pm.get(executionId)?.meta
-      if (!m || m.turnSettled || m.state !== 'running') return
+      if (!m || m.turnSettled || m.state !== 'running' || m.lastInterruptAt) return
       const pid = getPidFromManaged(m)
       if (!pid) return
       let alive = false

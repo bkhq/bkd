@@ -41,7 +41,7 @@ export function FilePreviewModal({ item, onClose }: { item: PreviewItem, onClose
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
-      <DialogContent className="max-w-[600px] max-h-[80vh] overflow-hidden p-0">
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-hidden p-0">
         <DialogHeader className="flex flex-row items-center gap-2 px-4 py-3 border-b border-border/30 space-y-0">
           {isImage ?
               (

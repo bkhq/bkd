@@ -99,7 +99,7 @@ export function CreateProjectDialog({
         if (!v) reset()
       }}
     >
-      <DialogContent className="md:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t('project.create')}</DialogTitle>
           <DialogDescription>{t('project.createDescription')}</DialogDescription>

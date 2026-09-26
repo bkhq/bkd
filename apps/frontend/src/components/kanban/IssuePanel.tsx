@@ -103,7 +103,7 @@ export function IssuePanel({ projectId, issueId, onClose, hideHeaderActions }: I
             {editingTitle ?
                 (
                   <input
-                    className="text-sm font-semibold bg-transparent border-b-2 border-primary outline-none min-w-0 flex-1 tracking-tight"
+                    className="text-base md:text-sm font-semibold bg-transparent border-b-2 border-primary outline-none min-w-0 flex-1 tracking-tight"
                     value={titleDraft}
                     onChange={e => setTitleDraft(e.target.value)}
                     onBlur={saveTitle}

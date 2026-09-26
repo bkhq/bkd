@@ -7,10 +7,12 @@ import type {
 } from '@/engines/types'
 import { ClaudeCodeExecutor } from './claude'
 import { CodexExecutor } from './codex'
+import { GrokExecutor } from './grok'
 
 // Re-export executor classes
 export { ClaudeCodeExecutor } from './claude'
 export { CodexExecutor } from './codex'
+export { GrokExecutor } from './grok'
 
 /**
  * Default engine registry — manages all executor instances.
@@ -51,6 +53,7 @@ function createRegistry(): EngineRegistry {
   // Register all supported executors.
   registry.register(new ClaudeCodeExecutor())
   registry.register(new CodexExecutor())
+  registry.register(new GrokExecutor())
 
   return registry
 }

@@ -3,7 +3,7 @@ import type { Subprocess } from '@/engines/spawn'
 // ---------- Enums / Literal Unions ----------
 
 // Supported AI engine types
-export type EngineType = 'claude-code' | 'codex'
+export type EngineType = 'claude-code' | 'codex' | 'grok'
 
 // Communication protocols
 export type EngineProtocol = 'stream-json' | 'json-rpc'
@@ -274,6 +274,14 @@ export const BUILT_IN_PROFILES: Record<EngineType, EngineProfile> = {
     baseCommand: 'npx -y @openai/codex@latest app-server',
     protocol: 'json-rpc',
     capabilities: ['session-fork', 'setup-helper', 'context-usage', 'sandbox', 'reasoning'],
+    permissionPolicy: 'auto',
+  },
+  'grok': {
+    engineType: 'grok',
+    name: 'Grok',
+    baseCommand: 'grok',
+    protocol: 'stream-json',
+    capabilities: ['context-usage'],
     permissionPolicy: 'auto',
   },
 }

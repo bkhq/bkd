@@ -44,6 +44,8 @@ vi.mock('@/hooks/use-theme', () => ({
   useTheme: () => ({ resolved: 'light' }),
 }))
 
+vi.mock('@/components/kanban/AppSidebar', () => ({ AppSidebar: () => null }))
+vi.mock('@/components/kanban/MobileSidebar', () => ({ MobileSidebar: () => null }))
 vi.mock('@/hooks/use-kanban', () => ({
   useLocalSessions: (filters: unknown) => {
     mocks.listSessions(filters)

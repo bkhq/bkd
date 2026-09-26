@@ -132,6 +132,10 @@ The most complex subsystem — bridges API routes and CLI-based AI agents.
   unconditionally so subagent turns reach the chat, and an older CLI fails to start rather than
   silently hiding subagent activity (ENG-032)
 - `codex` — `json-rpc` protocol (JSONL JSON-RPC over stdio, process **stays alive** between turns)
+- `grok` — Grok Build CLI, `stream-json` protocol (`grok -p --output-format streaming-messages-json`, one prompt per
+  process, exits after the turn). Follow-up resumes with `-r <sessionId>`; cancel is SIGTERM so the CLI saves the
+  session. Headless mode has no stdin channel, so every permission policy runs with `bypassPermissions` and
+  pending messages wait for the next turn. Its normalizer is self-contained — do not import from `executors/claude/`
 
 Each engine has an executor in `executors/<name>/executor.ts` implementing `EngineExecutor` interface: `spawn`, `spawnFollowUp`, `cancel`, `getAvailability`, `getModels`, `normalizeLog`.
 

@@ -39,7 +39,7 @@ export function KanbanHeader({
           <button
             type="button"
             onClick={() => setShowSettings(true)}
-            className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-foreground/[0.07] transition-colors shrink-0"
+            className="rounded-md p-2 md:p-1 text-muted-foreground hover:text-foreground hover:bg-foreground/[0.07] transition-colors shrink-0"
             aria-label={t('project.settings')}
             title={t('project.settings')}
           >
@@ -49,7 +49,7 @@ export function KanbanHeader({
             <button
               type="button"
               onClick={() => toggleFileBrowser(project.id, project.directory ?? undefined)}
-              className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-foreground/[0.07] transition-colors shrink-0"
+              className="rounded-md p-2 md:p-1 text-muted-foreground hover:text-foreground hover:bg-foreground/[0.07] transition-colors shrink-0"
               aria-label={t('viewMode.files')}
               title={t('viewMode.files')}
             >
@@ -59,7 +59,7 @@ export function KanbanHeader({
           <button
             type="button"
             onClick={() => toggleProcessManager()}
-            className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-foreground/[0.07] transition-colors shrink-0"
+            className="rounded-md p-2 md:p-1 text-muted-foreground hover:text-foreground hover:bg-foreground/[0.07] transition-colors shrink-0"
             aria-label={t('processManager.title')}
             title={t('processManager.title')}
           >

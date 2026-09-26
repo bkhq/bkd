@@ -219,3 +219,42 @@ Merged `main` into `release` for the release -> main promotion (#145).
   because that code path was removed. The message-list test for it was
   superseded by the streamdown tests.
 
+## 2026-09-22 17:12 [progress]
+
+20260922-1703-mobile-desktop-ui-parity / 20260922-1704: aligned mobile and desktop UI
+and finished the BKD rename.
+
+- Global page links (Review, Cron, Local sessions) now come from one list,
+  `lib/global-pages.ts`, rendered by the desktop rail, the mobile sheet and both
+  home-page menus. The mobile sheet header shows the configured server name
+  (fallback `BKD`) and the SSE connection indicator. `/cron` and `/sessions` render
+  the desktop rail and the mobile menu trigger like `/review`.
+- Create-issue dialog is full-screen and scrollable below `md`. Dialog width
+  overrides use the `sm:` prefix so the base `sm:max-w-sm` no longer wins between
+  640 and 767px (`CreateIssueDialog`, `SettingsLayout`, `FilePreviewModal`,
+  `DirectoryPicker`, `CreateProjectDialog`, local-sessions import dialog).
+- Mobile touch targets: list-panel and kanban header buttons are 36px below `md`;
+  search, tag, description and title-edit inputs use 16px text below `md`.
+- Branding: `AppLogo` alt, `manifest.json`, package descriptions and the bundle
+  defines (`__BITK_*` -> `__BKD_*`) now say BKD. Favicon glyph stays `BK`.
+- Discovered and filed separately: 20260922-1712-api-execution-suite-order-flake.
+
+## 2026-09-24 08:05 [progress]
+
+20260923-1133-grok-engine: added Grok Build (`grok`) as a third engine type.
+
+- `executors/grok/`: headless executor (`-p ... --output-format streaming-messages-json
+  --permission-mode bypassPermissions`, `-s` for a new session, `-r` to resume, SIGTERM
+  to cancel) and a self-contained normalizer that maps Grok's tool set and decodes its
+  typed JSON tool results. Availability and models come from `grok --version` and
+  `grok models`.
+- `'grok'` wired into `EngineType`, built-in profiles, the executor registry, slash-command
+  cache, virtual-engine reserved ids, settings validation, and safe-env (`XAI_API_KEY`,
+  `GROK_HOME`). The context-usage pipeline stage now also runs for grok.
+- `register.ts`: the stdout-pipe-broke diagnostic is skipped after an interrupt — grok
+  closes stdout before exiting on SIGTERM, which is shutdown, not breakage.
+- Out of scope: local session browser/import, virtual engines based on grok, slash-command
+  discovery, usage panel, mid-turn messages, interactive permission approval.
+- Verified end to end on grok 1.0.41 against an isolated API instance: execute, follow-up
+  with context, cancel mid-command, resume after cancel; token/cost and context window
+  recorded.

@@ -95,7 +95,7 @@ export function ReviewListPanel({
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder={t('common.search')}
-            className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/40"
+            className="flex-1 bg-transparent text-base md:text-xs outline-none placeholder:text-muted-foreground/40"
           />
         </div>
       </div>

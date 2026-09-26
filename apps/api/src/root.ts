@@ -2,12 +2,12 @@ import { resolve } from 'node:path'
 
 /**
  * Whether this build was created by `scripts/package.ts`.
- * Injected at bundle time via `--define __BITK_PACKAGE_MODE__=true`.
+ * Injected at bundle time via `--define __BKD_PACKAGE_MODE__=true`.
  * In dev the global is never defined, so we default to false.
  */
-declare const __BITK_PACKAGE_MODE__: boolean | undefined
+declare const __BKD_PACKAGE_MODE__: boolean | undefined
 const IS_PACKAGE_MODE: boolean =
-  typeof __BITK_PACKAGE_MODE__ !== 'undefined' ? __BITK_PACKAGE_MODE__ : false
+  typeof __BKD_PACKAGE_MODE__ !== 'undefined' ? __BKD_PACKAGE_MODE__ : false
 
 /**
  * Installation root — where `data/` lives. It must stay stable across upgrades,

@@ -1,4 +1,4 @@
-import { Eye, Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucide-react'
+import { Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -11,6 +11,7 @@ import { ViewModeSelect } from '@/components/ViewModeSelect'
 import { useEventConnection } from '@/hooks/use-event-connection'
 import { useProjects } from '@/hooks/use-kanban'
 import { getProjectInitials } from '@/lib/format'
+import { GLOBAL_PAGES } from '@/lib/global-pages'
 import { useNotesStore } from '@/stores/notes-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
@@ -189,16 +190,19 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
           )}
         </Button>
         <ViewModeSelect activeProjectId={activeProjectId} />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 text-muted-foreground"
-          aria-label={t('viewMode.review')}
-          title={t('viewMode.review')}
-          onClick={() => navigate('/review')}
-        >
-          <Eye className="h-4 w-4" />
-        </Button>
+        {GLOBAL_PAGES.map(({ id, path, icon: Icon, labelKey }) => (
+          <Button
+            key={id}
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 text-muted-foreground"
+            aria-label={t(labelKey)}
+            title={t(labelKey)}
+            onClick={() => navigate(path)}
+          >
+            <Icon className="h-4 w-4" />
+          </Button>
+        ))}
         <Button
           variant="ghost"
           size="icon"

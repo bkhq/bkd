@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.0.6",
   "private": true,
-  "description": "Frontend application for the Bitk workspace.",
+  "description": "Frontend application for the BKD workspace.",
   "homepage": "https://github.com/bkhq",
   "repository": {
     "type": "git",

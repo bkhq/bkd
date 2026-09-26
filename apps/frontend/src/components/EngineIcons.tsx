@@ -40,9 +40,24 @@ export function CodexIcon(props: IconProps) {
   )
 }
 
+/** xAI / Grok — slashed X mark */
+export function GrokIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path
+        d="M4 4l9.5 16M20 3L10.5 20M4.5 20l4-6.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 const ENGINE_ICONS: Partial<Record<string, React.FC<IconProps>>> = {
   'claude-code': ClaudeIcon,
   'codex': CodexIcon,
+  'grok': GrokIcon,
 }
 
 export function EngineIcon({ engineType, ...props }: IconProps & { engineType: string }) {

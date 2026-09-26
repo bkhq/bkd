@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-09-13
+> Updated: 2026-09-22
 
 ## Usage
 
@@ -123,3 +123,8 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**UI-008 Render chat markdown with streamdown instead of Shiki highlighting**](UI-008.md) `P2`
 - [x] [**UI-009 Move assistant message actions to the footer as copy text / copy Markdown**](UI-009.md) `P2`
 - [x] [**UI-010 Render file-browser Markdown with streamdown and drop react-markdown**](UI-010.md) `P2`
+
+- [x] [**20260922-1703-mobile-desktop-ui-parity Align mobile and desktop UI and finish the BKD rename**](20260922-1703-mobile-desktop-ui-parity.md) `P1`
+
+- [ ] [**20260922-1712-api-execution-suite-order-flake Auto-execute test times out in the full API suite**](20260922-1712-api-execution-suite-order-flake.md) `P2`
+- [x] [**20260923-1133-grok-engine Add Grok Build CLI as an engine**](20260923-1133-grok-engine.md) `P1`

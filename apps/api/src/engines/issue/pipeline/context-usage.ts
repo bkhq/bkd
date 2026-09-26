@@ -7,7 +7,7 @@ import { logger } from '@/logger'
 import type { EngineContext } from '../context'
 
 /**
- * Order 16 — Live context-window usage (claude-code only).
+ * Order 16 — Live context-window usage (claude-code and grok).
  *
  * - `token-usage` entries (from message_delta usage) carry the current
  *   context size: input (incl. cache read/creation) + output tokens.
@@ -24,7 +24,7 @@ export function registerContextUsageStage(
   return on(
     (data) => {
       const engineType = ctx.pm.get(data.executionId)?.meta.engineType
-      if (engineType !== 'claude-code') return
+      if (engineType !== 'claude-code' && engineType !== 'grok') return
 
       const meta = data.entry.metadata
       if (!meta) return

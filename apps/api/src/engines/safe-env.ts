@@ -44,6 +44,7 @@ const PROTECTED_KEYS = new Set([
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'CODEX_API_KEY',
+  'XAI_API_KEY',
 ])
 
 /**
@@ -53,12 +54,14 @@ const PROTECTED_KEYS = new Set([
 const ENGINE_API_KEYS: Record<string, string[]> = {
   'claude-code': ['ANTHROPIC_API_KEY'],
   'codex': ['OPENAI_API_KEY', 'CODEX_API_KEY'],
+  'grok': ['XAI_API_KEY'],
 }
 
 const ALL_API_KEYS = new Set([
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'CODEX_API_KEY',
+  'XAI_API_KEY',
 ])
 
 /**
@@ -77,6 +80,9 @@ const SAFE_ENV_KEYS = [
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'CODEX_API_KEY',
+  'XAI_API_KEY',
+  // Grok config/auth directory override
+  'GROK_HOME',
   // Sandbox flag (allows --dangerously-skip-permissions as root)
   'IS_SANDBOX',
   // Commonly needed

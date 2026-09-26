@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.0.6",
   "private": true,
-  "description": "Backend API for the Bitk workspace.",
+  "description": "Backend API for the BKD workspace.",
   "homepage": "https://github.com/bkhq",
   "repository": {
     "type": "git",

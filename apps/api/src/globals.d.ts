@@ -1,2 +1,2 @@
-declare const __BITK_VERSION__: string
-declare const __BITK_COMMIT__: string
+declare const __BKD_VERSION__: string
+declare const __BKD_COMMIT__: string
