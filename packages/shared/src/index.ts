@@ -23,7 +23,7 @@ export interface Project {
   updatedAt: string
 }
 
-export type EngineType = 'claude-code' | 'codex' | 'grok'
+export type EngineType = 'claude-code' | 'codex' | 'grok' | 'cursor'
 
 export interface PluginInfo { name: string, path: string }
 

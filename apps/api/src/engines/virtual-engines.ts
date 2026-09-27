@@ -7,7 +7,7 @@ import type { EngineAvailability, EngineModel, EngineProfile, EngineType } from 
 export const VIRTUAL_ENGINES_KEY = 'engine:virtualEngines'
 
 /** Reserved ids that cannot be used as a virtual engine id (real engine types). */
-const RESERVED_IDS = new Set<string>(['claude-code', 'codex', 'grok'])
+const RESERVED_IDS = new Set<string>(['claude-code', 'codex', 'grok', 'cursor'])
 
 const ID_PATTERN = /^[\w.\-:]{1,64}$/
 const ENV_KEY_PATTERN = /^[A-Z_]\w*$/i

@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-09-22
+> Updated: 2026-09-24
 
 ## Usage
 
@@ -124,3 +124,4 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [ ] [**20260922-1712-api-execution-suite-order-flake Auto-execute test times out in the full API suite**](20260922-1712-api-execution-suite-order-flake.md) `P2`
 - [x] [**20260923-1133-grok-engine Add Grok Build CLI as an engine**](20260923-1133-grok-engine.md) `P1`
+- [x] [**20260924-0914-cursor-engine Add Cursor CLI as an engine**](20260924-0914-cursor-engine.md) `P1`

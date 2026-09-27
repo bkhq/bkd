@@ -135,6 +135,11 @@ The most complex subsystem — bridges API routes and CLI-based AI agents.
   process, exits after the turn). Follow-up resumes with `-r <sessionId>`; cancel is SIGTERM so the CLI saves the
   session. Headless mode has no stdin channel, so every permission policy runs with `bypassPermissions` and
   pending messages wait for the next turn. Its normalizer is self-contained — do not import from `executors/claude/`
+- `cursor` — Cursor CLI (`cursor-agent`), `stream-json` protocol (`cursor-agent -p --output-format stream-json --force
+  --trust --workspace <dir>`, one prompt per process, exits after the turn). `--resume <id>` creates the session when
+  the id is unknown and resumes it otherwise, so the first turn passes BKD's pre-generated id. Cancel is SIGTERM. Only
+  the legacy `cursor-agent` name is resolved: the `agent` name collides with grok's alias. Its normalizer is
+  self-contained
 
 Each engine has an executor in `executors/<name>/executor.ts` implementing `EngineExecutor` interface: `spawn`, `spawnFollowUp`, `cancel`, `getAvailability`, `getModels`, `normalizeLog`.
 

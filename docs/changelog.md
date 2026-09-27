@@ -244,3 +244,28 @@ and finished the BKD rename.
 - Verified end to end on grok 1.0.41 against an isolated API instance: execute, follow-up
   with context, cancel mid-command, resume after cancel; token/cost and context window
   recorded.
+
+## 2026-09-24 10:05 [progress]
+
+20260924-0914-cursor-engine: added Cursor CLI (`cursor`) as a fourth engine type.
+
+- `executors/cursor/`: headless executor (`cursor-agent -p --output-format stream-json
+  --force --trust --workspace <dir> --resume <id> [--model <m>] <prompt>`, SIGTERM to
+  cancel) and a self-contained normalizer for the `system/init`, `thinking` delta,
+  `assistant`, `tool_call` (`<name>ToolCall.{args,result}`) and `result` events.
+  Token usage comes from `result.usage` (input + cache read + cache write).
+- `--resume <uuid>` creates the session when the id is unknown, so BKD's pre-generated
+  `externalSessionId` is passed on the first turn; no `create-chat` round-trip.
+- Only `cursor-agent` is resolved (PATH, then `~/.local/bin`): the primary `agent` name
+  collides with grok's alias, and every Cursor run rewrites `~/.local/bin/agent` to
+  point at itself.
+- `'cursor'` wired into `EngineType`, built-in profiles, the executor registry,
+  slash-command cache, virtual-engine reserved ids, settings validation and safe-env
+  (`CURSOR_API_KEY`). Frontend gets an engine icon.
+- Pitfall: the CLI blocks when stdin is an inherited pipe (`create-chat` hung for
+  minutes); every subprocess uses `stdin: 'ignore'`.
+- Out of scope: partial-output streaming, local session browser/import, virtual
+  engines based on cursor, slash-command discovery, MCP approval, plan mode.
+- Verified end to end on cursor-agent 2026.09.23-86fc751 against an isolated API
+  instance: probe (installed + authenticated, 241 models), execute, follow-up with
+  context, cancel mid-command (SIGTERM, exit 143, session kept), follow-up after cancel.

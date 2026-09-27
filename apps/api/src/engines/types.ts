@@ -3,7 +3,7 @@ import type { Subprocess } from '@/engines/spawn'
 // ---------- Enums / Literal Unions ----------
 
 // Supported AI engine types
-export type EngineType = 'claude-code' | 'codex' | 'grok'
+export type EngineType = 'claude-code' | 'codex' | 'grok' | 'cursor'
 
 // Communication protocols
 export type EngineProtocol = 'stream-json' | 'json-rpc'
@@ -282,6 +282,14 @@ export const BUILT_IN_PROFILES: Record<EngineType, EngineProfile> = {
     baseCommand: 'grok',
     protocol: 'stream-json',
     capabilities: ['context-usage'],
+    permissionPolicy: 'auto',
+  },
+  'cursor': {
+    engineType: 'cursor',
+    name: 'Cursor',
+    baseCommand: 'cursor-agent',
+    protocol: 'stream-json',
+    capabilities: [],
     permissionPolicy: 'auto',
   },
 }
