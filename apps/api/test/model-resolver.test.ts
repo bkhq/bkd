@@ -34,11 +34,11 @@ describe('pickExecutionModel', () => {
 
 describe('resolveExecutionModel', () => {
   test('resolves auto/unknown to the engine default', async () => {
-    expect(await resolveExecutionModel('claude-code', 'auto')).toBe('claude-opus-5')
-    expect(await resolveExecutionModel('claude-code', 'claude-opus-4-8')).toBe('claude-opus-5')
+    expect(await resolveExecutionModel('claude-code', 'auto')).toBe('claude-sonnet-5-5')
+    expect(await resolveExecutionModel('claude-code', 'claude-opus-4-8')).toBe('claude-sonnet-5-5')
     expect(await resolveExecutionModel('claude-code', 'claude-fable-5-1')).toBe('claude-fable-5-1')
     // Fable 5 is gone from the catalog; a pinned issue falls back to the default.
-    expect(await resolveExecutionModel('claude-code', 'claude-fable-5')).toBe('claude-opus-5')
+    expect(await resolveExecutionModel('claude-code', 'claude-fable-5')).toBe('claude-sonnet-5-5')
   })
 
   test('claude-code ignores a stale cached model list (static catalog wins)', async () => {
@@ -52,8 +52,8 @@ describe('resolveExecutionModel', () => {
       ] satisfies EngineModel[],
       60,
     )
-    expect(await resolveExecutionModel('claude-code', 'claude-opus-4-8')).toBe('claude-opus-5')
-    expect(await resolveExecutionModel('claude-code', 'auto')).toBe('claude-opus-5')
+    expect(await resolveExecutionModel('claude-code', 'claude-opus-4-8')).toBe('claude-sonnet-5-5')
+    expect(await resolveExecutionModel('claude-code', 'auto')).toBe('claude-sonnet-5-5')
   })
 
   test('passes through for virtual engine profiles', async () => {
