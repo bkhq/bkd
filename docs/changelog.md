@@ -269,3 +269,31 @@ and finished the BKD rename.
 - Verified end to end on cursor-agent 2026.09.23-86fc751 against an isolated API
   instance: probe (installed + authenticated, 241 models), execute, follow-up with
   context, cancel mid-command (SIGTERM, exit 143, session kept), follow-up after cancel.
+
+## 2026-09-29 10:50 [BUG-P1]
+
+Agent messages could not be selected — and therefore not copied — by long-pressing
+on a touch device; user messages in the same stream selected normally.
+
+Not a touch-event problem: neither message component registers a pointer or touch
+handler. The difference is the render path. A user message is a plain `div`
+(`LogEntry.tsx`, `UserMessageEntry`), while an agent message goes through
+`MarkdownContent` → Shiki → `dangerouslySetInnerHTML`, and Shiki wraps its output in
+`<pre class="shiki" tabindex="0">` which `.markdown-shiki .shiki` then made a
+horizontal scroll container. A focusable element resolves a long press as focus, a
+scrollable one resolves it as a pan; the global `* { touch-action: manipulation }`
+compounds both.
+
+- `MarkdownContent.tsx` sanitizes with `FORBID_ATTR: ['tabindex']`. DOMPurify's
+  default allowlist includes `tabindex` (`dompurify/src/attrs.ts`), so the attribute
+  had been surviving into the DOM.
+- `.markdown-shiki .shiki` drops `overflow-x: auto` for `visible` — the rule already
+  sets `white-space: pre-wrap` and `word-break: break-word`, so the body wraps and the
+  horizontal scroll was redundant — and adds `touch-action: auto` plus an explicit
+  `user-select: text`.
+
+Not verified on hardware: `agent-browser`'s bundled Chrome will not start in this
+container (`libatk-1.0.so.0` missing), and long-press-to-select only reproduces on a
+real touch device. The three causes are confirmed at the code level (Shiki output,
+CSS rule, DOMPurify allowlist). If selection still fails on a phone, `tabindex` is the
+first suspect. Task: `20260929-1043-mobile-agent-message-selection`.

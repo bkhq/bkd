@@ -33,6 +33,14 @@ describe('markdownContent', () => {
     expect(container).toHaveTextContent('first updated')
   })
 
+  it('strips the tabindex Shiki puts on the code block', async () => {
+    // A focusable message body swallows long-press-to-select on touch devices.
+    vi.mocked(codeToHtml).mockResolvedValue('<pre class="shiki" tabindex="0"><code>hello</code></pre>')
+    const { container } = render(<MarkdownContent content="hello" />)
+    await waitFor(() => expect(container.querySelector('.shiki')).not.toBeNull())
+    expect(container.querySelector('[tabindex]')).toBeNull()
+  })
+
   it('ignores obsolete highlight results and removes cleared content', async () => {
     let oldResult!: (html: string) => void
     vi.mocked(codeToHtml).mockImplementationOnce(() => new Promise((resolve) => {

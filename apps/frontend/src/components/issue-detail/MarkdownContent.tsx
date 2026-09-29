@@ -132,7 +132,12 @@ export function MarkdownContent({
   const { images, text } = useMemo(() => splitImages(content), [content])
   const formatted = useMemo(() => preprocessContent(text), [text])
   const [html, setHtml] = useState('')
-  const sanitizedHtml = useMemo(() => html ? DOMPurify.sanitize(html) : '', [html])
+  // Shiki marks its <pre> with tabindex="0"; a focusable body swallows
+  // long-press-to-select on touch devices.
+  const sanitizedHtml = useMemo(
+    () => html ? DOMPurify.sanitize(html, { FORBID_ATTR: ['tabindex'] }) : '',
+    [html],
+  )
 
   useEffect(() => {
     if (!formatted) {
