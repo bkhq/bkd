@@ -1,4 +1,4 @@
-import { cleanup, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppSidebar } from '@/components/kanban/AppSidebar'
 
@@ -8,8 +8,10 @@ const projects = [
   { id: 'p3', name: 'Gamma' },
 ]
 
+const navigate = vi.fn()
+
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
-vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }))
+vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }))
 vi.mock('@/hooks/use-kanban', () => ({ useProjects: () => ({ data: projects }) }))
 vi.mock('@/hooks/use-event-connection', () => ({ useEventConnection: () => true }))
 vi.mock('@/components/AppSettingsDialog', () => ({ AppSettingsDialog: () => null }))
@@ -25,6 +27,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   scrollIntoView.mockClear()
+  navigate.mockClear()
 })
 
 describe('appSidebar project rail', () => {
@@ -50,6 +53,74 @@ describe('appSidebar project rail', () => {
     render(<AppSidebar activeProjectId="" />)
 
     expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+})
+
+describe('appSidebar project flyout', () => {
+  it('stays closed until the project area is hovered', () => {
+    const { queryByTestId } = render(<AppSidebar activeProjectId="p1" />)
+
+    expect(queryByTestId('project-flyout')).toBeNull()
+  })
+
+  it('lists every project by full name on hover', () => {
+    const { getByTestId } = render(<AppSidebar activeProjectId="p1" />)
+
+    fireEvent.mouseEnter(getByTestId('project-rail'))
+
+    const flyout = getByTestId('project-flyout')
+    for (const project of projects) {
+      expect(flyout).toHaveTextContent(project.name)
+    }
+  })
+
+  it('navigates when a flyout row is clicked', () => {
+    const { getByTestId, getByRole } = render(<AppSidebar activeProjectId="p1" />)
+    fireEvent.mouseEnter(getByTestId('project-rail'))
+
+    fireEvent.click(getByRole('menuitem', { name: 'Gamma' }))
+
+    expect(navigate).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks the active project in the flyout', () => {
+    const { getByTestId, getByRole } = render(<AppSidebar activeProjectId="p2" />)
+
+    fireEvent.mouseEnter(getByTestId('project-rail'))
+
+    expect(getByRole('menuitem', { name: 'Beta' })).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('keeps the flyout open while the pointer crosses into it', () => {
+    vi.useFakeTimers()
+    try {
+      const { getByTestId, queryByTestId } = render(<AppSidebar activeProjectId="p1" />)
+      fireEvent.mouseEnter(getByTestId('project-rail'))
+
+      // Crossing the gap fires leave on the rail before enter on the flyout.
+      fireEvent.mouseLeave(getByTestId('project-rail'))
+      fireEvent.mouseEnter(getByTestId('project-flyout'))
+      act(() => void vi.advanceTimersByTime(500))
+
+      expect(queryByTestId('project-flyout')).not.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('closes shortly after the pointer leaves', () => {
+    vi.useFakeTimers()
+    try {
+      const { getByTestId, queryByTestId } = render(<AppSidebar activeProjectId="p1" />)
+      fireEvent.mouseEnter(getByTestId('project-rail'))
+
+      fireEvent.mouseLeave(getByTestId('project-rail'))
+      act(() => void vi.advanceTimersByTime(500))
+
+      expect(queryByTestId('project-flyout')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

@@ -344,6 +344,7 @@
   "sidebar": {
     "home": "主页",
     "menu": "菜单",
+    "projects": "项目",
     "createProject": "创建项目",
     "settings": "设置"
   },

@@ -17,6 +17,8 @@ import { useTerminalStore } from '@/stores/terminal-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import type { Project } from '@/types/kanban'
 
+const INITIALS_CLASS = 'flex items-center justify-center w-9 h-9 shrink-0 rounded-lg text-[11px] font-bold transition-all'
+
 function ProjectButton({
   project,
   isActive,
@@ -27,7 +29,6 @@ function ProjectButton({
   onClick: () => void
 }) {
   const btnRef = useRef<HTMLButtonElement>(null)
-  const [tooltip, setTooltip] = useState<{ x: number, y: number } | null>(null)
 
   // The rail hides its scrollbar, so an active project outside the visible
   // range leaves no on-screen trace of which project is selected.
@@ -36,52 +37,93 @@ function ProjectButton({
     btnRef.current?.scrollIntoView({ block: 'center' })
   }, [isActive])
 
-  const showTooltip = () => {
-    const rect = btnRef.current?.getBoundingClientRect()
-    if (rect) {
-      setTooltip({ x: rect.right + 10, y: rect.top + rect.height / 2 })
-    }
-  }
-
   return (
-    <>
-      <div className="relative flex items-center justify-center">
-        {isActive ?
-            (
-              <span className="absolute left-[-9px] h-5 w-[3px] rounded-r-full bg-primary" />
-            ) :
-          null}
-        <button
-          ref={btnRef}
-          type="button"
-          onClick={onClick}
-          onMouseEnter={showTooltip}
-          onMouseLeave={() => setTooltip(null)}
-          className={`flex items-center justify-center w-9 h-9 rounded-lg text-[11px] font-bold transition-all cursor-pointer focus:outline-none ${
-            isActive ?
-              'bg-primary text-primary-foreground shadow-sm' :
-              'bg-foreground/[0.07] text-foreground/60 hover:bg-foreground/[0.13] hover:text-foreground/80'
-          }`}
-          aria-label={project.name}
-        >
-          {getProjectInitials(project.name)}
-        </button>
-      </div>
-      {tooltip ?
+    <div className="relative flex items-center justify-center">
+      {isActive ?
           (
-            <div
-              className="fixed z-[100] whitespace-nowrap rounded-md bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md border border-border pointer-events-none animate-in fade-in-0 zoom-in-95 duration-100"
-              style={{
-                left: tooltip.x,
-                top: tooltip.y,
-                transform: 'translateY(-50%)',
-              }}
-            >
-              {project.name}
-            </div>
+            <span className="absolute left-[-9px] h-5 w-[3px] rounded-r-full bg-primary" />
           ) :
         null}
-    </>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={onClick}
+        className={`${INITIALS_CLASS} cursor-pointer focus:outline-none ${
+          isActive ?
+            'bg-primary text-primary-foreground shadow-sm' :
+            'bg-foreground/[0.07] text-foreground/60 hover:bg-foreground/[0.13] hover:text-foreground/80'
+        }`}
+        aria-label={project.name}
+      >
+        {getProjectInitials(project.name)}
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Full project names, opened by hovering the rail. Two-letter initials collide
+ * and a per-button tooltip only reveals one name at a time.
+ */
+function ProjectFlyout({
+  projects,
+  activeProjectId,
+  anchor,
+  onSelect,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  projects: Project[]
+  activeProjectId: string
+  anchor: { left: number, top: number }
+  onSelect: (project: Project) => void
+  onMouseEnter: () => void
+  onMouseLeave: () => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div
+      data-testid="project-flyout"
+      role="menu"
+      aria-label={t('sidebar.projects')}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className="fixed z-[100] w-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg animate-in fade-in-0 zoom-in-95 duration-100"
+      style={{
+        left: anchor.left,
+        top: anchor.top,
+        maxHeight: `calc(100vh - ${anchor.top}px - 0.5rem)`,
+      }}
+    >
+      {projects.map((project) => {
+        const isActive = activeProjectId === project.id
+        return (
+          <button
+            key={project.id}
+            type="button"
+            role="menuitem"
+            aria-current={isActive ? 'true' : undefined}
+            onClick={() => onSelect(project)}
+            className={`flex w-full items-center gap-2 rounded-md p-1 pr-2 text-left text-sm cursor-pointer focus:outline-none ${
+              isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60'
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`${INITIALS_CLASS} ${
+                isActive ?
+                  'bg-primary text-primary-foreground' :
+                  'bg-foreground/[0.07] text-foreground/60'
+              }`}
+            >
+              {getProjectInitials(project.name)}
+            </span>
+            <span className="truncate">{project.name}</span>
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
@@ -97,6 +139,25 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
   const isTerminalMinimized = useTerminalStore(s => s.isMinimized)
   const toggleNotes = useNotesStore(s => s.toggle)
   const isNotesMinimized = useNotesStore(s => s.isMinimized)
+
+  const railRef = useRef<HTMLDivElement>(null)
+  const [flyoutAnchor, setFlyoutAnchor] = useState<{ left: number, top: number } | null>(null)
+  // Crossing the gap between rail and flyout fires mouseleave before the
+  // flyout's mouseenter; closing on a delay keeps it from flickering shut.
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const openFlyout = useCallback(() => {
+    clearTimeout(closeTimer.current)
+    const rect = railRef.current?.getBoundingClientRect()
+    setFlyoutAnchor({ left: (rect?.right ?? 0) + 4, top: rect?.top ?? 0 })
+  }, [])
+
+  const closeFlyout = useCallback(() => {
+    clearTimeout(closeTimer.current)
+    closeTimer.current = setTimeout(setFlyoutAnchor, 120, null)
+  }, [])
+
+  useEffect(() => () => clearTimeout(closeTimer.current), [])
 
   const handleProjectCreated = useCallback(
     (project: Project) => {
@@ -123,6 +184,10 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
 
       {/* Project list */}
       <div
+        ref={railRef}
+        data-testid="project-rail"
+        onMouseEnter={openFlyout}
+        onMouseLeave={closeFlyout}
         className="flex flex-col items-center gap-2 overflow-y-auto flex-1 py-1 px-1"
         style={{ scrollbarWidth: 'none' }}
       >
@@ -135,6 +200,21 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
           />
         ))}
       </div>
+      {flyoutAnchor && projects?.length ?
+          (
+            <ProjectFlyout
+              projects={projects}
+              activeProjectId={activeProjectId}
+              anchor={flyoutAnchor}
+              onSelect={(project) => {
+                setFlyoutAnchor(null)
+                void navigate(projectPath(project.id))
+              }}
+              onMouseEnter={openFlyout}
+              onMouseLeave={closeFlyout}
+            />
+          ) :
+        null}
 
       {/* Create project */}
       <Button

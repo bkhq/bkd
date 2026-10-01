@@ -297,3 +297,25 @@ container (`libatk-1.0.so.0` missing), and long-press-to-select only reproduces 
 real touch device. The three causes are confirmed at the code level (Shiki output,
 CSS rule, DOMPurify allowlist). If selection still fails on a phone, `tabindex` is the
 first suspect. Task: `20260929-1043-mobile-agent-message-selection`.
+
+## 2026-10-01 15:42 [progress]
+
+The desktop rail now reveals the full project list on hover. Two-letter initials
+from `getProjectInitials()` collide, and the old per-button tooltip surfaced one
+name at a time, so there was no way to scan the list.
+
+- `AppSidebar.tsx`: new `ProjectFlyout` anchored to the right edge of the rail,
+  listing every project as initials plus full name, active row marked with
+  `aria-current`, scrolling via a `max-height` derived from the anchor so it
+  cannot overflow the viewport. The per-button tooltip is gone.
+- The rail and the flyout share one hover region and close on a 120 ms delay:
+  crossing the gap fires `mouseleave` on the rail before `mouseenter` on the
+  flyout, which would otherwise flicker it shut.
+- Rail buttons still navigate on click; `MobileSidebar` and the rest of the rail
+  are untouched. New i18n key `sidebar.projects` (en/zh).
+
+Rejected alternative: expanding the whole rail on hover. The lower half carries
+the connection indicator, terminal, notes, view-mode select, global pages and
+settings, all of which would have had to become labelled rows.
+
+Task: `20261001-1538-sidebar-project-flyout`.

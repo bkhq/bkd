@@ -345,6 +345,7 @@
   "sidebar": {
     "home": "Home",
     "menu": "Menu",
+    "projects": "Projects",
     "createProject": "Create project",
     "settings": "Settings"
   },
