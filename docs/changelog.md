@@ -354,3 +354,13 @@ rising with concurrency.
 
 Investigation, evidence and the approved proposal came from the reporter; task
 `20261001-1313-reconciler-start-race`.
+
+## 2026-10-01 16:55 [progress]
+
+The sidebar hover flyout now lists plain project names. The initials badge on each
+row duplicated the rail buttons next to it and added nothing once the full name is
+shown. Row padding was retuned for text-only rows, and the active row is marked with
+`font-medium` on top of the existing highlight. The rail buttons keep their initials.
+
+Considered and dropped: showing only a few pinned projects in the rail with a "more"
+button for the full list. Follow-up to `20261001-1538-sidebar-project-flyout`.

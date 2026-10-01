@@ -17,8 +17,6 @@ import { useTerminalStore } from '@/stores/terminal-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import type { Project } from '@/types/kanban'
 
-const INITIALS_CLASS = 'flex items-center justify-center w-9 h-9 shrink-0 rounded-lg text-[11px] font-bold transition-all'
-
 function ProjectButton({
   project,
   isActive,
@@ -48,7 +46,7 @@ function ProjectButton({
         ref={btnRef}
         type="button"
         onClick={onClick}
-        className={`${INITIALS_CLASS} cursor-pointer focus:outline-none ${
+        className={`flex items-center justify-center w-9 h-9 rounded-lg text-[11px] font-bold transition-all cursor-pointer focus:outline-none ${
           isActive ?
             'bg-primary text-primary-foreground shadow-sm' :
             'bg-foreground/[0.07] text-foreground/60 hover:bg-foreground/[0.13] hover:text-foreground/80'
@@ -62,8 +60,8 @@ function ProjectButton({
 }
 
 /**
- * Full project names, opened by hovering the rail. Two-letter initials collide
- * and a per-button tooltip only reveals one name at a time.
+ * Plain list of full project names, opened by hovering the rail. Two-letter
+ * initials collide and a per-button tooltip only reveals one name at a time.
  */
 function ProjectFlyout({
   projects,
@@ -105,21 +103,11 @@ function ProjectFlyout({
             role="menuitem"
             aria-current={isActive ? 'true' : undefined}
             onClick={() => onSelect(project)}
-            className={`flex w-full items-center gap-2 rounded-md p-1 pr-2 text-left text-sm cursor-pointer focus:outline-none ${
-              isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60'
+            className={`block w-full truncate rounded-md px-2.5 py-1.5 text-left text-sm cursor-pointer focus:outline-none ${
+              isActive ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-accent/60'
             }`}
           >
-            <span
-              aria-hidden="true"
-              className={`${INITIALS_CLASS} ${
-                isActive ?
-                  'bg-primary text-primary-foreground' :
-                  'bg-foreground/[0.07] text-foreground/60'
-              }`}
-            >
-              {getProjectInitials(project.name)}
-            </span>
-            <span className="truncate">{project.name}</span>
+            {project.name}
           </button>
         )
       })}

@@ -74,6 +74,14 @@ describe('appSidebar project flyout', () => {
     }
   })
 
+  it('lists names only, without the initials badge', () => {
+    const { getByTestId, getByRole } = render(<AppSidebar activeProjectId="p1" />)
+    fireEvent.mouseEnter(getByTestId('project-rail'))
+
+    // A row is just the project name; the rail buttons keep the initials.
+    expect(getByRole('menuitem', { name: 'Alpha' }).textContent).toBe('Alpha')
+  })
+
   it('navigates when a flyout row is clicked', () => {
     const { getByTestId, getByRole } = render(<AppSidebar activeProjectId="p1" />)
     fireEvent.mouseEnter(getByTestId('project-rail'))
