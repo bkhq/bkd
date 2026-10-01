@@ -12,6 +12,7 @@ function createContext(): EngineContext {
     userMessageIds: new Map(),
     lastErrors: new Map(),
     lockDepth: new Map(),
+    startsInFlight: new Map(),
     followUpIssue: null,
   }
 }

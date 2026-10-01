@@ -13,6 +13,12 @@ export interface EngineContext {
   readonly lastErrors: Map<string, string>
   /** Per-issue lock queue depth tracking. */
   readonly lockDepth: Map<string, number>
+  /**
+   * Per-issue count of starts that have committed to 'working' but whose
+   * process is not registered yet. The reconciler treats these as live so it
+   * cannot mark a starting execution stale.
+   */
+  readonly startsInFlight: Map<string, number>
   /** Injected function reference — breaks lifecycle → orchestration cycle. */
   followUpIssue:
     | ((

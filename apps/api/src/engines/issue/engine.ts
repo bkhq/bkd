@@ -51,6 +51,7 @@ export class IssueEngine {
       userMessageIds: new Map(),
       lastErrors: new Map(),
       lockDepth: new Map(),
+      startsInFlight: new Map(),
       // Placeholder — injected below after ctx is created
       followUpIssue: null,
     }
@@ -148,6 +149,41 @@ export class IssueEngine {
 
   async restartStaleSessions(): Promise<number> {
     return restartStaleSessions()
+  }
+
+  // ---- Start tracking ----
+
+  /**
+   * Mark an issue as starting for the duration of `fn`.
+   *
+   * A start puts the issue in 'working' before the engine operation takes the
+   * issue lock, writes sessionStatus='running' and awaits the executor's
+   * spawn; the process only registers once that resolves. Without this the
+   * reconciler sees 'working' with no process and marks the issue stale while
+   * the turn is about to run. Wrap a start from just before its first write
+   * that commits the issue to 'working'.
+   *
+   * The counter is raised synchronously, before `fn` runs, so a reconciler
+   * pass either observes it or starts after the start's own write.
+   */
+  async trackStart<T>(issueId: string, fn: () => Promise<T>): Promise<T> {
+    const depth = this.ctx.startsInFlight.get(issueId) ?? 0
+    this.ctx.startsInFlight.set(issueId, depth + 1)
+    try {
+      return await fn()
+    } finally {
+      const current = this.ctx.startsInFlight.get(issueId) ?? 1
+      if (current > 1) {
+        this.ctx.startsInFlight.set(issueId, current - 1)
+      } else {
+        this.ctx.startsInFlight.delete(issueId)
+      }
+    }
+  }
+
+  /** Whether a start is in flight for the issue (see {@link trackStart}). */
+  isStarting(issueId: string): boolean {
+    return (this.ctx.startsInFlight.get(issueId) ?? 0) > 0
   }
 
   // ---- Process queries ----

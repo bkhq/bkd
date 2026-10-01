@@ -319,3 +319,38 @@ the connection indicator, terminal, notes, view-mode select, global pages and
 settings, all of which would have had to become labelled rows.
 
 Task: `20261001-1538-sidebar-project-flyout`.
+
+## 2026-10-01 16:20 [BUG-P1]
+
+The stale-working reconciler marked starting executions as failed. An issue showed
+`sessionStatus: failed` + `statusId: review` while its engine process ran a whole
+turn, correcting itself only when that turn settled.
+
+`reconcileStaleWorkingIssues()` treats `working` with no registered process as
+stale, but a start is `working` from `ensureWorking()` onward and only registers
+its process after the executor's spawn resolves — 2.9 s in the reported case. A
+pass landing before the engine took the issue lock moved the issue back to
+`review`; a pass landing after it wrote `running` but before `register()` wrote
+`failed` + `review`. Skipping `pending` did not help: every engine path overwrites
+it with `running` before spawning, and the existing TOCTOU re-check reads the same
+unregistered process. Reported rate: 66 of 2,032 starts over 2026-07-25..10-01,
+rising with concurrency.
+
+- `EngineContext.startsInFlight` counts starts per issue. `issueEngine.trackStart()`
+  raises the count synchronously — before its first `await` — awaits the start and
+  releases in `finally`; `issueEngine.isStarting()` reports it.
+- Every start is wrapped from before its first write that commits the issue to
+  `working` until the engine returns: the follow-up, execute and restart routes,
+  the cron follow-up and execute actions, `flushPendingAsFollowUp()` and
+  `triggerIssueExecution()`.
+- The reconciler now skips an issue that has an active process **or** a start in
+  flight, in the first pass and in the re-check before the transaction. Bun's
+  SQLite transaction is synchronous, so a start is either seen by the re-check or
+  begins after the UPDATE and writes `working`/`running` itself.
+- Secondary fix: the `issue-updated` event carries
+  `{ statusId: 'review', sessionStatus: 'failed' }` for the issues whose session
+  status the reconciler rewrote, instead of `statusId` alone — a client applying
+  the event used to keep showing the old session status until it refetched.
+
+Investigation, evidence and the approved proposal came from the reporter; task
+`20261001-1313-reconciler-start-race`.
