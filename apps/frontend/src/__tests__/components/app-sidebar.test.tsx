@@ -56,17 +56,60 @@ describe('appSidebar project rail', () => {
   })
 })
 
+// jsdom has no layout, so give the flyout fixed geometry: rows are 44px tall
+// inside 4px of padding and a 1px border.
+const ROW_HEIGHT = 44
+const PADDING = 4
+const BORDER = 1
+
+function mockFlyoutLayout() {
+  const rowIndex = (el: HTMLElement) =>
+    Array.from(el.parentElement?.children ?? []).indexOf(el)
+  const isRow = (el: HTMLElement) => el.getAttribute('role') === 'menuitem'
+  const isFlyout = (el: HTMLElement) => el.dataset.testid === 'project-flyout'
+  const define = (prop: string, get: (el: HTMLElement) => number) =>
+    Object.defineProperty(HTMLElement.prototype, prop, {
+      configurable: true,
+      get(this: HTMLElement) {
+        return get(this)
+      },
+    })
+
+  define('offsetTop', el => (isRow(el) ? PADDING + rowIndex(el) * ROW_HEIGHT : 0))
+  define('offsetHeight', el =>
+    isRow(el) ? ROW_HEIGHT : isFlyout(el) ? el.children.length * ROW_HEIGHT + 2 * (PADDING + BORDER) : 0)
+  define('clientHeight', el =>
+    isFlyout(el) ? el.children.length * ROW_HEIGHT + 2 * PADDING : 0)
+  define('scrollHeight', el =>
+    isFlyout(el) ? el.children.length * ROW_HEIGHT + 2 * PADDING : 0)
+  define('clientTop', el => (isFlyout(el) ? BORDER : 0))
+}
+
+function restoreFlyoutLayout() {
+  for (const prop of ['offsetTop', 'offsetHeight', 'clientHeight', 'scrollHeight', 'clientTop']) {
+    delete (HTMLElement.prototype as unknown as Record<string, unknown>)[prop]
+  }
+}
+
+function placeAt(el: HTMLElement, top: number, height = 36) {
+  el.getBoundingClientRect = () =>
+    ({ top, height, bottom: top + height, left: 10, right: 46, width: 36, x: 10, y: top, toJSON: () => ({}) })
+}
+
 describe('appSidebar project flyout', () => {
-  it('stays closed until the project area is hovered', () => {
+  beforeEach(mockFlyoutLayout)
+  afterEach(restoreFlyoutLayout)
+
+  it('stays closed until a project icon is hovered', () => {
     const { queryByTestId } = render(<AppSidebar activeProjectId="p1" />)
 
     expect(queryByTestId('project-flyout')).toBeNull()
   })
 
   it('lists every project by full name on hover', () => {
-    const { getByTestId } = render(<AppSidebar activeProjectId="p1" />)
+    const { getByTestId, getByLabelText } = render(<AppSidebar activeProjectId="p1" />)
 
-    fireEvent.mouseEnter(getByTestId('project-rail'))
+    fireEvent.mouseEnter(getByLabelText('Alpha'))
 
     const flyout = getByTestId('project-flyout')
     for (const project of projects) {
@@ -74,17 +117,53 @@ describe('appSidebar project flyout', () => {
     }
   })
 
-  it('lists names only, without the initials badge', () => {
-    const { getByTestId, getByRole } = render(<AppSidebar activeProjectId="p1" />)
-    fireEvent.mouseEnter(getByTestId('project-rail'))
+  it('shows the project icon next to each name', () => {
+    const { getByLabelText, getByRole } = render(<AppSidebar activeProjectId="p1" />)
+    fireEvent.mouseEnter(getByLabelText('Alpha'))
 
-    // A row is just the project name; the rail buttons keep the initials.
-    expect(getByRole('menuitem', { name: 'Alpha' }).textContent).toBe('Alpha')
+    // Same two-letter initials the rail buttons show, followed by the name.
+    expect(getByRole('menuitem', { name: 'Alpha' }).textContent).toBe('ALAlpha')
+  })
+
+  it('levels the hovered project row with its rail icon', () => {
+    const { getByTestId, getByLabelText } = render(<AppSidebar activeProjectId="p1" />)
+    const gamma = getByLabelText('Gamma')
+    placeAt(gamma, 300)
+
+    fireEvent.mouseEnter(gamma)
+
+    // Icon centre 318. Gamma is the third row: 4 padding + 2 * 44 above it, plus
+    // the 1px border and half a row (22) => its centre is 115px below the top.
+    expect(getByTestId('project-flyout').style.top).toBe(`${318 - 115}px`)
+  })
+
+  it('follows the pointer from one icon to the next', () => {
+    const { getByTestId, getByLabelText } = render(<AppSidebar activeProjectId="p1" />)
+    const alpha = getByLabelText('Alpha')
+    const gamma = getByLabelText('Gamma')
+    placeAt(alpha, 100)
+    placeAt(gamma, 300)
+
+    fireEvent.mouseEnter(alpha)
+    expect(getByTestId('project-flyout').style.top).toBe(`${118 - 27}px`)
+
+    fireEvent.mouseLeave(alpha)
+    fireEvent.mouseEnter(gamma)
+    expect(getByTestId('project-flyout').style.top).toBe(`${318 - 115}px`)
+  })
+
+  it('marks the row that belongs to the hovered icon', () => {
+    const { getByLabelText, getByRole } = render(<AppSidebar activeProjectId="p1" />)
+
+    fireEvent.mouseEnter(getByLabelText('Beta'))
+
+    expect(getByRole('menuitem', { name: 'Beta' })).toHaveAttribute('data-anchor', 'true')
+    expect(getByRole('menuitem', { name: 'Alpha' })).not.toHaveAttribute('data-anchor')
   })
 
   it('navigates when a flyout row is clicked', () => {
-    const { getByTestId, getByRole } = render(<AppSidebar activeProjectId="p1" />)
-    fireEvent.mouseEnter(getByTestId('project-rail'))
+    const { getByLabelText, getByRole } = render(<AppSidebar activeProjectId="p1" />)
+    fireEvent.mouseEnter(getByLabelText('Alpha'))
 
     fireEvent.click(getByRole('menuitem', { name: 'Gamma' }))
 
@@ -92,9 +171,9 @@ describe('appSidebar project flyout', () => {
   })
 
   it('marks the active project in the flyout', () => {
-    const { getByTestId, getByRole } = render(<AppSidebar activeProjectId="p2" />)
+    const { getByLabelText, getByRole } = render(<AppSidebar activeProjectId="p2" />)
 
-    fireEvent.mouseEnter(getByTestId('project-rail'))
+    fireEvent.mouseEnter(getByLabelText('Alpha'))
 
     expect(getByRole('menuitem', { name: 'Beta' })).toHaveAttribute('aria-current', 'true')
   })
@@ -102,11 +181,12 @@ describe('appSidebar project flyout', () => {
   it('keeps the flyout open while the pointer crosses into it', () => {
     vi.useFakeTimers()
     try {
-      const { getByTestId, queryByTestId } = render(<AppSidebar activeProjectId="p1" />)
-      fireEvent.mouseEnter(getByTestId('project-rail'))
+      const { getByTestId, getByLabelText, queryByTestId } = render(<AppSidebar activeProjectId="p1" />)
+      const alpha = getByLabelText('Alpha')
+      fireEvent.mouseEnter(alpha)
 
-      // Crossing the gap fires leave on the rail before enter on the flyout.
-      fireEvent.mouseLeave(getByTestId('project-rail'))
+      // Crossing the gap fires leave on the icon before enter on the flyout.
+      fireEvent.mouseLeave(alpha)
       fireEvent.mouseEnter(getByTestId('project-flyout'))
       act(() => void vi.advanceTimersByTime(500))
 
@@ -119,10 +199,11 @@ describe('appSidebar project flyout', () => {
   it('closes shortly after the pointer leaves', () => {
     vi.useFakeTimers()
     try {
-      const { getByTestId, queryByTestId } = render(<AppSidebar activeProjectId="p1" />)
-      fireEvent.mouseEnter(getByTestId('project-rail'))
+      const { getByLabelText, queryByTestId } = render(<AppSidebar activeProjectId="p1" />)
+      const alpha = getByLabelText('Alpha')
+      fireEvent.mouseEnter(alpha)
 
-      fireEvent.mouseLeave(getByTestId('project-rail'))
+      fireEvent.mouseLeave(alpha)
       act(() => void vi.advanceTimersByTime(500))
 
       expect(queryByTestId('project-flyout')).toBeNull()

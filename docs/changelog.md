@@ -364,3 +364,26 @@ shown. Row padding was retuned for text-only rows, and the active row is marked 
 
 Considered and dropped: showing only a few pinned projects in the rail with a "more"
 button for the full list. Follow-up to `20261001-1538-sidebar-project-flyout`.
+
+## 2026-10-01 18:50 [progress]
+
+Reworked the sidebar hover flyout so it reads as part of the rail. It was anchored to
+the top of the whole project area, so it appeared in the same place whichever icon was
+hovered and bore no visual relation to it.
+
+- The flyout opens per icon: hovering a rail icon places the flyout so that project's
+  row sits level with the icon. Moving to another icon re-levels it; the rows keep the
+  initials badge (reverting the plain-text rows from the previous change), at the same
+  36px size as the rail icon so the two line up.
+- The row belonging to the hovered icon is tinted (`data-anchor`), so the pairing is
+  visible while the pointer is still on the rail.
+- Placement is the pure `placeFlyout()` in `lib/flyout-position.ts`: it keeps an 8px
+  margin to the viewport edges and, for a list taller than the viewport, pins the flyout
+  to the margins and scrolls the matching row into line.
+- The measurement runs in a layout effect, so the flyout never paints at an unaligned
+  position. Hover handlers moved from the rail container onto the icons; the container
+  no longer has any.
+
+Follow-up to `20261001-1538-sidebar-project-flyout`. As before, jsdom has no layout, so
+the tests stub the geometry; the real alignment against a viewport needs a look in a
+browser.

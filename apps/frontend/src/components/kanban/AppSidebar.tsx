@@ -1,5 +1,5 @@
 import { Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { AppLogo } from '@/components/AppLogo'
@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator'
 import { ViewModeSelect } from '@/components/ViewModeSelect'
 import { useEventConnection } from '@/hooks/use-event-connection'
 import { useProjects } from '@/hooks/use-kanban'
+import { placeFlyout } from '@/lib/flyout-position'
 import { getProjectInitials } from '@/lib/format'
 import { GLOBAL_PAGES } from '@/lib/global-pages'
 import { useNotesStore } from '@/stores/notes-store'
@@ -17,14 +18,20 @@ import { useTerminalStore } from '@/stores/terminal-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import type { Project } from '@/types/kanban'
 
+const INITIALS_CLASS = 'flex items-center justify-center w-9 h-9 shrink-0 rounded-lg text-[11px] font-bold transition-all'
+
 function ProjectButton({
   project,
   isActive,
   onClick,
+  onHover,
+  onLeave,
 }: {
   project: Project
   isActive: boolean
   onClick: () => void
+  onHover: (rect: DOMRect) => void
+  onLeave: () => void
 }) {
   const btnRef = useRef<HTMLButtonElement>(null)
 
@@ -46,7 +53,9 @@ function ProjectButton({
         ref={btnRef}
         type="button"
         onClick={onClick}
-        className={`flex items-center justify-center w-9 h-9 rounded-lg text-[11px] font-bold transition-all cursor-pointer focus:outline-none ${
+        onMouseEnter={() => btnRef.current && onHover(btnRef.current.getBoundingClientRect())}
+        onMouseLeave={onLeave}
+        className={`${INITIALS_CLASS} cursor-pointer focus:outline-none ${
           isActive ?
             'bg-primary text-primary-foreground shadow-sm' :
             'bg-foreground/[0.07] text-foreground/60 hover:bg-foreground/[0.13] hover:text-foreground/80'
@@ -60,54 +69,88 @@ function ProjectButton({
 }
 
 /**
- * Plain list of full project names, opened by hovering the rail. Two-letter
- * initials collide and a per-button tooltip only reveals one name at a time.
+ * Full project names, opened by hovering a rail icon. The row for that project
+ * is placed level with the icon, so the list reads as an extension of the rail
+ * instead of a panel that appears somewhere beside it.
  */
 function ProjectFlyout({
   projects,
   activeProjectId,
-  anchor,
+  anchorProjectId,
+  anchorCenter,
+  left,
   onSelect,
   onMouseEnter,
   onMouseLeave,
 }: {
   projects: Project[]
   activeProjectId: string
-  anchor: { left: number, top: number }
+  anchorProjectId: string
+  anchorCenter: number
+  left: number
   onSelect: (project: Project) => void
   onMouseEnter: () => void
   onMouseLeave: () => void
 }) {
   const { t } = useTranslation()
+  const flyoutRef = useRef<HTMLDivElement>(null)
+  const anchorRowRef = useRef<HTMLButtonElement>(null)
+  const [top, setTop] = useState(0)
+
+  // Measure before paint so the flyout never shows at an unaligned position.
+  useLayoutEffect(() => {
+    const flyout = flyoutRef.current
+    const row = anchorRowRef.current
+    if (!flyout || !row) return
+    const border = flyout.offsetHeight - flyout.clientHeight
+    const placed = placeFlyout({
+      anchorCenter,
+      rowCenter: row.offsetTop + flyout.clientTop + row.offsetHeight / 2,
+      flyoutHeight: flyout.scrollHeight + border,
+      viewportHeight: window.innerHeight,
+    })
+    setTop(placed.top)
+    flyout.scrollTop = placed.scrollTop
+  }, [anchorCenter, anchorProjectId, projects])
 
   return (
     <div
+      ref={flyoutRef}
       data-testid="project-flyout"
       role="menu"
       aria-label={t('sidebar.projects')}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className="fixed z-[100] w-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg animate-in fade-in-0 zoom-in-95 duration-100"
-      style={{
-        left: anchor.left,
-        top: anchor.top,
-        maxHeight: `calc(100vh - ${anchor.top}px - 0.5rem)`,
-      }}
+      className="fixed z-[100] w-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg animate-in fade-in-0 duration-100"
+      style={{ left, top, maxHeight: 'calc(100vh - 1rem)' }}
     >
       {projects.map((project) => {
         const isActive = activeProjectId === project.id
+        const isAnchor = anchorProjectId === project.id
         return (
           <button
             key={project.id}
+            ref={isAnchor ? anchorRowRef : undefined}
             type="button"
             role="menuitem"
             aria-current={isActive ? 'true' : undefined}
+            data-anchor={isAnchor ? 'true' : undefined}
             onClick={() => onSelect(project)}
-            className={`block w-full truncate rounded-md px-2.5 py-1.5 text-left text-sm cursor-pointer focus:outline-none ${
-              isActive ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-accent/60'
+            className={`flex w-full items-center gap-2 rounded-md p-1 pr-2 text-left text-sm cursor-pointer focus:outline-none ${
+              isActive ? 'bg-accent text-accent-foreground' : isAnchor ? 'bg-accent/60' : 'hover:bg-accent/60'
             }`}
           >
-            {project.name}
+            <span
+              aria-hidden="true"
+              className={`${INITIALS_CLASS} ${
+                isActive ?
+                  'bg-primary text-primary-foreground' :
+                  'bg-foreground/[0.07] text-foreground/60'
+              }`}
+            >
+              {getProjectInitials(project.name)}
+            </span>
+            <span className="truncate">{project.name}</span>
           </button>
         )
       })}
@@ -129,20 +172,26 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
   const isNotesMinimized = useNotesStore(s => s.isMinimized)
 
   const railRef = useRef<HTMLDivElement>(null)
-  const [flyoutAnchor, setFlyoutAnchor] = useState<{ left: number, top: number } | null>(null)
-  // Crossing the gap between rail and flyout fires mouseleave before the
-  // flyout's mouseenter; closing on a delay keeps it from flickering shut.
+  const [flyout, setFlyout] = useState<{ projectId: string, anchorCenter: number, left: number } | null>(null)
+  // Moving between icons, or from an icon into the flyout, fires mouseleave
+  // before the next mouseenter; closing on a delay keeps it from flickering shut.
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const openFlyout = useCallback(() => {
+  const openFlyout = useCallback((projectId: string, iconRect: DOMRect) => {
     clearTimeout(closeTimer.current)
-    const rect = railRef.current?.getBoundingClientRect()
-    setFlyoutAnchor({ left: (rect?.right ?? 0) + 4, top: rect?.top ?? 0 })
+    const railRect = railRef.current?.getBoundingClientRect()
+    setFlyout({
+      projectId,
+      anchorCenter: iconRect.top + iconRect.height / 2,
+      left: (railRect?.right ?? iconRect.right) + 4,
+    })
   }, [])
+
+  const keepFlyout = useCallback(() => clearTimeout(closeTimer.current), [])
 
   const closeFlyout = useCallback(() => {
     clearTimeout(closeTimer.current)
-    closeTimer.current = setTimeout(setFlyoutAnchor, 120, null)
+    closeTimer.current = setTimeout(setFlyout, 120, null)
   }, [])
 
   useEffect(() => () => clearTimeout(closeTimer.current), [])
@@ -173,9 +222,6 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
       {/* Project list */}
       <div
         ref={railRef}
-        data-testid="project-rail"
-        onMouseEnter={openFlyout}
-        onMouseLeave={closeFlyout}
         className="flex flex-col items-center gap-2 overflow-y-auto flex-1 py-1 px-1"
         style={{ scrollbarWidth: 'none' }}
       >
@@ -185,20 +231,24 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
             project={project}
             isActive={activeProjectId === project.id}
             onClick={() => navigate(projectPath(project.id))}
+            onHover={rect => openFlyout(project.id, rect)}
+            onLeave={closeFlyout}
           />
         ))}
       </div>
-      {flyoutAnchor && projects?.length ?
+      {flyout && projects?.length ?
           (
             <ProjectFlyout
               projects={projects}
               activeProjectId={activeProjectId}
-              anchor={flyoutAnchor}
+              anchorProjectId={flyout.projectId}
+              anchorCenter={flyout.anchorCenter}
+              left={flyout.left}
               onSelect={(project) => {
-                setFlyoutAnchor(null)
+                setFlyout(null)
                 void navigate(projectPath(project.id))
               }}
-              onMouseEnter={openFlyout}
+              onMouseEnter={keepFlyout}
               onMouseLeave={closeFlyout}
             />
           ) :
