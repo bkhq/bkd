@@ -7,7 +7,7 @@ import { monitorCompletion } from '@/engines/issue/lifecycle/completion-monitor'
 import { makeStreamHooks } from '@/engines/issue/lifecycle/turn-completion'
 import { ensureNoActiveProcess } from '@/engines/issue/process/guards'
 import { withIssueLock } from '@/engines/issue/process/lock'
-import { register } from '@/engines/issue/process/register'
+import { killUnregistered, register } from '@/engines/issue/process/register'
 import { persistUserMessage } from '@/engines/issue/user-message'
 import { getPermissionOptions, resolveExecEnvVars } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
@@ -89,8 +89,11 @@ export async function executeIssue(
     // Merge virtual-engine preset env vars (if this issue runs a virtual engine).
     const envVars = await resolveExecEnvVars(effectiveProfileId, opts.envVars)
 
-    let spawned: SpawnedProcess
+    const normalizer = createLogNormalizer(executor)
+    let spawned: SpawnedProcess | undefined
+    let finalExternalSessionId: string
     try {
+      ctx.pm.assertCapacity()
       spawned = await executor.spawn(
         {
           workingDir,
@@ -106,7 +109,29 @@ export async function executeIssue(
           issueId,
         },
       )
+
+      // Allow executor to override the external session ID (e.g. Codex uses server-generated thread IDs)
+      finalExternalSessionId = spawned.externalSessionId ?? externalSessionId
+      await updateIssueSession(issueId, {
+        externalSessionId: finalExternalSessionId,
+      })
+      register(
+        ctx,
+        executionId,
+        issueId,
+        opts.engineType,
+        spawned,
+        line => normalizer.parse(line),
+        0,
+        worktreePath,
+        makeStreamHooks(ctx, issueId, executionId),
+        worktreePath ? baseDir : undefined,
+        workingDir,
+        finalExternalSessionId,
+        issue.keepAlive,
+      )
     } catch (spawnError) {
+      if (spawned) killUnregistered(issueId, executionId, spawned)
       logger.error(
         { issueId, executionId, err: spawnError },
         'execute_spawn_failed_reverting_session',
@@ -126,11 +151,6 @@ export async function executeIssue(
       throw spawnError
     }
 
-    // Allow executor to override the external session ID (e.g. Codex uses server-generated thread IDs)
-    const finalExternalSessionId = spawned.externalSessionId ?? externalSessionId
-    await updateIssueSession(issueId, {
-      externalSessionId: finalExternalSessionId,
-    })
     const pid = getPidFromSubprocess(spawned.subprocess)
     logger.info(
       {
@@ -142,23 +162,6 @@ export async function executeIssue(
         worktreePath,
       },
       'issue_execute_spawned',
-    )
-    const normalizer = createLogNormalizer(executor)
-
-    register(
-      ctx,
-      executionId,
-      issueId,
-      opts.engineType,
-      spawned,
-      line => normalizer.parse(line),
-      0,
-      worktreePath,
-      makeStreamHooks(ctx, issueId, executionId),
-      worktreePath ? baseDir : undefined,
-      workingDir,
-      finalExternalSessionId,
-      issue.keepAlive,
     )
     emitDiagnosticLog(
       issueId,

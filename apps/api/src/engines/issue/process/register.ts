@@ -18,6 +18,19 @@ import { logger } from '@/logger'
 
 // ---------- Process registration ----------
 
+/**
+ * Kill a spawned engine whose registration failed. The child is unowned:
+ * nothing reads its output and cancel cannot reach it, so it would otherwise
+ * keep working on its prompt (and, for Codex, hold the thread writer lock).
+ */
+export function killUnregistered(issueId: string, executionId: string, process: SpawnedProcess): void {
+  logger.warn(
+    { issueId, executionId, pid: process.subprocess.pid },
+    'spawned_process_killed_after_failure',
+  )
+  process.subprocess.kill()
+}
+
 export function register(
   ctx: EngineContext,
   executionId: string,

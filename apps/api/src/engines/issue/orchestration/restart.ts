@@ -10,7 +10,7 @@ import { makeStreamHooks } from '@/engines/issue/lifecycle/turn-completion'
 import { getNextTurnIndex } from '@/engines/issue/persistence/queries'
 import { ensureNoActiveProcess } from '@/engines/issue/process/guards'
 import { withIssueLock } from '@/engines/issue/process/lock'
-import { register } from '@/engines/issue/process/register'
+import { killUnregistered, register } from '@/engines/issue/process/register'
 import {
   getPermissionOptions,
   getProjectExecContext,
@@ -88,8 +88,11 @@ export async function restartIssue(
       projectId: issue.projectId,
       envVars,
     }
-    let spawned: SpawnedProcess
+    const normalizer = createLogNormalizer(executor)
+    const turnIndex = getNextTurnIndex(issueId)
+    let spawned: SpawnedProcess | undefined
     try {
+      ctx.pm.assertCapacity()
       spawned = issue.sessionFields.externalSessionId ?
           await executor.spawnFollowUp(
             {
@@ -107,7 +110,23 @@ export async function restartIssue(
             },
           ) :
           await spawnFresh(executor, issueId, spawnOpts)
+      register(
+        ctx,
+        executionId,
+        issueId,
+        engineType,
+        spawned,
+        line => normalizer.parse(line),
+        turnIndex,
+        worktreePath,
+        makeStreamHooks(ctx, issueId, executionId),
+        worktreePath ? baseDir : undefined,
+        workingDir,
+        spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,
+        issue.keepAlive,
+      )
     } catch (spawnError) {
+      if (spawned) killUnregistered(issueId, executionId, spawned)
       logger.error(
         { issueId, executionId, error: spawnError },
         'restart_spawn_failed_reverting_session',
@@ -120,24 +139,6 @@ export async function restartIssue(
       throw spawnError
     }
 
-    const normalizer = createLogNormalizer(executor)
-
-    const turnIndex = getNextTurnIndex(issueId)
-    register(
-      ctx,
-      executionId,
-      issueId,
-      engineType,
-      spawned,
-      line => normalizer.parse(line),
-      turnIndex,
-      worktreePath,
-      makeStreamHooks(ctx, issueId, executionId),
-      worktreePath ? baseDir : undefined,
-      workingDir,
-      spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,
-      issue.keepAlive,
-    )
     monitorCompletion(ctx, executionId, issueId, engineType, false)
 
     return { executionId }

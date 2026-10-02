@@ -60,3 +60,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20260922-1704-mobile-desktop-ui-parity Align mobile and desktop UI and finish the BKD rename**](20260922-1704-mobile-desktop-ui-parity.md) `2026-09-22`
 - [x] [**20260923-1133-grok-engine Add Grok Build CLI as an engine**](20260923-1133-grok-engine.md) `2026-09-23`
 - [x] [**20260924-0914-cursor-engine Add Cursor CLI as an engine**](20260924-0914-cursor-engine.md) `2026-09-24`
+- [x] [**20261002-1007-engine-process-leak Kill engine processes that fail registration or the Codex handshake**](20261002-1007-engine-process-leak.md) `2026-10-02`

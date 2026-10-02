@@ -9,7 +9,7 @@ import {
   ensureNoActiveProcess,
   killExistingSubprocessForIssue,
 } from '@/engines/issue/process/guards'
-import { register } from '@/engines/issue/process/register'
+import { killUnregistered, register } from '@/engines/issue/process/register'
 import { persistUserMessage } from '@/engines/issue/user-message'
 import {
   getPermissionOptions,
@@ -32,6 +32,20 @@ import { monitorCompletion } from './completion-monitor'
 import { makeStreamHooks } from './turn-completion'
 
 // ---------- Spawn helpers ----------
+
+/** Persist the session id of a just-spawned process; kill the process if that fails. */
+async function saveExternalSessionId(
+  issueId: string,
+  spawned: SpawnedProcess,
+  externalSessionId: string,
+): Promise<void> {
+  try {
+    await updateIssueSession(issueId, { externalSessionId })
+  } catch (error) {
+    killUnregistered(issueId, '', spawned)
+    throw error
+  }
+}
 
 /**
  * Try spawnFollowUp; if the external session is missing, fall back to a fresh spawn.
@@ -97,9 +111,7 @@ export async function spawnWithSessionFallback(
       spawnCtx,
     )
     const finalSessionId = spawned.externalSessionId ?? externalSessionId
-    await updateIssueSession(issueId, {
-      externalSessionId: finalSessionId,
-    })
+    await saveExternalSessionId(issueId, spawned, finalSessionId)
     if (!spawned.externalSessionId) {
       spawned.externalSessionId = finalSessionId
     }
@@ -137,9 +149,7 @@ export async function spawnFresh(
     },
   )
   const finalSessionId = spawned.externalSessionId ?? externalSessionId
-  await updateIssueSession(issueId, {
-    externalSessionId: finalSessionId,
-  })
+  await saveExternalSessionId(issueId, spawned, finalSessionId)
   // Ensure the returned object always carries the session ID so callers
   // (e.g. managed.externalSessionId) don't end up with undefined.
   if (!spawned.externalSessionId) {
@@ -202,6 +212,7 @@ export async function spawnRetry(
     envVars,
     systemPrompt: projCtx.systemPrompt,
   }
+  ctx.pm.assertCapacity()
   const spawned = issue.sessionFields.externalSessionId ?
       await spawnWithSessionFallback(executor, issueId, {
         ...spawnOpts,
@@ -212,21 +223,26 @@ export async function spawnRetry(
   const normalizer = createLogNormalizer(executor)
 
   const turnIndex = getNextTurnIndex(issueId)
-  register(
-    ctx,
-    executionId,
-    issueId,
-    engineType,
-    spawned,
-    line => normalizer.parse(line),
-    turnIndex,
-    worktreePath,
-    makeStreamHooks(ctx, issueId, executionId),
-    worktreePath ? baseDir : undefined,
-    workingDir,
-    spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,
-    issue.keepAlive,
-  )
+  try {
+    register(
+      ctx,
+      executionId,
+      issueId,
+      engineType,
+      spawned,
+      line => normalizer.parse(line),
+      turnIndex,
+      worktreePath,
+      makeStreamHooks(ctx, issueId, executionId),
+      worktreePath ? baseDir : undefined,
+      workingDir,
+      spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,
+      issue.keepAlive,
+    )
+  } catch (error) {
+    killUnregistered(issueId, executionId, spawned)
+    throw error
+  }
   monitorCompletion(ctx, executionId, issueId, engineType, true)
   logger.debug({ issueId, executionId, engineType, turnIndex }, 'issue_retry_spawned')
 }
@@ -321,8 +337,10 @@ export async function spawnFollowUpProcess(
   const projCtx = await getProjectExecContext(issue.projectId)
   const envVars = await resolveExecEnvVars(issue.engineProfileId, projCtx.envVars)
 
-  let spawned: SpawnedProcess
+  const normalizer = createLogNormalizer(executor)
+  let spawned: SpawnedProcess | undefined
   try {
+    ctx.pm.assertCapacity()
     const baseSpawnOpts = {
       workingDir,
       prompt,
@@ -338,10 +356,26 @@ export async function spawnFollowUpProcess(
           sessionId: issue.sessionFields.externalSessionId,
         })
       : await spawnFresh(executor, issueId, baseSpawnOpts)
+    register(
+      ctx,
+      executionId,
+      issueId,
+      engineType,
+      spawned,
+      line => normalizer.parse(line),
+      turnIndex,
+      worktreePath,
+      makeStreamHooks(ctx, issueId, executionId),
+      worktreePath ? baseDir : undefined,
+      workingDir,
+      spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,
+      issue.keepAlive,
+    )
   } catch (spawnError) {
-    // Spawn failed after we already emitted 'running' and persisted the user
-    // message.  Revert the session status so the issue doesn't get stuck in
-    // 'running' forever with no process to settle it.
+    // Spawn or registration failed after we already emitted 'running' and
+    // persisted the user message.  Revert the session status so the issue
+    // doesn't get stuck in 'running' forever with no process to settle it.
+    if (spawned) killUnregistered(issueId, executionId, spawned)
     logger.error({ issueId, executionId, err: spawnError }, 'spawn_failed_reverting_session')
     const errorMsg = spawnError instanceof Error ? spawnError.message : String(spawnError)
     emitDiagnosticLog(
@@ -369,23 +403,6 @@ export async function spawnFollowUpProcess(
     throw spawnError
   }
 
-  const normalizer = createLogNormalizer(executor)
-
-  register(
-    ctx,
-    executionId,
-    issueId,
-    engineType,
-    spawned,
-    line => normalizer.parse(line),
-    turnIndex,
-    worktreePath,
-    makeStreamHooks(ctx, issueId, executionId),
-    worktreePath ? baseDir : undefined,
-    workingDir,
-    spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,
-    issue.keepAlive,
-  )
   // User message already persisted above (before spawn)
   monitorCompletion(ctx, executionId, issueId, engineType, false)
   const followUpPid = getPidFromSubprocess(spawned.subprocess)

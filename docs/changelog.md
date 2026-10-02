@@ -387,3 +387,34 @@ hovered and bore no visual relation to it.
 Follow-up to `20261001-1538-sidebar-project-flyout`. As before, jsdom has no layout, so
 the tests stub the geometry; the real alignment against a viewport needs a look in a
 browser.
+
+## 2026-10-02 10:45 [BUG-P0]
+
+Engine processes leaked when the spawn succeeded but a later step failed. BKD
+spawned the engine before registering it with the process manager, and nothing
+killed the child when registration or the Codex handshake threw. The orphan kept
+working on its prompt in the project directory, its output never reached BKD,
+cancel could not reach it, and it did not count toward the concurrency limit.
+An orphaned `codex app-server` also held the thread's writer lock, so every later
+follow-up failed with `already has an active writer` and leaked one more process.
+Present since the initial commit (`cdcaa8a`).
+
+- `ProcessManager.assertCapacity()` holds the limit check that `register()` used
+  inline. Execute, follow-up, retry and restart call it before spawning, so a full
+  limit no longer starts a process or sends the prompt.
+- Every post-spawn step (the `externalSessionId` write and `register()`) now runs
+  inside the paths' existing try blocks. On failure the child is killed
+  (`killUnregistered()`, SIGKILL to its process group) and the existing revert
+  runs: session `failed`, the pre-persisted follow-up message removed. Before,
+  a registration failure also left the session `running`.
+- `spawnFresh` / `spawnWithSessionFallback` kill the child if the session-id
+  write fails.
+- `CodexExecutor.spawn` / `spawnFollowUp` close the handler and kill the
+  app-server when `initialize`, the auth check, `thread/start`, `thread/resume`
+  or `turn/start` fails.
+- Tests: `engine-spawn-leak.test.ts` (limit full before the spawn, and filled
+  while spawning, for execute / follow-up / restart) and
+  `codex-spawn-cleanup.test.ts` (a fake app-server rejecting `thread/resume`).
+
+Orphans already running on a host are not reaped by this change; kill them once
+(or restart BKD). Task `20261002-1007-engine-process-leak`.

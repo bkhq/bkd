@@ -128,3 +128,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20260929-1043-mobile-agent-message-selection Make agent messages selectable on touch devices**](20260929-1043-mobile-agent-message-selection.md) `P2`
 - [x] [**20261001-1538-sidebar-project-flyout Show the full project list on sidebar hover**](20261001-1538-sidebar-project-flyout.md) `P2`
 - [x] [**20261001-1313-reconciler-start-race Keep the stale-working reconciler away from executions that are starting**](20261001-1313-reconciler-start-race.md) `P1`
+- [x] [**20261002-1007-engine-process-leak Kill engine processes that fail registration or the Codex handshake**](20261002-1007-engine-process-leak.md) `P0`
+- [ ] [**20261002-1046-api-execution-concurrency-flake Fix order-dependent concurrency failure in api-execution tests**](20261002-1046-api-execution-concurrency-flake.md) `P2`
