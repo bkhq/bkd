@@ -12,7 +12,7 @@ import { persistUserMessage } from '@/engines/issue/user-message'
 import { getPermissionOptions, resolveExecEnvVars } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
-import { createWorktree } from '@/engines/issue/utils/worktree'
+import { ensureWorktree } from '@/engines/issue/utils/worktree'
 import { resolveExecutionModel } from '@/engines/model-resolver'
 import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
@@ -66,6 +66,7 @@ export async function executeIssue(
       sessionStatus: 'running',
       prompt: opts.prompt,
       model: rawModel ?? undefined,
+      ...(opts.permissionMode ? { permissionMode: opts.permissionMode } : {}),
       ...(opts.engineProfileId !== undefined ? { engineProfileId: opts.engineProfileId } : {}),
     })
 
@@ -73,16 +74,10 @@ export async function executeIssue(
     let workingDir = baseDir
     let worktreePath: string | undefined
 
-    if (issue.useWorktree) {
-      try {
-        worktreePath = await createWorktree(baseDir, issue.projectId, issueId)
-        workingDir = worktreePath
-      } catch (error) {
-        logger.warn({ issueId, error }, 'worktree_creation_failed_fallback_to_base')
-      }
-    }
-
-    const permOptions = getPermissionOptions(opts.engineType, opts.permissionMode)
+    const permOptions = getPermissionOptions(
+      opts.engineType,
+      opts.permissionMode ?? issue.sessionFields.permissionMode ?? undefined,
+    )
     const externalSessionId = crypto.randomUUID()
     const executionId = crypto.randomUUID()
 
@@ -93,6 +88,10 @@ export async function executeIssue(
     let spawned: SpawnedProcess | undefined
     let finalExternalSessionId: string
     try {
+      if (issue.useWorktree) {
+        worktreePath = await ensureWorktree(baseDir, issue.projectId, issueId)
+        workingDir = worktreePath
+      }
       ctx.pm.assertCapacity()
       spawned = await executor.spawn(
         {

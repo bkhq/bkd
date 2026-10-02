@@ -45,6 +45,11 @@ export async function followUpIssue(
     if (model && model !== issue.sessionFields.model) {
       await updateIssueSession(issueId, { model })
     }
+    // Remember an explicit mode so later turns with no request of their own
+    // (restart, retry, pending flush) do not fall back to the engine default.
+    if (permissionMode && permissionMode !== issue.sessionFields.permissionMode) {
+      await updateIssueSession(issueId, { permissionMode })
+    }
 
     const active = getActiveProcessForIssue(ctx, issueId)
     // When the process was interrupted but the turn already completed (Result

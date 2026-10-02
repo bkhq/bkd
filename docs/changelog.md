@@ -418,3 +418,41 @@ Present since the initial commit (`cdcaa8a`).
 
 Orphans already running on a host are not reaped by this change; kill them once
 (or restart BKD). Task `20261002-1007-engine-process-leak`.
+
+## 2026-10-02 11:14 [BUG-P1]
+
+An issue with `useWorktree` could run in the project's main checkout.
+`restartIssue` and `executeIssue` called `createWorktree` unconditionally; with
+the worktree already present both `git worktree add` attempts fail, and every
+path swallowed the error and fell back to the base directory. A restart or a
+second execute of an isolated issue therefore always edited the main checkout.
+
+- `ensureWorktree()` (`utils/worktree.ts`) returns the worktree when its
+  directory exists and is registered under the project repo, and creates it
+  otherwise. Execute, restart, retry and follow-up all use it.
+- There is no fallback any more. When the worktree cannot be provided (project
+  directory is not a git repo, no `main`/`master`, a stale directory at the
+  path) the turn fails before anything is spawned: session `failed`, the git
+  error in the chat, the pre-persisted follow-up message removed.
+- Tests: `worktree-reuse.test.ts`.
+
+Task `20261002-1111-worktree-reuse`.
+
+## 2026-10-02 11:14 [BUG-P1]
+
+`permissionMode` was accepted by issue create, execute and follow-up but never
+stored. Turns with no request of their own — auto-retry, restart, the pending
+flush, and the execute triggered by moving an issue to `working` — fell back to
+the engine default, `auto`, so a `plan` or `supervised` issue was re-run with
+full permissions after a failure.
+
+- New nullable column `issues.permission_mode` (migration `0025`).
+- Create stores the requested mode; `executeIssue` and `followUpIssue` store an
+  explicit mode when one is passed; duplicate copies it.
+- Execute, follow-up spawn, retry and restart resolve
+  `explicit ?? stored ?? engine default`. Existing issues have `NULL` and behave
+  as before.
+- The mode is not part of the issue API response.
+- Tests: `permission-mode-persist.test.ts`.
+
+Task `20261002-1111-persist-permission-mode`.

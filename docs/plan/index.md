@@ -1,6 +1,6 @@
 # BKD - Plan Index
 
-> Updated: 2026-09-24
+> Updated: 2026-10-02
 
 ## Usage
 
@@ -61,3 +61,5 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20260923-1133-grok-engine Add Grok Build CLI as an engine**](20260923-1133-grok-engine.md) `2026-09-23`
 - [x] [**20260924-0914-cursor-engine Add Cursor CLI as an engine**](20260924-0914-cursor-engine.md) `2026-09-24`
 - [x] [**20261002-1007-engine-process-leak Kill engine processes that fail registration or the Codex handshake**](20261002-1007-engine-process-leak.md) `2026-10-02`
+- [x] [**20261002-1111-worktree-reuse Keep worktree issues out of the main checkout**](20261002-1111-worktree-reuse.md) `2026-10-02`
+- [x] [**20261002-1111-persist-permission-mode Persist the issue permission mode**](20261002-1111-persist-permission-mode.md) `2026-10-02`

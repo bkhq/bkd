@@ -233,6 +233,7 @@ create.post('/', async (c) => {
           engineType: resolvedEngine,
           engineProfileId,
           model: resolvedModel,
+          permissionMode: body.permissionMode ?? null,
           sessionStatus: shouldExecute ? 'pending' : null,
           prompt: issuePrompt,
         })

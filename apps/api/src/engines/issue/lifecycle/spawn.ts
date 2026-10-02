@@ -1,4 +1,3 @@
-import { stat } from 'node:fs/promises'
 import { getIssueWithSession, updateIssueSession } from '@/engines/engine-store'
 import { engineRegistry } from '@/engines/executors'
 import type { EngineContext } from '@/engines/issue/context'
@@ -20,11 +19,7 @@ import {
 } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
-import {
-  createWorktree,
-  isWorktreeRegistered,
-  resolveWorktreePath,
-} from '@/engines/issue/utils/worktree'
+import { ensureWorktree } from '@/engines/issue/utils/worktree'
 import { resolveExecutionModel } from '@/engines/model-resolver'
 import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
@@ -178,27 +173,14 @@ export async function spawnRetry(
   let workingDir = baseDir
   let worktreePath: string | undefined
   if (issue.useWorktree) {
-    const candidatePath = resolveWorktreePath(issue.projectId, issueId)
-    try {
-      const s = await stat(candidatePath)
-      if (s.isDirectory()) {
-        // Verify the worktree belongs to the current project repo
-        if (await isWorktreeRegistered(baseDir, candidatePath)) {
-          worktreePath = candidatePath
-          workingDir = candidatePath
-        } else {
-          logger.warn(
-            { issueId, candidatePath, baseDir },
-            'worktree_not_registered_follow_up_fallback',
-          )
-        }
-      }
-    } catch {
-      // Worktree doesn't exist — follow-up in base dir
-    }
+    worktreePath = await ensureWorktree(baseDir, issue.projectId, issueId)
+    workingDir = worktreePath
   }
 
-  const permOptions = getPermissionOptions(engineType)
+  const permOptions = getPermissionOptions(
+    engineType,
+    issue.sessionFields.permissionMode ?? undefined,
+  )
   const executionId = crypto.randomUUID()
   const projCtx = await getProjectExecContext(issue.projectId)
   const envVars = await resolveExecEnvVars(issue.engineProfileId, projCtx.envVars)
@@ -303,43 +285,23 @@ export async function spawnFollowUpProcess(
 
   const baseDir = await resolveWorkingDir(issue.projectId)
 
-  // Reuse existing worktree if issue has worktree enabled
   let workingDir = baseDir
   let worktreePath: string | undefined
-  if (issue.useWorktree) {
-    const candidatePath = resolveWorktreePath(issue.projectId, issueId)
-    try {
-      const s = await stat(candidatePath)
-      if (s.isDirectory()) {
-        // Verify the worktree is registered under the current project repo;
-        // if the project directory was changed, the old worktree is stale.
-        if (await isWorktreeRegistered(baseDir, candidatePath)) {
-          worktreePath = candidatePath
-          workingDir = candidatePath
-        } else {
-          logger.warn({ issueId, candidatePath, baseDir }, 'worktree_not_registered_recreating')
-          worktreePath = await createWorktree(baseDir, issue.projectId, issueId)
-          workingDir = worktreePath
-        }
-      }
-    } catch {
-      // Worktree dir doesn't exist — create fresh
-      try {
-        worktreePath = await createWorktree(baseDir, issue.projectId, issueId)
-        workingDir = worktreePath
-      } catch (wtErr) {
-        logger.warn({ issueId, err: wtErr }, 'worktree_creation_failed_fallback_to_base')
-      }
-    }
-  }
 
-  const permOptions = getPermissionOptions(engineType, permissionMode)
+  const permOptions = getPermissionOptions(
+    engineType,
+    permissionMode ?? issue.sessionFields.permissionMode ?? undefined,
+  )
   const projCtx = await getProjectExecContext(issue.projectId)
   const envVars = await resolveExecEnvVars(issue.engineProfileId, projCtx.envVars)
 
   const normalizer = createLogNormalizer(executor)
   let spawned: SpawnedProcess | undefined
   try {
+    if (issue.useWorktree) {
+      worktreePath = await ensureWorktree(baseDir, issue.projectId, issueId)
+      workingDir = worktreePath
+    }
     ctx.pm.assertCapacity()
     const baseSpawnOpts = {
       workingDir,

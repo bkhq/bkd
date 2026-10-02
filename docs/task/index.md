@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-09-24
+> Updated: 2026-10-02
 
 ## Usage
 
@@ -130,3 +130,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261001-1313-reconciler-start-race Keep the stale-working reconciler away from executions that are starting**](20261001-1313-reconciler-start-race.md) `P1`
 - [x] [**20261002-1007-engine-process-leak Kill engine processes that fail registration or the Codex handshake**](20261002-1007-engine-process-leak.md) `P0`
 - [ ] [**20261002-1046-api-execution-concurrency-flake Fix order-dependent concurrency failure in api-execution tests**](20261002-1046-api-execution-concurrency-flake.md) `P2`
+- [x] [**20261002-1111-worktree-reuse Keep worktree issues out of the main checkout**](20261002-1111-worktree-reuse.md) `P1`
+- [x] [**20261002-1111-persist-permission-mode Persist the issue permission mode**](20261002-1111-persist-permission-mode.md) `P1`

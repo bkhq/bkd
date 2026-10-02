@@ -1,0 +1,1 @@
+ALTER TABLE `issues` ADD `permission_mode` text;
