@@ -456,3 +456,18 @@ full permissions after a failure.
 - Tests: `permission-mode-persist.test.ts`.
 
 Task `20261002-1111-persist-permission-mode`.
+
+## 2026-10-02 12:24 [progress]
+
+The sidebar project flyout no longer follows the hovered rail icon. It tracked
+the hovered project id and icon position in state, moved as the pointer
+travelled along the rail and tinted the hovered project's row. It now lines up
+with the active project only: the active row sits level with the active
+project's icon whichever icon opens it, and with no active project it opens
+level with the top of the project list.
+
+- `AppSidebar` keeps a single open/closed flag; `ProjectFlyout` measures the
+  active icon and the rail itself. The `data-anchor` hovered-row marker is gone.
+- Opening on hover, the close delay and crossing into the flyout are unchanged.
+
+Task `20261002-1223-sidebar-flyout-active-anchor`.

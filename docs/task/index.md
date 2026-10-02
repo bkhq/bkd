@@ -132,3 +132,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [ ] [**20261002-1046-api-execution-concurrency-flake Fix order-dependent concurrency failure in api-execution tests**](20261002-1046-api-execution-concurrency-flake.md) `P2`
 - [x] [**20261002-1111-worktree-reuse Keep worktree issues out of the main checkout**](20261002-1111-worktree-reuse.md) `P1`
 - [x] [**20261002-1111-persist-permission-mode Persist the issue permission mode**](20261002-1111-persist-permission-mode.md) `P1`
+- [x] [**20261002-1223-sidebar-flyout-active-anchor Anchor the sidebar flyout to the active project only**](20261002-1223-sidebar-flyout-active-anchor.md) `P2`

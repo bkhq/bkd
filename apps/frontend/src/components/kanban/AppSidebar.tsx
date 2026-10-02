@@ -1,4 +1,5 @@
 import { Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucide-react'
+import type { RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -23,24 +24,25 @@ const INITIALS_CLASS = 'flex items-center justify-center w-9 h-9 shrink-0 rounde
 function ProjectButton({
   project,
   isActive,
+  activeRef,
   onClick,
   onHover,
   onLeave,
 }: {
   project: Project
   isActive: boolean
+  /** Attached to the button only while its project is the active one. */
+  activeRef: RefObject<HTMLButtonElement | null>
   onClick: () => void
-  onHover: (rect: DOMRect) => void
+  onHover: () => void
   onLeave: () => void
 }) {
-  const btnRef = useRef<HTMLButtonElement>(null)
-
   // The rail hides its scrollbar, so an active project outside the visible
   // range leaves no on-screen trace of which project is selected.
   useEffect(() => {
     if (!isActive) return
-    btnRef.current?.scrollIntoView({ block: 'center' })
-  }, [isActive])
+    activeRef.current?.scrollIntoView({ block: 'center' })
+  }, [isActive, activeRef])
 
   return (
     <div className="relative flex items-center justify-center">
@@ -50,10 +52,10 @@ function ProjectButton({
           ) :
         null}
       <button
-        ref={btnRef}
+        ref={isActive ? activeRef : undefined}
         type="button"
         onClick={onClick}
-        onMouseEnter={() => btnRef.current && onHover(btnRef.current.getBoundingClientRect())}
+        onMouseEnter={onHover}
         onMouseLeave={onLeave}
         className={`${INITIALS_CLASS} cursor-pointer focus:outline-none ${
           isActive ?
@@ -69,49 +71,50 @@ function ProjectButton({
 }
 
 /**
- * Full project names, opened by hovering a rail icon. The row for that project
- * is placed level with the icon, so the list reads as an extension of the rail
- * instead of a panel that appears somewhere beside it.
+ * Full project names, opened by hovering a rail icon. The active project's row
+ * is placed level with its icon, so the list reads as an extension of the rail
+ * instead of a panel that appears somewhere beside it. With no active project
+ * the list opens level with the top of the rail's project list.
  */
 function ProjectFlyout({
   projects,
   activeProjectId,
-  anchorProjectId,
-  anchorCenter,
-  left,
+  railRef,
+  activeIconRef,
   onSelect,
   onMouseEnter,
   onMouseLeave,
 }: {
   projects: Project[]
   activeProjectId: string
-  anchorProjectId: string
-  anchorCenter: number
-  left: number
+  railRef: RefObject<HTMLDivElement | null>
+  activeIconRef: RefObject<HTMLButtonElement | null>
   onSelect: (project: Project) => void
   onMouseEnter: () => void
   onMouseLeave: () => void
 }) {
   const { t } = useTranslation()
   const flyoutRef = useRef<HTMLDivElement>(null)
-  const anchorRowRef = useRef<HTMLButtonElement>(null)
-  const [top, setTop] = useState(0)
+  const activeRowRef = useRef<HTMLButtonElement>(null)
+  const [position, setPosition] = useState({ left: 0, top: 0 })
 
   // Measure before paint so the flyout never shows at an unaligned position.
   useLayoutEffect(() => {
     const flyout = flyoutRef.current
-    const row = anchorRowRef.current
-    if (!flyout || !row) return
+    const rail = railRef.current?.getBoundingClientRect()
+    if (!flyout || !rail) return
+    const icon = activeIconRef.current?.getBoundingClientRect()
+    const row = activeRowRef.current
     const border = flyout.offsetHeight - flyout.clientHeight
     const placed = placeFlyout({
-      anchorCenter,
-      rowCenter: row.offsetTop + flyout.clientTop + row.offsetHeight / 2,
+      anchorCenter: icon ? icon.top + icon.height / 2 : rail.top,
+      rowCenter: icon && row ? row.offsetTop + flyout.clientTop + row.offsetHeight / 2 : 0,
       flyoutHeight: flyout.scrollHeight + border,
       viewportHeight: window.innerHeight,
     })
-    setTop(placed.top)
+    setPosition({ left: rail.right + 4, top: placed.top })
     flyout.scrollTop = placed.scrollTop
-  }, [anchorCenter, anchorProjectId, projects])
+  }, [activeProjectId, projects, railRef, activeIconRef])
 
   return (
     <div
@@ -122,22 +125,20 @@ function ProjectFlyout({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       className="fixed z-[100] w-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg animate-in fade-in-0 duration-100"
-      style={{ left, top, maxHeight: 'calc(100vh - 1rem)' }}
+      style={{ ...position, maxHeight: 'calc(100vh - 1rem)' }}
     >
       {projects.map((project) => {
         const isActive = activeProjectId === project.id
-        const isAnchor = anchorProjectId === project.id
         return (
           <button
             key={project.id}
-            ref={isAnchor ? anchorRowRef : undefined}
+            ref={isActive ? activeRowRef : undefined}
             type="button"
             role="menuitem"
             aria-current={isActive ? 'true' : undefined}
-            data-anchor={isAnchor ? 'true' : undefined}
             onClick={() => onSelect(project)}
             className={`flex w-full items-center gap-2 rounded-md p-1 pr-2 text-left text-sm cursor-pointer focus:outline-none ${
-              isActive ? 'bg-accent text-accent-foreground' : isAnchor ? 'bg-accent/60' : 'hover:bg-accent/60'
+              isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60'
             }`}
           >
             <span
@@ -172,26 +173,20 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
   const isNotesMinimized = useNotesStore(s => s.isMinimized)
 
   const railRef = useRef<HTMLDivElement>(null)
-  const [flyout, setFlyout] = useState<{ projectId: string, anchorCenter: number, left: number } | null>(null)
+  const activeIconRef = useRef<HTMLButtonElement>(null)
+  const [flyoutOpen, setFlyoutOpen] = useState(false)
   // Moving between icons, or from an icon into the flyout, fires mouseleave
   // before the next mouseenter; closing on a delay keeps it from flickering shut.
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const openFlyout = useCallback((projectId: string, iconRect: DOMRect) => {
+  const openFlyout = useCallback(() => {
     clearTimeout(closeTimer.current)
-    const railRect = railRef.current?.getBoundingClientRect()
-    setFlyout({
-      projectId,
-      anchorCenter: iconRect.top + iconRect.height / 2,
-      left: (railRect?.right ?? iconRect.right) + 4,
-    })
+    setFlyoutOpen(true)
   }, [])
-
-  const keepFlyout = useCallback(() => clearTimeout(closeTimer.current), [])
 
   const closeFlyout = useCallback(() => {
     clearTimeout(closeTimer.current)
-    closeTimer.current = setTimeout(setFlyout, 120, null)
+    closeTimer.current = setTimeout(setFlyoutOpen, 120, false)
   }, [])
 
   useEffect(() => () => clearTimeout(closeTimer.current), [])
@@ -230,25 +225,25 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
             key={project.id}
             project={project}
             isActive={activeProjectId === project.id}
+            activeRef={activeIconRef}
             onClick={() => navigate(projectPath(project.id))}
-            onHover={rect => openFlyout(project.id, rect)}
+            onHover={openFlyout}
             onLeave={closeFlyout}
           />
         ))}
       </div>
-      {flyout && projects?.length ?
+      {flyoutOpen && projects?.length ?
           (
             <ProjectFlyout
               projects={projects}
               activeProjectId={activeProjectId}
-              anchorProjectId={flyout.projectId}
-              anchorCenter={flyout.anchorCenter}
-              left={flyout.left}
+              railRef={railRef}
+              activeIconRef={activeIconRef}
               onSelect={(project) => {
-                setFlyout(null)
+                setFlyoutOpen(false)
                 void navigate(projectPath(project.id))
               }}
-              onMouseEnter={keepFlyout}
+              onMouseEnter={openFlyout}
               onMouseLeave={closeFlyout}
             />
           ) :

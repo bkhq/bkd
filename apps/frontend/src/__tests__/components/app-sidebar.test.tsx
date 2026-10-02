@@ -125,19 +125,20 @@ describe('appSidebar project flyout', () => {
     expect(getByRole('menuitem', { name: 'Alpha' }).textContent).toBe('ALAlpha')
   })
 
-  it('levels the hovered project row with its rail icon', () => {
-    const { getByTestId, getByLabelText } = render(<AppSidebar activeProjectId="p1" />)
-    const gamma = getByLabelText('Gamma')
-    placeAt(gamma, 300)
+  it('levels the active project row with its rail icon', () => {
+    const { getByTestId, getByLabelText } = render(<AppSidebar activeProjectId="p3" />)
+    placeAt(getByLabelText('Alpha'), 100)
+    placeAt(getByLabelText('Gamma'), 300)
 
-    fireEvent.mouseEnter(gamma)
+    // Whichever icon opens it, the flyout lines up with the active project.
+    fireEvent.mouseEnter(getByLabelText('Alpha'))
 
     // Icon centre 318. Gamma is the third row: 4 padding + 2 * 44 above it, plus
     // the 1px border and half a row (22) => its centre is 115px below the top.
     expect(getByTestId('project-flyout').style.top).toBe(`${318 - 115}px`)
   })
 
-  it('follows the pointer from one icon to the next', () => {
+  it('stays put while the pointer moves between icons', () => {
     const { getByTestId, getByLabelText } = render(<AppSidebar activeProjectId="p1" />)
     const alpha = getByLabelText('Alpha')
     const gamma = getByLabelText('Gamma')
@@ -149,16 +150,19 @@ describe('appSidebar project flyout', () => {
 
     fireEvent.mouseLeave(alpha)
     fireEvent.mouseEnter(gamma)
-    expect(getByTestId('project-flyout').style.top).toBe(`${318 - 115}px`)
+    expect(getByTestId('project-flyout').style.top).toBe(`${118 - 27}px`)
+    expect(getByTestId('project-flyout').querySelector('[data-anchor]')).toBeNull()
   })
 
-  it('marks the row that belongs to the hovered icon', () => {
-    const { getByLabelText, getByRole } = render(<AppSidebar activeProjectId="p1" />)
+  it('opens level with the project list when no project is active', () => {
+    const { getByTestId, getByLabelText } = render(<AppSidebar activeProjectId="" />)
+    const alpha = getByLabelText('Alpha')
+    placeAt(alpha.parentElement!.parentElement!, 60, 400)
+    placeAt(alpha, 100)
 
-    fireEvent.mouseEnter(getByLabelText('Beta'))
+    fireEvent.mouseEnter(alpha)
 
-    expect(getByRole('menuitem', { name: 'Beta' })).toHaveAttribute('data-anchor', 'true')
-    expect(getByRole('menuitem', { name: 'Alpha' })).not.toHaveAttribute('data-anchor')
+    expect(getByTestId('project-flyout').style.top).toBe('60px')
   })
 
   it('navigates when a flyout row is clicked', () => {
