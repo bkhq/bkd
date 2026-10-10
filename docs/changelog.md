@@ -471,3 +471,17 @@ level with the top of the project list.
 - Opening on hover, the close delay and crossing into the flyout are unchanged.
 
 Task `20261002-1223-sidebar-flyout-active-anchor`.
+
+## 2026-10-10 13:33 [progress]
+
+lode moved from `dotns/lode` to `bkhq/lode` (versioning restarted; current
+release `v0.0.2`, same asset names and config keys). All live references —
+both READMEs, `docs/deployment.md`, `CLAUDE.md`, the Release workflow's install
+URL and release notes, the eslint ignore comment — now point at `bkhq/lode`.
+Install URLs use `releases/latest/download/` instead of a pinned version, so
+the workflow's `LODE_VERSION` pin is gone; the deployment guide points at
+`lode-cli self-update` instead of asking to pin. `lode-sdk.ts` was re-copied
+from upstream (header comment only). Historical task and plan records keep
+the old links.
+
+Task `20261010-1333-lode-repo-move`.

@@ -1,4 +1,4 @@
-// lode.ts — single-file TS/JS SDK for the `lode` supervisor (github.com/dotns/lode).
+// lode.ts — single-file TS/JS SDK for the `lode` supervisor (github.com/bkhq/lode).
 // Wraps the state.json contract: read status, request upgrade/restart/rollback,
 // report readiness, subscribe to lode's notifications. The SDK only *signals* lode
 // (writes target/restart_nonce/ready under state.json.lock); lode does the heavy

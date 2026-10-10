@@ -189,9 +189,9 @@ Routes: `GET/POST /api/cron`, `GET/PATCH/DELETE /api/cron/:id`, `POST /api/cron/
 
 #### Upgrade (`upgrade/`)
 
-BKD does not update itself. It runs as a child of the [lode](https://github.com/dotns/lode) supervisor, which fetches `bkd-server.tar.gz` from GitHub Releases, verifies sha256 + the ed25519 asset signature, installs it under `<dir>/versions/<version>/`, and restarts BKD — rolling back automatically if the new version dies inside `health_grace` or misses its readiness signal.
+BKD does not update itself. It runs as a child of the [lode](https://github.com/bkhq/lode) supervisor, which fetches `bkd-server.tar.gz` from GitHub Releases, verifies sha256 + the ed25519 asset signature, installs it under `<dir>/versions/<version>/`, and restarts BKD — rolling back automatically if the new version dies inside `health_grace` or misses its readiness signal.
 
-- `lode-sdk.ts` — vendored verbatim from [`dotns/lode`](https://github.com/dotns/lode) `sdks/lode.ts` (zero-dep, eslint-ignored; update by re-copying the file).
+- `lode-sdk.ts` — vendored verbatim from [`bkhq/lode`](https://github.com/bkhq/lode) `sdks/lode.ts` (zero-dep, eslint-ignored; update by re-copying the file).
 - `service.ts` — the only app-side surface: reads lode's `state.json` and writes the request fields the app owns (`target`, `restart_nonce`, `ready`).
 - `server-main.ts` calls `reportReady()` once `Bun.serve()` is listening (`[supervise].readiness = "state"`); lode drives every restart via SIGTERM, handled by the existing graceful shutdown.
 - `ROOT_DIR` (env, or `[env]` in lode.toml) pins the install root so `data/` survives upgrades — lode runs BKD with its cwd set to the per-version directory.

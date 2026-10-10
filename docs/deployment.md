@@ -1,7 +1,7 @@
 # Deployment
 
 BKD is distributed as a small app package (`bkd-server.tar.gz`, ~2 MB) that runs under
-[lode](https://github.com/dotns/lode) — a static Rust supervisor that verifies, launches,
+[lode](https://github.com/bkhq/lode) — a static Rust supervisor that verifies, launches,
 supervises and updates it. BKD no longer downloads or installs anything itself.
 
 ```
@@ -24,7 +24,7 @@ Every release ships the operator files, so no repo checkout is needed:
 ```bash
 # 1. lode itself — on arm64 or macOS swap in the matching asset
 #    (lode-linux-arm64 / lode-darwin-x64 / lode-darwin-arm64)
-curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64.tar.gz \
+curl -fsSL https://github.com/bkhq/lode/releases/latest/download/lode-linux-x64.tar.gz \
   | sudo tar -xz -C /usr/local/bin lode lode-cli
 
 # 2. an install root you own — lode writes state.json, versions/, runtime/ and
@@ -60,16 +60,16 @@ The sections below explain each part of that config.
 
 ## 1. Install lode
 
-Grab the binary for your host from the [lode releases](https://github.com/dotns/lode/releases)
+Grab the binary for your host from the [lode releases](https://github.com/bkhq/lode/releases)
 and put `lode` + the `lode-cli` symlink on `PATH`:
 
 ```bash
-curl -fsSL https://github.com/dotns/lode/releases/download/v0.1.0/lode-linux-x64.tar.gz \
+curl -fsSL https://github.com/bkhq/lode/releases/latest/download/lode-linux-x64.tar.gz \
   | sudo tar -xz -C /usr/local/bin lode lode-cli
 lode --version
 ```
 
-Pin the version you install — lode is the trust root of the update path.
+`lode-cli self-update` upgrades the binary in place later.
 
 ## 2. Write `lode.toml`
 
