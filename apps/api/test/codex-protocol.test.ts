@@ -482,6 +482,8 @@ describe('CodexProtocolHandler', () => {
     expect(req.method).toBe('thread/resume')
     expect(req.params).toEqual({
       threadId: 'existing-thread',
+      // BKD never reads the hydrated history; full hydration is deprecated.
+      excludeTurns: true,
       model: 'gpt-5.6-sol',
       cwd: '/work/repo',
       approvalPolicy: 'never',

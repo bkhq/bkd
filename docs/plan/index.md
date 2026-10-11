@@ -1,6 +1,6 @@
 # BKD - Plan Index
 
-> Updated: 2026-10-02
+> Updated: 2026-10-11
 
 ## Usage
 
@@ -63,3 +63,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261002-1007-engine-process-leak Kill engine processes that fail registration or the Codex handshake**](20261002-1007-engine-process-leak.md) `2026-10-02`
 - [x] [**20261002-1111-worktree-reuse Keep worktree issues out of the main checkout**](20261002-1111-worktree-reuse.md) `2026-10-02`
 - [x] [**20261002-1111-persist-permission-mode Persist the issue permission mode**](20261002-1111-persist-permission-mode.md) `2026-10-02`
+- [x] [**20261011-0213-codex-failure-visibility Surface Codex turn failures and stop stall probes from ending Codex turns**](20261011-0213-codex-failure-visibility.md) `2026-10-11`

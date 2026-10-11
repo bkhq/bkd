@@ -496,15 +496,26 @@ export function LogEntry({
         <div className="py-0.5 text-[11px] text-muted-foreground/60 truncate">{entry.content}</div>
       )
 
-    case 'error-message':
+    case 'error-message': {
+      // Engine error kind (Codex `codexErrorInfo`): names the policy block or
+      // stream failure behind an otherwise generic message.
+      const errorKind = entry.metadata?.errorKind
       return (
         <div className="flex gap-2 my-1.5 bg-destructive/[0.06] border border-destructive/20 px-3 py-2 animate-message-enter">
           <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive mt-0.5" />
-          <code className="min-w-0 overflow-x-auto text-xs text-destructive/90 leading-relaxed whitespace-pre">
-            {entry.content}
-          </code>
+          <div className="min-w-0 flex flex-col gap-0.5">
+            {typeof errorKind === 'string' && (
+              <span className="text-xs font-medium text-destructive">
+                {t(`session.errorKind.${errorKind}`, { defaultValue: errorKind })}
+              </span>
+            )}
+            <code className="min-w-0 overflow-x-auto text-xs text-destructive/90 leading-relaxed whitespace-pre">
+              {entry.content}
+            </code>
+          </div>
         </div>
       )
+    }
 
     case 'thinking': {
       const preview = entry.content.length > 80 ? `${entry.content.slice(0, 80)}…` : entry.content

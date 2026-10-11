@@ -240,6 +240,17 @@
     "scrollToTop": "Scroll to top",
     "scrollToBottom": "Scroll to bottom",
     "executionFailed": "Execution failed",
+    "errorKind": {
+      "cyberPolicy": "Blocked by the cybersecurity policy",
+      "contextWindowExceeded": "Context window exceeded",
+      "usageLimitExceeded": "Usage limit exceeded",
+      "rateLimitExceeded": "Rate limit exceeded",
+      "responseStreamDisconnected": "Response stream disconnected",
+      "responseStreamConnectionFailed": "Could not connect to the response stream",
+      "serverOverloaded": "Server overloaded",
+      "internalServerError": "Internal server error",
+      "unauthorized": "Unauthorized"
+    },
     "duration": "Completed in {{time}}",
     "copyMessage": "Copy message",
     "viewMessage": "View as Markdown",

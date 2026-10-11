@@ -485,3 +485,32 @@ from upstream (header comment only). Historical task and plan records keep
 the old links.
 
 Task `20261010-1333-lode-repo-move`.
+
+## 2026-10-11 12:35 [BUG-P1]
+
+Codex failures were invisible, so a blocked or failed turn looked like a
+disconnect: the issue moved to review with no reason in the chat. `isVisible`
+dropped every `error-message` entry (cc74551, meant for stderr noise), which
+also hid Codex's `error` notifications, failed `turn/completed`, thread
+`systemError` and the "Reconnecting… n/5" stream-disconnect retries.
+Production (45 days): 16 `cyberPolicy` blocks and 8 stream disconnects, none
+shown.
+
+- Only raw stderr is hidden now: `consumeStderr` tags its entries
+  `source: 'stderr'` and `isVisible` hides just those. Engine-reported errors
+  reach the chat and the SSE stream; `LogEntry` labels the error kind
+  (`session.errorKind.*`, en/zh).
+- The stall probe no longer touches Codex. `turn/interrupt` ends a Codex turn,
+  and the interrupted result was settled as `failed` (seen once in
+  production on an 853k-token turn). A Codex turn is now terminated only when
+  its process is dead or after `KEEPALIVE_STALL_TIMEOUT_MS` (30 min) of
+  silence.
+- `thread/resume` sends `excludeTurns: true`; the app-server's deprecation
+  notice about full-history hydration (13 in production) stops.
+- Tests: `log-visibility.test.ts`, three Codex cases in
+  `gc-stall-detection.test.ts`, the resume params in `codex-protocol.test.ts`,
+  `log-entry-error.test.tsx`.
+
+The `cyberPolicy` block itself is Codex-side policy (security-audit prompts
+need Daybreak access); BKD can only show it. Task
+`20261011-0213-codex-failure-visibility`.

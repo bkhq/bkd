@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-10-02
+> Updated: 2026-10-11
 
 ## Usage
 
@@ -134,3 +134,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261002-1111-persist-permission-mode Persist the issue permission mode**](20261002-1111-persist-permission-mode.md) `P1`
 - [x] [**20261002-1223-sidebar-flyout-active-anchor Anchor the sidebar flyout to the active project only**](20261002-1223-sidebar-flyout-active-anchor.md) `P2`
 - [x] [**20261010-1333-lode-repo-move Point lode references at bkhq/lode**](20261010-1333-lode-repo-move.md) `P2`
+- [x] [**20261011-0213-codex-failure-visibility Surface Codex turn failures and stop stall probes from ending Codex turns**](20261011-0213-codex-failure-visibility.md) `P1`
