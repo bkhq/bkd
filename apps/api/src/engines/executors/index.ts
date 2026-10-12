@@ -7,11 +7,13 @@ import type {
 } from '@/engines/types'
 import { ClaudeCodeExecutor } from './claude'
 import { CodexExecutor } from './codex'
+import { CursorExecutor } from './cursor'
 import { GrokExecutor } from './grok'
 
 // Re-export executor classes
 export { ClaudeCodeExecutor } from './claude'
 export { CodexExecutor } from './codex'
+export { CursorExecutor } from './cursor'
 export { GrokExecutor } from './grok'
 
 /**
@@ -54,6 +56,7 @@ function createRegistry(): EngineRegistry {
   registry.register(new ClaudeCodeExecutor())
   registry.register(new CodexExecutor())
   registry.register(new GrokExecutor())
+  registry.register(new CursorExecutor())
 
   return registry
 }

@@ -147,10 +147,10 @@ const CLAUDE_MODELS: EngineModel[] = [
     name: 'Claude Opus 5.5 (1M)',
     isDefault: false,
   },
-  { id: 'claude-opus-5', name: 'Claude Opus 5', isDefault: true },
+  { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5', isDefault: true },
   {
-    id: 'claude-opus-5[1m]',
-    name: 'Claude Opus 5 (1M)',
+    id: 'claude-sonnet-5-5[1m]',
+    name: 'Claude Sonnet 5.5 (1M)',
     isDefault: false,
   },
   { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', isDefault: false },

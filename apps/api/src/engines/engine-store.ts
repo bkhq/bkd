@@ -4,7 +4,7 @@ import { db } from '@/db'
 import { issues as issuesTable } from '@/db/schema'
 import { emitIssueUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
-import type { EngineType, SessionStatus } from './types'
+import type { EngineType, PermissionPolicy, SessionStatus } from './types'
 
 // ---------- Row type inference ----------
 type IssueRow = typeof issuesTable.$inferSelect
@@ -18,6 +18,7 @@ export interface IssueSessionFields {
   prompt: string | null
   externalSessionId: string | null
   model: string | null
+  permissionMode: PermissionPolicy | null
 }
 
 export function getIssueSessionFields(row: IssueRow): IssueSessionFields {
@@ -28,6 +29,7 @@ export function getIssueSessionFields(row: IssueRow): IssueSessionFields {
     prompt: row.prompt ?? null,
     externalSessionId: row.externalSessionId ?? null,
     model: row.model ?? null,
+    permissionMode: (row.permissionMode as PermissionPolicy | null) ?? null,
   }
 }
 
@@ -51,6 +53,7 @@ export async function updateIssueSession(
     prompt: string
     externalSessionId: string | null
     model: string
+    permissionMode: PermissionPolicy
   }>,
 ): Promise<IssueRow | undefined> {
   const updates: Record<string, unknown> = {}
@@ -60,6 +63,7 @@ export async function updateIssueSession(
   if (changes.prompt !== undefined) updates.prompt = changes.prompt
   if (changes.externalSessionId !== undefined) updates.externalSessionId = changes.externalSessionId
   if (changes.model !== undefined) updates.model = changes.model
+  if (changes.permissionMode !== undefined) updates.permissionMode = changes.permissionMode
 
   if (Object.keys(updates).length === 0) {
     const [row] = await db

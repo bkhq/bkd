@@ -32,7 +32,9 @@ export function ShikiCodeBlock({ code, lang }: ShikiCodeBlockProps) {
   return (
     <div
       className="rounded-md bg-popover overflow-hidden [&_.shiki]:!bg-transparent [&_.shiki]:p-3 [&_.shiki]:text-xs [&_.shiki]:overflow-x-auto [&_code]:leading-snug"
-      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }}
+      // Shiki marks its <pre> with tabindex="0"; a focusable block swallows
+      // long-press-to-select on touch devices.
+      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html, { FORBID_ATTR: ['tabindex'] }) }}
     />
   )
 }

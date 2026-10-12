@@ -258,3 +258,287 @@ and finished the BKD rename.
 - Verified end to end on grok 1.0.41 against an isolated API instance: execute, follow-up
   with context, cancel mid-command, resume after cancel; token/cost and context window
   recorded.
+
+## 2026-09-24 10:05 [progress]
+
+20260924-0914-cursor-engine: added Cursor CLI (`cursor`) as a fourth engine type.
+
+- `executors/cursor/`: headless executor (`cursor-agent -p --output-format stream-json
+  --force --trust --workspace <dir> --resume <id> [--model <m>] <prompt>`, SIGTERM to
+  cancel) and a self-contained normalizer for the `system/init`, `thinking` delta,
+  `assistant`, `tool_call` (`<name>ToolCall.{args,result}`) and `result` events.
+  Token usage comes from `result.usage` (input + cache read + cache write).
+- `--resume <uuid>` creates the session when the id is unknown, so BKD's pre-generated
+  `externalSessionId` is passed on the first turn; no `create-chat` round-trip.
+- Only `cursor-agent` is resolved (PATH, then `~/.local/bin`): the primary `agent` name
+  collides with grok's alias, and every Cursor run rewrites `~/.local/bin/agent` to
+  point at itself.
+- `'cursor'` wired into `EngineType`, built-in profiles, the executor registry,
+  slash-command cache, virtual-engine reserved ids, settings validation and safe-env
+  (`CURSOR_API_KEY`). Frontend gets an engine icon.
+- Pitfall: the CLI blocks when stdin is an inherited pipe (`create-chat` hung for
+  minutes); every subprocess uses `stdin: 'ignore'`.
+- Out of scope: partial-output streaming, local session browser/import, virtual
+  engines based on cursor, slash-command discovery, MCP approval, plan mode.
+- Verified end to end on cursor-agent 2026.09.23-86fc751 against an isolated API
+  instance: probe (installed + authenticated, 241 models), execute, follow-up with
+  context, cancel mid-command (SIGTERM, exit 143, session kept), follow-up after cancel.
+
+## 2026-09-29 10:50 [BUG-P1]
+
+Agent messages could not be selected — and therefore not copied — by long-pressing
+on a touch device; user messages in the same stream selected normally.
+
+Not a touch-event problem: neither message component registers a pointer or touch
+handler. The difference is the render path. A user message is a plain `div`
+(`LogEntry.tsx`, `UserMessageEntry`), while an agent message goes through
+`MarkdownContent` → Shiki → `dangerouslySetInnerHTML`, and Shiki wraps its output in
+`<pre class="shiki" tabindex="0">` which `.markdown-shiki .shiki` then made a
+horizontal scroll container. A focusable element resolves a long press as focus, a
+scrollable one resolves it as a pan; the global `* { touch-action: manipulation }`
+compounds both.
+
+- `MarkdownContent.tsx` sanitizes with `FORBID_ATTR: ['tabindex']`. DOMPurify's
+  default allowlist includes `tabindex` (`dompurify/src/attrs.ts`), so the attribute
+  had been surviving into the DOM.
+- `.markdown-shiki .shiki` drops `overflow-x: auto` for `visible` — the rule already
+  sets `white-space: pre-wrap` and `word-break: break-word`, so the body wraps and the
+  horizontal scroll was redundant — and adds `touch-action: auto` plus an explicit
+  `user-select: text`.
+
+Not verified on hardware: `agent-browser`'s bundled Chrome will not start in this
+container (`libatk-1.0.so.0` missing), and long-press-to-select only reproduces on a
+real touch device. The three causes are confirmed at the code level (Shiki output,
+CSS rule, DOMPurify allowlist). If selection still fails on a phone, `tabindex` is the
+first suspect. Task: `20260929-1043-mobile-agent-message-selection`.
+
+## 2026-10-01 15:42 [progress]
+
+The desktop rail now reveals the full project list on hover. Two-letter initials
+from `getProjectInitials()` collide, and the old per-button tooltip surfaced one
+name at a time, so there was no way to scan the list.
+
+- `AppSidebar.tsx`: new `ProjectFlyout` anchored to the right edge of the rail,
+  listing every project as initials plus full name, active row marked with
+  `aria-current`, scrolling via a `max-height` derived from the anchor so it
+  cannot overflow the viewport. The per-button tooltip is gone.
+- The rail and the flyout share one hover region and close on a 120 ms delay:
+  crossing the gap fires `mouseleave` on the rail before `mouseenter` on the
+  flyout, which would otherwise flicker it shut.
+- Rail buttons still navigate on click; `MobileSidebar` and the rest of the rail
+  are untouched. New i18n key `sidebar.projects` (en/zh).
+
+Rejected alternative: expanding the whole rail on hover. The lower half carries
+the connection indicator, terminal, notes, view-mode select, global pages and
+settings, all of which would have had to become labelled rows.
+
+Task: `20261001-1538-sidebar-project-flyout`.
+
+## 2026-10-01 16:20 [BUG-P1]
+
+The stale-working reconciler marked starting executions as failed. An issue showed
+`sessionStatus: failed` + `statusId: review` while its engine process ran a whole
+turn, correcting itself only when that turn settled.
+
+`reconcileStaleWorkingIssues()` treats `working` with no registered process as
+stale, but a start is `working` from `ensureWorking()` onward and only registers
+its process after the executor's spawn resolves — 2.9 s in the reported case. A
+pass landing before the engine took the issue lock moved the issue back to
+`review`; a pass landing after it wrote `running` but before `register()` wrote
+`failed` + `review`. Skipping `pending` did not help: every engine path overwrites
+it with `running` before spawning, and the existing TOCTOU re-check reads the same
+unregistered process. Reported rate: 66 of 2,032 starts over 2026-07-25..10-01,
+rising with concurrency.
+
+- `EngineContext.startsInFlight` counts starts per issue. `issueEngine.trackStart()`
+  raises the count synchronously — before its first `await` — awaits the start and
+  releases in `finally`; `issueEngine.isStarting()` reports it.
+- Every start is wrapped from before its first write that commits the issue to
+  `working` until the engine returns: the follow-up, execute and restart routes,
+  the cron follow-up and execute actions, `flushPendingAsFollowUp()` and
+  `triggerIssueExecution()`.
+- The reconciler now skips an issue that has an active process **or** a start in
+  flight, in the first pass and in the re-check before the transaction. Bun's
+  SQLite transaction is synchronous, so a start is either seen by the re-check or
+  begins after the UPDATE and writes `working`/`running` itself.
+- Secondary fix: the `issue-updated` event carries
+  `{ statusId: 'review', sessionStatus: 'failed' }` for the issues whose session
+  status the reconciler rewrote, instead of `statusId` alone — a client applying
+  the event used to keep showing the old session status until it refetched.
+
+Investigation, evidence and the approved proposal came from the reporter; task
+`20261001-1313-reconciler-start-race`.
+
+## 2026-10-01 16:55 [progress]
+
+The sidebar hover flyout now lists plain project names. The initials badge on each
+row duplicated the rail buttons next to it and added nothing once the full name is
+shown. Row padding was retuned for text-only rows, and the active row is marked with
+`font-medium` on top of the existing highlight. The rail buttons keep their initials.
+
+Considered and dropped: showing only a few pinned projects in the rail with a "more"
+button for the full list. Follow-up to `20261001-1538-sidebar-project-flyout`.
+
+## 2026-10-01 18:50 [progress]
+
+Reworked the sidebar hover flyout so it reads as part of the rail. It was anchored to
+the top of the whole project area, so it appeared in the same place whichever icon was
+hovered and bore no visual relation to it.
+
+- The flyout opens per icon: hovering a rail icon places the flyout so that project's
+  row sits level with the icon. Moving to another icon re-levels it; the rows keep the
+  initials badge (reverting the plain-text rows from the previous change), at the same
+  36px size as the rail icon so the two line up.
+- The row belonging to the hovered icon is tinted (`data-anchor`), so the pairing is
+  visible while the pointer is still on the rail.
+- Placement is the pure `placeFlyout()` in `lib/flyout-position.ts`: it keeps an 8px
+  margin to the viewport edges and, for a list taller than the viewport, pins the flyout
+  to the margins and scrolls the matching row into line.
+- The measurement runs in a layout effect, so the flyout never paints at an unaligned
+  position. Hover handlers moved from the rail container onto the icons; the container
+  no longer has any.
+
+Follow-up to `20261001-1538-sidebar-project-flyout`. As before, jsdom has no layout, so
+the tests stub the geometry; the real alignment against a viewport needs a look in a
+browser.
+
+## 2026-10-02 10:45 [BUG-P0]
+
+Engine processes leaked when the spawn succeeded but a later step failed. BKD
+spawned the engine before registering it with the process manager, and nothing
+killed the child when registration or the Codex handshake threw. The orphan kept
+working on its prompt in the project directory, its output never reached BKD,
+cancel could not reach it, and it did not count toward the concurrency limit.
+An orphaned `codex app-server` also held the thread's writer lock, so every later
+follow-up failed with `already has an active writer` and leaked one more process.
+Present since the initial commit (`cdcaa8a`).
+
+- `ProcessManager.assertCapacity()` holds the limit check that `register()` used
+  inline. Execute, follow-up, retry and restart call it before spawning, so a full
+  limit no longer starts a process or sends the prompt.
+- Every post-spawn step (the `externalSessionId` write and `register()`) now runs
+  inside the paths' existing try blocks. On failure the child is killed
+  (`killUnregistered()`, SIGKILL to its process group) and the existing revert
+  runs: session `failed`, the pre-persisted follow-up message removed. Before,
+  a registration failure also left the session `running`.
+- `spawnFresh` / `spawnWithSessionFallback` kill the child if the session-id
+  write fails.
+- `CodexExecutor.spawn` / `spawnFollowUp` close the handler and kill the
+  app-server when `initialize`, the auth check, `thread/start`, `thread/resume`
+  or `turn/start` fails.
+- Tests: `engine-spawn-leak.test.ts` (limit full before the spawn, and filled
+  while spawning, for execute / follow-up / restart) and
+  `codex-spawn-cleanup.test.ts` (a fake app-server rejecting `thread/resume`).
+
+Orphans already running on a host are not reaped by this change; kill them once
+(or restart BKD). Task `20261002-1007-engine-process-leak`.
+
+## 2026-10-02 11:14 [BUG-P1]
+
+An issue with `useWorktree` could run in the project's main checkout.
+`restartIssue` and `executeIssue` called `createWorktree` unconditionally; with
+the worktree already present both `git worktree add` attempts fail, and every
+path swallowed the error and fell back to the base directory. A restart or a
+second execute of an isolated issue therefore always edited the main checkout.
+
+- `ensureWorktree()` (`utils/worktree.ts`) returns the worktree when its
+  directory exists and is registered under the project repo, and creates it
+  otherwise. Execute, restart, retry and follow-up all use it.
+- There is no fallback any more. When the worktree cannot be provided (project
+  directory is not a git repo, no `main`/`master`, a stale directory at the
+  path) the turn fails before anything is spawned: session `failed`, the git
+  error in the chat, the pre-persisted follow-up message removed.
+- Tests: `worktree-reuse.test.ts`.
+
+Task `20261002-1111-worktree-reuse`.
+
+## 2026-10-02 11:14 [BUG-P1]
+
+`permissionMode` was accepted by issue create, execute and follow-up but never
+stored. Turns with no request of their own — auto-retry, restart, the pending
+flush, and the execute triggered by moving an issue to `working` — fell back to
+the engine default, `auto`, so a `plan` or `supervised` issue was re-run with
+full permissions after a failure.
+
+- New nullable column `issues.permission_mode` (migration `0025`).
+- Create stores the requested mode; `executeIssue` and `followUpIssue` store an
+  explicit mode when one is passed; duplicate copies it.
+- Execute, follow-up spawn, retry and restart resolve
+  `explicit ?? stored ?? engine default`. Existing issues have `NULL` and behave
+  as before.
+- The mode is not part of the issue API response.
+- Tests: `permission-mode-persist.test.ts`.
+
+Task `20261002-1111-persist-permission-mode`.
+
+## 2026-10-02 12:24 [progress]
+
+The sidebar project flyout no longer follows the hovered rail icon. It tracked
+the hovered project id and icon position in state, moved as the pointer
+travelled along the rail and tinted the hovered project's row. It now lines up
+with the active project only: the active row sits level with the active
+project's icon whichever icon opens it, and with no active project it opens
+level with the top of the project list.
+
+- `AppSidebar` keeps a single open/closed flag; `ProjectFlyout` measures the
+  active icon and the rail itself. The `data-anchor` hovered-row marker is gone.
+- Opening on hover, the close delay and crossing into the flyout are unchanged.
+
+Task `20261002-1223-sidebar-flyout-active-anchor`.
+
+## 2026-10-10 13:33 [progress]
+
+lode moved from `dotns/lode` to `bkhq/lode` (versioning restarted; current
+release `v0.0.2`, same asset names and config keys). All live references —
+both READMEs, `docs/deployment.md`, `CLAUDE.md`, the Release workflow's install
+URL and release notes, the eslint ignore comment — now point at `bkhq/lode`.
+Install URLs use `releases/latest/download/` instead of a pinned version, so
+the workflow's `LODE_VERSION` pin is gone; the deployment guide points at
+`lode-cli self-update` instead of asking to pin. `lode-sdk.ts` was re-copied
+from upstream (header comment only). Historical task and plan records keep
+the old links.
+
+Task `20261010-1333-lode-repo-move`.
+
+## 2026-10-11 12:35 [BUG-P1]
+
+Codex failures were invisible, so a blocked or failed turn looked like a
+disconnect: the issue moved to review with no reason in the chat. `isVisible`
+dropped every `error-message` entry (cc74551, meant for stderr noise), which
+also hid Codex's `error` notifications, failed `turn/completed`, thread
+`systemError` and the "Reconnecting… n/5" stream-disconnect retries.
+Production (45 days): 16 `cyberPolicy` blocks and 8 stream disconnects, none
+shown.
+
+- Only raw stderr is hidden now: `consumeStderr` tags its entries
+  `source: 'stderr'` and `isVisible` hides just those. Engine-reported errors
+  reach the chat and the SSE stream; `LogEntry` labels the error kind
+  (`session.errorKind.*`, en/zh).
+- The stall probe no longer touches Codex. `turn/interrupt` ends a Codex turn,
+  and the interrupted result was settled as `failed` (seen once in
+  production on an 853k-token turn). A Codex turn is now terminated only when
+  its process is dead or after `KEEPALIVE_STALL_TIMEOUT_MS` (30 min) of
+  silence.
+- `thread/resume` sends `excludeTurns: true`; the app-server's deprecation
+  notice about full-history hydration (13 in production) stops.
+- Tests: `log-visibility.test.ts`, three Codex cases in
+  `gc-stall-detection.test.ts`, the resume params in `codex-protocol.test.ts`,
+  `log-entry-error.test.tsx`.
+
+The `cyberPolicy` block itself is Codex-side policy (security-audit prompts
+need Daybreak access); BKD can only show it. Task
+`20261011-0213-codex-failure-visibility`.
+
+## 2026-10-12 03:30 [decision]
+
+Merged `main` into `release` again for #145.
+
+- lode references: took `main` (bkhq/lode, `releases/latest/download`, no
+  `LODE_VERSION` pin); `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` stays removed as in
+  DEV-004.
+- `MarkdownContent` / `index.css`: `main`'s touch-selection fix
+  (20260929-1043) patched the Shiki message path that streamdown replaced.
+  Ported its intent: `ShikiCodeBlock` sanitizes with `FORBID_ATTR: ['tabindex']`
+  and the streamdown root carries `touch-auto select-text`. Regression test moved
+  to `shiki-code-block.test.tsx`.
+

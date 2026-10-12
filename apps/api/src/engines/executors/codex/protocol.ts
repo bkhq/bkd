@@ -274,9 +274,12 @@ export class CodexProtocolHandler {
    * the same overrides as `thread/start`, so they are re-sent here.
    */
   async resumeThread(threadId: string, params: ThreadStartParams = {}): Promise<void> {
+    // BKD never reads the hydrated history; full hydration is deprecated and
+    // the app-server warns about it on every resume.
     await this.sendRequest('thread/resume', {
       ...threadParamsToRpc(params),
       threadId,
+      excludeTurns: true,
     })
     this._threadId = threadId
     logger.info(

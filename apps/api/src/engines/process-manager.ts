@@ -112,11 +112,7 @@ export class ProcessManager<TMeta> {
       throw new Error(`[${this.name}] Process already registered: ${id}`)
     }
 
-    if (this.maxConcurrent > 0 && this.activeCount() >= this.maxConcurrent) {
-      throw new Error(
-        `[${this.name}] Concurrency limit reached (${this.activeCount()}/${this.maxConcurrent})`,
-      )
-    }
+    this.assertCapacity()
 
     const entry: ManagedEntry<TMeta> = {
       id,
@@ -141,6 +137,15 @@ export class ProcessManager<TMeta> {
     this.monitorExit(entry)
     this.log.debug?.({ pm: this.name, id, group: opts?.group, state: entry.state }, 'pm_registered')
     return entry
+  }
+
+  /** Throw when no slot is free. Call before spawning, so a full limit never starts a process. */
+  assertCapacity(): void {
+    if (this.maxConcurrent > 0 && this.activeCount() >= this.maxConcurrent) {
+      throw new Error(
+        `[${this.name}] Concurrency limit reached (${this.activeCount()}/${this.maxConcurrent})`,
+      )
+    }
   }
 
   markRunning(id: string): void {

@@ -91,42 +91,47 @@ command.openapi(R.executeIssue, async (c) => {
   }
 
   try {
-    const guard = await ensureWorking(issue)
-    if (!guard.ok) {
-      return c.json({ success: false, error: guard.reason! }, 400 as const)
-    }
-    // Prepend project-level system prompt if configured
-    const basePrompt = project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt
-    const envVars = parseProjectEnvVars(project.envVars)
-    // A virtual engine id resolves to its base engine; its preset env vars are
-    // injected by the engine layer from the issue's persisted engineProfileId.
-    const virtual = await getVirtualEngine(body.engineType)
-    const baseEngine = (virtual ? virtual.baseEngine : body.engineType) as EngineType
-    // Validate the engine resolves to a real executor BEFORE mutating the issue,
-    // so an unknown/stale id is a clean 400 without clobbering engineProfileId.
-    if (!engineRegistry.get(baseEngine)) {
-      return c.json({ success: false, error: `Unknown engine type: ${body.engineType}` }, 400 as const)
-    }
-    // Sync the virtual profile (set for a virtual engine, cleared for a real
-    // one) via executeIssue so the write happens under the per-issue lock —
-    // avoiding a race between concurrent execute requests.
-    const result = await issueEngine.executeIssue(issueId, {
-      engineType: baseEngine,
-      engineProfileId: virtual ? virtual.id : null,
-      prompt: basePrompt,
-      workingDir: effectiveWorkingDir,
-      model: body.model ?? virtual?.model,
-      permissionMode: body.permissionMode,
-      envVars,
+    // Tracked from before ensureWorking() until the engine returns: the issue
+    // is 'working' for the whole spawn, which the reconciler would otherwise
+    // read as stale.
+    return await issueEngine.trackStart(issueId, async () => {
+      const guard = await ensureWorking(issue)
+      if (!guard.ok) {
+        return c.json({ success: false, error: guard.reason! }, 400 as const)
+      }
+      // Prepend project-level system prompt if configured
+      const basePrompt = project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt
+      const envVars = parseProjectEnvVars(project.envVars)
+      // A virtual engine id resolves to its base engine; its preset env vars are
+      // injected by the engine layer from the issue's persisted engineProfileId.
+      const virtual = await getVirtualEngine(body.engineType)
+      const baseEngine = (virtual ? virtual.baseEngine : body.engineType) as EngineType
+      // Validate the engine resolves to a real executor BEFORE mutating the issue,
+      // so an unknown/stale id is a clean 400 without clobbering engineProfileId.
+      if (!engineRegistry.get(baseEngine)) {
+        return c.json({ success: false, error: `Unknown engine type: ${body.engineType}` }, 400 as const)
+      }
+      // Sync the virtual profile (set for a virtual engine, cleared for a real
+      // one) via executeIssue so the write happens under the per-issue lock —
+      // avoiding a race between concurrent execute requests.
+      const result = await issueEngine.executeIssue(issueId, {
+        engineType: baseEngine,
+        engineProfileId: virtual ? virtual.id : null,
+        prompt: basePrompt,
+        workingDir: effectiveWorkingDir,
+        model: body.model ?? virtual?.model,
+        permissionMode: body.permissionMode,
+        envVars,
+      })
+      return c.json({
+        success: true,
+        data: {
+          executionId: result.executionId,
+          issueId,
+          messageId: result.messageId,
+        },
+      }, 200 as const)
     })
-    return c.json({
-      success: true,
-      data: {
-        executionId: result.executionId,
-        issueId,
-        messageId: result.messageId,
-      },
-    }, 200 as const)
   } catch (error) {
     logger.warn(
       {
@@ -163,15 +168,17 @@ command.openapi(R.restartIssue, async (c) => {
   }
 
   try {
-    const guard = await ensureWorking(issue)
-    if (!guard.ok) {
-      return c.json({ success: false, error: guard.reason! }, 400 as const)
-    }
-    const result = await issueEngine.restartIssue(issueId)
-    return c.json({
-      success: true,
-      data: { executionId: result.executionId, issueId },
-    }, 200 as const)
+    return await issueEngine.trackStart(issueId, async () => {
+      const guard = await ensureWorking(issue)
+      if (!guard.ok) {
+        return c.json({ success: false, error: guard.reason! }, 400 as const)
+      }
+      const result = await issueEngine.restartIssue(issueId)
+      return c.json({
+        success: true,
+        data: { executionId: result.executionId, issueId },
+      }, 200 as const)
+    })
   } catch (error) {
     logger.warn(
       {

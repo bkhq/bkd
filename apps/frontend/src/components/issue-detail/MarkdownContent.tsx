@@ -19,7 +19,8 @@ export function MarkdownContent({
       controls={false}
       lineNumbers={false}
       components={markdownCodeComponents}
-      className={className}
+      // Opt out of the global touch-action: manipulation so touch devices can long-press to select.
+      className={`touch-auto select-text ${className}`}
     >
       {content}
     </Streamdown>

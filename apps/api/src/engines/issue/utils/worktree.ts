@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { mkdir, rm } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { WORKTREE_DIR } from '@/engines/issue/constants'
@@ -76,6 +77,26 @@ export async function createWorktree(
   }
   logger.debug({ issueId, worktreeDir, branchName, startPoint }, 'worktree_created')
   return worktreeDir
+}
+
+/**
+ * Return the issue's worktree, creating it when it does not exist yet.
+ *
+ * Throws when the worktree cannot be provided. Callers must not fall back to
+ * `baseDir`: an issue that asked for isolation would edit the main checkout.
+ */
+export async function ensureWorktree(
+  baseDir: string,
+  projectId: string,
+  issueId: string,
+): Promise<string> {
+  const worktreeDir = resolveWorktreePath(projectId, issueId)
+  // A directory registered under another repo (the project directory changed)
+  // is stale, so the registration is checked against `baseDir`.
+  if (existsSync(worktreeDir) && (await isWorktreeRegistered(baseDir, worktreeDir))) {
+    return worktreeDir
+  }
+  return createWorktree(baseDir, projectId, issueId)
 }
 
 export async function removeWorktree(baseDir: string, worktreeDir: string): Promise<void> {

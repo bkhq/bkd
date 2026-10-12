@@ -63,6 +63,7 @@ duplicate.openapi(R.duplicateIssue, async (c) => {
         useWorktree: source.useWorktree,
         engineType: source.engineType,
         model: source.model,
+        permissionMode: source.permissionMode,
         prompt: source.prompt,
       })
       .returning()

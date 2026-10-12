@@ -29,7 +29,7 @@ BKD 是 CLI 编程代理的统一前端 —— 支持 [Claude Code](https://gith
 
 ## 安装
 
-BKD 运行在 [lode](https://github.com/dotns/lode) supervisor 之下。lode 负责拉取发布包、校验、
+BKD 运行在 [lode](https://github.com/bkhq/lode) supervisor 之下。lode 负责拉取发布包、校验、
 启动 BKD 并执行后续更新——新版本起不来时会自动回滚。支持 Linux 和 macOS，x64 与 arm64。
 
 > 发布包都经过 sha256 校验。lode 同时支持 ed25519 asset 签名校验，但 BKD 目前尚未签名。
@@ -37,7 +37,7 @@ BKD 运行在 [lode](https://github.com/dotns/lode) supervisor 之下。lode 负
 ```bash
 # 1. 安装 lode——arm64 或 macOS 换成对应的 asset
 #    （lode-linux-arm64 / lode-darwin-x64 / lode-darwin-arm64）
-curl -fsSL https://github.com/dotns/lode/releases/latest/download/lode-linux-x64.tar.gz \
+curl -fsSL https://github.com/bkhq/lode/releases/latest/download/lode-linux-x64.tar.gz \
   | sudo tar -xz -C /usr/local/bin lode lode-cli
 
 # 2. 准备一个自己有写权限的安装根目录——BKD 会在你的工作区里拉起编程代理，

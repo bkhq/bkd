@@ -54,6 +54,11 @@ describe('markdownContent', () => {
     expect(container.querySelector('img')).toHaveAttribute('src', '/api/files/raw?path=a.png')
   })
 
+  it('keeps the body selectable on touch devices', () => {
+    const { container } = render(<MarkdownContent content="hello" />)
+    expect(container.firstElementChild).toHaveClass('touch-auto', 'select-text')
+  })
+
   it('renders nothing for empty content', () => {
     const { container } = render(<MarkdownContent content="   " />)
     expect(container.textContent).toBe('')

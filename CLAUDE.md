@@ -136,6 +136,11 @@ The most complex subsystem — bridges API routes and CLI-based AI agents.
   process, exits after the turn). Follow-up resumes with `-r <sessionId>`; cancel is SIGTERM so the CLI saves the
   session. Headless mode has no stdin channel, so every permission policy runs with `bypassPermissions` and
   pending messages wait for the next turn. Its normalizer is self-contained — do not import from `executors/claude/`
+- `cursor` — Cursor CLI (`cursor-agent`), `stream-json` protocol (`cursor-agent -p --output-format stream-json --force
+  --trust --workspace <dir>`, one prompt per process, exits after the turn). `--resume <id>` creates the session when
+  the id is unknown and resumes it otherwise, so the first turn passes BKD's pre-generated id. Cancel is SIGTERM. Only
+  the legacy `cursor-agent` name is resolved: the `agent` name collides with grok's alias. Its normalizer is
+  self-contained
 
 Each engine has an executor in `executors/<name>/executor.ts` implementing `EngineExecutor` interface: `spawn`, `spawnFollowUp`, `cancel`, `getAvailability`, `getModels`, `normalizeLog`.
 
@@ -185,9 +190,9 @@ Routes: `GET/POST /api/cron`, `GET/PATCH/DELETE /api/cron/:id`, `POST /api/cron/
 
 #### Upgrade (`upgrade/`)
 
-BKD does not update itself. It runs as a child of the [lode](https://github.com/dotns/lode) supervisor, which fetches `bkd-server.tar.gz` from GitHub Releases, verifies sha256 + the ed25519 asset signature, installs it under `<dir>/versions/<version>/`, and restarts BKD — rolling back automatically if the new version dies inside `health_grace` or misses its readiness signal.
+BKD does not update itself. It runs as a child of the [lode](https://github.com/bkhq/lode) supervisor, which fetches `bkd-server.tar.gz` from GitHub Releases, verifies sha256 + the ed25519 asset signature, installs it under `<dir>/versions/<version>/`, and restarts BKD — rolling back automatically if the new version dies inside `health_grace` or misses its readiness signal.
 
-- `lode-sdk.ts` — vendored verbatim from [`dotns/lode`](https://github.com/dotns/lode) `sdks/lode.ts` (zero-dep, eslint-ignored; update by re-copying the file).
+- `lode-sdk.ts` — vendored verbatim from [`bkhq/lode`](https://github.com/bkhq/lode) `sdks/lode.ts` (zero-dep, eslint-ignored; update by re-copying the file).
 - `service.ts` — the only app-side surface: reads lode's `state.json` and writes the request fields the app owns (`target`, `restart_nonce`, `ready`).
 - `server-main.ts` calls `reportReady()` once `Bun.serve()` is listening (`[supervise].readiness = "state"`); lode drives every restart via SIGTERM, handled by the existing graceful shutdown.
 - `ROOT_DIR` (env, or `[env]` in lode.toml) pins the install root so `data/` survives upgrades — lode runs BKD with its cwd set to the per-version directory.

@@ -49,7 +49,7 @@ export async function reconcileStaleWorkingIssues(): Promise<number> {
   const reconciledIssues: typeof staleIssues = []
 
   for (const issue of staleIssues) {
-    if (hasActiveProcess(issue.id)) continue
+    if (isLive(issue.id)) continue
 
     // Skip issues that are still being spawned — unless they've been pending
     // for longer than PENDING_TIMEOUT_MS. The 'pending' status means
@@ -82,13 +82,16 @@ export async function reconcileStaleWorkingIssues(): Promise<number> {
 
   if (reconciledIssues.length === 0) return 0
 
-  // Re-check hasActiveProcess right before UPDATE to close the TOCTOU race:
-  // between the SELECT above and now, executeIssue may have registered a new
-  // process. Without this re-check, the reconciler would overwrite the freshly
-  // set sessionStatus='running' back to 'failed', causing the issue to flip
-  // between working and review while the process is actively executing.
-  const stillNeedsSessionFix = needsSessionFix.filter(id => !hasActiveProcess(id))
-  const stillNeedsStatusOnly = needsStatusOnly.filter(id => !hasActiveProcess(id))
+  // Re-check right before UPDATE to close the TOCTOU race: between the SELECT
+  // above and now, executeIssue may have registered a new process or a start
+  // may have raised its counter. Without this re-check, the reconciler would
+  // overwrite the freshly set sessionStatus='running' back to 'failed', causing
+  // the issue to flip between working and review while the process is actively
+  // executing. Bun's SQLite transaction below is synchronous and a start raises
+  // its counter synchronously, so a start either is seen here or begins after
+  // the UPDATE and writes working/running itself.
+  const stillNeedsSessionFix = needsSessionFix.filter(id => !isLive(id))
+  const stillNeedsStatusOnly = needsStatusOnly.filter(id => !isLive(id))
   const stillReconciledIssues = reconciledIssues.filter(
     issue => stillNeedsSessionFix.includes(issue.id) || stillNeedsStatusOnly.includes(issue.id),
   )
@@ -118,9 +121,17 @@ export async function reconcileStaleWorkingIssues(): Promise<number> {
   })
 
   // Post-commit: invalidate caches and emit events
+  const sessionFixed = new Set(stillNeedsSessionFix)
   for (const issue of stillReconciledIssues) {
     await cacheDel(`issue:${issue.projectId}:${issue.id}`)
-    emitIssueUpdated(issue.id, { statusId: 'review' })
+    // Report the session status too, or a client applying the event's changes
+    // keeps showing the old one until it refetches.
+    emitIssueUpdated(
+      issue.id,
+      sessionFixed.has(issue.id) ?
+          { statusId: 'review', sessionStatus: 'failed' } :
+          { statusId: 'review' },
+    )
     logger.info(
       { issueId: issue.id, previousSessionStatus: issue.sessionStatus },
       'reconciler_moved_to_review',
@@ -133,11 +144,12 @@ export async function reconcileStaleWorkingIssues(): Promise<number> {
 // ---------- Active process check ----------
 
 /**
- * Check whether the IssueEngine has an active (running/spawning) process
- * for the given issue.
+ * Whether the issue is running or about to run: it has an active
+ * (running/spawning) process, or a start that has committed to 'working' but
+ * has not registered its process yet. Either way it is not stale.
  */
-function hasActiveProcess(issueId: string): boolean {
-  return issueEngine.hasActiveProcessForIssue(issueId)
+function isLive(issueId: string): boolean {
+  return issueEngine.hasActiveProcessForIssue(issueId) || issueEngine.isStarting(issueId)
 }
 
 // ---------- Startup reconciliation ----------

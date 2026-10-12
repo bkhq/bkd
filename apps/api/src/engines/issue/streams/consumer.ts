@@ -63,6 +63,7 @@ function pushStderrEntry(
     content,
     turnIndex,
     timestamp: new Date().toISOString(),
+    metadata: { source: 'stderr' },
   }
   onEntry(entry)
 }

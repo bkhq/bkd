@@ -239,6 +239,17 @@
     "scrollToTop": "滚动到顶部",
     "scrollToBottom": "滚动到底部",
     "executionFailed": "执行失败",
+    "errorKind": {
+      "cyberPolicy": "被网络安全策略拦截",
+      "contextWindowExceeded": "超出上下文窗口",
+      "usageLimitExceeded": "超出用量限制",
+      "rateLimitExceeded": "触发速率限制",
+      "responseStreamDisconnected": "响应流中断",
+      "responseStreamConnectionFailed": "无法连接响应流",
+      "serverOverloaded": "服务器过载",
+      "internalServerError": "服务器内部错误",
+      "unauthorized": "未授权"
+    },
     "duration": "耗时 {{time}}",
     "copyText": "复制文字",
     "copyMarkdown": "复制 Markdown",
@@ -345,6 +356,7 @@
   "sidebar": {
     "home": "主页",
     "menu": "菜单",
+    "projects": "项目",
     "createProject": "创建项目",
     "settings": "设置"
   },

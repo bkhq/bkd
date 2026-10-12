@@ -90,7 +90,7 @@ export function parseProjectEnvVars(
  * already has a completed/failed session.
  */
 export function flushPendingAsFollowUp(issueId: string, issue: { model: string | null }): void {
-  void (async () => {
+  void issueEngine.trackStart(issueId, async () => {
     let relocated: Awaited<ReturnType<typeof relocatePendingForProcessing>> | null = null
     try {
       relocated = await relocatePendingForProcessing(issueId)
@@ -113,7 +113,7 @@ export function flushPendingAsFollowUp(issueId: string, issue: { model: string |
       logger.error({ issueId, err }, 'pending_flush_followup_failed')
       if (relocated) restorePendingVisibility(relocated.oldIds)
     }
-  })()
+  })
 }
 
 /**
@@ -168,7 +168,7 @@ export function triggerIssueExecution(
   systemPrompt?: string | null,
   envVars?: Record<string, string> | null,
 ): void {
-  void (async () => {
+  void issueEngine.trackStart(issueId, async () => {
     let relocated: Awaited<ReturnType<typeof relocatePendingForProcessing>> | null = null
     try {
       let effectiveWorkingDir: string | undefined
@@ -308,5 +308,5 @@ export function triggerIssueExecution(
         logger.error({ issueId, err: dbErr }, 'auto_execute_status_update_failed')
       }
     }
-  })()
+  })
 }

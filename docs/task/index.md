@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-09-22
+> Updated: 2026-10-11
 
 ## Usage
 
@@ -128,3 +128,14 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [ ] [**20260922-1712-api-execution-suite-order-flake Auto-execute test times out in the full API suite**](20260922-1712-api-execution-suite-order-flake.md) `P2`
 - [x] [**20260923-1133-grok-engine Add Grok Build CLI as an engine**](20260923-1133-grok-engine.md) `P1`
+- [x] [**20260924-0914-cursor-engine Add Cursor CLI as an engine**](20260924-0914-cursor-engine.md) `P1`
+- [x] [**20260929-1043-mobile-agent-message-selection Make agent messages selectable on touch devices**](20260929-1043-mobile-agent-message-selection.md) `P2`
+- [x] [**20261001-1538-sidebar-project-flyout Show the full project list on sidebar hover**](20261001-1538-sidebar-project-flyout.md) `P2`
+- [x] [**20261001-1313-reconciler-start-race Keep the stale-working reconciler away from executions that are starting**](20261001-1313-reconciler-start-race.md) `P1`
+- [x] [**20261002-1007-engine-process-leak Kill engine processes that fail registration or the Codex handshake**](20261002-1007-engine-process-leak.md) `P0`
+- [ ] [**20261002-1046-api-execution-concurrency-flake Fix order-dependent concurrency failure in api-execution tests**](20261002-1046-api-execution-concurrency-flake.md) `P2`
+- [x] [**20261002-1111-worktree-reuse Keep worktree issues out of the main checkout**](20261002-1111-worktree-reuse.md) `P1`
+- [x] [**20261002-1111-persist-permission-mode Persist the issue permission mode**](20261002-1111-persist-permission-mode.md) `P1`
+- [x] [**20261002-1223-sidebar-flyout-active-anchor Anchor the sidebar flyout to the active project only**](20261002-1223-sidebar-flyout-active-anchor.md) `P2`
+- [x] [**20261010-1333-lode-repo-move Point lode references at bkhq/lode**](20261010-1333-lode-repo-move.md) `P2`
+- [x] [**20261011-0213-codex-failure-visibility Surface Codex turn failures and stop stall probes from ending Codex turns**](20261011-0213-codex-failure-visibility.md) `P1`

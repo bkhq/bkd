@@ -344,6 +344,29 @@ function buildThreadParams(options: SpawnOptions): ThreadStartParams {
 }
 
 /**
+ * Run the post-spawn handshake; on failure kill the app-server before
+ * rethrowing. The caller never receives the process, so nothing else would
+ * stop it, and a live app-server keeps the thread's writer lock.
+ */
+async function handshakeOrKill(
+  proc: Subprocess,
+  handler: CodexProtocolHandler,
+  handshake: () => Promise<void>,
+): Promise<void> {
+  try {
+    await handshake()
+  } catch (error) {
+    logger.warn(
+      { pid: proc.pid, error: error instanceof Error ? error.message : String(error) },
+      'codex_handshake_failed_killing_process',
+    )
+    handler.close()
+    proc.kill()
+    throw error
+  }
+}
+
+/**
  * Codex executor — uses JSON-RPC protocol via `app-server` mode.
  *
  * Protocol: JSON-RPC over stdio (JSONL), with `codex/event/*` notifications
@@ -374,30 +397,32 @@ export class CodexExecutor implements EngineExecutor {
     // Create protocol handler — starts reading stdout immediately
     const handler = new CodexProtocolHandler(proc.stdin, proc.stdout)
 
-    // Perform initialize handshake
-    await handler.initialize()
+    await handshakeOrKill(proc, handler, async () => {
+      // Perform initialize handshake
+      await handler.initialize()
 
-    // Auth pre-check: detect missing credentials early
-    try {
-      const account = await handler.getAccount()
-      if (account.requiresOpenaiAuth && !account.account) {
-        throw new Error(
-          'Codex authentication required. Set OPENAI_API_KEY or CODEX_API_KEY, or run `codex auth`.',
-        )
+      // Auth pre-check: detect missing credentials early
+      try {
+        const account = await handler.getAccount()
+        if (account.requiresOpenaiAuth && !account.account) {
+          throw new Error(
+            'Codex authentication required. Set OPENAI_API_KEY or CODEX_API_KEY, or run `codex auth`.',
+          )
+        }
+      } catch (authErr) {
+        // account/read may not be supported on older versions — log and continue
+        const msg = authErr instanceof Error ? authErr.message : String(authErr)
+        if (msg.includes('authentication required')) throw authErr
+        logger.debug({ error: msg }, 'codex_account_read_skipped')
       }
-    } catch (authErr) {
-      // account/read may not be supported on older versions — log and continue
-      const msg = authErr instanceof Error ? authErr.message : String(authErr)
-      if (msg.includes('authentication required')) throw authErr
-      logger.debug({ error: msg }, 'codex_account_read_skipped')
-    }
 
-    // Create thread with full params
-    const threadParams = buildThreadParams(options)
-    const { threadId } = await handler.startThread(threadParams)
+      // Create thread with full params
+      const threadParams = buildThreadParams(options)
+      const { threadId } = await handler.startThread(threadParams)
 
-    // Start turn with user prompt
-    await handler.startTurn(threadId, options.prompt)
+      // Start turn with user prompt
+      await handler.startTurn(threadId, options.prompt)
+    })
 
     logger.info(
       {
@@ -437,18 +462,20 @@ export class CodexExecutor implements EngineExecutor {
 
     const handler = new CodexProtocolHandler(proc.stdin, proc.stdout)
 
-    await handler.initialize()
+    await handshakeOrKill(proc, handler, async () => {
+      await handler.initialize()
 
-    // Resume the existing thread — appends new turns to the same conversation.
-    // This keeps the thread ID stable so follow-up chains work correctly.
-    // The thread params must be re-sent: a bare resume falls back to the
-    // config.toml defaults (workspace-write sandbox, no network, on-request
-    // approvals) instead of the settings the thread was started with.
-    await handler.resumeThread(options.sessionId, buildThreadParams(options))
-    const threadId = options.sessionId
+      // Resume the existing thread — appends new turns to the same conversation.
+      // This keeps the thread ID stable so follow-up chains work correctly.
+      // The thread params must be re-sent: a bare resume falls back to the
+      // config.toml defaults (workspace-write sandbox, no network, on-request
+      // approvals) instead of the settings the thread was started with.
+      await handler.resumeThread(options.sessionId, buildThreadParams(options))
+      const threadId = options.sessionId
 
-    // Start a new turn with the follow-up prompt
-    await handler.startTurn(threadId, options.prompt)
+      // Start a new turn with the follow-up prompt
+      await handler.startTurn(threadId, options.prompt)
+    })
 
     logger.info(
       {

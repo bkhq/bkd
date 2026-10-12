@@ -7,12 +7,12 @@ import { monitorCompletion } from '@/engines/issue/lifecycle/completion-monitor'
 import { makeStreamHooks } from '@/engines/issue/lifecycle/turn-completion'
 import { ensureNoActiveProcess } from '@/engines/issue/process/guards'
 import { withIssueLock } from '@/engines/issue/process/lock'
-import { register } from '@/engines/issue/process/register'
+import { killUnregistered, register } from '@/engines/issue/process/register'
 import { persistUserMessage } from '@/engines/issue/user-message'
 import { getPermissionOptions, resolveExecEnvVars } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
-import { createWorktree } from '@/engines/issue/utils/worktree'
+import { ensureWorktree } from '@/engines/issue/utils/worktree'
 import { resolveExecutionModel } from '@/engines/model-resolver'
 import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
@@ -66,6 +66,7 @@ export async function executeIssue(
       sessionStatus: 'running',
       prompt: opts.prompt,
       model: rawModel ?? undefined,
+      ...(opts.permissionMode ? { permissionMode: opts.permissionMode } : {}),
       ...(opts.engineProfileId !== undefined ? { engineProfileId: opts.engineProfileId } : {}),
     })
 
@@ -73,24 +74,25 @@ export async function executeIssue(
     let workingDir = baseDir
     let worktreePath: string | undefined
 
-    if (issue.useWorktree) {
-      try {
-        worktreePath = await createWorktree(baseDir, issue.projectId, issueId)
-        workingDir = worktreePath
-      } catch (error) {
-        logger.warn({ issueId, error }, 'worktree_creation_failed_fallback_to_base')
-      }
-    }
-
-    const permOptions = getPermissionOptions(opts.engineType, opts.permissionMode)
+    const permOptions = getPermissionOptions(
+      opts.engineType,
+      opts.permissionMode ?? issue.sessionFields.permissionMode ?? undefined,
+    )
     const externalSessionId = crypto.randomUUID()
     const executionId = crypto.randomUUID()
 
     // Merge virtual-engine preset env vars (if this issue runs a virtual engine).
     const envVars = await resolveExecEnvVars(effectiveProfileId, opts.envVars)
 
-    let spawned: SpawnedProcess
+    const normalizer = createLogNormalizer(executor)
+    let spawned: SpawnedProcess | undefined
+    let finalExternalSessionId: string
     try {
+      if (issue.useWorktree) {
+        worktreePath = await ensureWorktree(baseDir, issue.projectId, issueId)
+        workingDir = worktreePath
+      }
+      ctx.pm.assertCapacity()
       spawned = await executor.spawn(
         {
           workingDir,
@@ -106,7 +108,29 @@ export async function executeIssue(
           issueId,
         },
       )
+
+      // Allow executor to override the external session ID (e.g. Codex uses server-generated thread IDs)
+      finalExternalSessionId = spawned.externalSessionId ?? externalSessionId
+      await updateIssueSession(issueId, {
+        externalSessionId: finalExternalSessionId,
+      })
+      register(
+        ctx,
+        executionId,
+        issueId,
+        opts.engineType,
+        spawned,
+        line => normalizer.parse(line),
+        0,
+        worktreePath,
+        makeStreamHooks(ctx, issueId, executionId),
+        worktreePath ? baseDir : undefined,
+        workingDir,
+        finalExternalSessionId,
+        issue.keepAlive,
+      )
     } catch (spawnError) {
+      if (spawned) killUnregistered(issueId, executionId, spawned)
       logger.error(
         { issueId, executionId, err: spawnError },
         'execute_spawn_failed_reverting_session',
@@ -126,11 +150,6 @@ export async function executeIssue(
       throw spawnError
     }
 
-    // Allow executor to override the external session ID (e.g. Codex uses server-generated thread IDs)
-    const finalExternalSessionId = spawned.externalSessionId ?? externalSessionId
-    await updateIssueSession(issueId, {
-      externalSessionId: finalExternalSessionId,
-    })
     const pid = getPidFromSubprocess(spawned.subprocess)
     logger.info(
       {
@@ -142,23 +161,6 @@ export async function executeIssue(
         worktreePath,
       },
       'issue_execute_spawned',
-    )
-    const normalizer = createLogNormalizer(executor)
-
-    register(
-      ctx,
-      executionId,
-      issueId,
-      opts.engineType,
-      spawned,
-      line => normalizer.parse(line),
-      0,
-      worktreePath,
-      makeStreamHooks(ctx, issueId, executionId),
-      worktreePath ? baseDir : undefined,
-      workingDir,
-      finalExternalSessionId,
-      issue.keepAlive,
     )
     emitDiagnosticLog(
       issueId,

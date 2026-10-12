@@ -228,48 +228,53 @@ message.post('/:id/follow-up', async (c) => {
   }
 
   try {
-    const guard = await ensureWorking(issue)
-    if (!guard.ok) {
-      return c.json({ success: false as const, error: guard.reason! }, 400)
-    }
-    const firstWord = prompt.split(/\s/)[0] ?? ''
-    const categorized = issueEngine.getCategorizedCommands(
-      issueId,
-      (issue.engineType as import('@/engines/types').EngineType) ?? undefined,
-    )
-    const knownCommands = [
-      ...categorized.commands,
-      ...categorized.agents,
-      ...categorized.plugins.map(p => p.name),
-    ].map(cmd => (cmd.startsWith('/') ? cmd : `/${cmd}`))
-    const isCommand = firstWord.startsWith('/') && knownCommands.includes(firstWord)
-    const followUpMeta: Record<string, unknown> = {
-      ...attachmentsMeta,
-      ...(isCommand ? { type: 'command' } : {}),
-    }
-    const hasFollowUpMeta = Object.keys(followUpMeta).length > 0
-    const result = await issueEngine.followUpIssue(
-      issueId,
-      fullPrompt,
-      parsed.model,
-      parsed.permissionMode as 'auto' | 'supervised' | 'plan' | undefined,
-      parsed.busyAction as 'queue' | 'cancel' | undefined,
-      parsed.displayPrompt ?? (savedFiles.length > 0 ? prompt || undefined : undefined),
-      hasFollowUpMeta ? followUpMeta : undefined,
-    )
-    // Link attachments to the server-assigned message log
-    if (savedFiles.length > 0 && result.messageId) {
-      await insertAttachmentRecords(issueId, result.messageId, savedFiles)
-    }
-
-    return c.json({
-      success: true as const,
-      data: {
-        executionId: result.executionId,
+    // Tracked from before ensureWorking() until the engine returns: the issue
+    // is 'working' for the whole spawn, which the reconciler would otherwise
+    // read as stale.
+    return await issueEngine.trackStart(issueId, async () => {
+      const guard = await ensureWorking(issue)
+      if (!guard.ok) {
+        return c.json({ success: false as const, error: guard.reason! }, 400)
+      }
+      const firstWord = prompt.split(/\s/)[0] ?? ''
+      const categorized = issueEngine.getCategorizedCommands(
         issueId,
-        messageId: result.messageId,
-      },
-    }, 200)
+        (issue.engineType as import('@/engines/types').EngineType) ?? undefined,
+      )
+      const knownCommands = [
+        ...categorized.commands,
+        ...categorized.agents,
+        ...categorized.plugins.map(p => p.name),
+      ].map(cmd => (cmd.startsWith('/') ? cmd : `/${cmd}`))
+      const isCommand = firstWord.startsWith('/') && knownCommands.includes(firstWord)
+      const followUpMeta: Record<string, unknown> = {
+        ...attachmentsMeta,
+        ...(isCommand ? { type: 'command' } : {}),
+      }
+      const hasFollowUpMeta = Object.keys(followUpMeta).length > 0
+      const result = await issueEngine.followUpIssue(
+        issueId,
+        fullPrompt,
+        parsed.model,
+        parsed.permissionMode as 'auto' | 'supervised' | 'plan' | undefined,
+        parsed.busyAction as 'queue' | 'cancel' | undefined,
+        parsed.displayPrompt ?? (savedFiles.length > 0 ? prompt || undefined : undefined),
+        hasFollowUpMeta ? followUpMeta : undefined,
+      )
+      // Link attachments to the server-assigned message log
+      if (savedFiles.length > 0 && result.messageId) {
+        await insertAttachmentRecords(issueId, result.messageId, savedFiles)
+      }
+
+      return c.json({
+        success: true as const,
+        data: {
+          executionId: result.executionId,
+          issueId,
+          messageId: result.messageId,
+        },
+      }, 200)
+    })
   } catch (error) {
     // When follow-up fails (e.g. process failed to start), save the current
     // message as pending so it won't be lost. It will be auto-processed on

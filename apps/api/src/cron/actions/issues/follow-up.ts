@@ -12,14 +12,18 @@ registerAction('issue-follow-up', {
     const { project, issue } = await resolveIssue(config)
     const prompt = config.prompt as string
 
-    const guard = await ensureWorking(issue)
-    if (!guard.ok) throw new Error(guard.reason!)
+    // Tracked across ensureWorking() and the spawn, so the reconciler does not
+    // read the 'working' issue as stale while it is starting.
+    const result = await issueEngine.trackStart(issue.id, async () => {
+      const guard = await ensureWorking(issue)
+      if (!guard.ok) throw new Error(guard.reason!)
 
-    const result = await issueEngine.followUpIssue(
-      issue.id,
-      prompt,
-      (config.model as string) ?? issue.model ?? undefined,
-    )
+      return issueEngine.followUpIssue(
+        issue.id,
+        prompt,
+        (config.model as string) ?? issue.model ?? undefined,
+      )
+    })
 
     return `follow-up sent to issue ${issue.id} in project ${project.id} (executionId: ${result.executionId})`
   },

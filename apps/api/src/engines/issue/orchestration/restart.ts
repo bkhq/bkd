@@ -10,7 +10,7 @@ import { makeStreamHooks } from '@/engines/issue/lifecycle/turn-completion'
 import { getNextTurnIndex } from '@/engines/issue/persistence/queries'
 import { ensureNoActiveProcess } from '@/engines/issue/process/guards'
 import { withIssueLock } from '@/engines/issue/process/lock'
-import { register } from '@/engines/issue/process/register'
+import { killUnregistered, register } from '@/engines/issue/process/register'
 import {
   getPermissionOptions,
   getProjectExecContext,
@@ -18,7 +18,7 @@ import {
   resolveWorkingDir,
 } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
-import { createWorktree } from '@/engines/issue/utils/worktree'
+import { ensureWorktree } from '@/engines/issue/utils/worktree'
 import { resolveExecutionModel } from '@/engines/model-resolver'
 import type { SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
@@ -50,17 +50,10 @@ export async function restartIssue(
     let workingDir = baseDir
     let worktreePath: string | undefined
 
-    // Create git worktree if enabled for this issue
-    if (issue.useWorktree) {
-      try {
-        worktreePath = await createWorktree(baseDir, issue.projectId, issueId)
-        workingDir = worktreePath
-      } catch (error) {
-        logger.warn({ issueId, error }, 'worktree_creation_failed_fallback_to_base')
-      }
-    }
-
-    const permOptions = getPermissionOptions(engineType)
+    const permOptions = getPermissionOptions(
+      engineType,
+      issue.sessionFields.permissionMode ?? undefined,
+    )
     const executionId = crypto.randomUUID()
     const projCtx = await getProjectExecContext(issue.projectId)
     const envVars = await resolveExecEnvVars(issue.engineProfileId, projCtx.envVars)
@@ -80,16 +73,23 @@ export async function restartIssue(
       issue.engineProfileId,
     )
 
-    const spawnOpts = {
-      workingDir,
-      prompt: effectivePrompt,
-      model: effectiveModel,
-      permissionMode: permOptions.permissionMode,
-      projectId: issue.projectId,
-      envVars,
-    }
-    let spawned: SpawnedProcess
+    const normalizer = createLogNormalizer(executor)
+    const turnIndex = getNextTurnIndex(issueId)
+    let spawned: SpawnedProcess | undefined
     try {
+      if (issue.useWorktree) {
+        worktreePath = await ensureWorktree(baseDir, issue.projectId, issueId)
+        workingDir = worktreePath
+      }
+      const spawnOpts = {
+        workingDir,
+        prompt: effectivePrompt,
+        model: effectiveModel,
+        permissionMode: permOptions.permissionMode,
+        projectId: issue.projectId,
+        envVars,
+      }
+      ctx.pm.assertCapacity()
       spawned = issue.sessionFields.externalSessionId ?
           await executor.spawnFollowUp(
             {
@@ -107,7 +107,23 @@ export async function restartIssue(
             },
           ) :
           await spawnFresh(executor, issueId, spawnOpts)
+      register(
+        ctx,
+        executionId,
+        issueId,
+        engineType,
+        spawned,
+        line => normalizer.parse(line),
+        turnIndex,
+        worktreePath,
+        makeStreamHooks(ctx, issueId, executionId),
+        worktreePath ? baseDir : undefined,
+        workingDir,
+        spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,
+        issue.keepAlive,
+      )
     } catch (spawnError) {
+      if (spawned) killUnregistered(issueId, executionId, spawned)
       logger.error(
         { issueId, executionId, error: spawnError },
         'restart_spawn_failed_reverting_session',
@@ -120,24 +136,6 @@ export async function restartIssue(
       throw spawnError
     }
 
-    const normalizer = createLogNormalizer(executor)
-
-    const turnIndex = getNextTurnIndex(issueId)
-    register(
-      ctx,
-      executionId,
-      issueId,
-      engineType,
-      spawned,
-      line => normalizer.parse(line),
-      turnIndex,
-      worktreePath,
-      makeStreamHooks(ctx, issueId, executionId),
-      worktreePath ? baseDir : undefined,
-      workingDir,
-      spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,
-      issue.keepAlive,
-    )
     monitorCompletion(ctx, executionId, issueId, engineType, false)
 
     return { executionId }

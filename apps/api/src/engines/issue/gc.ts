@@ -186,6 +186,39 @@ export function gcSweep(ctx: EngineContext): void {
         continue
       }
 
+      // `turn/interrupt` ends a Codex turn, so the probe that is harmless for
+      // Claude would settle a live Codex turn as failed. Codex gets no probe:
+      // a dead process is terminated at the first silence check, a live one
+      // only after the long cap.
+      if (managed.engineType === 'codex') {
+        if (managed.turnInFlight) {
+          const silenceMs = now - managed.lastActivityAt.getTime()
+          if (silenceMs > STREAM_STALL_TIMEOUT_MS) {
+            const sp = managed.process.subprocess as { pid?: number, isAlive?: () => boolean }
+            const pid = sp.pid
+            const alive = isProcessAlive(pid, sp)
+            if (!alive || silenceMs > KEEPALIVE_STALL_TIMEOUT_MS) {
+              const stallMinutes = Math.round(silenceMs / 60000)
+              logger.warn(
+                { issueId: managed.issueId, executionId: managed.executionId, stallMinutes, pid, alive },
+                'codex_stall_terminate',
+              )
+              emitDiagnosticLog(
+                managed.issueId,
+                managed.executionId,
+                alive
+                  ? `[BKD] Codex silent for ${stallMinutes}min with no output — terminating (pid=${pid})`
+                  : `[BKD] Codex process dead (silent ${stallMinutes}min, pid=${pid})`,
+                { event: alive ? 'codex_stall_terminate' : 'stall_process_dead', stallMinutes, pid },
+              )
+              terminateAndSettle(ctx, entry.id, managed, 'failed')
+              cleaned++
+            }
+          }
+        }
+        continue
+      }
+
       // Three-tier approach: give the CLI time to retry internally before we intervene.
       //   Tier 1 (STREAM_STALL_TIMEOUT_MS): Non-destructive liveness check via OS
       //   Tier 2 (+ STALL_LIVENESS_GRACE_MS): Process alive but still silent → send interrupt

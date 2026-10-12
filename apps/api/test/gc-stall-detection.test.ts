@@ -3,6 +3,7 @@ import { CodexProtocolHandler } from '@/engines/executors/codex'
 import { toSpawnedProtocolHandler } from '@/engines/executors/codex/executor'
 import {
   IDLE_TIMEOUT_MS,
+  KEEPALIVE_STALL_TIMEOUT_MS,
   STALL_INTERRUPT_GRACE_MS,
   STALL_LIVENESS_GRACE_MS,
   STREAM_STALL_TIMEOUT_MS,
@@ -540,6 +541,47 @@ describe('gcSweep — codex turn without displayable output', () => {
   }
 
   const tick = () => new Promise(r => setTimeout(r, 30))
+
+  // `turn/interrupt` ends a Codex turn: the stall probe that is harmless for
+  // Claude settles a live Codex turn as failed. Codex gets no probe — only the
+  // dead-process check and a long cap.
+  test('a silent live Codex turn is never sent an interrupt probe', () => {
+    const { managed, handler, interruptMock } = makeCodexProcess(process.pid)
+    const { ctx, forceKillCalls } = makeContext([{ id: 'exec-codex', meta: managed }])
+
+    gcSweep(ctx)
+
+    expect(interruptMock).not.toHaveBeenCalled()
+    expect(managed.stallProbeAt).toBeUndefined()
+    expect(forceKillCalls).not.toContain('exec-codex')
+    handler.close()
+  })
+
+  test('a silent live Codex turn is killed only after the long cap', () => {
+    const { managed, handler, interruptMock } = makeCodexProcess(process.pid)
+    managed.lastActivityAt = new Date(Date.now() - KEEPALIVE_STALL_TIMEOUT_MS - 60_000)
+    const { ctx, forceKillCalls } = makeContext([{ id: 'exec-codex', meta: managed }])
+
+    gcSweep(ctx)
+
+    expect(interruptMock).not.toHaveBeenCalled()
+    expect(forceKillCalls).toContain('exec-codex')
+    expect(ctx.pm.markFailed).toHaveBeenCalledWith('exec-codex')
+    handler.close()
+  })
+
+  test('a dead Codex process is terminated at the first silence check', () => {
+    const { managed, handler, interruptMock } = makeCodexProcess(999_999_999)
+    managed.lastActivityAt = new Date(Date.now() - STREAM_STALL_TIMEOUT_MS - 1_000)
+    managed.stallDetectedAt = undefined
+    const { ctx, forceKillCalls } = makeContext([{ id: 'exec-codex', meta: managed }])
+
+    gcSweep(ctx)
+
+    expect(interruptMock).not.toHaveBeenCalled()
+    expect(forceKillCalls).toContain('exec-codex')
+    handler.close()
+  })
 
   test('content-free output keeps a live turn from being interrupted', async () => {
     const { managed, handler, interruptMock, push } = makeCodexProcess(process.pid)

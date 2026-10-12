@@ -1,4 +1,3 @@
-import { stat } from 'node:fs/promises'
 import { getIssueWithSession, updateIssueSession } from '@/engines/engine-store'
 import { engineRegistry } from '@/engines/executors'
 import type { EngineContext } from '@/engines/issue/context'
@@ -9,7 +8,7 @@ import {
   ensureNoActiveProcess,
   killExistingSubprocessForIssue,
 } from '@/engines/issue/process/guards'
-import { register } from '@/engines/issue/process/register'
+import { killUnregistered, register } from '@/engines/issue/process/register'
 import { persistUserMessage } from '@/engines/issue/user-message'
 import {
   getPermissionOptions,
@@ -20,11 +19,7 @@ import {
 } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
-import {
-  createWorktree,
-  isWorktreeRegistered,
-  resolveWorktreePath,
-} from '@/engines/issue/utils/worktree'
+import { ensureWorktree } from '@/engines/issue/utils/worktree'
 import { resolveExecutionModel } from '@/engines/model-resolver'
 import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
@@ -32,6 +27,20 @@ import { monitorCompletion } from './completion-monitor'
 import { makeStreamHooks } from './turn-completion'
 
 // ---------- Spawn helpers ----------
+
+/** Persist the session id of a just-spawned process; kill the process if that fails. */
+async function saveExternalSessionId(
+  issueId: string,
+  spawned: SpawnedProcess,
+  externalSessionId: string,
+): Promise<void> {
+  try {
+    await updateIssueSession(issueId, { externalSessionId })
+  } catch (error) {
+    killUnregistered(issueId, '', spawned)
+    throw error
+  }
+}
 
 /**
  * Try spawnFollowUp; if the external session is missing, fall back to a fresh spawn.
@@ -97,9 +106,7 @@ export async function spawnWithSessionFallback(
       spawnCtx,
     )
     const finalSessionId = spawned.externalSessionId ?? externalSessionId
-    await updateIssueSession(issueId, {
-      externalSessionId: finalSessionId,
-    })
+    await saveExternalSessionId(issueId, spawned, finalSessionId)
     if (!spawned.externalSessionId) {
       spawned.externalSessionId = finalSessionId
     }
@@ -137,9 +144,7 @@ export async function spawnFresh(
     },
   )
   const finalSessionId = spawned.externalSessionId ?? externalSessionId
-  await updateIssueSession(issueId, {
-    externalSessionId: finalSessionId,
-  })
+  await saveExternalSessionId(issueId, spawned, finalSessionId)
   // Ensure the returned object always carries the session ID so callers
   // (e.g. managed.externalSessionId) don't end up with undefined.
   if (!spawned.externalSessionId) {
@@ -168,27 +173,14 @@ export async function spawnRetry(
   let workingDir = baseDir
   let worktreePath: string | undefined
   if (issue.useWorktree) {
-    const candidatePath = resolveWorktreePath(issue.projectId, issueId)
-    try {
-      const s = await stat(candidatePath)
-      if (s.isDirectory()) {
-        // Verify the worktree belongs to the current project repo
-        if (await isWorktreeRegistered(baseDir, candidatePath)) {
-          worktreePath = candidatePath
-          workingDir = candidatePath
-        } else {
-          logger.warn(
-            { issueId, candidatePath, baseDir },
-            'worktree_not_registered_follow_up_fallback',
-          )
-        }
-      }
-    } catch {
-      // Worktree doesn't exist — follow-up in base dir
-    }
+    worktreePath = await ensureWorktree(baseDir, issue.projectId, issueId)
+    workingDir = worktreePath
   }
 
-  const permOptions = getPermissionOptions(engineType)
+  const permOptions = getPermissionOptions(
+    engineType,
+    issue.sessionFields.permissionMode ?? undefined,
+  )
   const executionId = crypto.randomUUID()
   const projCtx = await getProjectExecContext(issue.projectId)
   const envVars = await resolveExecEnvVars(issue.engineProfileId, projCtx.envVars)
@@ -202,6 +194,7 @@ export async function spawnRetry(
     envVars,
     systemPrompt: projCtx.systemPrompt,
   }
+  ctx.pm.assertCapacity()
   const spawned = issue.sessionFields.externalSessionId ?
       await spawnWithSessionFallback(executor, issueId, {
         ...spawnOpts,
@@ -212,21 +205,26 @@ export async function spawnRetry(
   const normalizer = createLogNormalizer(executor)
 
   const turnIndex = getNextTurnIndex(issueId)
-  register(
-    ctx,
-    executionId,
-    issueId,
-    engineType,
-    spawned,
-    line => normalizer.parse(line),
-    turnIndex,
-    worktreePath,
-    makeStreamHooks(ctx, issueId, executionId),
-    worktreePath ? baseDir : undefined,
-    workingDir,
-    spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,
-    issue.keepAlive,
-  )
+  try {
+    register(
+      ctx,
+      executionId,
+      issueId,
+      engineType,
+      spawned,
+      line => normalizer.parse(line),
+      turnIndex,
+      worktreePath,
+      makeStreamHooks(ctx, issueId, executionId),
+      worktreePath ? baseDir : undefined,
+      workingDir,
+      spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,
+      issue.keepAlive,
+    )
+  } catch (error) {
+    killUnregistered(issueId, executionId, spawned)
+    throw error
+  }
   monitorCompletion(ctx, executionId, issueId, engineType, true)
   logger.debug({ issueId, executionId, engineType, turnIndex }, 'issue_retry_spawned')
 }
@@ -287,42 +285,24 @@ export async function spawnFollowUpProcess(
 
   const baseDir = await resolveWorkingDir(issue.projectId)
 
-  // Reuse existing worktree if issue has worktree enabled
   let workingDir = baseDir
   let worktreePath: string | undefined
-  if (issue.useWorktree) {
-    const candidatePath = resolveWorktreePath(issue.projectId, issueId)
-    try {
-      const s = await stat(candidatePath)
-      if (s.isDirectory()) {
-        // Verify the worktree is registered under the current project repo;
-        // if the project directory was changed, the old worktree is stale.
-        if (await isWorktreeRegistered(baseDir, candidatePath)) {
-          worktreePath = candidatePath
-          workingDir = candidatePath
-        } else {
-          logger.warn({ issueId, candidatePath, baseDir }, 'worktree_not_registered_recreating')
-          worktreePath = await createWorktree(baseDir, issue.projectId, issueId)
-          workingDir = worktreePath
-        }
-      }
-    } catch {
-      // Worktree dir doesn't exist — create fresh
-      try {
-        worktreePath = await createWorktree(baseDir, issue.projectId, issueId)
-        workingDir = worktreePath
-      } catch (wtErr) {
-        logger.warn({ issueId, err: wtErr }, 'worktree_creation_failed_fallback_to_base')
-      }
-    }
-  }
 
-  const permOptions = getPermissionOptions(engineType, permissionMode)
+  const permOptions = getPermissionOptions(
+    engineType,
+    permissionMode ?? issue.sessionFields.permissionMode ?? undefined,
+  )
   const projCtx = await getProjectExecContext(issue.projectId)
   const envVars = await resolveExecEnvVars(issue.engineProfileId, projCtx.envVars)
 
-  let spawned: SpawnedProcess
+  const normalizer = createLogNormalizer(executor)
+  let spawned: SpawnedProcess | undefined
   try {
+    if (issue.useWorktree) {
+      worktreePath = await ensureWorktree(baseDir, issue.projectId, issueId)
+      workingDir = worktreePath
+    }
+    ctx.pm.assertCapacity()
     const baseSpawnOpts = {
       workingDir,
       prompt,
@@ -338,10 +318,26 @@ export async function spawnFollowUpProcess(
           sessionId: issue.sessionFields.externalSessionId,
         })
       : await spawnFresh(executor, issueId, baseSpawnOpts)
+    register(
+      ctx,
+      executionId,
+      issueId,
+      engineType,
+      spawned,
+      line => normalizer.parse(line),
+      turnIndex,
+      worktreePath,
+      makeStreamHooks(ctx, issueId, executionId),
+      worktreePath ? baseDir : undefined,
+      workingDir,
+      spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,
+      issue.keepAlive,
+    )
   } catch (spawnError) {
-    // Spawn failed after we already emitted 'running' and persisted the user
-    // message.  Revert the session status so the issue doesn't get stuck in
-    // 'running' forever with no process to settle it.
+    // Spawn or registration failed after we already emitted 'running' and
+    // persisted the user message.  Revert the session status so the issue
+    // doesn't get stuck in 'running' forever with no process to settle it.
+    if (spawned) killUnregistered(issueId, executionId, spawned)
     logger.error({ issueId, executionId, err: spawnError }, 'spawn_failed_reverting_session')
     const errorMsg = spawnError instanceof Error ? spawnError.message : String(spawnError)
     emitDiagnosticLog(
@@ -369,23 +365,6 @@ export async function spawnFollowUpProcess(
     throw spawnError
   }
 
-  const normalizer = createLogNormalizer(executor)
-
-  register(
-    ctx,
-    executionId,
-    issueId,
-    engineType,
-    spawned,
-    line => normalizer.parse(line),
-    turnIndex,
-    worktreePath,
-    makeStreamHooks(ctx, issueId, executionId),
-    worktreePath ? baseDir : undefined,
-    workingDir,
-    spawned.externalSessionId ?? issue.sessionFields.externalSessionId ?? undefined,
-    issue.keepAlive,
-  )
   // User message already persisted above (before spawn)
   monitorCompletion(ctx, executionId, issueId, engineType, false)
   const followUpPid = getPidFromSubprocess(spawned.subprocess)
