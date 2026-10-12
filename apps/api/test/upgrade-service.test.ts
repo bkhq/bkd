@@ -6,6 +6,7 @@ import {
   getUpgradeStatus,
   getVersionInfo,
   reportReady,
+  requestCheck,
   requestRestart,
   requestRollback,
   requestUpgrade,
@@ -77,6 +78,7 @@ describe('upgrade service — unsupervised', () => {
     expect(() => requestUpgrade()).toThrow(/Not running under lode/)
     expect(() => requestRollback()).toThrow(/Not running under lode/)
     expect(() => requestRestart()).toThrow(/Not running under lode/)
+    expect(() => requestCheck()).toThrow(/Not running under lode/)
   })
 
   it('makes readiness reporting a no-op', () => {
@@ -162,6 +164,32 @@ describe('upgrade service — supervised', () => {
     requestRestart()
 
     expect(readState().restart_nonce).toBe(3)
+  })
+
+  it('bumps the check nonce without setting a target', () => {
+    writeState({ current: '0.0.6', status: 'running', check_nonce: 4, checked_nonce: 4 })
+
+    requestCheck()
+
+    const state = readState()
+    expect(state.check_nonce).toBe(5)
+    expect(state.target).toBeUndefined()
+  })
+
+  it('reports a check as running until lode answers its nonce', () => {
+    writeState({ current: '0.0.6', status: 'running', check_nonce: 2, checked_nonce: 1 })
+    expect(getUpgradeStatus().checking).toBe(true)
+
+    writeState({ current: '0.0.6', status: 'running', check_nonce: 2, checked_nonce: 2 })
+    expect(getUpgradeStatus().checking).toBe(false)
+  })
+
+  it('surfaces why the last check failed', () => {
+    writeState({ current: '0.0.6', status: 'running', check_error: 'manifest: timeout' })
+    expect(getUpgradeStatus().checkError).toBe('manifest: timeout')
+
+    writeState({ current: '0.0.6', status: 'running' })
+    expect(getUpgradeStatus().checkError).toBeNull()
   })
 
   it('reports readiness with the instance token lode injected', () => {

@@ -136,6 +136,10 @@ default layout.
 
 Start on `check`, move to `auto` once you trust the pipeline.
 
+The settings panel's "check for updates" button asks lode to check right away, whatever
+the policy; it needs lode 0.0.1 or newer. The check only reports the version — except
+under `auto`, where lode installs what it finds, as its periodic check would.
+
 ## 3. Trust the publisher
 
 **Signature verification is off today.** Releases are not signed yet, so the shipped config

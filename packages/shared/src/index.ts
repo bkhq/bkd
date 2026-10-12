@@ -737,6 +737,10 @@ export interface UpgradeStatus {
   target: string | null
   lastCheck: string | null
   lastError: string | null
+  /** A requested check lode has not answered yet. */
+  checking: boolean
+  /** Why the last requested check failed. */
+  checkError: string | null
   history: UpgradeHistoryEntry[]
 }
 
