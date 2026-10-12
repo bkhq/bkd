@@ -47,3 +47,21 @@ describe('issue action menus', () => {
     expect(writeText).toHaveBeenCalledWith(getIssueUrl('p1', 'i1'))
   })
 })
+
+describe('issue list row', () => {
+  it('keeps the "..." button outside the right-click trigger and opens both menus', async () => {
+    const { IssueRow } = await import('@/components/issue-detail/IssueListPanel')
+    render(
+      <IssueRow issue={issue} projectId="p1" isActive={false} onNavigate={() => {}} onActiveDeleted={() => {}} />,
+    )
+    const dots = screen.getAllByRole('button').find(b => b.tagName === 'BUTTON')!
+    // base-ui treats a Menu nested under ContextMenu.Root as its submenu, so the
+    // dropdown trigger must not sit inside the right-click wrapper.
+    expect(dots.closest('[data-slot="issue-context-trigger"]')).toBeNull()
+    fireEvent.click(dots)
+    expect(await screen.findByRole('menuitem', { name: 'Rename' })).toBeInTheDocument()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    fireEvent.contextMenu(screen.getByText('Fix it'))
+    expect(await screen.findByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
+  })
+})

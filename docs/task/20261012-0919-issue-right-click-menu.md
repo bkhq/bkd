@@ -53,14 +53,23 @@ Adding right-click and header issue menus.
   so `DropdownMenuItem` works inside it unchanged.
 - The right-click wrapper uses `className="contents"` so list rows and the
   title bar keep their layout.
+- Follow-up (user report: header "..." did nothing): base-ui's
+  `ContextMenu.Root` provides a Menu context, so a `Menu.Root` rendered under
+  it is treated as that context menu's submenu and its trigger no longer
+  opens on click. The "..." dropdowns now sit outside the right-click
+  wrapper in both the list row (wrapper covers number / pin / title, title
+  is `flex-1`) and the chat header (wrapper covers back button + title).
+  `IssueRow` is exported for the regression test, which asserts the button
+  is not inside `[data-slot="issue-context-trigger"]` and that both menus
+  open.
 
 - complete: focused tests, frontend suite, lint, typecheck and build passed
   (left uncommitted on purpose, to be committed with the next change).
 
 ## Verification
 
-- New `issue-context-menu.test.tsx`: 2 passed (right-click on a row shows
+- `issue-context-menu.test.tsx`: 3 passed (row structure + both menus added later) (right-click on a row shows
   pin / rename / copy / download / delete without copy link; header "..."
   shows "Copy link" and writes the issue URL).
-- Frontend suite: 27 files, 168 passed. `bun run lint` 0 errors (2
+- Frontend suite: 27 files, 169 passed. `bun run lint` 0 errors (2
   pre-existing warnings), `bun run typecheck`, `bun run build` pass.

@@ -255,13 +255,18 @@ interface IssueRightClickMenuProps extends IssueMenuOptions {
   className?: string
 }
 
-/** Right-click (context) menu over `children`, with the same items as the dropdown. */
+/**
+ * Right-click (context) menu over `children`, with the same items as the dropdown.
+ * Do not nest an `IssueContextMenu` inside it: base-ui treats any Menu rendered
+ * under a ContextMenu.Root as that context menu's submenu, so its trigger stops
+ * opening on click. Render the "..." button as a sibling instead.
+ */
 export function IssueRightClickMenu({ children, className, ...options }: IssueRightClickMenuProps) {
   const { items, dialogs } = useIssueMenu(options)
   return (
     <>
       <ContextMenu.Root>
-        <ContextMenu.Trigger className={className}>{children}</ContextMenu.Trigger>
+        <ContextMenu.Trigger className={className} data-slot="issue-context-trigger">{children}</ContextMenu.Trigger>
         <ContextMenu.Portal>
           <ContextMenu.Positioner className="isolate z-50 outline-none">
             <ContextMenu.Popup className={dropdownMenuPopupClassName}>

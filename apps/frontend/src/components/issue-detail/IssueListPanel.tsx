@@ -268,7 +268,7 @@ function StatusGroup({
   )
 }
 
-const IssueRow = memo(({
+export const IssueRow = memo(({
   issue,
   projectId,
   isActive,
@@ -288,26 +288,27 @@ const IssueRow = memo(({
   }, [isActive, issue.id, onNavigate])
 
   return (
-    <IssueRightClickMenu
-      issue={issue}
-      projectId={projectId}
-      showPin
-      onDeleted={isActive ? onActiveDeleted : undefined}
-      className="contents"
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={handleClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          handleClick()
+        }
+      }}
+      className={`group w-full flex items-center gap-1 px-2.5 py-2.5 md:py-1.5 text-left border-b border-border/20 transition-all duration-150 ${
+        isActive ? 'bg-primary/[0.06] cursor-default' : 'hover:bg-accent/50 cursor-pointer'
+      }`}
     >
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={handleClick}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            handleClick()
-          }
-        }}
-        className={`group w-full flex items-center gap-1 px-2.5 py-2.5 md:py-1.5 text-left border-b border-border/20 transition-all duration-150 ${
-          isActive ? 'bg-primary/[0.06] cursor-default' : 'hover:bg-accent/50 cursor-pointer'
-        }`}
+      {/* Right-click area: everything but the "..." button, which must stay outside the context menu. */}
+      <IssueRightClickMenu
+        issue={issue}
+        projectId={projectId}
+        showPin
+        onDeleted={isActive ? onActiveDeleted : undefined}
+        className="contents"
       >
         <span
           className={`text-[11px] font-mono shrink-0 tabular-nums ${
@@ -320,28 +321,28 @@ const IssueRow = memo(({
         {issue.isPinned && <Pin className="size-3 shrink-0 text-primary" />}
         <span
           title={issue.title}
-          className={`text-[13px] truncate ${
+          className={`flex-1 min-w-0 text-[13px] truncate ${
             isActive ? 'text-foreground font-medium' : 'text-foreground/90'
           }`}
         >
           {issue.title}
         </span>
-        <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
-          <IssueContextMenu
-            issue={issue}
-            projectId={projectId}
-            showPin
-            onDeleted={isActive ? onActiveDeleted : undefined}
+      </IssueRightClickMenu>
+      <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
+        <IssueContextMenu
+          issue={issue}
+          projectId={projectId}
+          showPin
+          onDeleted={isActive ? onActiveDeleted : undefined}
+        >
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
           >
-            <button
-              type="button"
-              className="inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-            >
-              <MoreHorizontal className="size-3.5" />
-            </button>
-          </IssueContextMenu>
-        </div>
+            <MoreHorizontal className="size-3.5" />
+          </button>
+        </IssueContextMenu>
       </div>
-    </IssueRightClickMenu>
+    </div>
   )
 })

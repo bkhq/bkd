@@ -103,8 +103,9 @@ export function ChatArea({
       {/* Chat column */}
       <div className="flex flex-1 min-w-0 flex-col">
         {/* Title bar */}
-        <IssueRightClickMenu issue={issue} projectId={projectId} showPin showCopyLink onDeleted={handleAfterDelete} className="contents">
-          <div className="flex items-center gap-2 px-2.5 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] md:gap-2.5 md:px-3 bg-background/80 backdrop-blur-sm">
+        <div className="flex items-center gap-2 px-2.5 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] md:gap-2.5 md:px-3 bg-background/80 backdrop-blur-sm">
+          {/* Right-click area: the "..." button must stay outside the context menu. */}
+          <IssueRightClickMenu issue={issue} projectId={projectId} showPin showCopyLink onDeleted={handleAfterDelete} className="contents">
             <Button
               variant="ghost"
               size="icon"
@@ -155,11 +156,11 @@ export function ChatArea({
                     )}
               </div>
             </div>
-            <IssueContextMenu issue={issue} projectId={projectId} showPin showCopyLink onDeleted={handleAfterDelete}>
-              <IssueContextMenuButton className="h-7 w-7 shrink-0" />
-            </IssueContextMenu>
-          </div>
-        </IssueRightClickMenu>
+          </IssueRightClickMenu>
+          <IssueContextMenu issue={issue} projectId={projectId} showPin showCopyLink onDeleted={handleAfterDelete}>
+            <IssueContextMenuButton className="h-7 w-7 shrink-0" />
+          </IssueContextMenu>
+        </div>
 
         {/* Shared chat body: messages + metadata bar + input */}
         <ChatBody
