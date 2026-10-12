@@ -1,5 +1,6 @@
 import {
   Activity,
+  ChevronRight,
   FolderOpen,
   MoreHorizontal,
   Pin,
@@ -192,7 +193,7 @@ export function IssueListPanel({
   )
 }
 
-function StatusGroup({
+export function StatusGroup({
   status,
   issues,
   projectId,
@@ -212,30 +213,48 @@ function StatusGroup({
   onActiveDeleted: () => void
 }) {
   const { t } = useTranslation()
+  const openCreateDialog = usePanelStore(s => s.openCreateDialog)
+  const canCreate = status.id === 'todo' || status.id === 'working'
 
   return (
     <div>
-      {/* Status header bar — tinted with the status color */}
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs sticky top-0 z-10 transition-colors border-b border-border/20"
-        style={{ backgroundColor: `${status.color}14` }}
+      {/* Group bar: opaque base so rows cannot show through while sticky */}
+      <div
+        className="group/head sticky top-0 z-10 flex h-8 items-center gap-1.5 border-b border-border/20 bg-secondary px-2.5 text-xs"
+        style={{ backgroundImage: `linear-gradient(${status.color}14, ${status.color}14)` }}
       >
-        <span
-          className="h-2 w-2 rounded-full shrink-0 ring-2 ring-offset-1 ring-offset-transparent"
-          style={{
-            backgroundColor: status.color,
-            boxShadow: `0 0 6px ${status.color}40`,
-          }}
-        />
-        <span className="font-semibold text-foreground/80 truncate tracking-tight">
-          {tStatus(t, status.name)}
-        </span>
-        <span className="text-[10px] font-medium text-muted-foreground/50 ml-auto shrink-0 tabular-nums">
-          {issues.length}
-        </span>
-      </button>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={!isCollapsed}
+          className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-0.5 text-left transition-colors hover:text-foreground"
+        >
+          <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-muted-foreground/70 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
+          <span
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: status.color }}
+          />
+          <span className="truncate font-semibold tracking-tight text-foreground/85">
+            {tStatus(t, status.name)}
+          </span>
+          <span className="shrink-0 tabular-nums text-muted-foreground/60">
+            (
+            {issues.length}
+            )
+          </span>
+        </button>
+        {canCreate ? (
+          <button
+            type="button"
+            onClick={() => openCreateDialog(status.id)}
+            aria-label={t('kanban.createIssueIn', { name: tStatus(t, status.name) })}
+            title={t('kanban.createIssueIn', { name: tStatus(t, status.name) })}
+            className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-background/60 hover:text-foreground"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+      </div>
 
       {!isCollapsed ? (
         <div>
@@ -255,7 +274,7 @@ function StatusGroup({
           })}
           {issues.length === 0 ?
               (
-                <div className="border-b border-border/20 px-2 py-3 min-h-[44px] flex items-center justify-center">
+                <div className="px-2 py-3 min-h-[44px] flex items-center justify-center">
                   <span className="text-[11px] text-muted-foreground/55 text-center pointer-events-none">
                     {t('issue.emptyStatusHint')}
                   </span>
@@ -298,8 +317,8 @@ export const IssueRow = memo(({
           handleClick()
         }
       }}
-      className={`group w-full flex items-center gap-1 px-2.5 py-2.5 md:py-1.5 text-left border-b border-border/20 transition-all duration-150 ${
-        isActive ? 'bg-primary/[0.06] cursor-default' : 'hover:bg-accent/50 cursor-pointer'
+      className={`group w-full flex items-center gap-1.5 px-2.5 py-2.5 md:py-1.5 text-left transition-colors duration-150 ${
+        isActive ? 'bg-primary/[0.08] cursor-default' : 'hover:bg-accent/60 cursor-pointer'
       }`}
     >
       {/* Right-click area: everything but the "..." button, which must stay outside the context menu. */}

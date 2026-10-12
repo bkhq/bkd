@@ -75,3 +75,19 @@ describe('issue list row', () => {
     expect(await screen.findByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
   })
 })
+
+describe('issue list group header', () => {
+  it('offers "+" only for Todo and Working and presets the create dialog status', async () => {
+    const { StatusGroup } = await import('@/components/issue-detail/IssueListPanel')
+    const { STATUS_MAP } = await import('@/lib/statuses')
+    const { usePanelStore } = await import('@/stores/panel-store')
+    const props = { issues: [], projectId: 'p1', isCollapsed: false, onToggle: () => {}, activeIssueId: '', onNavigate: () => {}, onActiveDeleted: () => {} }
+    const { unmount } = render(<StatusGroup status={STATUS_MAP.get('working')!} {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Create issue in Working' }))
+    expect(usePanelStore.getState().createDialogOpen).toBe(true)
+    expect(usePanelStore.getState().createDialogStatusId).toBe('working')
+    unmount()
+    render(<StatusGroup status={STATUS_MAP.get('done')!} {...props} />)
+    expect(screen.queryByRole('button', { name: /Create issue in/ })).toBeNull()
+  })
+})

@@ -143,3 +143,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261012-0911-user-message-footer Give sent messages a footer with time and a copy action**](20261012-0911-user-message-footer.md) `P2`
 - [x] [**20261012-0919-issue-right-click-menu Right-click issue menu in the list, same menu in the chat header**](20261012-0919-issue-right-click-menu.md) `P2`
 - [x] [**20261012-0927-upgrade-deps-and-cn Upgrade all dependencies and replace clsx + tailwind-merge with cn**](20261012-0927-upgrade-deps-and-cn.md) `P2`
+- [x] [**20261012-1000-issue-list-restyle Restyle the issue list panel after the grouped-list reference**](20261012-1000-issue-list-restyle.md) `P2`
