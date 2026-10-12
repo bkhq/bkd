@@ -62,6 +62,13 @@ Adding right-click and header issue menus.
   `IssueRow` is exported for the regression test, which asserts the button
   is not inside `[data-slot="issue-context-trigger"]` and that both menus
   open.
+- Second follow-up (still no reaction): `IssueContextMenuButton` only took
+  `className`, so the handlers, ref and aria props base-ui injects through
+  `render` never reached the DOM button. jsdom's synthetic `click` hid it;
+  a real browser sends `mousedown` first, which base-ui opens on. The button
+  now spreads its props and the header test replays the full pointer
+  sequence. This also affected the kanban card, the only other user of
+  that button since ea5aa9c.
 
 - complete: focused tests, frontend suite, lint, typecheck and build passed
   (left uncommitted on purpose, to be committed with the next change).

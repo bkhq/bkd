@@ -280,13 +280,22 @@ export function IssueRightClickMenu({ children, className, ...options }: IssueRi
   )
 }
 
-/** Kebab "..." button to use as trigger */
-export function IssueContextMenuButton({ className }: { className?: string }) {
+/**
+ * Kebab "..." button to use as trigger. Spreads the props base-ui injects
+ * through `render` (handlers, ref, aria); without that the menu never opens.
+ * Click propagation is stopped so a parent card/row does not treat it as a
+ * click on itself.
+ */
+export function IssueContextMenuButton({ className, onClick, ...props }: React.ComponentProps<'button'>) {
   return (
     <button
       type="button"
+      {...props}
       className={cn('inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors', className)}
-      onClick={e => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick?.(e)
+      }}
     >
       <MoreHorizontal className="size-3.5" />
     </button>

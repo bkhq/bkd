@@ -1,7 +1,7 @@
 import type { Issue } from '@bkd/shared'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { IssueContextMenu, IssueRightClickMenu } from '@/components/issue-detail/IssueContextMenu'
+import { IssueContextMenu, IssueContextMenuButton, IssueRightClickMenu } from '@/components/issue-detail/IssueContextMenu'
 import i18n from '@/i18n'
 import { getIssueUrl } from '@/stores/server-store'
 
@@ -39,10 +39,17 @@ describe('issue action menus', () => {
   it('offers copy link in the header menu and writes the issue URL', async () => {
     render(
       <IssueContextMenu issue={issue} projectId="p1" showPin showCopyLink>
-        <button type="button">more</button>
+        <IssueContextMenuButton aria-label="more" />
       </IssueContextMenu>,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'more' }))
+    // Real browsers send mousedown first; base-ui opens on it and must ignore the
+    // following click. The button has to forward the injected handlers for that.
+    const dots = screen.getByRole('button', { name: 'more' })
+    fireEvent.pointerDown(dots, { button: 0, pointerType: 'mouse', isPrimary: true })
+    fireEvent.mouseDown(dots, { button: 0 })
+    fireEvent.pointerUp(dots, { button: 0, pointerType: 'mouse', isPrimary: true })
+    fireEvent.mouseUp(dots, { button: 0 })
+    fireEvent.click(dots, { button: 0 })
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy link' }))
     expect(writeText).toHaveBeenCalledWith(getIssueUrl('p1', 'i1'))
   })
