@@ -28,8 +28,9 @@ function isToolUseAction(entry: NormalizedLogEntry): boolean {
   return entry.entryType === 'tool-use' && !hasResultFlag(entry)
 }
 
+// A failed tool result arrives as `error-message` carrying the result flag.
 function isToolUseResult(entry: NormalizedLogEntry): boolean {
-  return entry.entryType === 'tool-use' && hasResultFlag(entry)
+  return (entry.entryType === 'tool-use' || entry.entryType === 'error-message') && hasResultFlag(entry)
 }
 
 function getToolName(entry: NormalizedLogEntry): string | undefined {

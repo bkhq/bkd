@@ -140,3 +140,37 @@ describe('rebuildMessages — subagent threads', () => {
     expect(firstToolGroup(messages).items[0]!.subagent).toBeUndefined()
   })
 })
+
+describe('rebuildMessages — failed tool results', () => {
+  const bashCall = entry({
+    entryType: 'tool-use',
+    messageId: 'm1',
+    content: 'git diff --exit-code',
+    metadata: { toolName: 'Bash', toolCallId: 'toolu_bash' },
+    toolDetail: { kind: 'command-run', toolName: 'Bash', toolCallId: 'toolu_bash', isResult: false, raw: {} },
+  })
+
+  it('pairs a failed result with its tool call instead of raising an error message', () => {
+    const failed = entry({
+      entryType: 'error-message',
+      messageId: 'm2',
+      content: 'Exit code 1\ndiff --git a/a.ts b/a.ts',
+      metadata: { toolName: 'Bash', toolCallId: 'toolu_bash', isResult: true },
+    })
+
+    const messages = rebuildMessages([bashCall, failed])
+
+    expect(messages.filter(m => m.type === 'error')).toHaveLength(0)
+    expect(firstToolGroup(messages).items[0]!.result).toBe(failed)
+  })
+
+  it('keeps an error that is not a tool result as an error message', () => {
+    const messages = rebuildMessages([
+      bashCall,
+      entry({ entryType: 'error-message', messageId: 'm2', content: 'Turn failed' }),
+    ])
+
+    expect(messages.filter(m => m.type === 'error')).toHaveLength(1)
+    expect(firstToolGroup(messages).items[0]!.result).toBeNull()
+  })
+})
