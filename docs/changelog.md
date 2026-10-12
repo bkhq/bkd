@@ -566,3 +566,18 @@ Review fixes for #145.
   `docs/bkd.lode.toml`; `AGENTS.md` reflects the TypeScript 7 workspaces.
 
 Task `20261012-1532-pr145-review-fixes`.
+
+## 2026-10-12 15:47 [progress]
+
+The settings panel can check for an update without installing it. The vendored
+lode SDK was re-copied from `bkhq/lode` (`requestCheck()`, `check_nonce` /
+`checked_nonce` / `check_error`); `POST /api/settings/upgrade/check` bumps the
+nonce and `UpgradeStatus` gained `checking` and `checkError`. The Update button
+used to double as the check by requesting `latest`, which installed and
+restarted at once; it now appears only when a newer version is advertised. A
+lode older than 0.0.1 never answers the nonce, so the panel gives up after 30 s
+and says so.
+
+A Codex `error` notification the CLI retries (`willRetry: true`, e.g.
+"Reconnecting… n/5") rendered as a red error box while the turn kept running;
+`LogEntry` now styles it as a warning. Task `20261012-1547-lode-update-check`.

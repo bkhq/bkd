@@ -44,6 +44,7 @@ import type { SettingsNavItem } from '@/components/ui/settings-layout'
 import { SettingsLayout } from '@/components/ui/settings-layout'
 import { Switch } from '@/components/ui/switch'
 import {
+  useCheckUpgrade,
   useCleanupStats,
   useClearSystemLogs,
   useDeletedIssues,
@@ -1300,6 +1301,7 @@ function UpgradeSection({ open }: { open: boolean }) {
   const { t } = useTranslation()
   const { data: versionInfo } = useVersionInfo(open)
   const { data: status } = useUpgradeStatus(open)
+  const checkUpgrade = useCheckUpgrade()
   const requestUpgrade = useRequestUpgrade()
   const requestRollback = useRequestRollback()
   const restartServer = useRestartServer()
@@ -1311,6 +1313,18 @@ function UpgradeSection({ open }: { open: boolean }) {
   const pending = !!status?.target
   const busy = pending || status?.status === 'updating' || status?.status === 'rolling-back'
   const canRollback = !!status?.lastGood && status.lastGood !== status.current
+  // A lode that predates on-demand checks never answers, so stop waiting after a while.
+  const checkPending = !!status?.checking
+  const [checkTimedOut, setCheckTimedOut] = useState(false)
+  useEffect(() => {
+    if (!checkPending) return
+    const timer = setTimeout(setCheckTimedOut, 30_000, true)
+    return () => {
+      clearTimeout(timer)
+      setCheckTimedOut(false)
+    }
+  }, [checkPending])
+  const checking = checkPending && !checkTimedOut
   // lode restarts BKD in place, so a completed update leaves this page on the old build —
   // its JS no longer matches the server it talks to. Reload rather than leave it stranded.
   //
@@ -1423,23 +1437,45 @@ function UpgradeSection({ open }: { open: boolean }) {
             </div>
           ) : null}
 
+          {checkTimedOut || status?.checkError ? (
+            <div className="flex items-start gap-2 text-xs text-muted-foreground">
+              <CircleAlert className="mt-0.5 h-3 w-3 shrink-0" />
+              <span className="min-w-0 break-words">
+                {checkTimedOut ?
+                    t('settings.upgradeCheckTimedOut') :
+                    t('settings.upgradeCheckFailed', { error: status?.checkError })}
+              </span>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap items-center gap-2">
-            {/* Always enabled: the request makes lode resolve `latest` immediately,
-                which is the only way to check on demand — it advertises on its own
-                schedule otherwise. Requesting the running version is a no-op for lode,
-                so this is safe when already up to date. */}
+            {status?.hasUpdate || busy ? (
+              <Button
+                size="sm"
+                onClick={() => requestUpgrade.mutate(undefined)}
+                disabled={busy || requestUpgrade.isPending}
+              >
+                {busy || requestUpgrade.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <ArrowDownToLine className="h-3 w-3" />
+                )}
+                {busy ? t('settings.upgradeUpdating') : t('settings.upgradeUpdate')}
+              </Button>
+            ) : null}
+
             <Button
-              variant={status?.hasUpdate ? 'default' : 'outline'}
+              variant="outline"
               size="sm"
-              onClick={() => requestUpgrade.mutate(undefined)}
-              disabled={busy || requestUpgrade.isPending}
+              onClick={() => checkUpgrade.mutate()}
+              disabled={busy || checking || checkUpgrade.isPending}
             >
-              {busy || requestUpgrade.isPending ? (
+              {checking || checkUpgrade.isPending ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
-                <ArrowDownToLine className="h-3 w-3" />
+                <Search className="h-3 w-3" />
               )}
-              {busy ? t('settings.upgradeUpdating') : t('settings.upgradeUpdate')}
+              {checking ? t('settings.upgradeChecking') : t('settings.upgradeCheck')}
             </Button>
 
             {canRollback ? (

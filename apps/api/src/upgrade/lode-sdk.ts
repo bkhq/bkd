@@ -1,7 +1,7 @@
 // lode.ts — single-file TS/JS SDK for the `lode` supervisor (github.com/bkhq/lode).
 // Wraps the state.json contract: read status, request upgrade/restart/rollback,
 // report readiness, subscribe to lode's notifications. The SDK only *signals* lode
-// (writes target/restart_nonce/ready under state.json.lock); lode does the heavy
+// (writes target/restart_nonce/check_nonce/ready under state.json.lock); lode does the heavy
 // fetch→verify→install→observe. Bun or Node, zero deps. Contract: ../docs/integration.md §2.
 
 import { closeSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -19,7 +19,7 @@ export interface HistoryEntry {
   result: "good" | "bad";
 }
 
-/** Parsed state.json. lode writes the top group; the app writes target/restartNonce/ready. */
+/** Parsed state.json. lode writes the top group; the app writes target/restartNonce/checkNonce/ready. */
 export interface State {
   current?: string;
   lastGood?: string;
@@ -31,8 +31,13 @@ export interface State {
   lastError?: string;
   history: HistoryEntry[];
   configGeneration: number;
+  /** The highest checkNonce lode has answered (see {@link Lode.requestCheck}). */
+  checkedNonce: number;
+  /** Why the last requested check failed; undefined when it succeeded. */
+  checkError?: string;
   target?: string;
   restartNonce: number;
+  checkNonce: number;
   hold: boolean;
   ready?: string;
 }
@@ -51,8 +56,11 @@ function toState(raw: Record<string, unknown>): State {
     lastError: str(raw.last_error),
     history: Array.isArray(raw.history) ? (raw.history as HistoryEntry[]) : [],
     configGeneration: num(raw.config_generation) ?? 0,
+    checkedNonce: num(raw.checked_nonce) ?? 0,
+    checkError: str(raw.check_error),
     target: str(raw.target),
     restartNonce: num(raw.restart_nonce) ?? 0,
+    checkNonce: num(raw.check_nonce) ?? 0,
     hold: raw.hold === true,
     ready: str(raw.ready),
   };
@@ -217,6 +225,21 @@ export class Lode {
   /** Apply a pending lode.toml edit — alias of {@link reboot} (the restart re-reads lode.toml). */
   reloadConfig(): number {
     return this.reboot();
+  }
+
+  /** Ask lode to check for a newer version now, whatever the update policy.
+   *  Bumps check_nonce and returns the new nonce; lode acts ~1s later. The check
+   *  is finished once `read().checkedNonce` reaches that nonce: `checkError` is
+   *  then set if it failed, else `available` is the newer version (undefined when
+   *  up to date). It only reports — apply with {@link requestUpdate} (under
+   *  policy = auto lode applies it by itself). */
+  requestCheck(): number {
+    let next = 0;
+    this.update((raw) => {
+      next = (typeof raw.check_nonce === "number" ? raw.check_nonce : 0) + 1;
+      raw.check_nonce = next;
+    });
+    return next;
   }
 
   /** Set target (a version or "latest") to request an up/down-grade. */
@@ -415,4 +438,6 @@ export function onTerminate(handler: () => void | Promise<void>): void {
   };
   process.on("SIGTERM", stop);
   process.on("SIGINT", stop);
+  // How lode asks an app to stop on Windows (a CTRL_BREAK console event).
+  if (process.platform === "win32") process.on("SIGBREAK", stop);
 }

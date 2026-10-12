@@ -545,6 +545,7 @@ export const kanbanApi = {
     }>('/api/settings/upgrade/version'),
   getUpgradeStatus: () =>
     get<UpgradeStatus>('/api/settings/upgrade/status'),
+  checkForUpdate: () => post<{ status: string }>('/api/settings/upgrade/check', {}),
   requestUpgrade: (version?: string) =>
     post<{ requested: string }>('/api/settings/upgrade/update', version ? { version } : {}),
   requestRollback: (version?: string) =>

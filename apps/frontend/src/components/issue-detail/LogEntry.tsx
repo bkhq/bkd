@@ -31,6 +31,7 @@ import { FilePreviewModal } from '@/components/FilePreviewModal'
 import { getCommandPreview } from '@/lib/command-preview'
 import { formatDuration, formatFileSize } from '@/lib/format'
 import { useViewModeStore } from '@/stores/view-mode-store'
+import { cn } from 'cn'
 import type { NormalizedLogEntry, ToolAction } from '@/types/kanban'
 import { MarkdownContent } from './MarkdownContent'
 
@@ -578,16 +579,25 @@ export function LogEntry({
       // Engine error kind (Codex `codexErrorInfo`): names the policy block or
       // stream failure behind an otherwise generic message.
       const errorKind = entry.metadata?.errorKind
+      // The engine retries on its own, so the turn is still running.
+      const retrying = entry.metadata?.willRetry === true
       return (
-        <div className="flex gap-2 my-1.5 rounded-lg border border-destructive/20 bg-destructive/[0.06] px-3 py-2 animate-message-enter">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive mt-0.5" />
+        <div
+          className={cn(
+            'flex gap-2 my-1.5 rounded-lg border px-3 py-2 animate-message-enter',
+            retrying ?
+              'bg-amber-500/[0.06] border-amber-500/20 text-amber-600 dark:text-amber-400' :
+              'bg-destructive/[0.06] border-destructive/20 text-destructive',
+          )}
+        >
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
           <div className="min-w-0 flex flex-col gap-0.5">
             {typeof errorKind === 'string' && (
-              <span className="text-xs font-medium text-destructive">
+              <span className="text-xs font-medium">
                 {t(`session.errorKind.${errorKind}`, { defaultValue: errorKind })}
               </span>
             )}
-            <code className="min-w-0 overflow-x-auto text-xs text-destructive/90 leading-relaxed whitespace-pre">
+            <code className="min-w-0 overflow-x-auto text-xs opacity-90 leading-relaxed whitespace-pre">
               {entry.content}
             </code>
           </div>

@@ -865,10 +865,21 @@ export function useUpgradeStatus(enabled = false) {
       const status = data?.status
       const busy =
         !!data?.target ||
+        !!data?.checking ||
         status === 'updating' ||
         status === 'rolling-back' ||
         status === 'starting'
       return busy ? 2000 : 15_000
+    },
+  })
+}
+
+export function useCheckUpgrade() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => kanbanApi.checkForUpdate(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.upgradeStatus() })
     },
   })
 }

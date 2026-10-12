@@ -77,6 +77,8 @@ export const UpgradeStatusSchema = z.object({
   target: z.string().nullable(),
   lastCheck: z.string().nullable(),
   lastError: z.string().nullable(),
+  checking: z.boolean(),
+  checkError: z.string().nullable(),
   history: z.array(z.object({ at: z.string(), version: z.string(), result: z.enum(['good', 'bad']) })),
 })
 export const SystemInfoSchema = z.object({

@@ -7,6 +7,7 @@ import { createOpenAPIRouter } from '@/openapi/hono'
 import {
   getUpgradeStatus,
   getVersionInfo,
+  requestCheck,
   requestRestart,
   requestRollback,
   requestUpgrade,
@@ -57,6 +58,31 @@ upgrade.openapi(createRoute({
   },
 }), (c) => {
   return c.json({ success: true as const, data: getUpgradeStatus() }, 200)
+})
+
+// POST /api/settings/upgrade/check — ask lode to look for a newer version now
+upgrade.openapi(createRoute({
+  method: 'post',
+  path: '/check',
+  tags: ['Settings'],
+  operationId: 'postSettingsUpgradeCheck',
+  responses: {
+    200: successResponse(z.object({ status: z.literal('checking') }), 'Success'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Not found'),
+    403: errorResponse('Forbidden'),
+    409: errorResponse('Conflict'),
+    415: errorResponse('Unsupported media type'),
+    500: errorResponse('Internal error'),
+  },
+}), (c) => {
+  try {
+    requestCheck()
+    return c.json({ success: true as const, data: { status: 'checking' } }, 200)
+  } catch (err) {
+    logger.error({ err }, 'upgrade_check_failed')
+    return c.json({ success: false as const, error: (err as Error).message }, 400)
+  }
 })
 
 // POST /api/settings/upgrade/update — ask lode to install a version (default: latest)

@@ -4,7 +4,7 @@
  * BKD no longer downloads, verifies or installs anything itself: lode owns the
  * fetch → verify → install → observe → commit/rollback path. This module only
  * reads lode's `state.json` and writes the request fields the app is allowed to
- * set (`target`, `restart_nonce`). See `docs/deployment.md`.
+ * set (`target`, `restart_nonce`, `check_nonce`). See `docs/deployment.md`.
  *
  * Outside lode (dev, or a bare `bun src/index.ts`) every call reports
  * `supervised: false` and the mutating helpers throw.
@@ -43,6 +43,8 @@ export function getUpgradeStatus(): UpgradeStatus {
     target: null,
     lastCheck: null,
     lastError: null,
+    checking: false,
+    checkError: null,
     history: [],
   }
 
@@ -64,8 +66,16 @@ export function getUpgradeStatus(): UpgradeStatus {
     target: state.target ?? null,
     lastCheck: state.lastCheck ?? null,
     lastError: state.lastError ?? null,
+    checking: state.checkNonce > state.checkedNonce,
+    checkError: state.checkError ?? null,
     history: state.history,
   }
+}
+
+/** Ask lode to look for a newer version now. It only reports — nothing installs. */
+export function requestCheck(): void {
+  const nonce = requireLode().requestCheck()
+  logger.info({ nonce }, 'upgrade_check_requested')
 }
 
 /** Ask lode to install a version (or `latest`). lode restarts us when it lands. */

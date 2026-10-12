@@ -36,6 +36,18 @@ describe('logEntry error-message', () => {
     expect(screen.getByText('somethingNew')).toBeInTheDocument()
   })
 
+  it('styles an error the engine retries as a warning', () => {
+    render(
+      <LogEntry
+        entry={{ entryType: 'error-message', content: 'Reconnecting... 1/5', metadata: { willRetry: true } }}
+      />,
+    )
+
+    const box = screen.getByText('Reconnecting... 1/5').closest('.border')
+    expect(box?.className).toContain('amber')
+    expect(box?.className).not.toContain('destructive')
+  })
+
   it('renders plain errors unchanged', () => {
     render(<LogEntry entry={{ entryType: 'error-message', content: 'Turn failed' }} />)
 
