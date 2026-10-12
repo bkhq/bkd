@@ -10,7 +10,7 @@ import {
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { IssueContextMenu } from '@/components/issue-detail/IssueContextMenu'
+import { IssueContextMenu, IssueRightClickMenu } from '@/components/issue-detail/IssueContextMenu'
 import { ProjectSettingsDialog } from '@/components/ProjectSettingsDialog'
 import { Button } from '@/components/ui/button'
 import { ResizeHandle } from '@/components/ui/resize-handle'
@@ -288,52 +288,60 @@ const IssueRow = memo(({
   }, [isActive, issue.id, onNavigate])
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={handleClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          handleClick()
-        }
-      }}
-      className={`group w-full flex items-center gap-1 px-2.5 py-2.5 md:py-1.5 text-left border-b border-border/20 transition-all duration-150 ${
-        isActive ? 'bg-primary/[0.06] cursor-default' : 'hover:bg-accent/50 cursor-pointer'
-      }`}
+    <IssueRightClickMenu
+      issue={issue}
+      projectId={projectId}
+      showPin
+      onDeleted={isActive ? onActiveDeleted : undefined}
+      className="contents"
     >
-      <span
-        className={`text-[11px] font-mono shrink-0 tabular-nums ${
-          isActive ? 'text-primary font-medium' : 'text-muted-foreground/70'
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handleClick()
+          }
+        }}
+        className={`group w-full flex items-center gap-1 px-2.5 py-2.5 md:py-1.5 text-left border-b border-border/20 transition-all duration-150 ${
+          isActive ? 'bg-primary/[0.06] cursor-default' : 'hover:bg-accent/50 cursor-pointer'
         }`}
       >
-        #
-        {issue.issueNumber}
-      </span>
-      {issue.isPinned && <Pin className="size-3 shrink-0 text-primary" />}
-      <span
-        title={issue.title}
-        className={`text-[13px] truncate ${
-          isActive ? 'text-foreground font-medium' : 'text-foreground/90'
-        }`}
-      >
-        {issue.title}
-      </span>
-      <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
-        <IssueContextMenu
-          issue={issue}
-          projectId={projectId}
-          showPin
-          onDeleted={isActive ? onActiveDeleted : undefined}
+        <span
+          className={`text-[11px] font-mono shrink-0 tabular-nums ${
+            isActive ? 'text-primary font-medium' : 'text-muted-foreground/70'
+          }`}
         >
-          <button
-            type="button"
-            className="inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          #
+          {issue.issueNumber}
+        </span>
+        {issue.isPinned && <Pin className="size-3 shrink-0 text-primary" />}
+        <span
+          title={issue.title}
+          className={`text-[13px] truncate ${
+            isActive ? 'text-foreground font-medium' : 'text-foreground/90'
+          }`}
+        >
+          {issue.title}
+        </span>
+        <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
+          <IssueContextMenu
+            issue={issue}
+            projectId={projectId}
+            showPin
+            onDeleted={isActive ? onActiveDeleted : undefined}
           >
-            <MoreHorizontal className="size-3.5" />
-          </button>
-        </IssueContextMenu>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              <MoreHorizontal className="size-3.5" />
+            </button>
+          </IssueContextMenu>
+        </div>
       </div>
-    </div>
+    </IssueRightClickMenu>
   )
 })
