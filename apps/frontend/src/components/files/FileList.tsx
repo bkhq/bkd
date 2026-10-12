@@ -52,7 +52,7 @@ export function FileList({ entries, onNavigate, onDelete, isDeleting, breadcrumb
     return (
       <div className="overflow-auto flex-1 min-h-0">
         {breadcrumb && (
-          <div className="sticky top-0 z-[2] bg-muted/50 px-4 py-1.5">
+          <div className="sticky top-0 z-[2] bg-muted px-4 py-1.5">
             {breadcrumb}
           </div>
         )}
@@ -68,13 +68,13 @@ export function FileList({ entries, onNavigate, onDelete, isDeleting, breadcrumb
       <table className="w-full text-sm">
         <thead className="sticky top-0 z-[1]">
           {breadcrumb && (
-            <tr className="bg-muted/50 border-b border-border">
+            <tr className="bg-muted border-b border-border">
               <th colSpan={4} className="text-left px-4 py-1.5 font-normal">
                 {breadcrumb}
               </th>
             </tr>
           )}
-          <tr className="bg-muted/50 border-b border-border">
+          <tr className="bg-muted border-b border-border">
             <th className="text-left font-medium text-muted-foreground px-4 py-2">
               {t('fileBrowser.name')}
             </th>

@@ -171,8 +171,9 @@ function ProjectGroup({
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs sticky top-0 z-10 transition-colors border-b border-border/20"
-        style={{ backgroundColor: `${reviewColor}14` }}
+        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs sticky top-0 z-10 transition-colors border-b border-border/20 bg-secondary"
+        // Tint layered over the opaque base so scrolled rows cannot show through.
+        style={{ backgroundImage: `linear-gradient(${reviewColor}14, ${reviewColor}14)` }}
       >
         <span
           className="h-2 w-2 rounded-full shrink-0 ring-2 ring-offset-1 ring-offset-transparent"
