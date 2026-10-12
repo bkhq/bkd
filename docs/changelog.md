@@ -529,6 +529,15 @@ The `cyberPolicy` block itself is Codex-side policy (security-audit prompts
 need Daybreak access); BKD can only show it. Task
 `20261011-0213-codex-failure-visibility`.
 
+## 2026-10-11 21:29 [BUG-P1]
+
+With a Chinese IME, the Enter that confirms a candidate saved a half-typed
+issue title: the title editor treated every `keydown Enter` as submit. The
+kanban panel title editor, the tag editor and the directory picker's new-folder
+input had the same pattern. `lib/keyboard.ts` `isImeComposing()`
+(`nativeEvent.isComposing`, or Safari's post-composition `keyCode` 229) guards
+all four; a plain Enter still submits. Task `20261011-2129-ime-enter-submit`.
+
 ## 2026-10-12 03:30 [decision]
 
 Merged `main` into `release` again for #145.
@@ -541,4 +550,3 @@ Merged `main` into `release` again for #145.
   Ported its intent: `ShikiCodeBlock` sanitizes with `FORBID_ATTR: ['tabindex']`
   and the streamdown root carries `touch-auto select-text`. Regression test moved
   to `shiki-code-block.test.tsx`.
-

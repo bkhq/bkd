@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { kanbanApi } from '@/lib/kanban-api'
+import { isImeComposing } from '@/lib/keyboard'
 
 interface DirectoryPickerProps {
   open: boolean
@@ -137,7 +138,7 @@ export function DirectoryPicker({
                 value={newFolderName}
                 onChange={e => setNewFolderName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') void handleCreateFolder()
+                  if (e.key === 'Enter' && !isImeComposing(e)) void handleCreateFolder()
                   if (e.key === 'Escape') {
                     setShowNewFolder(false)
                     setNewFolderName('')

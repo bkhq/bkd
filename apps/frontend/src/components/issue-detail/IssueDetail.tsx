@@ -12,6 +12,7 @@ import type { StatusDefinition, StatusId } from '@/lib/statuses'
 import { STATUSES } from '@/lib/statuses'
 import { useChatFilterStore } from '@/stores/chat-filter-store'
 import type { Issue } from '@/types/kanban'
+import { isImeComposing } from '@/lib/keyboard'
 
 export const badgeBase =
   'inline-flex items-center gap-1 rounded-full border px-2 h-[22px] text-[11px] leading-none font-medium whitespace-nowrap'
@@ -128,7 +129,7 @@ export function IssueDetail({
                 setEditingTag(false)
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') e.currentTarget.blur()
+                if (e.key === 'Enter' && !isImeComposing(e)) e.currentTarget.blur()
                 if (e.key === 'Escape') {
                   setTagInput((issue.tags ?? []).join(', '))
                   setEditingTag(false)
