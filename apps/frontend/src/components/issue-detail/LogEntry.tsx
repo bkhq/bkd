@@ -253,10 +253,48 @@ function TaskPlanEntry({ entry }: { entry: NormalizedLogEntry }) {
   )
 }
 
+/** Icon-only copy action used in message footers; swaps to a check while `copied`. */
+function CopyIconButton({
+  label,
+  copied,
+  onClick,
+  Icon = Copy,
+}: {
+  label: string
+  copied: boolean
+  onClick: () => void
+  Icon?: typeof Copy
+}) {
+  const { t } = useTranslation()
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50 transition-colors duration-150"
+      aria-label={copied ? t('session.copied') : label}
+      title={label}
+    >
+      {copied ?
+          (
+            <Check className="h-3.5 w-3.5 text-emerald-500" />
+          ) :
+          (
+            <Icon className="h-3.5 w-3.5" />
+          )}
+    </button>
+  )
+}
+
+/** Write to the clipboard and run `onDone` for a 2s copied state. */
+function copyToClipboard(value: string, onDone: () => void) {
+  navigator.clipboard.writeText(value).then(onDone).catch(() => {})
+}
+
 function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
   const { t } = useTranslation()
   const { projectId, issueId } = useParams<{ projectId: string, issueId: string }>()
   const [preview, setPreview] = useState<PreviewItem | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const isPending = entry.metadata?.type === 'pending'
   const isDone = entry.metadata?.type === 'done'
@@ -286,12 +324,19 @@ function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
     }
   }
 
+  const handleCopy = () => {
+    copyToClipboard(displayContent, () => {
+      setCopied(true)
+      setTimeout(setCopied, 2000, false)
+    })
+  }
+
   return (
     <div className="group py-2 animate-message-enter">
-      <div className={`bg-muted/70 px-3 py-2.5 border border-l-[3px] ${barColor}`}>
+      <div className={`rounded-md bg-muted/50 px-3 py-2.5 border border-border/60 border-l-[3px] ${barColor}`}>
         {displayContent ?
             (
-              <div className="text-[15px] whitespace-pre-wrap break-words text-foreground leading-[1.75]">
+              <div className="text-[14px] whitespace-pre-wrap break-words text-foreground leading-[1.75]">
                 {displayContent}
               </div>
             ) :
@@ -336,25 +381,35 @@ function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
               </div>
             ) :
           null}
-        {isPending || isDone ?
+      </div>
+      <div className="flex items-center gap-2 mt-1">
+        {entry.timestamp ?
             (
-              <div className="flex items-center gap-2 mt-1">
-                {isPending ?
-                    (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-amber-500/70">
-                        <Clock className="h-2.5 w-2.5" />
-                        {t('chat.pendingMessage')}
-                      </span>
-                    ) :
-                  null}
-                {isDone ?
-                    (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-500/70">
-                        {t('chat.doneMessage')}
-                      </span>
-                    ) :
-                  null}
-              </div>
+              <span className="text-[10px] text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors duration-200">
+                {formatTime(entry.timestamp)}
+              </span>
+            ) :
+          null}
+        {isPending ?
+            (
+              <span className="inline-flex items-center gap-1 text-[10px] text-amber-500/70">
+                <Clock className="h-2.5 w-2.5" />
+                {t('chat.pendingMessage')}
+              </span>
+            ) :
+          null}
+        {isDone ?
+            (
+              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-500/70">
+                {t('chat.doneMessage')}
+              </span>
+            ) :
+          null}
+        {displayContent ?
+            (
+              <span className="ml-auto flex items-center md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
+                <CopyIconButton label={t('session.copyMessage')} copied={copied} onClick={handleCopy} />
+              </span>
             ) :
           null}
       </div>
@@ -580,21 +635,7 @@ function AssistantMessage({
   }
 
   const copyButton = (kind: 'text' | 'markdown', label: string, Icon: typeof Copy) => (
-    <button
-      type="button"
-      onClick={() => copy(kind)}
-      className="rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50 transition-colors duration-150"
-      aria-label={copied === kind ? t('session.copied') : label}
-      title={label}
-    >
-      {copied === kind ?
-          (
-            <Check className="h-3.5 w-3.5 text-emerald-500" />
-          ) :
-          (
-            <Icon className="h-3.5 w-3.5" />
-          )}
-    </button>
+    <CopyIconButton label={label} copied={copied === kind} onClick={() => copy(kind)} Icon={Icon} />
   )
 
   return (

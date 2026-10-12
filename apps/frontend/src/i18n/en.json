@@ -252,6 +252,7 @@
       "unauthorized": "Unauthorized"
     },
     "duration": "Completed in {{time}}",
+    "copyMessage": "Copy message",
     "copyText": "Copy text",
     "copyMarkdown": "Copy Markdown",
     "copied": "Copied",

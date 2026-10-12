@@ -140,3 +140,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261010-1333-lode-repo-move Point lode references at bkhq/lode**](20261010-1333-lode-repo-move.md) `P2`
 - [x] [**20261011-0213-codex-failure-visibility Surface Codex turn failures and stop stall probes from ending Codex turns**](20261011-0213-codex-failure-visibility.md) `P1`
 - [x] [**20261012-0902-chat-markdown-render-toggle Keep the Shiki source view as the default chat renderer, opt into Markdown rendering**](20261012-0902-chat-markdown-render-toggle.md) `P2`
+- [x] [**20261012-0911-user-message-footer Give sent messages a footer with time and a copy action**](20261012-0911-user-message-footer.md) `P2`
