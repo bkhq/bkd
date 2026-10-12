@@ -591,3 +591,14 @@ change/rename diff means "load the full files" and throws without a
 `loadDiffFiles` callback. `ShikiPatchDiff` and `PatchDiffView` passed it; both
 now pass `false`, which renders the same since a patch has nothing beyond its
 context lines. Task `20261012-1817-partial-diff-crash`.
+
+## 2026-10-12 19:28 [BUG-P2]
+
+A failed tool call (`is_error: true`, e.g. Bash exiting non-zero) rendered its
+output as a standalone red error box while the tool call itself showed no
+output, so a `git diff` that exits 1 put its whole diff in an error box. The
+normalizers emit a failed result as `error-message` with `isResult: true`, and
+`rebuildMessages` paired results only when the type was `tool-use`. It now
+pairs both, in the main thread and in subagent threads; the tool item marks the
+failure itself. Stored logs are unchanged, so existing issues render correctly
+too. Task `20261012-1926-failed-tool-result-error-box`.
