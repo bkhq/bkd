@@ -8,6 +8,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import { getIssueUrl } from '@/stores/server-store'
 import { ChatBody } from './ChatBody'
+import { isImeComposing } from '@/lib/keyboard'
 
 const LazyDiffPanel = lazy(() => import('./DiffPanel').then(m => ({ default: m.DiffPanel })))
 const LazyFileBrowserPanel = lazy(() => import('../files/FileBrowserPanel').then(m => ({ default: m.FileBrowserPanel })))
@@ -134,7 +135,7 @@ export function ChatArea({
                       onChange={e => setTitleDraft(e.target.value)}
                       onBlur={saveTitle}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                        if (e.key === 'Enter' && !isImeComposing(e)) {
                           e.preventDefault()
                           saveTitle()
                         } else if (e.key === 'Escape') {

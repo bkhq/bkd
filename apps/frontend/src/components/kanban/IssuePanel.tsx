@@ -6,6 +6,7 @@ import { ChatBody } from '@/components/issue-detail/ChatBody'
 import { Button } from '@/components/ui/button'
 import { useIssue, useUpdateIssue } from '@/hooks/use-kanban'
 import { getIssueUrl } from '@/stores/server-store'
+import { isImeComposing } from '@/lib/keyboard'
 
 const DEFAULT_DIFF_WIDTH = 360
 const LazyDiffPanel = lazy(() =>
@@ -108,7 +109,7 @@ export function IssuePanel({ projectId, issueId, onClose, hideHeaderActions }: I
                     onChange={e => setTitleDraft(e.target.value)}
                     onBlur={saveTitle}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+                      if (e.key === 'Enter' && !isImeComposing(e)) {
                         e.preventDefault()
                         saveTitle()
                       } else if (e.key === 'Escape') {
