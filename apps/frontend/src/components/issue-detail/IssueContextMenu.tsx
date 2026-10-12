@@ -287,9 +287,11 @@ export function IssueRightClickMenu({ children, className, ...options }: IssueRi
  * click on itself.
  */
 export function IssueContextMenuButton({ className, onClick, ...props }: React.ComponentProps<'button'>) {
+  const { t } = useTranslation()
   return (
     <button
       type="button"
+      aria-label={t('contextMenu.moreActions')}
       {...props}
       className={cn('inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors', className)}
       onClick={(e) => {

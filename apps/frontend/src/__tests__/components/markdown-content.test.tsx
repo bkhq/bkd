@@ -44,6 +44,11 @@ describe('markdownContent (render mode)', () => {
     expect(container.textContent).not.toContain('**')
   })
 
+  it('leaves unmatched markup in a completed message as written', () => {
+    const { container } = render(<MarkdownContent content="Use ** as a wildcard" />)
+    expect(container.textContent).toBe('Use ** as a wildcard')
+  })
+
   it('renders gfm tables as table elements', () => {
     const { container } = render(
       <MarkdownContent content={'| a | b |\n| - | - |\n| 1 | 2 |'} />,

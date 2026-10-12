@@ -574,7 +574,8 @@
     "copySuccess": "任务已复制",
     "renameTitle": "重命名任务",
     "newTitle": "新标题",
-    "save": "保存"
+    "save": "保存",
+    "moreActions": "更多操作"
   },
   "error": {
     "title": "出错了",

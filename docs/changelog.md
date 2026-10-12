@@ -550,3 +550,19 @@ Merged `main` into `release` again for #145.
   Ported its intent: `ShikiCodeBlock` sanitizes with `FORBID_ATTR: ['tabindex']`
   and the streamdown root carries `touch-auto select-text`. Regression test moved
   to `shiki-code-block.test.tsx`.
+
+## 2026-10-12 15:32 [BUG-P2]
+
+Review fixes for #145.
+
+- Issue list row: right-click menu actions and their rename / delete dialogs
+  bubbled to the row through the React tree, so an inactive row navigated to
+  the issue and Space / Enter never reached the rename input. The row ignores
+  clicks from outside its DOM subtree and keys not pressed on the row itself.
+- `MarkdownContent` parses completed messages in streamdown's `static` mode;
+  `streaming` rewrote unmatched markup (`Use ** as a wildcard`).
+- `IssueContextMenuButton` has a default accessible name.
+- Bun is 1.4.2 in CI, the release workflow and the deployment docs, matching
+  `docs/bkd.lode.toml`; `AGENTS.md` reflects the TypeScript 7 workspaces.
+
+Task `20261012-1532-pr145-review-fixes`.

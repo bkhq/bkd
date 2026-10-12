@@ -310,8 +310,12 @@ export const IssueRow = memo(({
     <div
       role="button"
       tabIndex={0}
-      onClick={handleClick}
+      // Menus and dialogs are portaled but still bubble here through the React tree.
+      onClick={(e) => {
+        if (e.currentTarget.contains(e.target as Node)) handleClick()
+      }}
       onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
           handleClick()

@@ -18,7 +18,7 @@ export function MarkdownContent({
   if (!content.trim()) return null
   return (
     <Streamdown
-      mode="streaming"
+      mode={isStreaming ? 'streaming' : 'static'}
       isAnimating={isStreaming}
       controls={false}
       lineNumbers={false}

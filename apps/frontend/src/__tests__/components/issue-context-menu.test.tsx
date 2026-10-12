@@ -39,12 +39,12 @@ describe('issue action menus', () => {
   it('offers copy link in the header menu and writes the issue URL', async () => {
     render(
       <IssueContextMenu issue={issue} projectId="p1" showPin showCopyLink>
-        <IssueContextMenuButton aria-label="more" />
+        <IssueContextMenuButton />
       </IssueContextMenu>,
     )
     // Real browsers send mousedown first; base-ui opens on it and must ignore the
     // following click. The button has to forward the injected handlers for that.
-    const dots = screen.getByRole('button', { name: 'more' })
+    const dots = screen.getByRole('button', { name: 'More actions' })
     fireEvent.pointerDown(dots, { button: 0, pointerType: 'mouse', isPrimary: true })
     fireEvent.mouseDown(dots, { button: 0 })
     fireEvent.pointerUp(dots, { button: 0, pointerType: 'mouse', isPrimary: true })
@@ -73,6 +73,39 @@ describe('issue list row', () => {
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
     fireEvent.contextMenu(screen.getByText('Fix it'))
     expect(await screen.findByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
+  })
+})
+
+describe('issue list row menu isolation', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en')
+  })
+
+  it('does not navigate when a right-click menu action or its dialog is used', async () => {
+    const { IssueRow } = await import('@/components/issue-detail/IssueListPanel')
+    const onNavigate = vi.fn()
+    render(
+      <IssueRow issue={issue} projectId="p1" isActive={false} onNavigate={onNavigate} onActiveDeleted={() => {}} />,
+    )
+    fireEvent.contextMenu(screen.getByText('Fix it'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }))
+    const input = await screen.findByPlaceholderText('New title')
+    fireEvent.click(input)
+    // An unprevented keydown is what lets the browser type the space / submit the form.
+    expect(fireEvent.keyDown(input, { key: ' ' })).toBe(true)
+    expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(true)
+    expect(onNavigate).not.toHaveBeenCalled()
+  })
+
+  it('still navigates on a row click and on Enter with the row focused', async () => {
+    const { IssueRow } = await import('@/components/issue-detail/IssueListPanel')
+    const onNavigate = vi.fn()
+    render(
+      <IssueRow issue={issue} projectId="p1" isActive={false} onNavigate={onNavigate} onActiveDeleted={() => {}} />,
+    )
+    fireEvent.click(screen.getByText('Fix it'))
+    fireEvent.keyDown(screen.getByText('Fix it').closest('[role="button"]')!, { key: 'Enter' })
+    expect(onNavigate).toHaveBeenCalledTimes(2)
   })
 })
 

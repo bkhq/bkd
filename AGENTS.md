@@ -217,8 +217,8 @@ Components use the shadcn/ui pattern: `cn()` utility (`apps/frontend/src/lib/uti
 - `/api/docs` serves local Swagger assets under the application CSP; `/api/docs/openapi.json` is the live contract. Documentation deliberately retains Swagger rather than changing renderers.
 - `runtime-config.ts` validates HTTP, logging, execution-capacity, worktree, and CORS settings at startup. External engine credentials remain in the engine environment layer.
 - Responses expose `X-Request-ID`; structured HTTP logs include request ID, status, and elapsed time without request bodies or credentials.
-- CI runs on main pushes, pull requests, and releases. Bun 1.4.0 is pinned to the runtime validated for this change; dependency installs use the frozen lockfile.
-- TypeScript 6 and React Router are retained for the existing application; framework migration is outside this remediation.
+- CI runs on main pushes, pull requests, and releases. Bun 1.4.2 is pinned to the runtime validated for this change; dependency installs use the frozen lockfile.
+- Workspaces typecheck with TypeScript 7; the repository root keeps TypeScript 6 for typescript-eslint (see `CLAUDE.md`). React Router is retained for the existing application; framework migration is outside this remediation.
 
 ## Conventions
 

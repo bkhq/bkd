@@ -575,7 +575,8 @@
     "copySuccess": "Issue duplicated",
     "renameTitle": "Rename issue",
     "newTitle": "New title",
-    "save": "Save"
+    "save": "Save",
+    "moreActions": "More actions"
   },
   "error": {
     "title": "Something went wrong",
