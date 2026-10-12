@@ -1,7 +1,5 @@
-import {
-  attachClosestEdge,
-  extractClosestEdge,
-} from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
+import { attachClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge/attach-closest-edge'
+import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge/extract-closest-edge'
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/utils/combine'
 import {
   draggable,
@@ -63,7 +61,7 @@ function SortableProjectCard({
   const [copied, setCopied] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [closestEdge, setClosestEdge] = useState<import('@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge').Edge | null>(null)
+  const [closestEdge, setClosestEdge] = useState<import('@atlaskit/pragmatic-drag-and-drop-hitbox/types').Edge | null>(null)
 
   useEffect(() => {
     const el = cardRef.current

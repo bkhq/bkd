@@ -85,7 +85,7 @@ import {
 import { useTheme } from '@/hooks/use-theme'
 import { LANGUAGES } from '@/lib/constants'
 import { formatFileSize } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn } from 'cn'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import type { EngineAvailability, EngineModel, EngineProfile, VirtualEngine } from '@/types/kanban'
 

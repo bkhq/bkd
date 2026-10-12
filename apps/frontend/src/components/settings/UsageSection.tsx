@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { EngineIcon } from '@/components/EngineIcons'
 import { Button } from '@/components/ui/button'
 import { useClaudeUsage, useCodexUsage } from '@/hooks/use-kanban'
-import { cn } from '@/lib/utils'
+import { cn } from 'cn'
 
 const CLAUDE_REASON_KEYS: Record<NonNullable<ClaudeUsage['reason']>, string> = {
   no_credentials: 'settings.usageUnavailableNoCredentials',

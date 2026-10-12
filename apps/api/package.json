@@ -28,20 +28,20 @@
     "bs58": "^6.0.0",
     "consola": "^3.4.2",
     "cronbake": "^0.4.0",
-    "drizzle-orm": "^0.45.2",
-    "hono": "^4.13.7",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13",
     "jittered-fractional-indexing": "catalog:",
-    "nanoid": "^6.0.1",
-    "pino": "^10.3.1",
-    "swagger-ui-dist": "5.32.15",
+    "nanoid": "^6.0.2",
+    "pino": "^10.4.0",
+    "swagger-ui-dist": "5.33.1",
     "ulid": "^3.0.2",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@bkd/tsconfig": "workspace:*",
     "@libsql/client": "^0.18.0",
-    "@types/bun": "^1.4.2",
-    "drizzle-kit": "^0.31.10",
+    "@types/bun": "^1.4.3",
+    "drizzle-kit": "^0.31.11",
     "typescript": "catalog:"
   }
 }

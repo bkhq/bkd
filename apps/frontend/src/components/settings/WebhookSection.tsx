@@ -28,7 +28,7 @@ import {
   useWebhookDeliveries,
   useWebhooks,
 } from '@/hooks/use-kanban'
-import { cn } from '@/lib/utils'
+import { cn } from 'cn'
 import type { Webhook } from '@/types/kanban'
 
 const EVENT_LABEL_KEYS: Record<WebhookEventType, string> = {

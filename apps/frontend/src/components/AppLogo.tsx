@@ -1,5 +1,5 @@
 import { useTheme } from '@/hooks/use-theme'
-import { cn } from '@/lib/utils'
+import { cn } from 'cn'
 
 export function AppLogo({ className }: { className?: string }) {
   const { resolved } = useTheme()

@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { cn } from '@/lib/utils'
+import { cn } from 'cn'
 
 /** Which edge of the panel the handle sits on. */
 export type ResizeEdge = 'left' | 'right'

@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useDeleteIssue, useDuplicateIssue, useUpdateIssue } from '@/hooks/use-kanban'
 import { kanbanApi } from '@/lib/kanban-api'
-import { cn } from '@/lib/utils'
+import { cn } from 'cn'
 import { getIssueUrl } from '@/stores/server-store'
 import type { Issue } from '@/types/kanban'
 
