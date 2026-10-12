@@ -49,3 +49,24 @@ describe('user message footer', () => {
     expect(badge.parentElement).toContainElement(screen.getByText(/2026/))
   })
 })
+
+describe('queued message card', () => {
+  it('reuses the sent-message card with an edit action and explicit ids', async () => {
+    const { UserMessageEntry } = await import('@/components/issue-detail/LogEntry')
+    const onEdit = vi.fn()
+    const { container } = render(
+      <MemoryRouter>
+        <UserMessageEntry
+          entry={{ entryType: 'user-message', messageId: 'q1', content: 'later', timestamp: '2026-10-12T09:00:00.000Z', metadata: { type: 'pending' } }}
+          projectId="p1"
+          issueId="i1"
+          onEdit={onEdit}
+        />
+      </MemoryRouter>,
+    )
+    expect(container.querySelector('.rounded-lg.border')).not.toBeNull()
+    expect(screen.getByText('Queued')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(onEdit).toHaveBeenCalledOnce()
+  })
+})

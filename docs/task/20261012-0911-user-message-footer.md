@@ -51,6 +51,12 @@ Adding a footer to sent messages.
   the only coloured edge), error box, command-output and thinking
   `<details>`, the tool-group box and the todo panel.
 
+- Follow-up: the queued-message cards in `ChatBody` were a copy of the old
+  user-card markup, so they missed every change above. `UserMessageEntry` is
+  now exported with optional `projectId` / `issueId` / `onEdit` props and
+  ChatBody renders queued messages through it; the inline copy, its preview
+  modal state and the related imports are gone.
+
 - complete: focused tests, frontend suite, lint, typecheck and build passed.
 
 ## Verification

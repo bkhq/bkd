@@ -290,9 +290,25 @@ function copyToClipboard(value: string, onDone: () => void) {
   navigator.clipboard.writeText(value).then(onDone).catch(() => {})
 }
 
-function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
+/**
+ * Sent message card. Also used by ChatBody for queued messages, which pass the
+ * ids explicitly (they may render outside the issue route) and an edit action.
+ */
+export function UserMessageEntry({
+  entry,
+  projectId: projectIdProp,
+  issueId: issueIdProp,
+  onEdit,
+}: {
+  entry: NormalizedLogEntry
+  projectId?: string
+  issueId?: string
+  onEdit?: () => void
+}) {
   const { t } = useTranslation()
-  const { projectId, issueId } = useParams<{ projectId: string, issueId: string }>()
+  const params = useParams<{ projectId: string, issueId: string }>()
+  const projectId = projectIdProp ?? params.projectId
+  const issueId = issueIdProp ?? params.issueId
   const [preview, setPreview] = useState<PreviewItem | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -405,13 +421,26 @@ function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
               </span>
             ) :
           null}
-        {displayContent ?
-            (
-              <span className="ml-auto flex items-center md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
-                <CopyIconButton label={t('session.copyMessage')} copied={copied} onClick={handleCopy} />
-              </span>
-            ) :
-          null}
+        <span className="ml-auto flex items-center gap-1">
+          {displayContent ?
+              (
+                <span className="flex items-center md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
+                  <CopyIconButton label={t('session.copyMessage')} copied={copied} onClick={handleCopy} />
+                </span>
+              ) :
+            null}
+          {onEdit ?
+              (
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="shrink-0 rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  {t('common.edit')}
+                </button>
+              ) :
+            null}
+        </span>
       </div>
       {preview ?
           (
