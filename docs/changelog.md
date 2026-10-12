@@ -581,3 +581,13 @@ and says so.
 A Codex `error` notification the CLI retries (`willRetry: true`, e.g.
 "Reconnecting… n/5") rendered as a red error box while the turn kept running;
 `LogEntry` now styles it as a warning. Task `20261012-1547-lode-update-check`.
+
+## 2026-10-12 18:17 [BUG-P1]
+
+A diff rendered from a patch crashed into the ErrorBoundary with `FileDiff:
+loadDiffFiles is required to load full files for a partial diff`. Since the
+`@pierre/diffs` 1.2.12 -> 1.5.2 upgrade, `expandUnchanged: true` on a partial
+change/rename diff means "load the full files" and throws without a
+`loadDiffFiles` callback. `ShikiPatchDiff` and `PatchDiffView` passed it; both
+now pass `false`, which renders the same since a patch has nothing beyond its
+context lines. Task `20261012-1817-partial-diff-crash`.

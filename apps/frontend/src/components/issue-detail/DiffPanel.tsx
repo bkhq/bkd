@@ -419,7 +419,8 @@ function PatchDiffView({ patch }: { patch: string }) {
           options={{
             diffStyle: 'unified',
             diffIndicators: 'bars',
-            expandUnchanged: true,
+            // A patch carries no unchanged lines beyond its context.
+            expandUnchanged: false,
             disableLineNumbers: false,
             overflow: 'wrap',
             theme: {
