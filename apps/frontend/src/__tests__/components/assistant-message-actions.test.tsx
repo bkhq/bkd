@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LogEntry } from '@/components/issue-detail/LogEntry'
 import i18n from '@/i18n'
+import { useViewModeStore } from '@/stores/view-mode-store'
 
 /** Footer copy actions on assistant messages (UI-009). */
 
@@ -27,6 +28,7 @@ function renderEntry() {
 describe('assistant message actions', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('en')
+    useViewModeStore.setState({ renderMarkdown: true })
     writeText.mockClear()
     Object.assign(navigator, { clipboard: { writeText } })
   })
@@ -49,5 +51,12 @@ describe('assistant message actions', () => {
     renderEntry()
     fireEvent.click(screen.getByRole('button', { name: 'Copy Markdown' }))
     expect(writeText).toHaveBeenCalledWith('Some **bold** text')
+  })
+
+  it('offers only copy Markdown in source view, where text and source are identical', () => {
+    useViewModeStore.setState({ renderMarkdown: false })
+    renderEntry()
+    expect(screen.queryByRole('button', { name: 'Copy text' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Copy Markdown' })).toBeInTheDocument()
   })
 })

@@ -30,6 +30,7 @@ import type { PreviewItem } from '@/components/FilePreviewModal'
 import { FilePreviewModal } from '@/components/FilePreviewModal'
 import { getCommandPreview } from '@/lib/command-preview'
 import { formatDuration, formatFileSize } from '@/lib/format'
+import { useViewModeStore } from '@/stores/view-mode-store'
 import type { NormalizedLogEntry, ToolAction } from '@/types/kanban'
 import { MarkdownContent } from './MarkdownContent'
 
@@ -561,6 +562,8 @@ function AssistantMessage({
   const { t } = useTranslation()
   const [copied, setCopied] = useState<'text' | 'markdown' | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
+  // In source view the rendered text is the Markdown itself, so one copy action suffices.
+  const renderMarkdown = useViewModeStore(s => s.renderMarkdown)
 
   const copy = (kind: 'text' | 'markdown') => {
     const body = bodyRef.current
@@ -616,7 +619,7 @@ function AssistantMessage({
             ) :
           null}
         <span className="ml-auto flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
-          {copyButton('text', t('session.copyText'), Copy)}
+          {renderMarkdown ? copyButton('text', t('session.copyText'), Copy) : null}
           {copyButton('markdown', t('session.copyMarkdown'), SquareM)}
         </span>
       </div>

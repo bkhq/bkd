@@ -332,6 +332,32 @@
 }
 
 /* Shiki markdown source rendering (AI messages) */
+.markdown-shiki .shiki,
+.markdown-shiki .shiki span {
+  background-color: transparent;
+}
+
+.markdown-shiki .shiki {
+  padding: 0.5rem;
+  /* Not a scroll container: the body wraps below, and a horizontally
+     scrollable element turns a long press into a pan instead of a selection. */
+  overflow-x: visible;
+  font-family: var(--font-mono);
+  font-size: inherit;
+  line-height: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+  /* Opt out of the global touch-action: manipulation so touch devices can
+     long-press to select the message text. */
+  touch-action: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.markdown-shiki .shiki code {
+  font-family: inherit;
+}
+
 /* Tool code surface */
 .code-surface {
   border: 0;

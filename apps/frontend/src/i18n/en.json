@@ -443,6 +443,8 @@
     "devBuild": "Development build",
     "fullWidthChat": "Full-width chat",
     "fullWidthChatHint": "Remove the max-width limit on the chat message area",
+    "renderMarkdown": "Render Markdown in chat",
+    "renderMarkdownHint": "Off: show the Markdown source with syntax highlighting",
     "logPageSize": "Messages per page",
     "logPageSizeHint": "Number of conversation messages (user and assistant) to load per page",
     "maxConcurrentExecutions": "Max concurrent sessions",

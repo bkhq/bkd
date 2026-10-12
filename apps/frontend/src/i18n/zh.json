@@ -442,6 +442,8 @@
     "devBuild": "开发构建",
     "fullWidthChat": "全宽聊天",
     "fullWidthChatHint": "移除聊天消息区域的最大宽度限制",
+    "renderMarkdown": "聊天中渲染 Markdown",
+    "renderMarkdownHint": "关闭时以语法高亮显示 Markdown 源码",
     "logPageSize": "消息加载数量",
     "logPageSizeHint": "每次加载的对话消息数量（用户和助手消息）",
     "maxConcurrentExecutions": "最大并发会话数",

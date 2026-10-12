@@ -1,5 +1,7 @@
 import { Streamdown } from 'streamdown'
 import { markdownCodeComponents } from '@/components/markdown-code'
+import { useViewModeStore } from '@/stores/view-mode-store'
+import { MarkdownSource } from './MarkdownSource'
 
 export function MarkdownContent({
   content,
@@ -11,6 +13,8 @@ export function MarkdownContent({
   /** Entry is still receiving deltas; lets streamdown repair unterminated markup. */
   isStreaming?: boolean
 }) {
+  const renderMarkdown = useViewModeStore(s => s.renderMarkdown)
+  if (!renderMarkdown) return <MarkdownSource content={content} className={className} />
   if (!content.trim()) return null
   return (
     <Streamdown

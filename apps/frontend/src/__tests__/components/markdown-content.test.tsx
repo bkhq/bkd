@@ -1,15 +1,38 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MarkdownContent } from '@/components/issue-detail/MarkdownContent'
+import { codeToHtml } from '@/lib/shiki'
+import { useViewModeStore } from '@/stores/view-mode-store'
 
 // ShikiCodeBlock loads the Shiki bundle; the renderer only needs to route to it.
+vi.mock('@/lib/shiki', () => ({ codeToHtml: vi.fn() }))
+
 vi.mock('@/components/files/ShikiCodeBlock', () => ({
   ShikiCodeBlock: ({ code, lang }: { code: string, lang: string }) => (
     <pre data-testid="shiki" data-lang={lang}>{code}</pre>
   ),
 }))
 
-describe('markdownContent', () => {
+describe('markdownContent (source view, default)', () => {
+  beforeEach(() => {
+    useViewModeStore.setState({ renderMarkdown: false })
+    vi.mocked(codeToHtml).mockImplementation(async code => `<pre class="shiki"><code>${code}</code></pre>`)
+  })
+
+  it('is the default and shows highlighted Markdown source, not rendered HTML', async () => {
+    expect(useViewModeStore.getState().renderMarkdown).toBe(false)
+    const { container } = render(<MarkdownContent content="Some **bold** text" />)
+    await waitFor(() => expect(container.querySelector('.markdown-shiki .shiki')).not.toBeNull())
+    expect(container.textContent).toContain('**bold**')
+    expect(container.querySelector('[data-streamdown="strong"]')).toBeNull()
+  })
+})
+
+describe('markdownContent (render mode)', () => {
+  beforeEach(() => {
+    useViewModeStore.setState({ renderMarkdown: true })
+  })
+
   it('renders markdown structure as HTML', () => {
     const { container } = render(
       <MarkdownContent content={'# Title\n\nSome **bold** text and `inline`.\n\n- one\n- two'} />,
