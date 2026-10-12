@@ -844,7 +844,7 @@ export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage })
 
   return (
     <div className="py-1.5 animate-message-enter">
-      <div className="rounded-lg border border-border/30 bg-card/50 overflow-hidden">
+      <div className="rounded-lg border border-border bg-card/50 overflow-hidden">
         <button
           type="button"
           onClick={handleHeaderClick}

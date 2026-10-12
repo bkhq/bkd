@@ -333,7 +333,7 @@ function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
 
   return (
     <div className="group py-2 animate-message-enter">
-      <div className={`rounded-lg border border-border/30 border-l-[3px] px-3 py-2.5 ${barColor}`}>
+      <div className={`rounded-lg border border-border border-l-[3px] px-3 py-2.5 ${barColor}`}>
         {displayContent ?
             (
               <div className="text-[14px] whitespace-pre-wrap break-words text-foreground leading-[1.75]">
@@ -516,7 +516,7 @@ export function LogEntry({
         const firstLine = entry.content.split('\n')[0]?.trim() || 'Command output'
         return (
           <div className="my-1.5 animate-message-enter">
-            <details className="rounded-lg border border-border/30 bg-muted/10 overflow-hidden transition-all duration-200 open:bg-muted/20">
+            <details className="rounded-lg border border-border bg-muted/10 overflow-hidden transition-all duration-200 open:bg-muted/20">
               <summary className="cursor-pointer list-none px-4 py-2 text-xs text-muted-foreground hover:bg-muted/20 transition-colors">
                 <span className="font-mono">{firstLine}</span>
               </summary>

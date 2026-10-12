@@ -16,7 +16,7 @@ const ChatMessageRow = memo(({ message }: { message: ChatMessage }) => {
       if (message.status === 'command') {
         return (
           <div className="group py-1.5 animate-message-enter">
-            <details className="rounded-lg border border-border/30 bg-muted/10 transition-all duration-200 open:bg-muted/20">
+            <details className="rounded-lg border border-border bg-muted/10 transition-all duration-200 open:bg-muted/20">
               <summary className="cursor-pointer list-none px-3 py-2 text-xs text-muted-foreground hover:bg-muted/20 transition-colors">
                 <code className="font-mono text-foreground/70">{message.entry.content}</code>
               </summary>
@@ -80,7 +80,7 @@ function TaskPlanMessage({ message }: { message: TaskPlanChatMessage }) {
 
   return (
     <div className="animate-message-enter">
-      <div className="rounded-lg border border-border/30 bg-background/95 overflow-hidden">
+      <div className="rounded-lg border border-border bg-background/95 overflow-hidden">
         {/* Compact status bar */}
         <button
           type="button"
