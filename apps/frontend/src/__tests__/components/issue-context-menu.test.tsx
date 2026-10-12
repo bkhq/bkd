@@ -67,6 +67,9 @@ describe('issue list row', () => {
     expect(dots.closest('[data-slot="issue-context-trigger"]')).toBeNull()
     fireEvent.click(dots)
     expect(await screen.findByRole('menuitem', { name: 'Rename' })).toBeInTheDocument()
+    // The hover-only wrapper must stay visible while the menu is open (pointer leaves the row).
+    expect(dots).toHaveAttribute('data-popup-open')
+    expect(dots.parentElement).toHaveClass('has-data-popup-open:opacity-100')
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
     fireEvent.contextMenu(screen.getByText('Fix it'))
     expect(await screen.findByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()

@@ -89,7 +89,7 @@ export const KanbanCard = memo(({
             {issue.issueNumber}
           </span>
           <div
-            className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity"
+            className="ml-auto opacity-0 group-hover:opacity-100 has-data-popup-open:opacity-100 transition-opacity"
             onClick={e => e.stopPropagation()}
             onPointerDown={e => e.stopPropagation()}
           >

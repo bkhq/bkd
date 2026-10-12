@@ -328,7 +328,7 @@ export const IssueRow = memo(({
           {issue.title}
         </span>
       </IssueRightClickMenu>
-      <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
+      <div className="opacity-0 group-hover:opacity-100 has-data-popup-open:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
         <IssueContextMenu
           issue={issue}
           projectId={projectId}

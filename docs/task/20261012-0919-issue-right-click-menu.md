@@ -69,6 +69,10 @@ Adding right-click and header issue menus.
   now spreads its props and the header test replays the full pointer
   sequence. This also affected the kanban card, the only other user of
   that button since ea5aa9c.
+- Third follow-up: the hover-only "..." wrapper faded while its menu was
+  open, because the pointer leaves the row. base-ui marks the open trigger
+  with `data-popup-open`; the wrapper (list row and kanban card) now adds
+  `has-data-popup-open:opacity-100`.
 
 - complete: focused tests, frontend suite, lint, typecheck and build passed
   (left uncommitted on purpose, to be committed with the next change).
