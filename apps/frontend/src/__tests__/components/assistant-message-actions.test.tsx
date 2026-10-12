@@ -6,9 +6,13 @@ import { LogEntry } from '@/components/issue-detail/LogEntry'
 import i18n from '@/i18n'
 import { useViewModeStore } from '@/stores/view-mode-store'
 
-/** Footer copy actions on assistant messages (UI-009). */
+/** View and copy actions on assistant messages. */
 
 const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+
+vi.mock('@/components/files/MarkdownRenderer', () => ({
+  MarkdownRenderer: ({ content }: { content: string }) => <div data-testid="preview">{content}</div>,
+}))
 
 const entry: NormalizedLogEntry = {
   entryType: 'assistant-message',
@@ -33,11 +37,24 @@ describe('assistant message actions', () => {
     Object.assign(navigator, { clipboard: { writeText } })
   })
 
-  it('offers copy text and copy Markdown in the footer, without the view dialog', () => {
+  it('offers view, copy text and copy Markdown', () => {
     renderEntry()
     expect(screen.getByRole('button', { name: 'Copy text' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Copy Markdown' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'View as Markdown' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'View as Markdown' })).toBeInTheDocument()
+  })
+
+  it('opens the rendered message in a dialog', async () => {
+    renderEntry()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'View as Markdown' }))
+    expect(await screen.findByTestId('preview')).toHaveTextContent('Some **bold** text')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('sets the message body on its own surface', () => {
+    renderEntry()
+    expect(screen.getByTestId('assistant-message-body')).toHaveClass('rounded-lg', 'bg-muted/40')
   })
 
   it('copy text writes the rendered text without markup', async () => {

@@ -602,3 +602,15 @@ normalizers emit a failed result as `error-message` with `isResult: true`, and
 pairs both, in the main thread and in subagent threads; the tool item marks the
 failure itself. Stored logs are unchanged, so existing issues render correctly
 too. Task `20261012-1926-failed-tool-result-error-box`.
+
+## 2026-10-12 22:12 [UI-P2]
+
+Chat message layout. In Markdown render mode, streamdown's document-sized
+headings (30 / 24 / 20 / 18px on a 14px body) are replaced by a compressed
+`em` scale (1.5 / 1.25 / 1.1 / 1), and tables drop the framed wrapper for
+hairline-separated rows with tighter cells. Agent messages sit on a tinted
+rounded surface in both render modes. The "View as Markdown" dialog removed by
+UI-009 is back as a footer action next to the copy buttons. The file-browser
+preview is unchanged. Task
+`20261012-2028-chat-heading-size-and-agent-bg`, plan
+`20261012-2207-chat-message-layout`.
