@@ -1,5 +1,6 @@
 import {
   Activity,
+  ChevronRight,
   FolderOpen,
   MoreHorizontal,
   Pin,
@@ -10,7 +11,7 @@ import {
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { IssueContextMenu } from '@/components/issue-detail/IssueContextMenu'
+import { IssueContextMenu, IssueRightClickMenu } from '@/components/issue-detail/IssueContextMenu'
 import { ProjectSettingsDialog } from '@/components/ProjectSettingsDialog'
 import { Button } from '@/components/ui/button'
 import { ResizeHandle } from '@/components/ui/resize-handle'
@@ -87,7 +88,7 @@ export function IssueListPanel({
       style={width ? { width: `${width}px` } : undefined}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-2.5 py-2 border-b border-border/60 shrink-0 min-h-[42px] bg-secondary/50">
+      <div className="flex items-center justify-between px-2.5 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] bg-secondary/50">
         <div className="flex items-center gap-1.5 min-w-0">
           {mobileNav}
           <span className="text-sm font-semibold truncate tracking-tight">{projectName}</span>
@@ -192,7 +193,7 @@ export function IssueListPanel({
   )
 }
 
-function StatusGroup({
+export function StatusGroup({
   status,
   issues,
   projectId,
@@ -212,30 +213,48 @@ function StatusGroup({
   onActiveDeleted: () => void
 }) {
   const { t } = useTranslation()
+  const openCreateDialog = usePanelStore(s => s.openCreateDialog)
+  const canCreate = status.id === 'todo' || status.id === 'working'
 
   return (
     <div>
-      {/* Status header bar — tinted with the status color */}
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs sticky top-0 z-10 transition-colors border-b border-border/20"
-        style={{ backgroundColor: `${status.color}14` }}
+      {/* Group bar: opaque base so rows cannot show through while sticky */}
+      <div
+        className="group/head sticky top-0 z-10 flex h-8 items-center gap-1.5 border-b border-border/20 bg-secondary px-2.5 text-xs"
+        style={{ backgroundImage: `linear-gradient(${status.color}14, ${status.color}14)` }}
       >
-        <span
-          className="h-2 w-2 rounded-full shrink-0 ring-2 ring-offset-1 ring-offset-transparent"
-          style={{
-            backgroundColor: status.color,
-            boxShadow: `0 0 6px ${status.color}40`,
-          }}
-        />
-        <span className="font-semibold text-foreground/80 truncate tracking-tight">
-          {tStatus(t, status.name)}
-        </span>
-        <span className="text-[10px] font-medium text-muted-foreground/50 ml-auto shrink-0 tabular-nums">
-          {issues.length}
-        </span>
-      </button>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={!isCollapsed}
+          className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-0.5 text-left transition-colors hover:text-foreground"
+        >
+          <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-muted-foreground/70 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
+          <span
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: status.color }}
+          />
+          <span className="truncate font-semibold tracking-tight text-foreground/85">
+            {tStatus(t, status.name)}
+          </span>
+          <span className="shrink-0 tabular-nums text-muted-foreground/60">
+            (
+            {issues.length}
+            )
+          </span>
+        </button>
+        {canCreate ? (
+          <button
+            type="button"
+            onClick={() => openCreateDialog(status.id)}
+            aria-label={t('kanban.createIssueIn', { name: tStatus(t, status.name) })}
+            title={t('kanban.createIssueIn', { name: tStatus(t, status.name) })}
+            className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-background/60 hover:text-foreground"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+      </div>
 
       {!isCollapsed ? (
         <div>
@@ -255,7 +274,7 @@ function StatusGroup({
           })}
           {issues.length === 0 ?
               (
-                <div className="border-b border-border/20 px-2 py-3 min-h-[44px] flex items-center justify-center">
+                <div className="px-2 py-3 min-h-[44px] flex items-center justify-center">
                   <span className="text-[11px] text-muted-foreground/55 text-center pointer-events-none">
                     {t('issue.emptyStatusHint')}
                   </span>
@@ -268,7 +287,7 @@ function StatusGroup({
   )
 }
 
-const IssueRow = memo(({
+export const IssueRow = memo(({
   issue,
   projectId,
   isActive,
@@ -291,35 +310,48 @@ const IssueRow = memo(({
     <div
       role="button"
       tabIndex={0}
-      onClick={handleClick}
+      // Menus and dialogs are portaled but still bubble here through the React tree.
+      onClick={(e) => {
+        if (e.currentTarget.contains(e.target as Node)) handleClick()
+      }}
       onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
           handleClick()
         }
       }}
-      className={`group w-full flex items-center gap-1 px-2.5 py-2.5 md:py-1.5 text-left border-b border-border/20 transition-all duration-150 ${
-        isActive ? 'bg-primary/[0.06] cursor-default' : 'hover:bg-accent/50 cursor-pointer'
+      className={`group w-full flex items-center gap-1.5 px-2.5 py-2.5 md:py-1.5 text-left transition-colors duration-150 ${
+        isActive ? 'bg-primary/[0.08] cursor-default' : 'hover:bg-accent/60 cursor-pointer'
       }`}
     >
-      <span
-        className={`text-[11px] font-mono shrink-0 tabular-nums ${
-          isActive ? 'text-primary font-medium' : 'text-muted-foreground/70'
-        }`}
+      {/* Right-click area: everything but the "..." button, which must stay outside the context menu. */}
+      <IssueRightClickMenu
+        issue={issue}
+        projectId={projectId}
+        showPin
+        onDeleted={isActive ? onActiveDeleted : undefined}
+        className="contents"
       >
-        #
-        {issue.issueNumber}
-      </span>
-      {issue.isPinned && <Pin className="size-3 shrink-0 text-primary" />}
-      <span
-        title={issue.title}
-        className={`text-[13px] truncate ${
-          isActive ? 'text-foreground font-medium' : 'text-foreground/90'
-        }`}
-      >
-        {issue.title}
-      </span>
-      <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
+        <span
+          className={`text-[11px] font-mono shrink-0 tabular-nums ${
+            isActive ? 'text-primary font-medium' : 'text-muted-foreground/70'
+          }`}
+        >
+          #
+          {issue.issueNumber}
+        </span>
+        {issue.isPinned && <Pin className="size-3 shrink-0 text-primary" />}
+        <span
+          title={issue.title}
+          className={`flex-1 min-w-0 text-[13px] truncate ${
+            isActive ? 'text-foreground font-medium' : 'text-foreground/90'
+          }`}
+        >
+          {issue.title}
+        </span>
+      </IssueRightClickMenu>
+      <div className="opacity-0 group-hover:opacity-100 has-data-popup-open:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
         <IssueContextMenu
           issue={issue}
           projectId={projectId}

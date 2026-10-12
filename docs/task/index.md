@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-10-11
+> Updated: 2026-10-12
 
 ## Usage
 
@@ -119,6 +119,10 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20260913-0023-create-issue-status-toggle Replace the create-issue status dropdown with a toggle**](20260913-0023-create-issue-status-toggle.md) `P2`
 
 - [x] [**20260916-0520-sidebar-active-project-scroll Keep the active project visible in the sidebar rail**](20260916-0520-sidebar-active-project-scroll.md) `P2`
+- [x] [**DEV-004 Upgrade all workspace dependencies to latest**](DEV-004.md) `P2`
+- [x] [**UI-008 Render chat markdown with streamdown instead of Shiki highlighting**](UI-008.md) `P2`
+- [x] [**UI-009 Move assistant message actions to the footer as copy text / copy Markdown**](UI-009.md) `P2`
+- [x] [**UI-010 Render file-browser Markdown with streamdown and drop react-markdown**](UI-010.md) `P2`
 
 - [x] [**20260922-1703-mobile-desktop-ui-parity Align mobile and desktop UI and finish the BKD rename**](20260922-1703-mobile-desktop-ui-parity.md) `P1`
 
@@ -136,3 +140,9 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261010-1333-lode-repo-move Point lode references at bkhq/lode**](20261010-1333-lode-repo-move.md) `P2`
 - [x] [**20261011-0213-codex-failure-visibility Surface Codex turn failures and stop stall probes from ending Codex turns**](20261011-0213-codex-failure-visibility.md) `P1`
 - [x] [**20261011-2129-ime-enter-submit Ignore IME-composition Enter in single-line editors**](20261011-2129-ime-enter-submit.md) `P2`
+- [x] [**20261012-0902-chat-markdown-render-toggle Keep the Shiki source view as the default chat renderer, opt into Markdown rendering**](20261012-0902-chat-markdown-render-toggle.md) `P2`
+- [x] [**20261012-0911-user-message-footer Give sent messages a footer with time and a copy action**](20261012-0911-user-message-footer.md) `P2`
+- [x] [**20261012-0919-issue-right-click-menu Right-click issue menu in the list, same menu in the chat header**](20261012-0919-issue-right-click-menu.md) `P2`
+- [x] [**20261012-0927-upgrade-deps-and-cn Upgrade all dependencies and replace clsx + tailwind-merge with cn**](20261012-0927-upgrade-deps-and-cn.md) `P2`
+- [x] [**20261012-1000-issue-list-restyle Restyle the issue list panel after the grouped-list reference**](20261012-1000-issue-list-restyle.md) `P2`
+- [x] [**20261012-1532-pr145-review-fixes Fix the review findings on #145 before merging**](20261012-1532-pr145-review-fixes.md) `P2`

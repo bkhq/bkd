@@ -4,7 +4,7 @@ import { Maximize2, Minimize2, Minus, X } from 'lucide-react'
 import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { ResizeHandle } from '@/components/ui/resize-handle'
-import { cn } from '@/lib/utils'
+import { cn } from 'cn'
 
 /**
  * Icon button for panel headers. Denser than the shadcn icon default, which is

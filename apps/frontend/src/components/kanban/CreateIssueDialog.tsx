@@ -25,7 +25,7 @@ import {
 } from '@/hooks/use-kanban'
 import { resolveDefaultEngine } from '@/lib/engine-defaults'
 import { formatModelName } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn } from 'cn'
 import { tStatus } from '@/lib/i18n-utils'
 import type { StatusId } from '@/lib/statuses'
 import { STATUS_MAP } from '@/lib/statuses'

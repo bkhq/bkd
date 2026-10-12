@@ -18,28 +18,21 @@ import {
   Monitor as MonitorIcon,
   Octagon,
   Search,
+  SquareM,
   Terminal,
   Timer,
   Wrench,
 } from 'lucide-react'
-import { lazy, Suspense, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import type { PreviewItem } from '@/components/FilePreviewModal'
 import { FilePreviewModal } from '@/components/FilePreviewModal'
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { getCommandPreview } from '@/lib/command-preview'
 import { formatDuration, formatFileSize } from '@/lib/format'
+import { useViewModeStore } from '@/stores/view-mode-store'
 import type { NormalizedLogEntry, ToolAction } from '@/types/kanban'
 import { MarkdownContent } from './MarkdownContent'
-
-const MarkdownRenderer = lazy(() =>
-  import('@/components/files/MarkdownRenderer').then(m => ({ default: m.MarkdownRenderer })),
-)
 
 interface AttachmentMeta {
   id: string
@@ -260,10 +253,64 @@ function TaskPlanEntry({ entry }: { entry: NormalizedLogEntry }) {
   )
 }
 
-function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
+/** Icon-only copy action used in message footers; swaps to a check while `copied`. */
+function CopyIconButton({
+  label,
+  copied,
+  onClick,
+  Icon = Copy,
+}: {
+  label: string
+  copied: boolean
+  onClick: () => void
+  Icon?: typeof Copy
+}) {
   const { t } = useTranslation()
-  const { projectId, issueId } = useParams<{ projectId: string, issueId: string }>()
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50 transition-colors duration-150"
+      aria-label={copied ? t('session.copied') : label}
+      title={label}
+    >
+      {copied ?
+          (
+            <Check className="h-3.5 w-3.5 text-emerald-500" />
+          ) :
+          (
+            <Icon className="h-3.5 w-3.5" />
+          )}
+    </button>
+  )
+}
+
+/** Write to the clipboard and run `onDone` for a 2s copied state. */
+function copyToClipboard(value: string, onDone: () => void) {
+  navigator.clipboard.writeText(value).then(onDone).catch(() => {})
+}
+
+/**
+ * Sent message card. Also used by ChatBody for queued messages, which pass the
+ * ids explicitly (they may render outside the issue route) and an edit action.
+ */
+export function UserMessageEntry({
+  entry,
+  projectId: projectIdProp,
+  issueId: issueIdProp,
+  onEdit,
+}: {
+  entry: NormalizedLogEntry
+  projectId?: string
+  issueId?: string
+  onEdit?: () => void
+}) {
+  const { t } = useTranslation()
+  const params = useParams<{ projectId: string, issueId: string }>()
+  const projectId = projectIdProp ?? params.projectId
+  const issueId = issueIdProp ?? params.issueId
   const [preview, setPreview] = useState<PreviewItem | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const isPending = entry.metadata?.type === 'pending'
   const isDone = entry.metadata?.type === 'done'
@@ -275,10 +322,10 @@ function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
     return null
 
   const barColor = isPending ?
-    'border-amber-400 bg-amber-500/[0.06]' :
+    'border-l-amber-400 bg-amber-500/[0.06]' :
     isDone ?
-      'border-emerald-400 bg-emerald-500/[0.06]' :
-      'border-foreground/70'
+      'border-l-emerald-400 bg-emerald-500/[0.06]' :
+      'border-l-foreground/60 bg-muted/30'
 
   // Optimistic attachments (created locally before the server assigns an id)
   // carry id === '' and aren't yet reachable; render them as static chips.
@@ -293,12 +340,19 @@ function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
     }
   }
 
+  const handleCopy = () => {
+    copyToClipboard(displayContent, () => {
+      setCopied(true)
+      setTimeout(setCopied, 2000, false)
+    })
+  }
+
   return (
     <div className="group py-2 animate-message-enter">
-      <div className={`bg-muted/70 px-3 py-2.5 border border-l-[3px] ${barColor}`}>
+      <div className={`rounded-lg border border-border border-l-[3px] px-3 py-2.5 ${barColor}`}>
         {displayContent ?
             (
-              <div className="text-[15px] whitespace-pre-wrap break-words text-foreground leading-[1.75]">
+              <div className="text-[14px] whitespace-pre-wrap break-words text-foreground leading-[1.75]">
                 {displayContent}
               </div>
             ) :
@@ -343,27 +397,50 @@ function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
               </div>
             ) :
           null}
-        {isPending || isDone ?
+      </div>
+      <div className="flex items-center gap-2 mt-1">
+        {entry.timestamp ?
             (
-              <div className="flex items-center gap-2 mt-1">
-                {isPending ?
-                    (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-amber-500/70">
-                        <Clock className="h-2.5 w-2.5" />
-                        {t('chat.pendingMessage')}
-                      </span>
-                    ) :
-                  null}
-                {isDone ?
-                    (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-500/70">
-                        {t('chat.doneMessage')}
-                      </span>
-                    ) :
-                  null}
-              </div>
+              <span className="text-[10px] text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors duration-200">
+                {formatTime(entry.timestamp)}
+              </span>
             ) :
           null}
+        {isPending ?
+            (
+              <span className="inline-flex items-center gap-1 text-[10px] text-amber-500/70">
+                <Clock className="h-2.5 w-2.5" />
+                {t('chat.pendingMessage')}
+              </span>
+            ) :
+          null}
+        {isDone ?
+            (
+              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-500/70">
+                {t('chat.doneMessage')}
+              </span>
+            ) :
+          null}
+        <span className="ml-auto flex items-center gap-1">
+          {displayContent ?
+              (
+                <span className="flex items-center md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
+                  <CopyIconButton label={t('session.copyMessage')} copied={copied} onClick={handleCopy} />
+                </span>
+              ) :
+            null}
+          {onEdit ?
+              (
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="shrink-0 rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  {t('common.edit')}
+                </button>
+              ) :
+            null}
+        </span>
       </div>
       {preview ?
           (
@@ -396,6 +473,7 @@ export function LogEntry({
           content={entry.content}
           timestamp={entry.timestamp}
           durationMs={durationMs}
+          isStreaming={!entry.messageId}
         />
       )
 
@@ -467,7 +545,7 @@ export function LogEntry({
         const firstLine = entry.content.split('\n')[0]?.trim() || 'Command output'
         return (
           <div className="my-1.5 animate-message-enter">
-            <details className="bg-muted/40 border border-border/30 transition-all duration-200 open:bg-muted/20">
+            <details className="rounded-lg border border-border bg-muted/10 overflow-hidden transition-all duration-200 open:bg-muted/20">
               <summary className="cursor-pointer list-none px-4 py-2 text-xs text-muted-foreground hover:bg-muted/20 transition-colors">
                 <span className="font-mono">{firstLine}</span>
               </summary>
@@ -501,7 +579,7 @@ export function LogEntry({
       // stream failure behind an otherwise generic message.
       const errorKind = entry.metadata?.errorKind
       return (
-        <div className="flex gap-2 my-1.5 bg-destructive/[0.06] border border-destructive/20 px-3 py-2 animate-message-enter">
+        <div className="flex gap-2 my-1.5 rounded-lg border border-destructive/20 bg-destructive/[0.06] px-3 py-2 animate-message-enter">
           <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive mt-0.5" />
           <div className="min-w-0 flex flex-col gap-0.5">
             {typeof errorKind === 'string' && (
@@ -521,7 +599,7 @@ export function LogEntry({
       const preview = entry.content.length > 80 ? `${entry.content.slice(0, 80)}…` : entry.content
       return (
         <div className="my-0.5 animate-message-enter">
-          <details className="bg-violet-500/[0.04] border border-violet-300/20 dark:border-violet-500/15 transition-all duration-200 open:bg-violet-500/[0.06]">
+          <details className="rounded-lg border border-violet-300/20 bg-violet-500/[0.04] dark:border-violet-500/15 overflow-hidden transition-all duration-200 open:bg-violet-500/[0.06]">
             <summary className="cursor-pointer list-none px-3 py-1.5 text-xs text-violet-500/70 dark:text-violet-400/70 hover:bg-violet-500/[0.06] transition-colors">
               <span className="italic">
                 Thinking:
@@ -558,64 +636,42 @@ function AssistantMessage({
   content,
   timestamp,
   durationMs,
+  isStreaming,
 }: {
   content: string
   timestamp?: string
   durationMs?: number
+  isStreaming: boolean
 }) {
   const { t } = useTranslation()
-  const [copied, setCopied] = useState(false)
-  const [viewOpen, setViewOpen] = useState(false)
+  const [copied, setCopied] = useState<'text' | 'markdown' | null>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  // In source view the rendered text is the Markdown itself, so one copy action suffices.
+  const renderMarkdown = useViewModeStore(s => s.renderMarkdown)
 
-  const handleCopy = () => {
+  const copy = (kind: 'text' | 'markdown') => {
+    const body = bodyRef.current
+    // innerText keeps paragraph breaks from the rendered layout; jsdom lacks it, hence the fallback.
+    // eslint-disable-next-line unicorn/prefer-dom-node-text-content
+    const value = kind === 'markdown' ? content : (body?.innerText || body?.textContent || '')
     navigator.clipboard
-      .writeText(content)
+      .writeText(value)
       .then(() => {
-        setCopied(true)
-        setTimeout(setCopied, 2000, false)
+        setCopied(kind)
+        setTimeout(setCopied, 2000, null)
       })
       .catch(() => {})
   }
 
+  const copyButton = (kind: 'text' | 'markdown', label: string, Icon: typeof Copy) => (
+    <CopyIconButton label={label} copied={copied === kind} onClick={() => copy(kind)} Icon={Icon} />
+  )
+
   return (
     <div className="group py-1.5 animate-message-enter">
-      <div className="relative min-w-0">
-        <div className="absolute right-0 top-0 flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150 z-10">
-          <button
-            type="button"
-            onClick={() => setViewOpen(true)}
-            className="rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50"
-            title={t('session.viewMessage')}
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50"
-            title={t('session.copyMessage')}
-          >
-            {copied ?
-                (
-                  <Check className="h-3.5 w-3.5 text-emerald-500" />
-                ) :
-                (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-          </button>
-        </div>
-        <MarkdownContent content={content} className="text-[14px] leading-[1.75]" />
+      <div ref={bodyRef} className="min-w-0">
+        <MarkdownContent content={content} className="text-[14px] leading-[1.75]" isStreaming={isStreaming} />
       </div>
-      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="w-[90vw] max-w-[90vw] sm:max-w-[90vw] max-h-[90vh] flex flex-col">
-          <DialogTitle className="sr-only">{t('session.viewMessage')}</DialogTitle>
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading...</div>}>
-              <MarkdownRenderer content={content} />
-            </Suspense>
-          </div>
-        </DialogContent>
-      </Dialog>
       <div className="flex items-center gap-2 mt-1">
         {timestamp ?
             (
@@ -632,6 +688,10 @@ function AssistantMessage({
               </span>
             ) :
           null}
+        <span className="ml-auto flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
+          {renderMarkdown ? copyButton('text', t('session.copyText'), Copy) : null}
+          {copyButton('markdown', t('session.copyMarkdown'), SquareM)}
+        </span>
       </div>
     </div>
   )

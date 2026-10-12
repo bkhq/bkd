@@ -1,60 +1,94 @@
-import { act, render, waitFor } from '@testing-library/react'
-import DOMPurify from 'dompurify'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MarkdownContent } from '@/components/issue-detail/MarkdownContent'
 import { codeToHtml } from '@/lib/shiki'
+import { useViewModeStore } from '@/stores/view-mode-store'
 
+// ShikiCodeBlock loads the Shiki bundle; the renderer only needs to route to it.
 vi.mock('@/lib/shiki', () => ({ codeToHtml: vi.fn() }))
 
-afterEach(() => vi.restoreAllMocks())
+vi.mock('@/components/files/ShikiCodeBlock', () => ({
+  ShikiCodeBlock: ({ code, lang }: { code: string, lang: string }) => (
+    <pre data-testid="shiki" data-lang={lang}>{code}</pre>
+  ),
+}))
 
-describe('markdownContent', () => {
-  it('does not sanitize unchanged highlighted HTML on parent renders', async () => {
-    vi.mocked(codeToHtml).mockResolvedValue('<pre class="shiki"><code>hello</code></pre>')
-    const sanitize = vi.spyOn(DOMPurify, 'sanitize')
-    const { container, rerender } = render(<MarkdownContent content="hello" />)
-    await waitFor(() => expect(container.querySelector('.shiki')).not.toBeNull())
-    sanitize.mockClear()
-    rerender(<MarkdownContent content="hello" className="wide" />)
-    expect(sanitize).not.toHaveBeenCalled()
+describe('markdownContent (source view, default)', () => {
+  beforeEach(() => {
+    useViewModeStore.setState({ renderMarkdown: false })
+    vi.mocked(codeToHtml).mockImplementation(async code => `<pre class="shiki"><code>${code}</code></pre>`)
   })
 
-  it('keeps the previous highlighted layout until the current update is ready', async () => {
-    vi.mocked(codeToHtml).mockResolvedValueOnce('<pre class="shiki"><code>first</code></pre>')
-    const { container, rerender } = render(<MarkdownContent content="first" />)
-    await waitFor(() => expect(container.querySelector('.shiki')).not.toBeNull())
-    let resolve!: (html: string) => void
-    vi.mocked(codeToHtml).mockImplementationOnce(() => new Promise((done) => {
-      resolve = done
-    }))
-    rerender(<MarkdownContent content="first updated" />)
-    expect(container.querySelector('.shiki')).not.toBeNull()
-    await act(async () => resolve('<pre class="shiki"><code>first updated</code></pre>'))
-    expect(container).toHaveTextContent('first updated')
+  it('is the default and shows highlighted Markdown source, not rendered HTML', async () => {
+    expect(useViewModeStore.getState().renderMarkdown).toBe(false)
+    const { container } = render(<MarkdownContent content="Some **bold** text" />)
+    await waitFor(() => expect(container.querySelector('.markdown-shiki .shiki')).not.toBeNull())
+    expect(container.textContent).toContain('**bold**')
+    expect(container.querySelector('[data-streamdown="strong"]')).toBeNull()
+  })
+})
+
+describe('markdownContent (render mode)', () => {
+  beforeEach(() => {
+    useViewModeStore.setState({ renderMarkdown: true })
   })
 
-  it('strips the tabindex Shiki puts on the code block', async () => {
-    // A focusable message body swallows long-press-to-select on touch devices.
-    vi.mocked(codeToHtml).mockResolvedValue('<pre class="shiki" tabindex="0"><code>hello</code></pre>')
+  it('renders markdown structure as HTML', () => {
+    const { container } = render(
+      <MarkdownContent content={'# Title\n\nSome **bold** text and `inline`.\n\n- one\n- two'} />,
+    )
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Title')
+    expect(container.querySelector('[data-streamdown="strong"]')).toHaveTextContent('bold')
+    expect(container.querySelectorAll('li')).toHaveLength(2)
+    expect(container.querySelector('code')).toHaveTextContent('inline')
+    expect(container.textContent).not.toContain('**')
+  })
+
+  it('leaves unmatched markup in a completed message as written', () => {
+    const { container } = render(<MarkdownContent content="Use ** as a wildcard" />)
+    expect(container.textContent).toBe('Use ** as a wildcard')
+  })
+
+  it('renders gfm tables as table elements', () => {
+    const { container } = render(
+      <MarkdownContent content={'| a | b |\n| - | - |\n| 1 | 2 |'} />,
+    )
+    expect(container.querySelectorAll('th')).toHaveLength(2)
+    expect(container.querySelectorAll('td')).toHaveLength(2)
+  })
+
+  it('routes fenced code to ShikiCodeBlock with the fence language', () => {
+    render(<MarkdownContent content={'```ts\nconst a = 1\n```'} />)
+    const block = screen.getByTestId('shiki')
+    expect(block).toHaveAttribute('data-lang', 'ts')
+    expect(block).toHaveTextContent('const a = 1')
+  })
+
+  it('repairs unterminated emphasis while streaming', () => {
+    const { container } = render(<MarkdownContent content="Working on **the fix" isStreaming />)
+    expect(container.querySelector('[data-streamdown="strong"]')).toHaveTextContent('the fix')
+    expect(container.textContent).not.toContain('**')
+  })
+
+  it('renders an unterminated code fence as a code block while streaming', () => {
+    render(<MarkdownContent content={'Step one:\n\n```ts\nlet x ='} isStreaming />)
+    const block = screen.getByTestId('shiki')
+    expect(block).toHaveAttribute('data-lang', 'ts')
+    expect(block).toHaveTextContent('let x =')
+  })
+
+  it('keeps attachment images renderable', () => {
+    const { container } = render(<MarkdownContent content="![shot](/api/files/raw?path=a.png)" />)
+    expect(container.querySelector('img')).toHaveAttribute('src', '/api/files/raw?path=a.png')
+  })
+
+  it('keeps the body selectable on touch devices', () => {
     const { container } = render(<MarkdownContent content="hello" />)
-    await waitFor(() => expect(container.querySelector('.shiki')).not.toBeNull())
-    expect(container.querySelector('[tabindex]')).toBeNull()
+    expect(container.firstElementChild).toHaveClass('touch-auto', 'select-text')
   })
 
-  it('ignores obsolete highlight results and removes cleared content', async () => {
-    let oldResult!: (html: string) => void
-    vi.mocked(codeToHtml).mockImplementationOnce(() => new Promise((resolve) => {
-      oldResult = resolve
-    }))
-    const { container, rerender } = render(<MarkdownContent content="old" />)
-    vi.mocked(codeToHtml).mockResolvedValueOnce('<pre class="shiki">current<script>alert(1)</script></pre>')
-    rerender(<MarkdownContent content="current" />)
-    await waitFor(() => expect(container.querySelector('.shiki')).toHaveTextContent('current'))
-    await act(async () => oldResult('<pre class="shiki">obsolete</pre>'))
-    expect(container).not.toHaveTextContent('obsolete')
-    expect(container.querySelector('script')).toBeNull()
-    rerender(<MarkdownContent content="" />)
-    expect(container).toHaveTextContent('')
-    expect(container.querySelector('pre')).toBeNull()
+  it('renders nothing for empty content', () => {
+    const { container } = render(<MarkdownContent content="   " />)
+    expect(container.textContent).toBe('')
   })
 })

@@ -1,7 +1,9 @@
-import { Copy, Download, MoreHorizontal, Pencil, Pin, PinOff, Trash2 } from 'lucide-react'
+import { ContextMenu } from '@base-ui/react/context-menu'
+import { Copy, Download, Link, MoreHorizontal, Pencil, Pin, PinOff, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,12 +26,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  dropdownMenuPopupClassName,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useDeleteIssue, useDuplicateIssue, useUpdateIssue } from '@/hooks/use-kanban'
 import { kanbanApi } from '@/lib/kanban-api'
-import { cn } from '@/lib/utils'
+import { cn } from 'cn'
+import { getIssueUrl } from '@/stores/server-store'
 import type { Issue } from '@/types/kanban'
 
 /** Shared rename dialog — used by both IssueContextMenu and IssueRow */
@@ -99,22 +103,22 @@ export function RenameDialog({
   )
 }
 
-interface IssueContextMenuProps {
+interface IssueMenuOptions {
   issue: Issue
   projectId: string
   showPin?: boolean
-  children: ReactNode
+  /** Add a "Copy link" item (chat header). */
+  showCopyLink?: boolean
   /** Called after the issue is successfully deleted (e.g. to navigate away when it was active) */
   onDeleted?: () => void
 }
 
-export function IssueContextMenu({
-  issue,
-  projectId,
-  showPin = false,
-  children,
-  onDeleted,
-}: IssueContextMenuProps) {
+/**
+ * Items and dialogs of the issue action menu, shared by the "..." dropdown
+ * and the right-click menu. Items are base-ui Menu items, so they work inside
+ * either popup.
+ */
+function useIssueMenu({ issue, projectId, showPin = false, showCopyLink = false, onDeleted }: IssueMenuOptions) {
   const { t } = useTranslation()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
@@ -140,6 +144,13 @@ export function IssueContextMenu({
     document.body.removeChild(a)
   }, [projectId, issue.id])
 
+  const handleCopyLink = useCallback(() => {
+    navigator.clipboard
+      .writeText(getIssueUrl(projectId, issue.id))
+      .then(() => toast.success(t('issue.linkCopied')))
+      .catch(() => {})
+  }, [projectId, issue.id, t])
+
   const handleDelete = useCallback(() => {
     deleteIssue.mutate(issue.id, {
       onSuccess: () => onDeleted?.(),
@@ -147,57 +158,59 @@ export function IssueContextMenu({
     setDeleteOpen(false)
   }, [deleteIssue, issue.id, onDeleted])
 
-  return (
+  const items = (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger render={children as React.JSX.Element} />
-        <DropdownMenuContent align="start" sideOffset={4}>
-          {showPin && (
-            <DropdownMenuItem onSelect={handlePin}>
-              {issue.isPinned
-                ? (
-                    <>
-                      <PinOff className="size-4" />
-                      {t('contextMenu.unpin')}
-                    </>
-                  )
-                : (
-                    <>
-                      <Pin className="size-4" />
-                      {t('contextMenu.pinToTop')}
-                    </>
-                  )}
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onSelect={() => setRenameOpen(true)}>
-            <Pencil className="size-4" />
-            {t('contextMenu.rename')}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={handleDuplicate}>
-            <Copy className="size-4" />
-            {t('contextMenu.copy')}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={handleExport}>
-            <Download className="size-4" />
-            {t('contextMenu.download')}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
-            <Trash2 className="size-4" />
-            {t('contextMenu.delete')}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {showPin && (
+        <DropdownMenuItem onSelect={handlePin}>
+          {issue.isPinned
+            ? (
+                <>
+                  <PinOff className="size-4" />
+                  {t('contextMenu.unpin')}
+                </>
+              )
+            : (
+                <>
+                  <Pin className="size-4" />
+                  {t('contextMenu.pinToTop')}
+                </>
+              )}
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuItem onSelect={() => setRenameOpen(true)}>
+        <Pencil className="size-4" />
+        {t('contextMenu.rename')}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={handleDuplicate}>
+        <Copy className="size-4" />
+        {t('contextMenu.copy')}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={handleExport}>
+        <Download className="size-4" />
+        {t('contextMenu.download')}
+      </DropdownMenuItem>
+      {showCopyLink && (
+        <DropdownMenuItem onSelect={handleCopyLink}>
+          <Link className="size-4" />
+          {t('issue.copyLink')}
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+        <Trash2 className="size-4" />
+        {t('contextMenu.delete')}
+      </DropdownMenuItem>
+    </>
+  )
 
-      {/* Rename dialog */}
+  const dialogs = (
+    <>
       <RenameDialog
         open={renameOpen}
         onOpenChange={setRenameOpen}
         issue={issue}
         projectId={projectId}
       />
-
-      {/* Delete confirmation */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -212,15 +225,79 @@ export function IssueContextMenu({
       </AlertDialog>
     </>
   )
+
+  return { items, dialogs }
 }
 
-/** Kebab "..." button to use as trigger */
-export function IssueContextMenuButton({ className }: { className?: string }) {
+interface IssueContextMenuProps extends IssueMenuOptions {
+  children: ReactNode
+}
+
+/** "..." dropdown: `children` is the trigger element. */
+export function IssueContextMenu({ children, ...options }: IssueContextMenuProps) {
+  const { items, dialogs } = useIssueMenu(options)
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger render={children as React.JSX.Element} />
+        <DropdownMenuContent align="start" sideOffset={4}>
+          {items}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {dialogs}
+    </>
+  )
+}
+
+interface IssueRightClickMenuProps extends IssueMenuOptions {
+  children: ReactNode
+  /** Class of the wrapper that receives the right-click; `contents` keeps layout intact. */
+  className?: string
+}
+
+/**
+ * Right-click (context) menu over `children`, with the same items as the dropdown.
+ * Do not nest an `IssueContextMenu` inside it: base-ui treats any Menu rendered
+ * under a ContextMenu.Root as that context menu's submenu, so its trigger stops
+ * opening on click. Render the "..." button as a sibling instead.
+ */
+export function IssueRightClickMenu({ children, className, ...options }: IssueRightClickMenuProps) {
+  const { items, dialogs } = useIssueMenu(options)
+  return (
+    <>
+      <ContextMenu.Root>
+        <ContextMenu.Trigger className={className} data-slot="issue-context-trigger">{children}</ContextMenu.Trigger>
+        <ContextMenu.Portal>
+          <ContextMenu.Positioner className="isolate z-50 outline-none">
+            <ContextMenu.Popup className={dropdownMenuPopupClassName}>
+              {items}
+            </ContextMenu.Popup>
+          </ContextMenu.Positioner>
+        </ContextMenu.Portal>
+      </ContextMenu.Root>
+      {dialogs}
+    </>
+  )
+}
+
+/**
+ * Kebab "..." button to use as trigger. Spreads the props base-ui injects
+ * through `render` (handlers, ref, aria); without that the menu never opens.
+ * Click propagation is stopped so a parent card/row does not treat it as a
+ * click on itself.
+ */
+export function IssueContextMenuButton({ className, onClick, ...props }: React.ComponentProps<'button'>) {
+  const { t } = useTranslation()
   return (
     <button
       type="button"
+      aria-label={t('contextMenu.moreActions')}
+      {...props}
       className={cn('inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors', className)}
-      onClick={e => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick?.(e)
+      }}
     >
       <MoreHorizontal className="size-3.5" />
     </button>

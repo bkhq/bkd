@@ -1,9 +1,7 @@
-import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronRight, Clock, FileText, Image } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronRight, Clock } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import type { PreviewItem } from '@/components/FilePreviewModal'
-import { FilePreviewModal } from '@/components/FilePreviewModal'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,13 +21,13 @@ import {
   useUpdateIssue,
 } from '@/hooks/use-kanban'
 import { useInvalidatePendingMessages, usePendingMessages } from '@/hooks/use-pending-messages'
-import { formatFileSize } from '@/lib/format'
 import { kanbanApi } from '@/lib/kanban-api'
 import { STATUS_MAP } from '@/lib/statuses'
 import { useChatFilterStore } from '@/stores/chat-filter-store'
 import type { Issue, NormalizedLogEntry } from '@/types/kanban'
 import { ChatInput } from './ChatInput'
 import { IssueDetail } from './IssueDetail'
+import { UserMessageEntry } from './LogEntry'
 
 const LazySessionMessages = lazy(() =>
   import('./SessionMessages').then(m => ({ default: m.SessionMessages })),
@@ -165,7 +163,6 @@ export function ChatBody({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [pendingEditContent, setPendingEditContent] = useState<string | null>(null)
-  const [previewAttachment, setPreviewAttachment] = useState<PreviewItem | null>(null)
 
   const handleDelete = useCallback(() => {
     setDeleteDialogOpen(true)
@@ -344,7 +341,7 @@ export function ChatBody({
         </div>
       </div>
 
-      {/* Pending messages — reuses user-message styling from LogEntry */}
+      {/* Pending messages — same card as sent messages, plus an edit action */}
       {serverPendingMessages && serverPendingMessages.length > 0 && (
         <div className="px-4 pt-2">
           <button
@@ -362,79 +359,21 @@ export function ChatBody({
       )}
       {serverPendingMessages && serverPendingMessages.length > 0 && !pendingCollapsed && (
         <div className="px-4 pb-2 pt-1 space-y-1 max-h-[30vh] overflow-y-auto">
-          {serverPendingMessages.map((msg) => {
-            const isDone = msg.metadata?.type === 'done'
-            const barColor = isDone
-              ? 'border-emerald-400 bg-emerald-500/[0.06]'
-              : 'border-amber-400 bg-amber-500/[0.06]'
-            const attachments = (msg.metadata?.attachments ?? []) as Array<{ id: string, name: string, mimeType: string, size: number }>
-            const displayContent = msg.content.replace(/\n*--- Attached files ---\n(?:\[Attached file:.*\]\n?)*/g, '').trim()
-            return (
-              <div key={msg.messageId} className="group py-2 animate-message-enter">
-                <div className={`bg-muted/70 px-3 py-2.5 border border-l-[3px] ${barColor}`}>
-                  {displayContent
-                    ? (
-                        <div className="text-[15px] whitespace-pre-wrap break-words text-foreground leading-[1.75]">
-                          {displayContent}
-                        </div>
-                      )
-                    : null}
-                  {attachments.length > 0
-                    ? (
-                        <div className={`flex flex-wrap gap-1.5${displayContent ? ' mt-2' : ''}`}>
-                          {attachments.map((att) => {
-                            const chipClass = 'inline-flex items-center gap-1 rounded bg-muted/60 border border-border/40 px-1.5 py-0.5 text-[11px] text-muted-foreground'
-                            const inner = (
-                              <>
-                                {att.mimeType.startsWith('image/')
-                                  ? <Image className="h-3 w-3 shrink-0 text-blue-500" />
-                                  : <FileText className="h-3 w-3 shrink-0" />}
-                                <span className="truncate max-w-[120px]">{att.name}</span>
-                                <span className="text-muted-foreground/50">{formatFileSize(att.size)}</span>
-                              </>
-                            )
-                            // Optimistic entries with empty id are not yet reachable
-                            if (!att.id) {
-                              return <span key={att.id} className={chipClass}>{inner}</span>
-                            }
-                            const url = `/api/projects/${projectId}/issues/${issueId}/attachments/${att.id}`
-                            return (
-                              <button
-                                key={att.id}
-                                type="button"
-                                onClick={() => setPreviewAttachment({
-                                  kind: 'remote',
-                                  name: att.name,
-                                  mimeType: att.mimeType,
-                                  size: att.size,
-                                  url,
-                                })}
-                                className={`${chipClass} cursor-pointer hover:bg-muted/80 transition-colors`}
-                              >
-                                {inner}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      )
-                    : null}
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`inline-flex items-center gap-1 text-[10px] ${isDone ? 'text-emerald-500/70' : 'text-amber-500/70'}`}>
-                      {!isDone ? <Clock className="h-2.5 w-2.5" /> : null}
-                      {isDone ? t('chat.doneMessage') : t('chat.pendingMessage')}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleEditPending(msg.messageId)}
-                      className="ml-auto shrink-0 rounded-md border border-border/40 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                    >
-                      {t('common.edit')}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
+          {serverPendingMessages.map(msg => (
+            <UserMessageEntry
+              key={msg.messageId}
+              entry={{
+                entryType: 'user-message',
+                messageId: msg.messageId,
+                content: msg.content,
+                metadata: msg.metadata ?? undefined,
+                timestamp: msg.createdAt,
+              }}
+              projectId={projectId}
+              issueId={issueId}
+              onEdit={() => handleEditPending(msg.messageId)}
+            />
+          ))}
         </div>
       )}
 
@@ -493,11 +432,6 @@ export function ChatBody({
         </AlertDialogContent>
       </AlertDialog>
 
-      {previewAttachment ?
-          (
-            <FilePreviewModal item={previewAttachment} onClose={() => setPreviewAttachment(null)} />
-          ) :
-        null}
     </>
   )
 }

@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { SidePanel, SidePanelActions, SidePanelButton } from '@/components/ui/side-panel'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useCreateNote, useDeleteNote, useNotes, useUpdateNote } from '@/hooks/use-notes'
-import { cn } from '@/lib/utils'
+import { cn } from 'cn'
 import { NOTES_MAX_WIDTH_RATIO, NOTES_MIN_WIDTH, useNotesStore } from '@/stores/notes-store'
 import type { Note } from '@/types/kanban'
 

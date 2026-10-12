@@ -205,6 +205,20 @@ Centered the sidebar rail on the active project
   the documented `async execution transitions to running then completed` timeout flake
   (684 pass, 1 fail), which passes in isolation and touches no changed code.
 
+## 2026-09-22 04:00 [decision]
+
+Merged `main` into `release` for the release -> main promotion (#145).
+
+- `release` carried the dependency-upgrade plan as `PLAN-020`, while `main` had
+  already allocated `PLAN-020` to the cron soft-delete fix. Renamed the release
+  plan to `20260909-0230-upgrade-dependencies.md` (its 2026-09-09 02:30 creation time)
+  and updated the references in `DEV-004` and the plan index. `PLAN-020` on
+  `main` is unchanged.
+- `MarkdownContent` conflict resolved in favour of the streamdown renderer from
+  #144; the Shiki memoization fix from the message-list work no longer applies
+  because that code path was removed. The message-list test for it was
+  superseded by the streamdown tests.
+
 ## 2026-09-22 17:12 [progress]
 
 20260922-1703-mobile-desktop-ui-parity / 20260922-1704: aligned mobile and desktop UI
@@ -523,3 +537,32 @@ kanban panel title editor, the tag editor and the directory picker's new-folder
 input had the same pattern. `lib/keyboard.ts` `isImeComposing()`
 (`nativeEvent.isComposing`, or Safari's post-composition `keyCode` 229) guards
 all four; a plain Enter still submits. Task `20261011-2129-ime-enter-submit`.
+
+## 2026-10-12 03:30 [decision]
+
+Merged `main` into `release` again for #145.
+
+- lode references: took `main` (bkhq/lode, `releases/latest/download`, no
+  `LODE_VERSION` pin); `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` stays removed as in
+  DEV-004.
+- `MarkdownContent` / `index.css`: `main`'s touch-selection fix
+  (20260929-1043) patched the Shiki message path that streamdown replaced.
+  Ported its intent: `ShikiCodeBlock` sanitizes with `FORBID_ATTR: ['tabindex']`
+  and the streamdown root carries `touch-auto select-text`. Regression test moved
+  to `shiki-code-block.test.tsx`.
+
+## 2026-10-12 15:32 [BUG-P2]
+
+Review fixes for #145.
+
+- Issue list row: right-click menu actions and their rename / delete dialogs
+  bubbled to the row through the React tree, so an inactive row navigated to
+  the issue and Space / Enter never reached the rename input. The row ignores
+  clicks from outside its DOM subtree and keys not pressed on the row itself.
+- `MarkdownContent` parses completed messages in streamdown's `static` mode;
+  `streaming` rewrote unmatched markup (`Use ** as a wildcard`).
+- `IssueContextMenuButton` has a default accessible name.
+- Bun is 1.4.2 in CI, the release workflow and the deployment docs, matching
+  `docs/bkd.lode.toml`; `AGENTS.md` reflects the TypeScript 7 workspaces.
+
+Task `20261012-1532-pr145-review-fixes`.

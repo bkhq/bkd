@@ -8,7 +8,7 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { cn } from '@/lib/utils'
+import { cn } from 'cn'
 
 export interface SettingsNavItem {
   id: string

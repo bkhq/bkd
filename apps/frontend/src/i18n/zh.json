@@ -105,6 +105,7 @@
     "backToList": "返回列表",
     "selectToStart": "选择一个任务开始",
     "copyLink": "复制链接",
+    "linkCopied": "链接已复制",
     "openFullPage": "全屏打开",
     "closePanel": "关闭面板",
     "subIssues": "子任务",
@@ -252,7 +253,9 @@
     },
     "duration": "耗时 {{time}}",
     "copyMessage": "复制消息",
-    "viewMessage": "查看 Markdown 渲染",
+    "copyText": "复制文字",
+    "copyMarkdown": "复制 Markdown",
+    "copied": "已复制",
     "status": {
       "pending": "等待中",
       "spawning": "启动中",
@@ -441,6 +444,8 @@
     "devBuild": "开发构建",
     "fullWidthChat": "全宽聊天",
     "fullWidthChatHint": "移除聊天消息区域的最大宽度限制",
+    "renderMarkdown": "聊天中渲染 Markdown",
+    "renderMarkdownHint": "关闭时以语法高亮显示 Markdown 源码",
     "logPageSize": "消息加载数量",
     "logPageSizeHint": "每次加载的对话消息数量（用户和助手消息）",
     "maxConcurrentExecutions": "最大并发会话数",
@@ -569,7 +574,8 @@
     "copySuccess": "任务已复制",
     "renameTitle": "重命名任务",
     "newTitle": "新标题",
-    "save": "保存"
+    "save": "保存",
+    "moreActions": "更多操作"
   },
   "error": {
     "title": "出错了",

@@ -85,7 +85,7 @@ import {
 import { useTheme } from '@/hooks/use-theme'
 import { LANGUAGES } from '@/lib/constants'
 import { formatFileSize } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn } from 'cn'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import type { EngineAvailability, EngineModel, EngineProfile, VirtualEngine } from '@/types/kanban'
 
@@ -152,6 +152,8 @@ function GeneralSection({ open }: { open: boolean }) {
   const [dirPickerOpen, setDirPickerOpen] = useState(false)
   const fullWidthChat = useViewModeStore(s => s.fullWidthChat)
   const setFullWidthChat = useViewModeStore(s => s.setFullWidthChat)
+  const renderMarkdown = useViewModeStore(s => s.renderMarkdown)
+  const setRenderMarkdown = useViewModeStore(s => s.setRenderMarkdown)
   const { data: logPageSizeData } = useLogPageSize(open)
   const setLogPageSize = useSetLogPageSize()
   const { data: serverData } = useServerInfo(open)
@@ -320,6 +322,14 @@ function GeneralSection({ open }: { open: boolean }) {
           <p className="text-[11px] text-muted-foreground">{t('settings.fullWidthChatHint')}</p>
         </div>
         <Switch size="sm" checked={fullWidthChat} onCheckedChange={setFullWidthChat} />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-sm font-medium">{t('settings.renderMarkdown')}</span>
+          <p className="text-[11px] text-muted-foreground">{t('settings.renderMarkdownHint')}</p>
+        </div>
+        <Switch size="sm" checked={renderMarkdown} onCheckedChange={setRenderMarkdown} />
       </div>
 
       <Field>

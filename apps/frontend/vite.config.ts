@@ -60,6 +60,9 @@ const config = defineConfig(({ mode }) => {
     ],
     resolve: {
       tsconfigPaths: true,
+      // Libraries (class-variance-authority, streamdown) still import the old
+      // pair; cn exports drop-in clsx/twMerge, so the bundle carries one engine.
+      alias: { 'tailwind-merge': 'cn', 'clsx': 'cn' },
     },
     build: {
       rolldownOptions: {
@@ -75,7 +78,7 @@ const config = defineConfig(({ mode }) => {
               { name: 'vendor-diff', test: /[\\/]node_modules[\\/]@pierre[\\/]diffs[\\/]/ },
               { name: 'vendor-shiki', test: /[\\/]node_modules[\\/](shiki|@shikijs)[\\/]/ },
               { name: 'vendor-i18n', test: /[\\/]node_modules[\\/](i18next|react-i18next)[\\/]/ },
-              { name: 'vendor-style', test: /[\\/]node_modules[\\/](tailwind-merge|clsx|class-variance-authority)[\\/]/ },
+              { name: 'vendor-style', test: /[\\/]node_modules[\\/](cn|class-variance-authority)[\\/]/ },
               { name: 'vendor-state', test: /[\\/]node_modules[\\/]zustand[\\/]/ },
               { name: 'vendor-xterm', test: /[\\/]node_modules[\\/]@xterm[\\/]/ },
             ],

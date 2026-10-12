@@ -56,6 +56,7 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20260912-1945-project-tags Tag and filter projects by tag**](20260912-1945-project-tags.md) `2026-09-12`
 
 - [x] [**20260912-2124-message-list-rendering Stabilize message-list layout and streaming updates**](20260912-2124-message-list-rendering.md) `2026-09-12`
+- [x] [**20260909-0230-upgrade-dependencies Upgrade all workspace dependencies to latest**](20260909-0230-upgrade-dependencies.md) `2026-09-09`
 
 - [x] [**20260922-1704-mobile-desktop-ui-parity Align mobile and desktop UI and finish the BKD rename**](20260922-1704-mobile-desktop-ui-parity.md) `2026-09-22`
 - [x] [**20260923-1133-grok-engine Add Grok Build CLI as an engine**](20260923-1133-grok-engine.md) `2026-09-23`

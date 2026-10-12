@@ -1,13 +1,11 @@
-import {
-  attachClosestEdge,
-  extractClosestEdge,
-} from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
-import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
-import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
+import { attachClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge/attach-closest-edge'
+import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge/extract-closest-edge'
+import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/types'
+import { combine } from '@atlaskit/pragmatic-drag-and-drop/utils/combine'
 import {
   draggable,
   dropTargetForElements,
-} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
+} from '@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter'
 import { Pin } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 import { IssueContextMenu, IssueContextMenuButton } from '@/components/issue-detail/IssueContextMenu'
@@ -91,7 +89,7 @@ export const KanbanCard = memo(({
             {issue.issueNumber}
           </span>
           <div
-            className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity"
+            className="ml-auto opacity-0 group-hover:opacity-100 has-data-popup-open:opacity-100 transition-opacity"
             onClick={e => e.stopPropagation()}
             onPointerDown={e => e.stopPropagation()}
           >
