@@ -253,6 +253,7 @@
     },
     "duration": "耗时 {{time}}",
     "copyMessage": "复制消息",
+    "viewMessage": "查看 Markdown 渲染",
     "copyText": "复制文字",
     "copyMarkdown": "复制 Markdown",
     "copied": "已复制",

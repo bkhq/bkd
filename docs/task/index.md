@@ -149,3 +149,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261012-1547-lode-update-check Check for updates on demand and soften retried-error styling**](20261012-1547-lode-update-check.md) `P2`
 - [x] [**20261012-1817-partial-diff-crash Stop patch diffs from crashing the page**](20261012-1817-partial-diff-crash.md) `P1`
 - [x] [**20261012-1926-failed-tool-result-error-box Keep failed tool results inside their tool call**](20261012-1926-failed-tool-result-error-box.md) `P2`
+- [x] [**20261012-2028-chat-heading-size-and-agent-bg Flatten chat Markdown headings and give agent messages a background**](20261012-2028-chat-heading-size-and-agent-bg.md) `P2`

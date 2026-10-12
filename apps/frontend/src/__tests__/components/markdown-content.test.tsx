@@ -57,6 +57,24 @@ describe('markdownContent (render mode)', () => {
     expect(container.querySelectorAll('td')).toHaveLength(2)
   })
 
+  it('keeps headings on a compressed scale instead of streamdown document sizes', () => {
+    render(<MarkdownContent content={'# One\n\n## Two\n\n#### Four'} />)
+    const h1 = screen.getByRole('heading', { level: 1 })
+    expect(h1).toHaveClass('text-[1.5em]')
+    expect(h1).not.toHaveClass('text-3xl')
+    expect(screen.getByRole('heading', { level: 2 })).toHaveClass('text-[1.25em]')
+    expect(screen.getByRole('heading', { level: 4 })).toHaveClass('text-[1em]')
+  })
+
+  it('renders tables compactly, without the framed wrapper', () => {
+    const { container } = render(
+      <MarkdownContent content={'| a | b |\n| - | - |\n| 1 | 2 |'} />,
+    )
+    expect(container.querySelector('[data-streamdown="table-wrapper"]')).toBeNull()
+    expect(container.querySelector('td')).toHaveClass('py-1')
+    expect(container.querySelector('td')).not.toHaveClass('py-2')
+  })
+
   it('routes fenced code to ShikiCodeBlock with the fence language', () => {
     render(<MarkdownContent content={'```ts\nconst a = 1\n```'} />)
     const block = screen.getByTestId('shiki')

@@ -254,6 +254,7 @@
     },
     "duration": "Completed in {{time}}",
     "copyMessage": "Copy message",
+    "viewMessage": "View as Markdown",
     "copyText": "Copy text",
     "copyMarkdown": "Copy Markdown",
     "copied": "Copied",
