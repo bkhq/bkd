@@ -306,10 +306,10 @@ function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
     return null
 
   const barColor = isPending ?
-    'border-amber-400 bg-amber-500/[0.06]' :
+    'border-l-amber-400 bg-amber-500/[0.06]' :
     isDone ?
-      'border-emerald-400 bg-emerald-500/[0.06]' :
-      'border-foreground/70'
+      'border-l-emerald-400 bg-emerald-500/[0.06]' :
+      'border-l-foreground/60 bg-muted/30'
 
   // Optimistic attachments (created locally before the server assigns an id)
   // carry id === '' and aren't yet reachable; render them as static chips.
@@ -333,7 +333,7 @@ function UserMessageEntry({ entry }: { entry: NormalizedLogEntry }) {
 
   return (
     <div className="group py-2 animate-message-enter">
-      <div className={`rounded-md bg-muted/50 px-3 py-2.5 border border-border/60 border-l-[3px] ${barColor}`}>
+      <div className={`rounded-lg border border-border/30 border-l-[3px] px-3 py-2.5 ${barColor}`}>
         {displayContent ?
             (
               <div className="text-[14px] whitespace-pre-wrap break-words text-foreground leading-[1.75]">
@@ -516,7 +516,7 @@ export function LogEntry({
         const firstLine = entry.content.split('\n')[0]?.trim() || 'Command output'
         return (
           <div className="my-1.5 animate-message-enter">
-            <details className="bg-muted/40 border border-border/30 transition-all duration-200 open:bg-muted/20">
+            <details className="rounded-lg border border-border/30 bg-muted/10 transition-all duration-200 open:bg-muted/20">
               <summary className="cursor-pointer list-none px-4 py-2 text-xs text-muted-foreground hover:bg-muted/20 transition-colors">
                 <span className="font-mono">{firstLine}</span>
               </summary>
@@ -550,7 +550,7 @@ export function LogEntry({
       // stream failure behind an otherwise generic message.
       const errorKind = entry.metadata?.errorKind
       return (
-        <div className="flex gap-2 my-1.5 bg-destructive/[0.06] border border-destructive/20 px-3 py-2 animate-message-enter">
+        <div className="flex gap-2 my-1.5 rounded-lg border border-destructive/20 bg-destructive/[0.06] px-3 py-2 animate-message-enter">
           <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive mt-0.5" />
           <div className="min-w-0 flex flex-col gap-0.5">
             {typeof errorKind === 'string' && (
@@ -570,7 +570,7 @@ export function LogEntry({
       const preview = entry.content.length > 80 ? `${entry.content.slice(0, 80)}…` : entry.content
       return (
         <div className="my-0.5 animate-message-enter">
-          <details className="bg-violet-500/[0.04] border border-violet-300/20 dark:border-violet-500/15 transition-all duration-200 open:bg-violet-500/[0.06]">
+          <details className="rounded-lg border border-violet-300/20 bg-violet-500/[0.04] dark:border-violet-500/15 transition-all duration-200 open:bg-violet-500/[0.06]">
             <summary className="cursor-pointer list-none px-3 py-1.5 text-xs text-violet-500/70 dark:text-violet-400/70 hover:bg-violet-500/[0.06] transition-colors">
               <span className="italic">
                 Thinking:

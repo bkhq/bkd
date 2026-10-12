@@ -46,6 +46,11 @@ Adding a footer to sent messages.
   (14px / 1.75, rounded card, lighter border) while keeping the coloured left
   bar that encodes queued / completed.
 
+- Follow-up (user: styles not unified): all chat containers now share one
+  shape, `rounded-lg border border-border/30`: user card (left 3px bar is
+  the only coloured edge), error box, command-output and thinking
+  `<details>`, the tool-group box and the todo panel.
+
 - complete: focused tests, frontend suite, lint, typecheck and build passed.
 
 ## Verification
