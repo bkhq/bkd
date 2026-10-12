@@ -225,7 +225,8 @@ export function ShikiPatchDiff({ patch, filePath }: { patch: string, filePath?: 
   const options = {
     diffStyle: 'unified' as const,
     diffIndicators: 'bars' as const,
-    expandUnchanged: true,
+    // A patch carries no unchanged lines beyond its context.
+    expandUnchanged: false,
     disableLineNumbers: false,
     overflow: 'wrap' as const,
     theme: {
