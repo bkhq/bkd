@@ -80,7 +80,7 @@ function TaskPlanMessage({ message }: { message: TaskPlanChatMessage }) {
 
   return (
     <div className="animate-message-enter">
-      <div className="rounded-lg border border-border/30 bg-background/95">
+      <div className="rounded-lg border border-border/30 bg-background/95 overflow-hidden">
         {/* Compact status bar */}
         <button
           type="button"
