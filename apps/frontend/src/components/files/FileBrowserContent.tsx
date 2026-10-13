@@ -1,16 +1,27 @@
 import {
-  Check,
+  ChevronsDownUp,
+  Code,
   Copy,
   Download,
+  Ellipsis,
   Eye,
   EyeOff,
+  FileText,
   FolderOpen,
+  ListTree,
+  RefreshCw,
+  RotateCcw,
+  Save,
   Trash2,
   Upload,
+  WrapText,
 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { DragEvent, ReactNode } from 'react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { cn } from 'cn'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,18 +32,71 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useDeleteFile, useProject, useProjectFiles, useSaveFile, useUploadFiles } from '@/hooks/use-kanban'
+import { eventBus } from '@/lib/event-bus'
 import { ApiError, kanbanApi } from '@/lib/kanban-api'
+import { joinRootPath } from '@/lib/path-tree'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
-import { SidePanelButton } from '@/components/ui/side-panel'
 import { FileBreadcrumb } from './FileBreadcrumb'
+import { FileEditor } from './FileEditor'
 import { FileList } from './FileList'
-import { FileViewer } from './FileViewer'
+import { FileTree } from './FileTree'
+import { TreePane } from './TreePane'
 
 const UPLOAD_ERROR_TTL_MS = 5000
 /** Server prefix on a 409 upload response; the remainder lists the clashing names. */
 const CONFLICT_PREFIX = /^Already exists:\s*/
 
+function parentDir(path: string): string {
+  return path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.'
+}
+
+function isMarkdown(path: string): boolean {
+  return /\.mdx?$/i.test(path)
+}
+
+/** Small square icon button used in the headers. */
+function IconButton({
+  icon: Icon,
+  label,
+  onClick,
+  active,
+}: {
+  icon: typeof Copy
+  label: string
+  onClick: () => void
+  active?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={active}
+      title={label}
+      className={cn(
+        'flex h-6 w-6 items-center justify-center rounded-md transition-colors',
+        active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </button>
+  )
+}
+
+/**
+ * Workspace file browser: a directory tree (open by default) beside the
+ * opened file, which is directly editable. Without the tree, a directory shows
+ * as a listing.
+ */
 export function FileBrowserContent({
   headerActions,
   enabled = true,
@@ -48,15 +112,30 @@ export function FileBrowserContent({
     hideIgnored,
     navigateTo,
     toggleHideIgnored,
+    showTree,
+    toggleTree,
+    wrap,
+    toggleWrap,
   } = useFileBrowserStore()
 
-  const [copied, setCopied] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
   const [deleteFileConfirm, setDeleteFileConfirm] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [conflict, setConflict] = useState<{ files: File[], names: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Unsaved edits of the opened file (with the on-disk version they started
+  // from), and a navigation waiting on "discard?"
+  const [draft, setDraft] = useState<{ path: string, content: string, baseModifiedAt: string } | null>(null)
+  const [saveConflict, setSaveConflict] = useState(false)
+  const [pendingNav, setPendingNav] = useState<(() => void) | null>(null)
+  const [previewPath, setPreviewPath] = useState<string | null>(null)
+  const [collapseVersion, setCollapseVersion] = useState(0)
+  const queryClient = useQueryClient()
+
+  // Agents edit the workspace too: refresh listings when a run reports changes
+  useEffect(() => eventBus.onChangesSummary(() => {
+    void queryClient.invalidateQueries({ queryKey: ['files'] })
+  }), [queryClient])
 
   const { data: project } = useProject(projectId ?? '')
   const effectiveRoot = rootPath ?? project?.directory ?? null
@@ -65,76 +144,121 @@ export function FileBrowserContent({
   const saveFileMutation = useSaveFile()
   const uploadMutation = useUploadFiles()
 
-  const handleCopyPath = useCallback(() => {
-    const fullPath = currentPath === '.' ? (effectiveRoot ?? '/') : (effectiveRoot ? `${effectiveRoot}/${currentPath}` : currentPath)
-    navigator.clipboard.writeText(fullPath)
-    setCopied(true)
-    setTimeout(setCopied, 1500, false)
-  }, [currentPath, effectiveRoot])
-
-  const handleDownload = useCallback(() => {
-    if (!effectiveRoot || currentPath === '.') return
-    const url = kanbanApi.rawFileUrl(effectiveRoot, currentPath)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = ''
-    a.click()
-  }, [effectiveRoot, currentPath])
-
   const {
     data: listing,
     isLoading,
     isError,
     error,
+    refetch,
   } = useProjectFiles(effectiveRoot, currentPath, !!effectiveRoot && enabled)
 
-  const handleEntryClick = useCallback(
-    (name: string, _type: 'file' | 'directory') => {
-      setIsEditing(false)
-      const newPath = currentPath === '.' ? name : `${currentPath}/${name}`
-      navigateTo(newPath)
-    },
-    [currentPath, navigateTo],
-  )
+  const file = listing?.type === 'file' ? listing : null
+  const draftContent = draft && draft.path === currentPath ? draft.content : null
+  const editorValue = draftContent ?? file?.content ?? ''
+  const isDirty = !!file && draftContent !== null && draftContent !== file.content
+  // The file changed on disk under unsaved edits (typically an agent wrote it)
+  const changedOnDisk = isDirty && draft?.baseModifiedAt !== file?.modifiedAt
+  const preview = !!file && previewPath === file.path
 
-  const handleFileBack = useCallback(() => {
-    setIsEditing(false)
-    const parentPath = currentPath.includes('/')
-      ? currentPath.slice(0, currentPath.lastIndexOf('/'))
-      : '.'
-    navigateTo(parentPath)
-  }, [currentPath, navigateTo])
+  /** Run `go` now, or after the user agrees to drop unsaved edits. */
+  const guardDirty = useCallback((go: () => void) => {
+    if (isDirty) setPendingNav(() => go)
+    else go()
+  }, [isDirty])
 
-  const handleDeleteEntry = useCallback((name: string, _type: 'file' | 'directory') => {
-    if (!effectiveRoot) return
-    const targetPath = currentPath === '.' ? name : `${currentPath}/${name}`
-    deleteFileMutation.mutate({ root: effectiveRoot, path: targetPath })
-  }, [effectiveRoot, currentPath, deleteFileMutation])
+  const openPath = useCallback((path: string) => {
+    if (path === currentPath) return
+    guardDirty(() => {
+      setDraft(null)
+      navigateTo(path)
+    })
+  }, [currentPath, guardDirty, navigateTo])
+
+  /** Save the draft; `overwrite` skips the changed-on-disk check. */
+  const handleSave = useCallback((overwrite = false) => {
+    if (!effectiveRoot || !file || !isDirty) return
+    setSaveConflict(false)
+    saveFileMutation.mutate(
+      {
+        root: effectiveRoot,
+        path: file.path,
+        content: editorValue,
+        expectedModifiedAt: overwrite ? undefined : draft?.baseModifiedAt,
+      },
+      {
+        onSuccess: () => setDraft(null),
+        onError: (err) => {
+          if (err instanceof ApiError && err.statusCode === 409) setSaveConflict(true)
+          else toast.error(err.message)
+        },
+      },
+    )
+  }, [effectiveRoot, file, isDirty, editorValue, draft, saveFileMutation])
+
+  const handleEditorChange = useCallback((content: string) => {
+    if (!file) return
+    // Typing back to the on-disk text drops the draft, so a later refresh
+    // shows the new disk content instead of a stale "edit"
+    if (content === file.content) {
+      setDraft(null)
+      return
+    }
+    setDraft(prev => ({
+      path: file.path,
+      content,
+      baseModifiedAt: prev?.path === file.path ? prev.baseModifiedAt : file.modifiedAt,
+    }))
+  }, [file])
+
+  const handleDiscard = useCallback(() => {
+    setDraft(null)
+    void refetch()
+  }, [refetch])
+
+  const copyText = useCallback((text: string) => {
+    void navigator.clipboard.writeText(text).then(() => toast.success(t('fileBrowser.copied')))
+  }, [t])
+
+  const handleDownload = useCallback(() => {
+    if (!effectiveRoot || !file) return
+    const a = document.createElement('a')
+    a.href = kanbanApi.rawFileUrl(effectiveRoot, file.path)
+    a.download = ''
+    a.click()
+  }, [effectiveRoot, file])
 
   const handleDeleteCurrentFile = useCallback(() => {
-    if (!effectiveRoot || currentPath === '.') return
+    if (!effectiveRoot || !file) return
     deleteFileMutation.mutate(
-      { root: effectiveRoot, path: currentPath },
-      { onSuccess: () => handleFileBack() },
+      { root: effectiveRoot, path: file.path },
+      {
+        onSuccess: () => {
+          setDraft(null)
+          navigateTo(parentDir(file.path))
+        },
+      },
     )
     setDeleteFileConfirm(false)
-  }, [effectiveRoot, currentPath, deleteFileMutation, handleFileBack])
+  }, [effectiveRoot, file, deleteFileMutation, navigateTo])
 
-  const handleSave = useCallback((content: string) => {
-    if (!effectiveRoot || currentPath === '.') return
-    saveFileMutation.mutate(
-      { root: effectiveRoot, path: currentPath, content },
-      { onSuccess: () => setIsEditing(false) },
-    )
-  }, [effectiveRoot, currentPath, saveFileMutation])
+  const handleEntryClick = useCallback((name: string) => {
+    openPath(currentPath === '.' ? name : `${currentPath}/${name}`)
+  }, [currentPath, openPath])
 
-  const canUpload = !!effectiveRoot && listing?.type === 'directory'
+  const handleDeleteEntry = useCallback((name: string) => {
+    if (!effectiveRoot) return
+    deleteFileMutation.mutate({ root: effectiveRoot, path: currentPath === '.' ? name : `${currentPath}/${name}` })
+  }, [effectiveRoot, currentPath, deleteFileMutation])
+
+  // Uploads land in the shown directory, or beside the opened file
+  const uploadDir = file ? parentDir(file.path) : currentPath
+  const canUpload = !!effectiveRoot && !!listing
 
   const uploadFiles = useCallback((files: File[], overwrite = false) => {
     if (!effectiveRoot || files.length === 0) return
     setConflict(null)
     uploadMutation.mutate(
-      { root: effectiveRoot, path: currentPath, files, overwrite },
+      { root: effectiveRoot, path: uploadDir, files, overwrite },
       {
         onError: (err) => {
           if (err instanceof ApiError && err.statusCode === 409) {
@@ -146,7 +270,7 @@ export function FileBrowserContent({
         },
       },
     )
-  }, [effectiveRoot, currentPath, uploadMutation])
+  }, [effectiveRoot, uploadDir, uploadMutation])
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     if (!canUpload) return
@@ -167,95 +291,155 @@ export function FileBrowserContent({
     uploadFiles([...e.dataTransfer.files])
   }, [canUpload, uploadFiles])
 
+  const workspaceTools = (
+    <>
+      {canUpload && (
+        <IconButton
+          icon={Upload}
+          label={uploadMutation.isPending ? t('fileBrowser.uploading') : t('fileBrowser.upload')}
+          onClick={() => fileInputRef.current?.click()}
+        />
+      )}
+      <IconButton
+        icon={hideIgnored ? EyeOff : Eye}
+        label={hideIgnored ? t('fileBrowser.showIgnored') : t('fileBrowser.hideIgnored')}
+        onClick={toggleHideIgnored}
+        active={hideIgnored}
+      />
+    </>
+  )
+
   const currentFileName = currentPath.split('/').pop() ?? currentPath
 
   return (
-    <>
-      {/* Header + Breadcrumb */}
-      {/* Header */}
-      <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] bg-background/80 backdrop-blur-sm">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <FolderOpen className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-          <span className="text-xs font-medium text-muted-foreground truncate font-mono" title={effectiveRoot ?? undefined}>
-            {effectiveRoot ?? t('fileBrowser.title')}
-          </span>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <SidePanelButton
-            icon={copied ? Check : Copy}
-            label={t('fileBrowser.copyPath')}
-            onClick={handleCopyPath}
-          />
-          {canUpload && (
-            <>
-              <SidePanelButton
-                icon={Upload}
-                label={uploadMutation.isPending ? t('fileBrowser.uploading') : t('fileBrowser.upload')}
-                onClick={() => fileInputRef.current?.click()}
-              />
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  uploadFiles([...(e.target.files ?? [])])
-                  e.target.value = ''
-                }}
-              />
-            </>
-          )}
-          {listing?.type === 'file' && (
-            <>
-              <SidePanelButton
-                icon={Download}
-                label={t('fileBrowser.download')}
-                onClick={handleDownload}
-              />
-              <SidePanelButton
-                icon={Trash2}
-                label={t('fileBrowser.delete')}
-                onClick={() => setDeleteFileConfirm(true)}
-                destructive
-              />
-            </>
-          )}
-          <button
-            type="button"
-            onClick={toggleHideIgnored}
-            className={`p-1 rounded transition-colors ${
-              hideIgnored
-                ? 'text-foreground bg-accent'
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-            }`}
-            aria-label={t('fileBrowser.hideIgnored')}
-            title={hideIgnored ? t('fileBrowser.showIgnored') : t('fileBrowser.hideIgnored')}
-          >
-            {hideIgnored ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-          </button>
-          {headerActions}
-        </div>
-      </div>
-
-      {uploadError && (
-        <div role="alert" className="px-3 py-1.5 text-xs text-destructive border-b border-border/60 shrink-0">
-          {uploadError}
+    <div
+      className="relative flex flex-1 min-h-0"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          uploadFiles([...(e.target.files ?? [])])
+          e.target.value = ''
+        }}
+      />
+      {isDragOver && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center border-2 border-dashed border-primary bg-background/80 text-sm text-primary">
+          {t('fileBrowser.dropToUpload')}
         </div>
       )}
 
-      {/* Content (drop zone while a directory is shown) */}
-      <div
-        className="relative flex-1 min-h-0 flex flex-col"
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        {isDragOver && (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center border-2 border-dashed border-primary bg-background/80 text-sm text-primary">
-            {t('fileBrowser.dropToUpload')}
+      {showTree && effectiveRoot && (
+        <TreePane>
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="flex shrink-0 items-center gap-1.5 border-b border-border/60 px-2 py-1.5 min-h-[37px]">
+              <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+              <span className="min-w-0 flex-1 truncate text-xs font-medium" title={effectiveRoot}>
+                {project?.name ?? effectiveRoot}
+              </span>
+              {workspaceTools}
+              <IconButton
+                icon={RefreshCw}
+                label={t('fileBrowser.refresh')}
+                onClick={() => void queryClient.invalidateQueries({ queryKey: ['files'] })}
+              />
+              <IconButton icon={ChevronsDownUp} label={t('fileBrowser.collapseAll')} onClick={() => setCollapseVersion(v => v + 1)} />
+            </div>
+            <div className="min-h-0 flex-1">
+              <FileTree root={effectiveRoot} currentPath={currentPath} onOpenFile={openPath} collapseVersion={collapseVersion} />
+            </div>
+          </div>
+        </TreePane>
+      )}
+
+      <div className="flex flex-1 min-w-0 flex-col">
+        {/* Header: path, unsaved state + save, file menu, tree toggle */}
+        <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-1.5 min-h-[37px]">
+          <div className="min-w-0 flex-1">
+            <FileBreadcrumb path={currentPath} onNavigate={openPath} projectName={project?.name} />
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {isDirty && (
+              <>
+                {changedOnDisk
+                  ? <span className="text-xs text-amber-600 dark:text-amber-400">{t('fileBrowser.changedOnDisk')}</span>
+                  : <span className="text-xs text-muted-foreground">{t('fileBrowser.modified')}</span>}
+                <button
+                  type="button"
+                  onClick={() => handleSave()}
+                  disabled={saveFileMutation.isPending}
+                  className="flex h-6 items-center gap-1 rounded-md bg-emerald-600 px-2 text-xs font-medium text-white transition-colors hover:bg-emerald-600/90 disabled:opacity-60"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  {saveFileMutation.isPending ? t('fileBrowser.saving') : t('fileBrowser.saveFile')}
+                </button>
+              </>
+            )}
+            {file && isMarkdown(file.path) && (
+              <IconButton
+                icon={preview ? Code : FileText}
+                label={preview ? t('fileBrowser.viewSource') : t('fileBrowser.viewRendered')}
+                onClick={() => setPreviewPath(preview ? null : file.path)}
+              />
+            )}
+            {!showTree && workspaceTools}
+            {file && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  aria-label={t('fileBrowser.fileActions')}
+                  title={t('fileBrowser.fileActions')}
+                >
+                  <Ellipsis className="h-3.5 w-3.5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-auto min-w-0">
+                  <DropdownMenuItem className="whitespace-nowrap text-xs" onClick={() => copyText(joinRootPath(effectiveRoot, file.path))}>
+                    <Copy className="h-3.5 w-3.5" />
+                    {t('fileBrowser.copyPath')}
+                  </DropdownMenuItem>
+                  {!file.isBinary && (
+                    <DropdownMenuItem className="whitespace-nowrap text-xs" onClick={() => copyText(editorValue)}>
+                      <Copy className="h-3.5 w-3.5" />
+                      {t('fileBrowser.copyContent')}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem className="whitespace-nowrap text-xs" onClick={handleDownload}>
+                    <Download className="h-3.5 w-3.5" />
+                    {t('fileBrowser.download')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" className="whitespace-nowrap text-xs" onClick={handleDiscard}>
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    {t('fileBrowser.discardAndReload')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" className="whitespace-nowrap text-xs" onClick={() => setDeleteFileConfirm(true)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {t('fileBrowser.delete')}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem checked={wrap} onCheckedChange={toggleWrap} className="whitespace-nowrap text-xs">
+                    <WrapText className="h-3.5 w-3.5" />
+                    {t('fileBrowser.wordWrap')}
+                  </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <IconButton icon={ListTree} label={t('fileBrowser.fileTree')} onClick={toggleTree} active={showTree} />
+            {headerActions}
+          </div>
+        </div>
+
+        {uploadError && (
+          <div role="alert" className="px-3 py-1.5 text-xs text-destructive border-b border-border/60 shrink-0">
+            {uploadError}
           </div>
         )}
-        <div className="flex-1 overflow-auto min-h-0 flex flex-col">
+
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
           {!effectiveRoot
             ? (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
@@ -275,32 +459,83 @@ export function FileBrowserContent({
                       {(error as Error)?.message || t('fileBrowser.loadError')}
                     </div>
                   )
-                : listing?.type === 'file'
+                : file
                   ? (
-                      <FileViewer
+                      <FileEditor
+                        file={file}
                         root={effectiveRoot}
-                        file={listing}
-                        breadcrumb={<FileBreadcrumb path={currentPath} onNavigate={navigateTo} projectName={project?.name} />}
-                        isEditing={isEditing}
-                        onStartEdit={() => setIsEditing(true)}
-                        onCancelEdit={() => setIsEditing(false)}
-                        onSave={handleSave}
-                        isSaving={saveFileMutation.isPending}
+                        value={editorValue}
+                        onChange={handleEditorChange}
+                        onSave={() => handleSave()}
+                        wrap={wrap}
+                        preview={preview}
                       />
                     )
                   : listing?.type === 'directory'
-                    ? (
-                        <FileList
-                          entries={listing.entries}
-                          onNavigate={handleEntryClick}
-                          onDelete={handleDeleteEntry}
-                          isDeleting={deleteFileMutation.isPending}
-                          breadcrumb={<FileBreadcrumb path={currentPath} onNavigate={navigateTo} projectName={project?.name} />}
-                        />
-                      )
+                    ? (showTree
+                        ? (
+                            <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+                              {t('fileBrowser.selectFile')}
+                            </div>
+                          )
+                        : (
+                            <FileList
+                              entries={listing.entries}
+                              onNavigate={handleEntryClick}
+                              onDelete={handleDeleteEntry}
+                              isDeleting={deleteFileMutation.isPending}
+                            />
+                          ))
                     : null}
         </div>
       </div>
+
+      {/* Save refused: the file changed on disk since it was opened */}
+      <AlertDialog open={saveConflict} onOpenChange={setSaveConflict}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('fileBrowser.saveConflictTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('fileBrowser.saveConflictDesc', { name: currentFileName })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('fileBrowser.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="outline"
+              onClick={() => {
+                setSaveConflict(false)
+                handleDiscard()
+              }}
+            >
+              {t('fileBrowser.reloadFromDisk')}
+            </AlertDialogAction>
+            <AlertDialogAction variant="destructive" onClick={() => handleSave(true)}>
+              {t('fileBrowser.overwrite')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Navigating away from unsaved edits */}
+      <AlertDialog open={!!pendingNav} onOpenChange={open => !open && setPendingNav(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('fileBrowser.unsavedTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('fileBrowser.unsavedDesc', { name: currentFileName })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('fileBrowser.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                pendingNav?.()
+                setPendingNav(null)
+              }}
+            >
+              {t('fileBrowser.discard')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete confirmation for current file */}
       <AlertDialog open={deleteFileConfirm} onOpenChange={setDeleteFileConfirm}>
@@ -344,6 +579,6 @@ export function FileBrowserContent({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   )
 }

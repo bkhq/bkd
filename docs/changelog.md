@@ -674,3 +674,18 @@ bottom border as the page headers (logo kept at 36px like the project
 buttons, centred with 6px above and below), replacing the separator that sat
 8px lower; the kanban header's top row is fixed at 48px (+1px border) so the
 line also meets on the board.
+
+## 2026-10-13 08:50 [pitfall]
+
+API tests failed whole files with `z.object(...).openapi is not a function`: `.openapi()` is
+patched onto zod when `@hono/zod-openapi` is imported, and `src/openapi/schemas.ts` (which
+calls it at module scope) did not import it. In the app some route loads it first; a test
+importing `@/db/helpers` loaded the schemas first. A side-effect import in `schemas.ts` fixes
+the order — the API suite went from 510 pass / 32 fail to 783 pass / 6 fail (the remaining 6
+are `20261013-0538-spawn-leak-tests-order-dependent`).
+
+## 2026-10-13 08:50 [progress]
+
+`20261013-0726-workspace-side-panel`: file saves from the editor send the `modifiedAt` they
+started from; the API answers 409 if the file changed on disk (an agent wrote it), and the
+editor offers reload or overwrite. File listings refresh on `changes-summary` events.

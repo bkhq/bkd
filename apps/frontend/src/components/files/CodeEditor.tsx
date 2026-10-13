@@ -10,7 +10,7 @@ import { sql } from '@codemirror/lang-sql'
 import { xml } from '@codemirror/lang-xml'
 import { yaml } from '@codemirror/lang-yaml'
 import type { Extension } from '@uiw/react-codemirror'
-import CodeMirror from '@uiw/react-codemirror'
+import CodeMirror, { EditorView } from '@uiw/react-codemirror'
 import { useCallback, useMemo } from 'react'
 import { useTheme } from '@/hooks/use-theme'
 
@@ -69,17 +69,21 @@ interface CodeEditorProps {
   onChange: (value: string) => void
   onSave?: () => void
   onCancel?: () => void
+  /** Soft-wrap long lines. */
+  wrap?: boolean
+  readOnly?: boolean
 }
 
-export function CodeEditor({ value, filePath, onChange, onSave, onCancel }: CodeEditorProps) {
+export function CodeEditor({ value, filePath, onChange, onSave, onCancel, wrap, readOnly }: CodeEditorProps) {
   const { resolved } = useTheme()
 
   const extensions = useMemo(() => {
     const exts: Extension[] = []
     const lang = getLanguageExtension(filePath)
     if (lang) exts.push(lang)
+    if (wrap) exts.push(EditorView.lineWrapping)
     return exts
-  }, [filePath])
+  }, [filePath, wrap])
 
   const handleChange = useCallback((val: string) => {
     onChange(val)
@@ -90,7 +94,7 @@ export function CodeEditor({ value, filePath, onChange, onSave, onCancel }: Code
       e.preventDefault()
       onSave?.()
     }
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && onCancel) {
       e.preventDefault()
       onCancel?.()
     }
@@ -103,6 +107,7 @@ export function CodeEditor({ value, filePath, onChange, onSave, onCancel }: Code
         height="100%"
         theme={resolved === 'dark' ? 'dark' : 'light'}
         extensions={extensions}
+        editable={!readOnly}
         onChange={handleChange}
         basicSetup={{
           lineNumbers: true,
