@@ -684,3 +684,14 @@ cron action (daily at 05:00). It soft-deletes every decision event that is no lo
 `open` once its `updatedAt` is more than one day old, and emits
 `decision-event-updated` for each. A `decided` event whose follow-up was never
 delivered is removed on the same schedule.
+
+## 2026-10-13 22:23 [security]
+
+`20261013-2219-webhook-local-targets`: webhook URLs may target `localhost`,
+loopback, RFC 1918, CGNAT and IPv6 unique-local addresses, so BKD can notify
+systems on the same host or LAN. Link-local (including `169.254.169.254`),
+multicast, unspecified and reserved ranges stay blocked, at save time and at
+delivery. `isPrivateHostname()` was removed; the delivery log now records
+`Blocked: …` instead of `SSRF blocked: …`.
+Webhook delivery no longer follows redirects, so a target cannot redirect to
+a blocked address; a `3xx` answer counts as a failed delivery.

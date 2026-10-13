@@ -84,15 +84,26 @@ describe('POST /api/settings/webhooks', () => {
     expect(data.url).toBe('https://not-yet-created.invalid/hook')
   })
 
-  test('still rejects obviously private webhook URLs', async () => {
-    const result = await post<unknown>('/api/settings/webhooks', {
+  test('allows a webhook on a local address', async () => {
+    const result = await post<WebhookResponse>('/api/settings/webhooks', {
       channel: 'webhook',
       url: 'http://localhost:3000/hook',
+      events: ['issue.updated'],
+      isActive: false,
+    })
+
+    expect(result.status).toBe(201)
+    expect(expectSuccess(result).url).toBe('http://localhost:3000/hook')
+  })
+
+  test('still rejects the cloud metadata address', async () => {
+    const result = await post<unknown>('/api/settings/webhooks', {
+      channel: 'webhook',
+      url: 'http://169.254.169.254/latest/meta-data/',
       events: ['issue.updated'],
       isActive: true,
     })
 
-    expect(result.status).toBe(400)
-    expect(expectError(result, 400)).toContain('private')
+    expect(expectError(result, 400)).toContain('link-local')
   })
 })

@@ -48,7 +48,7 @@ Database-backed DELETE operations (projects, issues, notes, webhooks, etc.) use 
 - Workspace directory confinement (SEC-022)
 - XSS prevention via `Content-Disposition: attachment` (SEC-024)
 - Symlink traversal prevention via `realpath()` (SEC-025)
-- SSRF protection on webhook URLs (private/internal network blocking)
+- Webhook URLs may target local and private-network addresses; link-local (cloud metadata) and reserved ranges are blocked
 
 ### Compression
 

@@ -200,6 +200,7 @@ One question a coordinating agent needs the user to answer, per the `bkd` skill'
 - Deciding sends `[event-decision eventId=… campaignId=…]` to the `notify` issue via `dispatchFollowUp()` (`routes/issues/_shared.ts`, shared with the follow-up route). A failed delivery leaves the event `decided`; `POST …/notify` resends.
 - Closing is the user's way to end an event without answering; it sends no follow-up.
 - Every write emits `decision-event-updated` (bus + SSE).
+- Webhook URLs may target loopback and private networks; `utils/url-safety.ts` still blocks link-local (cloud metadata) and reserved ranges, at save time and at delivery.
 
 Routes: `GET /api/decisions` (capability probe, `{ supported, contractVersion }`), `GET/POST /api/decisions/events`, `GET/PATCH /api/decisions/events/:id`, `POST /api/decisions/events/:id/{decision,notify,ack,withdraw,close}`.
 

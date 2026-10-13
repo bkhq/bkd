@@ -235,12 +235,11 @@ async function deliverWebhook(
   response: string | null
   success: boolean
 }> {
-  // Defense-in-depth: re-validate at delivery time to catch DNS rebinding
-  // between the time the URL was stored and now.
+  // Re-validate at delivery time: the hostname may now resolve to a blocked address
   const check = await validateWebhookUrl(webhook.url)
   if (!check.ok) {
-    logger.warn({ webhookId: webhook.id, url: webhook.url, error: check.error }, 'webhook_ssrf_blocked')
-    return { statusCode: null, response: `SSRF blocked: ${check.error}`, success: false }
+    logger.warn({ webhookId: webhook.id, url: webhook.url, error: check.error }, 'webhook_target_blocked')
+    return { statusCode: null, response: `Blocked: ${check.error}`, success: false }
   }
 
   const body = JSON.stringify(payload)
@@ -256,6 +255,8 @@ async function deliverWebhook(
     method: 'POST',
     headers,
     body,
+    // A redirect could lead to an address the URL check blocks
+    redirect: 'manual',
     signal: AbortSignal.timeout(10_000),
   })
   const response = (await res.text()).slice(0, 1024)

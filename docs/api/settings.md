@@ -130,7 +130,7 @@ Create a webhook.
 | `events` | `string[]` | Yes | Event types to subscribe to |
 | `isActive` | `boolean` | No | Active state (default: true) |
 
-**Security:** Webhook URLs are validated against private/internal network hostnames (SSRF protection). Loopback, RFC 1918, link-local, cloud metadata, and IPv6 private addresses are blocked.
+**Targets:** A webhook URL may point at a local system: `localhost`, loopback, RFC 1918, CGNAT (`100.64.0.0/10`) and IPv6 unique-local addresses are allowed. Link-local addresses (including the cloud metadata address `169.254.169.254`), multicast, unspecified and reserved ranges are rejected, as IP literals when saving and again at delivery time when a hostname resolves to one. Redirects are not followed: a `3xx` answer is recorded as a failed delivery.
 
 **Response:** `201` with `Webhook`
 

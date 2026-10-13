@@ -157,3 +157,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261013-2005-decision-capability-probe Add a decision-events capability probe and drop the bundled skill**](20261013-2005-decision-capability-probe.md) `P2`
 - [x] [**20261013-2212-decision-event-retention Delete decided decision events after one day**](20261013-2212-decision-event-retention.md) `P2`
 - [ ] [**20261013-2222-api-execution-test-timeout api-execution test times out in the full suite**](20261013-2222-api-execution-test-timeout.md) `P2`
+- [x] [**20261013-2219-webhook-local-targets Allow webhooks to target local addresses**](20261013-2219-webhook-local-targets.md) `P2`
