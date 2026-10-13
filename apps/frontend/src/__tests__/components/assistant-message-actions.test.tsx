@@ -59,7 +59,7 @@ describe('assistant message actions', () => {
       'border',
       'border-l-[3px]',
       'border-l-primary/60',
-      'bg-primary/[0.04]',
+      'bg-muted/30',
     )
   })
 

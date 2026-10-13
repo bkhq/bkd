@@ -682,7 +682,7 @@ function AssistantMessage({
 
   return (
     <div className="group py-2 animate-message-enter">
-      <div ref={bodyRef} data-testid="assistant-message-body" className="min-w-0 rounded-lg border border-border border-l-[3px] border-l-primary/60 bg-primary/[0.04] px-3 py-2.5">
+      <div ref={bodyRef} data-testid="assistant-message-body" className="min-w-0 rounded-lg border border-border border-l-[3px] border-l-primary/60 bg-muted/30 px-3 py-2.5">
         <MarkdownContent content={content} className="text-[14px] leading-[1.75]" isStreaming={isStreaming} />
       </div>
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
