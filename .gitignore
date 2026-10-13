@@ -82,3 +82,6 @@ tmp/
 worktrees
 # Added by code-review-graph
 .code-review-graph/
+
+# agent scratch space
+.tmp/
