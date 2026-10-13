@@ -617,6 +617,8 @@ export interface FileContent {
   size: number
   isTruncated: boolean
   isBinary: boolean
+  /** mtime (ISO) of the version returned; send it back to save without clobbering. */
+  modifiedAt: string
 }
 
 export type FileListingResult = DirectoryListing | FileContent

@@ -586,12 +586,13 @@ export const kanbanApi = {
     return del<{ deleted: boolean }>(`/api/files/${encodedRoot}/delete/${encodedPath}`)
   },
 
-  saveFile: (root: string, path: string, content: string) => {
+  /** With `expectedModifiedAt`, the server answers 409 if the file changed on disk. */
+  saveFile: (root: string, path: string, content: string, expectedModifiedAt?: string) => {
     const encodedRoot = encodeRootPath(root)
     const encodedPath = path.split('/').map(encodeURIComponent).join('/')
     return request<{ size: number, modifiedAt: string }>(
       `/api/files/${encodedRoot}/save/${encodedPath}`,
-      { method: 'PUT', body: JSON.stringify({ content }) },
+      { method: 'PUT', body: JSON.stringify({ content, expectedModifiedAt }) },
     )
   },
 
