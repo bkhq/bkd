@@ -621,3 +621,18 @@ Agent messages use the same card as user messages (border, 3px left bar,
 padding, outer spacing) instead of a borderless tinted block, marked by a
 primary-tinted bar and background where user messages stay neutral. Task
 `20261013-0155-agent-message-card-style`.
+
+## 2026-10-13 05:38 [BUG-P1]
+
+Worktrees of deleted issues and projects were never removed, and the cleanup
+stats endpoint timed out (`ERR_CONNECTION_CLOSED` after the client's 30s limit)
+once they piled up: it walked every orphaned worktree file by file to size it.
+Deleted issues still keep their worktree so a recycle-bin restore is lossless;
+the `worktree:autoCleanup` cron now also removes it once the issue has been
+deleted for more than 1 day, and hard-deleting issues removes their worktrees
+before the rows go. Manual worktree cleanup runs `git worktree remove` in the
+owning project's repository instead of the server cwd, so the project no
+longer keeps stale `.git/worktrees` entries. Cleanup stats report the
+worktree count only (`totalSize: 0`). Task
+`20261013-0244-worktree-cleanup-on-delete`, plan
+`20261013-0244-worktree-cleanup-on-delete`.

@@ -470,7 +470,7 @@
     "virtualEngineModelPlaceholder": "fallback model (optional, used if discovery fails)",
     "virtualEngineEnvPlaceholder": "EXTRA_VAR=value\n# one KEY=VALUE per line",
     "worktreeAutoCleanup": "Auto-cleanup worktrees",
-    "worktreeAutoCleanupHint": "Automatically remove worktrees for issues that have been done for more than 1 day",
+    "worktreeAutoCleanupHint": "Automatically remove worktrees for issues that have been done or deleted for more than 1 day",
     "upgradeAvailable": "New version available: v{{version}}",
     "supervisedMode": "Supervised",
     "upgradeStatusLabel": "Supervisor status",
