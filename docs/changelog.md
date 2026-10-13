@@ -621,3 +621,27 @@ Agent messages use the same card as user messages (border, 3px left bar,
 padding, outer spacing) instead of a borderless tinted block, marked by a
 primary-tinted bar and background where user messages stay neutral. Task
 `20261013-0155-agent-message-card-style`.
+
+## 2026-10-13 18:58 [progress]
+
+Decision events. BKD now implements the decision-event contract from the `bkd`
+skill (`decision-events.md` in `zzci/skills`): a coordinating agent raises one
+event per question over REST, the user decides in a global `/decisions` inbox,
+and BKD wakes the raiser with a `[event-decision …]` follow-up. BKD is the
+platform only and never creates an event. Routes live under
+`/api/decisions/events` so `BKD_EVENT_URL=$BKD_URL/api/decisions` serves the
+contract paths unchanged; `/api/events` stays the SSE stream.
+
+Two additions to the contract: `POST …/close` lets the user end an open or
+decided event without notifying anyone (status `closed`), and `POST …/notify`
+resends a wake signal that failed. The skill still needs a rule for `closed`
+events, which drop out of its `open`/`decided` scan.
+
+The follow-up routing moved out of the `follow-up` route handler into
+`dispatchFollowUp()` in `routes/issues/_shared.ts`; the route and the
+notification both call it. Migration `0026`. Task and plan
+`20261013-1706-tickets`.
+
+Scope history: the first draft was a project-scoped ticket thread written by
+hand, the second a global inbox auto-fed by `review` transitions. Both were
+dropped before implementation in favour of the skill contract.

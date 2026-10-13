@@ -58,6 +58,7 @@ SQLite via `bun:sqlite` + Drizzle ORM. WAL mode, foreign keys, 64 MB cache, 256 
 | `attachments` | `id` (ULID), `issueId`, `logId`, `originalName`, `storedName`, `mimeType`, `size` | File uploads |
 | `appSettings` | `key` (PK), `value` | Key-value store for server config |
 | `notes` | `id` (ULID), `title`, `content`, `isPinned` | User notes |
+| `decisionEvents` | `id`, `status`, `campaignId`, `ref`, `question`, `options`, `notify`, `decision` | Decision events raised by coordinating agents |
 | `webhooks` | `id` (ULID), `channel`, `url`, `secret`, `events`, `isActive` | Webhook endpoints |
 | `webhookDeliveries` | `id`, `webhookId`, `dedupKey`, `statusCode`, `success`, `duration` | Delivery audit trail |
 | `cronJobs` | `id`, `name`, `cron`, `taskType`, `taskConfig`, `enabled` | Scheduled jobs |
@@ -116,6 +117,7 @@ Hardcoded constants — no DB table:
 | `/api/worktrees/*` | GET, DELETE | `worktrees.ts` | Worktree management |
 | `/api/cron/*` | GET, POST, PATCH, DELETE | `cron.ts` | Cron job management |
 | `/api/notes/*` | GET, POST, PATCH, DELETE | `notes.ts` | Notes CRUD |
+| `/api/decisions/events/*` | GET, POST, PATCH | `decisions.ts` | Decision events: raise, decide, ack, withdraw, close |
 | `/api/mcp/*` | GET, POST | `mcp.ts` | MCP server routes |
 
 ### Engine System (`engines/`)
@@ -226,6 +228,17 @@ Powered by `cronbake` scheduler:
 - Tables: `cronJobs` + `cronJobLogs`
 - MCP integration: cron jobs exposed as MCP tools for AI agents
 
+### Decision Events (`decisions/`)
+
+A decision event is one question a coordinating agent needs the user to answer. BKD is the platform only: it stores events, shows them, and wakes the raiser — it never creates one itself.
+
+- Contract: `skills/bkd/references/decision-events.md` in `zzci/skills`. A coordinator sets `BKD_EVENT_URL=$BKD_URL/api/decisions` and calls `/events/...` as written there. The mount point avoids `GET /api/events`, which is the SSE stream.
+- States: `open → decided → applied`, `open → withdrawn`, and `open | decided → closed`. A transition from any other state returns 409.
+- `decision` (user): an option, a free-form instruction, or both. BKD then sends `[event-decision eventId=… campaignId=…]` to the `notify` issue through `dispatchFollowUp()` — the same routing the follow-up route uses. The message is a wake signal; the raiser re-reads the event. A failed delivery leaves the event `decided` with `notifiedAt` empty, and `POST /events/:id/notify` resends it.
+- `close` (user) ends an event without answering it and sends no follow-up. It is an extension of the skill contract.
+- `ack` and `withdraw` belong to the raiser.
+- Every write emits `decision-event-updated` on the event bus and over SSE.
+
 ### Event System (`events/`)
 
 **SSE endpoint** (`GET /api/events`) — single global stream via Hono `streamSSE`:
@@ -289,6 +302,7 @@ Model Context Protocol server exposing BKD operations as tools:
 | `/review[/:projectAlias/:issueId]` | `ReviewPage` | Review queue |
 | `/terminal` | `TerminalPage` | Full-page terminal |
 | `/cron` | `CronPage` | Cron job management |
+| `/decisions` | `DecisionsPage` | Global decision inbox |
 
 Four global drawers (lazy-mounted): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`.
 

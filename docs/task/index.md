@@ -1,6 +1,6 @@
 # BKD - Task List
 
-> Updated: 2026-10-12
+> Updated: 2026-10-13
 
 ## Usage
 
@@ -151,3 +151,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261012-1926-failed-tool-result-error-box Keep failed tool results inside their tool call**](20261012-1926-failed-tool-result-error-box.md) `P2`
 - [x] [**20261012-2028-chat-heading-size-and-agent-bg Flatten chat Markdown headings and give agent messages a background**](20261012-2028-chat-heading-size-and-agent-bg.md) `P2`
 - [x] [**20261013-0155-agent-message-card-style Style agent messages as a card matching user messages**](20261013-0155-agent-message-card-style.md) `P2`
+- [x] [**20261013-1706-tickets Add tickets for decisions and user feedback**](20261013-1706-tickets.md) `P1`

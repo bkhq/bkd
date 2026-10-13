@@ -9,6 +9,7 @@ import { CreateProjectDialog } from '@/components/CreateProjectDialog'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { ViewModeSelect } from '@/components/ViewModeSelect'
+import { useOpenDecisionCount } from '@/hooks/use-decision-events'
 import { useEventConnection } from '@/hooks/use-event-connection'
 import { useProjects } from '@/hooks/use-kanban'
 import { placeFlyout } from '@/lib/flyout-position'
@@ -171,6 +172,7 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
   const isTerminalMinimized = useTerminalStore(s => s.isMinimized)
   const toggleNotes = useNotesStore(s => s.toggle)
   const isNotesMinimized = useNotesStore(s => s.isMinimized)
+  const openDecisions = useOpenDecisionCount()
 
   const railRef = useRef<HTMLDivElement>(null)
   const activeIconRef = useRef<HTMLButtonElement>(null)
@@ -308,12 +310,17 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
             key={id}
             variant="ghost"
             size="icon"
-            className="h-9 w-9 text-muted-foreground"
+            className="relative h-9 w-9 text-muted-foreground"
             aria-label={t(labelKey)}
             title={t(labelKey)}
             onClick={() => navigate(path)}
           >
             <Icon className="h-4 w-4" />
+            {id === 'decisions' && openDecisions > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+                {openDecisions}
+              </span>
+            )}
           </Button>
         ))}
         <Button

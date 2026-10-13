@@ -183,6 +183,13 @@
       "when": 1790939571594,
       "tag": "0025_youthful_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1791916590903,
+      "tag": "0026_spotty_susan_delgado",
+      "breakpoints": true
     }
   ]
 }

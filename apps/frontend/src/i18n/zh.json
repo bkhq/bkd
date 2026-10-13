@@ -719,5 +719,47 @@
     "deleting": "删除中...",
     "deleteConfirmTitle": "删除定时任务？",
     "deleteConfirm": "定时任务“{{name}}”将从调度中移除，其执行日志会被保留。"
+  },
+  "decisions": {
+    "title": "决策",
+    "group": {
+      "waiting": "待决策",
+      "decided": "已决策",
+      "history": "历史"
+    },
+    "empty": {
+      "waiting": "没有等待你决策的事项",
+      "decided": "没有等待执行的决策",
+      "history": "暂无历史决策"
+    },
+    "status": {
+      "open": "待决策",
+      "decided": "已决策",
+      "applied": "已执行",
+      "withdrawn": "已撤回",
+      "closed": "已关闭"
+    },
+    "concerns": "涉及",
+    "raisedBy": "发起方",
+    "blocks": "阻塞",
+    "continues": "继续进行",
+    "options": "选项",
+    "recommended": "推荐",
+    "instruction": "指示",
+    "instructionPlaceholder": "补充指示，或不选选项直接用指示做决策",
+    "decision": "决策",
+    "decidedBy": "决策人",
+    "outcome": "执行结果",
+    "withdrawReason": "撤回原因",
+    "closeReason": "关闭原因",
+    "decide": "决策",
+    "close": "关闭",
+    "resend": "重新发送",
+    "notDelivered": "决策已记录，但尚未通知到代理。",
+    "closeConfirmTitle": "关闭这个决策？",
+    "closeConfirm": "事件将直接结束，不会通知代理。等待它的工作会保持阻塞，直到代理下次检查。",
+    "closeReasonPlaceholder": "原因（可选）",
+    "campaign": "Campaign",
+    "allCampaigns": "全部 campaign"
   }
 }

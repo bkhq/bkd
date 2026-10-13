@@ -499,6 +499,121 @@ export const UpdateNoteSchema = z.object({
   isPinned: z.boolean().optional(),
 }).openapi('UpdateNote')
 
+// ── Decision event schemas ─────────────────────────────
+
+export const DECISION_EVENT_STATUSES = ['open', 'decided', 'applied', 'withdrawn', 'closed'] as const
+
+const DecisionEventOptionSchema = z.object({
+  id: z.string().trim().min(1).max(50),
+  label: z.string().trim().min(1).max(500),
+  impact: z.string().max(2000).optional().default(''),
+})
+
+const DecisionEventRecommendationSchema = z.object({
+  optionId: z.string().min(1).max(50),
+  reason: z.string().max(2000).optional().default(''),
+})
+
+const DecisionEventNotifySchema = z.object({
+  type: z.literal('bkd-follow-up'),
+  bkdUrl: z.string().max(2000).optional(),
+  projectId: z.string().min(1).max(100),
+  issueId: z.string().min(1).max(100),
+})
+
+const DecisionEventIssueLinkSchema = z.object({
+  issueId: z.string(),
+  projectId: z.string(),
+  issueNumber: z.number(),
+  title: z.string(),
+})
+
+export const DecisionEventSchema = z.object({
+  id: z.string(),
+  status: z.enum(DECISION_EVENT_STATUSES),
+  campaignId: z.string(),
+  ref: z.string().nullable(),
+  question: z.string(),
+  context: z.string(),
+  options: z.array(z.object({ id: z.string(), label: z.string(), impact: z.string() })),
+  recommendation: z.object({ optionId: z.string(), reason: z.string() }).nullable(),
+  blocks: z.string().nullable(),
+  continues: z.string().nullable(),
+  notify: DecisionEventNotifySchema,
+  decision: z.object({
+    optionId: z.string().nullable(),
+    instruction: z.string(),
+    decidedBy: z.string(),
+    decidedAt: z.string(),
+  }).nullable(),
+  outcome: z.string().nullable(),
+  withdrawReason: z.string().nullable(),
+  closeReason: z.string().nullable(),
+  notifiedAt: z.string().nullable(),
+  links: z.object({
+    projectName: z.string().nullable(),
+    ref: DecisionEventIssueLinkSchema.nullable(),
+    notify: DecisionEventIssueLinkSchema.nullable(),
+  }),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+}).openapi('DecisionEvent')
+
+const decisionEventFacts = {
+  ref: z.string().max(100).nullable().optional(),
+  question: z.string().trim().min(1, 'question is required').max(2000),
+  context: z.string().max(20_000),
+  options: z.array(DecisionEventOptionSchema).max(20).refine(
+    options => new Set(options.map(o => o.id)).size === options.length,
+    'option ids must be unique',
+  ),
+  recommendation: DecisionEventRecommendationSchema.nullable().optional(),
+  blocks: z.string().max(2000).nullable().optional(),
+  continues: z.string().max(2000).nullable().optional(),
+}
+
+export const CreateDecisionEventSchema = z.object({
+  campaignId: z.string().trim().min(1).max(200),
+  ...decisionEventFacts,
+  context: decisionEventFacts.context.optional().default(''),
+  options: decisionEventFacts.options.optional().default([]),
+  notify: DecisionEventNotifySchema,
+}).openapi('CreateDecisionEvent')
+
+export const UpdateDecisionEventSchema = z.object({
+  ...decisionEventFacts,
+  question: decisionEventFacts.question.optional(),
+  context: decisionEventFacts.context.optional(),
+  options: decisionEventFacts.options.optional(),
+}).openapi('UpdateDecisionEvent')
+
+export const DecideDecisionEventSchema = z.object({
+  optionId: z.string().min(1).max(50).nullable().optional(),
+  instruction: z.string().trim().max(20_000).optional().default(''),
+  decidedBy: z.string().trim().min(1).max(200).optional().default('user'),
+}).refine(d => !!d.optionId || d.instruction.length > 0, 'optionId or instruction is required').openapi('DecideDecisionEvent')
+
+export const AckDecisionEventSchema = z.object({
+  outcome: z.string().trim().min(1, 'outcome is required').max(2000),
+}).openapi('AckDecisionEvent')
+
+export const WithdrawDecisionEventSchema = z.object({
+  reason: z.string().trim().min(1, 'reason is required').max(2000),
+}).openapi('WithdrawDecisionEvent')
+
+export const CloseDecisionEventSchema = z.object({
+  reason: z.string().trim().max(2000).optional(),
+}).openapi('CloseDecisionEvent')
+
+export const ListDecisionEventsQuerySchema = z.object({
+  campaignId: z.string().max(200).optional(),
+  status: z.string().max(100).optional().refine(
+    v => v === undefined
+      || v.split(',').every(s => (DECISION_EVENT_STATUSES as readonly string[]).includes(s)),
+    'status must be a comma-separated list of open, decided, applied, withdrawn, closed',
+  ),
+})
+
 // ── Worktree schemas ───────────────────────────────────
 
 export const WorktreeEntrySchema = z.object({

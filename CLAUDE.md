@@ -81,7 +81,7 @@ bun scripts/migrate-to-lode.ts --root /opt/bkd --apply --prune
 
 #### Data Layer
 
-Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings` (key-value store for server settings).
+Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings` (key-value store for server settings), `decisionEvents`.
 
 Statuses are hardcoded constants in `config.ts` (`todo`, `working`, `review`, `done`) — no DB table.
 
@@ -117,7 +117,7 @@ The `/logs/filter/*` route accepts path-based key/value filter pairs (order-inde
 - Example: `/logs/filter/types/user-message,assistant-message/turn/last3`
 - Pagination via query params: `cursor`, `before`, `limit`
 
-System routes: `/api/engines/*`, `/api/events` (SSE), `/api/settings/*`, `/api/upgrade/*`, `/api/terminal/ws`, `/api/files/*`, `/api/filesystem/*`, `/api/git/*`, `/api/processes/*`, `/api/worktrees/*`, `/api/cron/*`.
+System routes: `/api/engines/*`, `/api/events` (SSE), `/api/decisions/events/*`, `/api/settings/*`, `/api/upgrade/*`, `/api/terminal/ws`, `/api/files/*`, `/api/filesystem/*`, `/api/git/*`, `/api/processes/*`, `/api/worktrees/*`, `/api/cron/*`.
 
 Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`. Shared schemas and helpers in `_shared.ts`.
 
@@ -173,7 +173,7 @@ Route handler → IssueEngine.executeIssue() → acquires per-issue lock
 
 Global SSE endpoint (`GET /api/events`) via Hono `streamSSE`:
 
-- Event types: `log`, `state`, `done`, `issue-updated`, `changes-summary`, `heartbeat` (15s)
+- Event types: `log`, `state`, `done`, `issue-updated`, `changes-summary`, `decision-event-updated`, `heartbeat` (15s)
 - Subscribes to `IssueEngine` callbacks + `onIssueUpdated` + `onChangesSummary`
 - `changes-summary.ts`: runs `git status/diff` after each issue settles, pushes stats via SSE
 
@@ -182,6 +182,17 @@ Global SSE endpoint (`GET /api/events`) via Hono `streamSSE`:
 Scheduled task execution with cron expressions (powered by `baker` scheduler). DB tables: `cronJobs`, `cronJobLogs`. Supports pluggable actions (`actions/` directory) — each action type (e.g., execute issue, HTTP request) implements a standard interface. Features: auto-pause after 3 consecutive failures, execution logs with pagination, soft-delete.
 
 Routes: `GET/POST /api/cron`, `GET/PATCH/DELETE /api/cron/:id`, `POST /api/cron/:id/run`, `GET /api/cron/:id/logs`, `GET /api/cron/actions`.
+
+#### Decision Events (`decisions/`)
+
+One question a coordinating agent needs the user to answer, per the `bkd` skill's `decision-events.md` contract. BKD is the platform only — it never creates an event. Mounted at `/api/decisions` (so `BKD_EVENT_URL=$BKD_URL/api/decisions`) because `GET /api/events` is the SSE stream.
+
+- States: `open → decided → applied`, `open → withdrawn`, `open | decided → closed`; wrong-state transitions return 409.
+- Deciding sends `[event-decision eventId=… campaignId=…]` to the `notify` issue via `dispatchFollowUp()` (`routes/issues/_shared.ts`, shared with the follow-up route). A failed delivery leaves the event `decided`; `POST …/notify` resends.
+- Closing is the user's way to end an event without answering; it sends no follow-up.
+- Every write emits `decision-event-updated` (bus + SSE).
+
+Routes: `GET/POST /api/decisions/events`, `GET/PATCH /api/decisions/events/:id`, `POST /api/decisions/events/:id/{decision,notify,ack,withdraw,close}`.
 
 #### Background Jobs (`jobs/`)
 
@@ -220,6 +231,7 @@ Deployment, migration from the old launcher, and the `lode.toml` reference: `doc
 /projects/:projectId/issues          → IssueDetailPage (list + chat)
 /projects/:projectId/issues/:issueId → IssueDetailPage (specific issue)
 /terminal                            → TerminalPage
+/decisions                           → DecisionsPage (global decision inbox)
 ```
 
 Three global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`.

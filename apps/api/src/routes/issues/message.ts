@@ -6,19 +6,11 @@ import * as z from 'zod'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import { db } from '@/db'
 import { findProject } from '@/db/helpers'
-import { getPendingMessages, upsertPendingMessage } from '@/db/pending-messages'
 import { attachments } from '@/db/schema'
-import { issueEngine } from '@/engines/issue'
 import { emitIssueLogRemoved } from '@/events/issue-events'
-import { logger } from '@/logger'
 import type { SavedFile } from '@/uploads'
 import { saveUploadedFile, validateFiles } from '@/uploads'
-import {
-  ensureWorking,
-  flushPendingAsFollowUp,
-  getProjectOwnedIssue,
-  normalizePrompt,
-} from './_shared'
+import { dispatchFollowUp, getProjectOwnedIssue, normalizePrompt } from './_shared'
 
 // ---------- Private helpers ----------
 
@@ -111,25 +103,6 @@ async function insertAttachmentRecords(
   )
 }
 
-/**
- * Insert a pending message and attach uploaded files to that specific row.
- * The frontend already adds the optimistic log entry with the returned messageId.
- */
-async function upsertAndNotify(
-  issueId: string,
-  prompt: string,
-  meta: Record<string, unknown>,
-  savedFiles: SavedFile[],
-): Promise<string> {
-  const messageId = await upsertPendingMessage(issueId, prompt, meta)
-
-  if (savedFiles.length > 0) {
-    await insertAttachmentRecords(issueId, messageId, savedFiles)
-  }
-
-  return messageId
-}
-
 // ---------- Route ----------
 
 const message = createOpenAPIRouter()
@@ -176,133 +149,46 @@ message.post('/:id/follow-up', async (c) => {
     )
   }
 
-  const pendingBefore = await getPendingMessages(issueId)
-
   // Save uploaded files and insert attachment records
   let savedFiles: SavedFile[] = []
   if (files.length > 0) {
     savedFiles = await Promise.all(files.map(saveUploadedFile))
   }
 
-  // Build file context for AI engine only
-  const fileContext = buildFileContext(savedFiles)
-  const fullPrompt = prompt + fileContext
   const attachmentsMeta =
     savedFiles.length > 0 ? { attachments: savedFiles.map(savedFileToMeta) } : {}
 
-  // Queue message for todo/done issues instead of rejecting
-  // Always store original prompt for engine use; displayPrompt goes in metadata for UI display
-  const pendingMeta = (type: string) => ({
-    type,
-    ...attachmentsMeta,
-    ...(parsed.displayPrompt ? { displayPrompt: parsed.displayPrompt } : {}),
+  const outcome = await dispatchFollowUp(issue, {
+    prompt,
+    // Build file context for AI engine only
+    enginePrompt: prompt + buildFileContext(savedFiles),
+    model: parsed.model,
+    permissionMode: parsed.permissionMode as 'auto' | 'supervised' | 'plan' | undefined,
+    busyAction: parsed.busyAction as 'queue' | 'cancel' | undefined,
+    displayPrompt: parsed.displayPrompt ?? (savedFiles.length > 0 ? prompt || undefined : undefined),
+    // Always store original prompt for engine use; displayPrompt goes in metadata for UI display
+    pendingMeta: {
+      ...attachmentsMeta,
+      ...(parsed.displayPrompt ? { displayPrompt: parsed.displayPrompt } : {}),
+    },
+    followUpMeta: attachmentsMeta,
+    // Link attachments to the server-assigned message log
+    onMessage: messageId => insertAttachmentRecords(issueId, messageId, savedFiles),
   })
-  if (issue.statusId === 'todo') {
-    const messageId = await upsertAndNotify(issueId, prompt, pendingMeta('pending'), savedFiles)
-    return c.json({ success: true as const, data: { issueId, messageId, queued: true } }, 200)
-  }
-  if (issue.statusId === 'done') {
-    const messageId = await upsertAndNotify(issueId, prompt, pendingMeta('done'), savedFiles)
-    return c.json({ success: true as const, data: { issueId, messageId, queued: true } }, 200)
-  }
 
-  // When the engine is actively processing a turn, queue message as pending
-  // so it won't be ignored mid-turn. It will be auto-flushed after the turn settles.
-  if (issue.statusId === 'working' && issueEngine.isTurnInFlight(issueId)) {
-    const messageId = await upsertAndNotify(issueId, prompt, pendingMeta('pending'), savedFiles)
-    logger.debug(
-      { issueId, promptChars: prompt.length, fileCount: files.length },
-      'followup_queued_during_active_turn',
-    )
-    return c.json({ success: true as const, data: { issueId, messageId, queued: true } }, 200)
+  if (!outcome.ok) {
+    return c.json({ success: false as const, error: outcome.error }, 400)
   }
-
-  if (issue.statusId === 'working' && pendingBefore.length > 0) {
-    const messageId = await upsertAndNotify(issueId, prompt, pendingMeta('pending'), savedFiles)
-    flushPendingAsFollowUp(issueId, { model: issue.model })
-    logger.debug(
-      { issueId, pendingCount: pendingBefore.length + 1 },
-      'followup_queued_behind_existing_pending',
-    )
-    return c.json({ success: true as const, data: { issueId, messageId, queued: true } }, 200)
-  }
-
-  try {
-    // Tracked from before ensureWorking() until the engine returns: the issue
-    // is 'working' for the whole spawn, which the reconciler would otherwise
-    // read as stale.
-    return await issueEngine.trackStart(issueId, async () => {
-      const guard = await ensureWorking(issue)
-      if (!guard.ok) {
-        return c.json({ success: false as const, error: guard.reason! }, 400)
-      }
-      const firstWord = prompt.split(/\s/)[0] ?? ''
-      const categorized = issueEngine.getCategorizedCommands(
-        issueId,
-        (issue.engineType as import('@/engines/types').EngineType) ?? undefined,
-      )
-      const knownCommands = [
-        ...categorized.commands,
-        ...categorized.agents,
-        ...categorized.plugins.map(p => p.name),
-      ].map(cmd => (cmd.startsWith('/') ? cmd : `/${cmd}`))
-      const isCommand = firstWord.startsWith('/') && knownCommands.includes(firstWord)
-      const followUpMeta: Record<string, unknown> = {
-        ...attachmentsMeta,
-        ...(isCommand ? { type: 'command' } : {}),
-      }
-      const hasFollowUpMeta = Object.keys(followUpMeta).length > 0
-      const result = await issueEngine.followUpIssue(
-        issueId,
-        fullPrompt,
-        parsed.model,
-        parsed.permissionMode as 'auto' | 'supervised' | 'plan' | undefined,
-        parsed.busyAction as 'queue' | 'cancel' | undefined,
-        parsed.displayPrompt ?? (savedFiles.length > 0 ? prompt || undefined : undefined),
-        hasFollowUpMeta ? followUpMeta : undefined,
-      )
-      // Link attachments to the server-assigned message log
-      if (savedFiles.length > 0 && result.messageId) {
-        await insertAttachmentRecords(issueId, result.messageId, savedFiles)
-      }
-
-      return c.json({
-        success: true as const,
-        data: {
-          executionId: result.executionId,
-          issueId,
-          messageId: result.messageId,
-        },
-      }, 200)
-    })
-  } catch (error) {
-    // When follow-up fails (e.g. process failed to start), save the current
-    // message as pending so it won't be lost. It will be auto-processed on
-    // the next execute/restart.
-    logger.warn(
-      {
-        issueId,
-        error: error instanceof Error ? error.message : String(error),
-      },
-      'followup_failed_saving_as_pending',
-    )
-    try {
-      const messageId = await upsertAndNotify(issueId, prompt, pendingMeta('pending'), savedFiles)
-      return c.json({
-        success: true as const,
-        data: { issueId, messageId, queued: true },
-      }, 200)
-    } catch (persistError) {
-      logger.error({ issueId, error: persistError }, 'followup_failed_persist_pending_failed')
-    }
+  if (outcome.queued) {
     return c.json(
-      {
-        success: false as const,
-        error: 'Follow-up failed',
-      },
-      400,
+      { success: true as const, data: { issueId, messageId: outcome.messageId, queued: true } },
+      200,
     )
   }
+  return c.json({
+    success: true as const,
+    data: { executionId: outcome.executionId, issueId, messageId: outcome.messageId },
+  }, 200)
 })
 
 // GET /api/projects/:projectId/issues/:id/pending — List pending messages

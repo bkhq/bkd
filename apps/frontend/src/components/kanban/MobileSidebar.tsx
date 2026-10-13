@@ -8,6 +8,7 @@ import { CreateProjectDialog } from '@/components/CreateProjectDialog'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
+import { useOpenDecisionCount } from '@/hooks/use-decision-events'
 import { useEventConnection } from '@/hooks/use-event-connection'
 import { useProjects } from '@/hooks/use-kanban'
 import { getProjectInitials } from '@/lib/format'
@@ -37,6 +38,7 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { data: projects } = useProjects()
+  const openDecisions = useOpenDecisionCount()
   const [showCreate, setShowCreate] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const serverName = useServerStore(s => s.name)
@@ -173,6 +175,11 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
                 >
                   <Icon className="h-4 w-4 text-muted-foreground" />
                   {t(labelKey)}
+                  {id === 'decisions' && openDecisions > 0 && (
+                    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
+                      {openDecisions}
+                    </span>
+                  )}
                 </button>
               ))}
               <button

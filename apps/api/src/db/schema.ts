@@ -118,6 +118,37 @@ export const notes = sqliteTable('notes', {
   ...commonFields,
 })
 
+export const decisionEvents = sqliteTable(
+  'decision_events',
+  {
+    id: shortId(),
+    status: text('status').notNull().default('open'),
+    campaignId: text('campaign_id').notNull(),
+    ref: text('ref'), // issue id the decision concerns
+    question: text('question').notNull(),
+    context: text('context').notNull().default(''),
+    options: text('options').notNull().default('[]'), // JSON: DecisionEventOption[]
+    recommendation: text('recommendation'), // JSON: DecisionEventRecommendation
+    blocks: text('blocks'),
+    continues: text('continues'),
+    notify: text('notify').notNull(), // JSON: DecisionEventNotify
+    decision: text('decision'), // JSON: DecisionEventDecision
+    outcome: text('outcome'),
+    withdrawReason: text('withdraw_reason'),
+    closeReason: text('close_reason'),
+    notifiedAt: integer('notified_at', { mode: 'timestamp' }),
+    ...commonFields,
+  },
+  table => [
+    index('decision_events_status_idx').on(table.status),
+    index('decision_events_campaign_id_idx').on(table.campaignId),
+    check(
+      'decision_events_status_check',
+      sql`${table.status} IN ('open','decided','applied','withdrawn','closed')`,
+    ),
+  ],
+)
+
 export const issueLogs = sqliteTable(
   'issues_logs',
   {

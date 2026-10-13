@@ -1,4 +1,4 @@
-import type { ChangesSummary, ContextUsageEvent } from '@bkd/shared'
+import type { ChangesSummary, ContextUsageEvent, SSEEventMap } from '@bkd/shared'
 import type { NormalizedLogEntry, SessionStatus } from '@/types/kanban'
 
 export interface IssueEventHandler {
@@ -14,6 +14,7 @@ export type ChangesSummaryData = ChangesSummary
 type IssueUpdatedListener = (data: { issueId: string, changes: Record<string, unknown> }) => void
 type ChangesSummaryListener = (data: ChangesSummaryData) => void
 type ContextUsageListener = (data: ContextUsageEvent) => void
+type DecisionEventListener = (data: SSEEventMap['decision-event-updated']) => void
 type IssueActivityListener = (issueId: string) => void
 type ConnectionListener = (connected: boolean) => void
 
@@ -32,6 +33,7 @@ class EventBus {
   private issueUpdatedListeners = new Set<IssueUpdatedListener>()
   private changesSummaryListeners = new Set<ChangesSummaryListener>()
   private contextUsageListeners = new Set<ContextUsageListener>()
+  private decisionEventListeners = new Set<DecisionEventListener>()
   private issueActivityListeners = new Set<IssueActivityListener>()
   private connectionListeners = new Set<ConnectionListener>()
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -176,6 +178,21 @@ class EventBus {
       }
     })
 
+    es.addEventListener('decision-event-updated', (e) => {
+      try {
+        const data = JSON.parse(e.data) as SSEEventMap['decision-event-updated']
+        for (const cb of this.decisionEventListeners) {
+          try {
+            cb(data)
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+    })
+
     // Reset watchdog on heartbeat — server sends every 15s
     es.addEventListener('heartbeat', () => {
       this.resetHeartbeatWatchdog(es)
@@ -267,6 +284,13 @@ class EventBus {
     this.contextUsageListeners.add(listener)
     return () => {
       this.contextUsageListeners.delete(listener)
+    }
+  }
+
+  onDecisionEventUpdated(listener: DecisionEventListener): () => void {
+    this.decisionEventListeners.add(listener)
+    return () => {
+      this.decisionEventListeners.delete(listener)
     }
   }
 

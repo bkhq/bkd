@@ -720,5 +720,47 @@
     "deleting": "Deleting...",
     "deleteConfirmTitle": "Delete cron job?",
     "deleteConfirm": "The cron job \"{{name}}\" will be removed from the schedule. Its execution logs will be kept."
+  },
+  "decisions": {
+    "title": "Decisions",
+    "group": {
+      "waiting": "Waiting",
+      "decided": "Decided",
+      "history": "History"
+    },
+    "empty": {
+      "waiting": "Nothing is waiting on you",
+      "decided": "No decisions awaiting action",
+      "history": "No past decisions"
+    },
+    "status": {
+      "open": "Waiting",
+      "decided": "Decided",
+      "applied": "Applied",
+      "withdrawn": "Withdrawn",
+      "closed": "Closed"
+    },
+    "concerns": "Concerns",
+    "raisedBy": "Raised by",
+    "blocks": "Blocked",
+    "continues": "Continues",
+    "options": "Options",
+    "recommended": "Recommended",
+    "instruction": "Instruction",
+    "instructionPlaceholder": "Add an instruction, or decide with one instead of an option",
+    "decision": "Decision",
+    "decidedBy": "Decided by",
+    "outcome": "Outcome",
+    "withdrawReason": "Withdrawn because",
+    "closeReason": "Closed because",
+    "decide": "Decide",
+    "close": "Close",
+    "resend": "Resend",
+    "notDelivered": "The decision is recorded, but the agent has not been notified.",
+    "closeConfirmTitle": "Close this decision?",
+    "closeConfirm": "The event ends without notifying the agent. Work waiting on it stays blocked until the agent checks again.",
+    "closeReasonPlaceholder": "Reason (optional)",
+    "campaign": "Campaign",
+    "allCampaigns": "All campaigns"
   }
 }

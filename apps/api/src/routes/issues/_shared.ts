@@ -6,8 +6,10 @@ import { db } from '@/db'
 import { getAppSetting } from '@/db/helpers'
 import {
   buildFileContextFromRows,
+  getPendingMessages,
   relocatePendingForProcessing,
   restorePendingVisibility,
+  upsertPendingMessage,
 } from '@/db/pending-messages'
 import { attachments as attachmentsTable, issues as issuesTable } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
@@ -154,6 +156,124 @@ export async function ensureWorking(issue: IssueRow): Promise<{ ok: boolean, rea
     logger.info({ issueId: issue.id, from: issue.statusId }, 'moved_to_working')
   }
   return { ok: true }
+}
+
+export interface FollowUpInput {
+  /** Message as the user wrote it; stored when the message is queued. */
+  prompt: string
+  /** Message handed to the engine; defaults to `prompt`. */
+  enginePrompt?: string
+  model?: string
+  permissionMode?: 'auto' | 'supervised' | 'plan'
+  busyAction?: 'queue' | 'cancel'
+  displayPrompt?: string
+  /** Metadata stored with a queued message, next to its pending type. */
+  pendingMeta?: Record<string, unknown>
+  /** Metadata stored with a message sent straight to the engine. */
+  followUpMeta?: Record<string, unknown>
+  /** Runs once the message has a log id, queued or sent. */
+  onMessage?: (messageId: string) => Promise<void>
+}
+
+export type FollowUpOutcome =
+  | { ok: true, queued: true, messageId: string }
+  | { ok: true, queued: false, executionId: string, messageId?: string | null }
+  | { ok: false, error: string }
+
+/**
+ * Route a follow-up message to an issue: queue it while the issue cannot take
+ * a turn (todo, done, turn in flight, older messages pending), otherwise move
+ * the issue to working and hand the message to the engine.
+ */
+export async function dispatchFollowUp(
+  issue: IssueRow,
+  input: FollowUpInput,
+): Promise<FollowUpOutcome> {
+  const issueId = issue.id
+  const { prompt } = input
+
+  const queue = async (type: string): Promise<FollowUpOutcome> => {
+    const messageId = await upsertPendingMessage(issueId, prompt, { type, ...input.pendingMeta })
+    await input.onMessage?.(messageId)
+    return { ok: true, queued: true, messageId }
+  }
+
+  const pendingBefore = await getPendingMessages(issueId)
+
+  // Queue message for todo/done issues instead of rejecting
+  if (issue.statusId === 'todo') return queue('pending')
+  if (issue.statusId === 'done') return queue('done')
+
+  // When the engine is actively processing a turn, queue message as pending
+  // so it won't be ignored mid-turn. It will be auto-flushed after the turn settles.
+  if (issue.statusId === 'working' && issueEngine.isTurnInFlight(issueId)) {
+    const outcome = await queue('pending')
+    logger.debug({ issueId, promptChars: prompt.length }, 'followup_queued_during_active_turn')
+    return outcome
+  }
+
+  if (issue.statusId === 'working' && pendingBefore.length > 0) {
+    const outcome = await queue('pending')
+    flushPendingAsFollowUp(issueId, { model: issue.model })
+    logger.debug(
+      { issueId, pendingCount: pendingBefore.length + 1 },
+      'followup_queued_behind_existing_pending',
+    )
+    return outcome
+  }
+
+  try {
+    // Tracked from before ensureWorking() until the engine returns: the issue
+    // is 'working' for the whole spawn, which the reconciler would otherwise
+    // read as stale.
+    return await issueEngine.trackStart(issueId, async (): Promise<FollowUpOutcome> => {
+      const guard = await ensureWorking(issue)
+      if (!guard.ok) return { ok: false, error: guard.reason! }
+
+      const firstWord = prompt.split(/\s/)[0] ?? ''
+      const categorized = issueEngine.getCategorizedCommands(
+        issueId,
+        (issue.engineType as EngineType) ?? undefined,
+      )
+      const knownCommands = [
+        ...categorized.commands,
+        ...categorized.agents,
+        ...categorized.plugins.map(p => p.name),
+      ].map(cmd => (cmd.startsWith('/') ? cmd : `/${cmd}`))
+      const isCommand = firstWord.startsWith('/') && knownCommands.includes(firstWord)
+      const followUpMeta: Record<string, unknown> = {
+        ...input.followUpMeta,
+        ...(isCommand ? { type: 'command' } : {}),
+      }
+      const hasFollowUpMeta = Object.keys(followUpMeta).length > 0
+      const result = await issueEngine.followUpIssue(
+        issueId,
+        input.enginePrompt ?? prompt,
+        input.model,
+        input.permissionMode,
+        input.busyAction,
+        input.displayPrompt,
+        hasFollowUpMeta ? followUpMeta : undefined,
+      )
+      if (result.messageId) await input.onMessage?.(result.messageId)
+
+      return { ok: true, queued: false, executionId: result.executionId, messageId: result.messageId }
+    })
+  } catch (error) {
+    // When follow-up fails (e.g. process failed to start), save the current
+    // message as pending so it won't be lost. It will be auto-processed on
+    // the next execute/restart.
+    logger.warn(
+      { issueId, error: error instanceof Error ? error.message : String(error) },
+      'followup_failed_saving_as_pending',
+    )
+    try {
+      return await queue('pending')
+    } catch (persistError) {
+      logger.error({ issueId, error: persistError }, 'followup_failed_persist_pending_failed')
+    }
+    return { ok: false, error: 'Follow-up failed' }
+  }
 }
 
 export function triggerIssueExecution(

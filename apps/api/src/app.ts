@@ -11,6 +11,7 @@ import { httpLogger, logger } from './logger'
 import { apiRoutes, engineRoutes, eventRoutes, settingsRoutes } from './routes'
 import cronRoute from './routes/cron'
 import sessionsRoute from './routes/sessions'
+import decisionsRoutes from './routes/decisions'
 import notesRoutes from './routes/notes'
 import terminalRoute from './routes/terminal'
 import { VERSION } from './version'
@@ -99,6 +100,7 @@ app.doc31('/api/docs/openapi.json', {
     { name: 'Processes', description: 'Active engine process management' },
     { name: 'Worktrees', description: 'Git worktree management per project' },
     { name: 'Notes', description: 'Scratch notes' },
+    { name: 'Decisions', description: 'Decision events raised by coordinating agents and decided by the user' },
     { name: 'Settings', description: 'Application settings and configuration' },
     { name: 'Webhooks', description: 'Webhook notification management' },
   ],
@@ -111,6 +113,7 @@ app.route('/api/engines', engineRoutes)
 app.route('/api/events', eventRoutes)
 app.route('/api/settings', settingsRoutes)
 app.route('/api/notes', notesRoutes)
+app.route('/api/decisions', decisionsRoutes)
 app.route('/api/cron', cronRoute)
 app.route('/api/sessions', sessionsRoute)
 app.route('/api', terminalRoute)

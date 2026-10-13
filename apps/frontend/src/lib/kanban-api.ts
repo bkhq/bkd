@@ -4,6 +4,7 @@ import type {
   CategorizedCommands,
   ClaudeUsage,
   CodexUsage,
+  DecisionEvent,
   DeleteLocalSessionsRequest,
   DeleteLocalSessionsResult,
   EngineDiscoveryResult,
@@ -625,6 +626,15 @@ export const kanbanApi = {
   getWebhookDeliveries: (id: string) =>
     get<WebhookDelivery[]>(`/api/settings/webhooks/${id}/deliveries`),
   testWebhook: (id: string) => post<{ sent: boolean }>(`/api/settings/webhooks/${id}/test`, {}),
+
+  // Decision events
+  getDecisionEvents: () => get<DecisionEvent[]>('/api/decisions/events'),
+  decideDecisionEvent: (id: string, data: { optionId?: string | null, instruction?: string }) =>
+    post<DecisionEvent>(`/api/decisions/events/${id}/decision`, data),
+  closeDecisionEvent: (id: string, reason?: string) =>
+    post<DecisionEvent>(`/api/decisions/events/${id}/close`, { reason }),
+  notifyDecisionEvent: (id: string) =>
+    post<DecisionEvent>(`/api/decisions/events/${id}/notify`, {}),
 
   // Notes
   getNotes: () => get<Note[]>('/api/notes'),
