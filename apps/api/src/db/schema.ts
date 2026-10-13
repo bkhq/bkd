@@ -210,8 +210,30 @@ export const webhooks = sqliteTable('webhooks', {
   secret: text('secret'), // webhook: API key, telegram: bot token
   events: text('events').notNull(), // JSON: WebhookEventType[]
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  interactive: integer('interactive', { mode: 'boolean' }).notNull().default(false), // telegram: answer decision events in chat
   ...commonFields,
 })
+
+// The chat message that carries a decision event on an interactive channel
+export const decisionChannelMessages = sqliteTable(
+  'decision_channel_messages',
+  {
+    id: id(),
+    webhookId: text('webhook_id')
+      .notNull()
+      .references(() => webhooks.id),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => decisionEvents.id),
+    chatId: text('chat_id').notNull(),
+    messageId: integer('message_id').notNull(),
+    ...commonFields,
+  },
+  table => [
+    uniqueIndex('decision_channel_messages_webhook_event_idx').on(table.webhookId, table.eventId),
+    index('decision_channel_messages_chat_message_idx').on(table.chatId, table.messageId),
+  ],
+)
 
 export const webhookDeliveries = sqliteTable(
   'webhook_deliveries',

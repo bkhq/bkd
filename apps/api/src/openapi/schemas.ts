@@ -635,6 +635,11 @@ const webhookEventTypes = [
   'session.started',
   'session.completed',
   'session.failed',
+  'decision.opened',
+  'decision.decided',
+  'decision.applied',
+  'decision.withdrawn',
+  'decision.closed',
 ] as const
 
 export const WebhookSchema = z.object({
@@ -644,6 +649,7 @@ export const WebhookSchema = z.object({
   secret: z.string().nullable().openapi({ description: 'Masked in responses' }),
   events: z.array(z.string()),
   isActive: z.boolean(),
+  interactive: z.boolean().openapi({ description: 'Telegram only: answer decision events in the chat' }),
   createdAt: z.string(),
   updatedAt: z.string(),
 }).openapi('Webhook')
@@ -652,15 +658,17 @@ export const CreateWebhookSchema = z.object({
   channel: z.enum(['webhook', 'telegram']).optional().default('webhook'),
   url: z.string().min(1).openapi({ description: 'Webhook URL or Telegram chat ID' }),
   secret: z.string().max(256).optional().openapi({ description: 'HMAC secret or Telegram bot token' }),
-  events: z.array(z.enum(webhookEventTypes)).min(1),
+  events: z.array(z.enum(webhookEventTypes)).openapi({ description: 'May be empty only when interactive' }),
   isActive: z.boolean().optional(),
+  interactive: z.boolean().optional(),
 }).openapi('CreateWebhook')
 
 export const UpdateWebhookSchema = z.object({
   url: z.string().min(1).optional(),
   secret: z.string().max(256).nullable().optional(),
-  events: z.array(z.enum(webhookEventTypes)).min(1).optional(),
+  events: z.array(z.enum(webhookEventTypes)).optional(),
   isActive: z.boolean().optional(),
+  interactive: z.boolean().optional(),
 }).openapi('UpdateWebhook')
 
 export const WebhookDeliverySchema = z.object({

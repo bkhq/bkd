@@ -2,6 +2,7 @@ import type {
   DecisionEvent,
   DecisionEventIssueLink,
   DecisionEventNotify,
+  DecisionEventOption,
   DecisionEventStatus,
 } from '@bkd/shared'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -137,4 +138,79 @@ export async function notifyDecision(row: DecisionEventRow): Promise<DecisionEve
     logger.error({ eventId: row.id, err }, 'decision_event_notify_failed')
     return null
   }
+}
+
+const notDeleted = eq(decisionEvents.isDeleted, 0)
+
+export async function findEvent(id: string): Promise<DecisionEventRow | null> {
+  const [row] = await db.select().from(decisionEvents).where(and(eq(decisionEvents.id, id), notDeleted))
+  return row ?? null
+}
+
+/** Update an event only while it is in one of `from`; null when it has moved on. */
+export async function updateFrom(
+  id: string,
+  from: DecisionEventStatus[],
+  set: Partial<typeof decisionEvents.$inferInsert>,
+): Promise<DecisionEventRow | null> {
+  const [row] = await db
+    .update(decisionEvents)
+    .set(set)
+    .where(and(eq(decisionEvents.id, id), notDeleted, inArray(decisionEvents.status, from)))
+    .returning()
+  if (row) emitDecisionEventUpdated(row)
+  return row ?? null
+}
+
+export function hasOption(options: DecisionEventOption[], optionId: string): boolean {
+  return options.some(o => o.id === optionId)
+}
+
+/**
+ * Move an event to another status. Returns the row, or the status that
+ * blocked the move (null when the event does not exist).
+ */
+export async function transition(
+  eventId: string,
+  from: DecisionEventStatus[],
+  set: Partial<typeof decisionEvents.$inferInsert>,
+): Promise<{ row: DecisionEventRow } | { blockedBy: string | null }> {
+  const row = await updateFrom(eventId, from, set)
+  if (row) return { row }
+  return { blockedBy: (await findEvent(eventId))?.status ?? null }
+}
+
+export type DecideResult
+  = | { ok: true, row: DecisionEventRow, notified: boolean }
+    | { ok: false, reason: 'not-found' }
+    | { ok: false, reason: 'bad-option' }
+    | { ok: false, reason: 'conflict', status: string }
+
+/** Record the user's answer on an open event and wake the notify issue. */
+export async function decideEvent(
+  id: string,
+  input: { optionId: string | null, instruction: string, decidedBy: string },
+): Promise<DecideResult> {
+  const existing = await findEvent(id)
+  if (!existing) return { ok: false, reason: 'not-found' }
+  if (existing.status !== 'open') return { ok: false, reason: 'conflict', status: existing.status }
+  if (input.optionId && !hasOption(JSON.parse(existing.options), input.optionId)) {
+    return { ok: false, reason: 'bad-option' }
+  }
+
+  const decided = await updateFrom(id, ['open'], {
+    status: 'decided',
+    decision: JSON.stringify({
+      optionId: input.optionId,
+      instruction: input.instruction,
+      decidedBy: input.decidedBy,
+      // Whole seconds, like the integer timestamp columns, so it never sorts after notifiedAt
+      decidedAt: new Date(Math.floor(Date.now() / 1000) * 1000).toISOString(),
+    }),
+  })
+  if (!decided) return { ok: false, reason: 'conflict', status: 'no longer open' }
+
+  // The decision stands even when the wake signal fails; the raiser's scan picks it up.
+  const notified = await notifyDecision(decided)
+  return { ok: true, row: notified ?? decided, notified: notified !== null }
 }

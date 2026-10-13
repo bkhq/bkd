@@ -42,6 +42,11 @@ const EVENT_LABEL_KEYS: Record<WebhookEventType, string> = {
   'session.started': 'settings.webhooksEventSessionStarted',
   'session.completed': 'settings.webhooksEventSessionCompleted',
   'session.failed': 'settings.webhooksEventSessionFailed',
+  'decision.opened': 'settings.webhooksEventDecisionOpened',
+  'decision.decided': 'settings.webhooksEventDecisionDecided',
+  'decision.applied': 'settings.webhooksEventDecisionApplied',
+  'decision.withdrawn': 'settings.webhooksEventDecisionWithdrawn',
+  'decision.closed': 'settings.webhooksEventDecisionClosed',
   'issue.status_changed': 'settings.webhooksEventStatusChanged',
 }
 
@@ -49,6 +54,7 @@ const GROUP_LABEL_KEYS: Record<string, string> = {
   issue: 'settings.webhooksGroupIssue',
   status: 'settings.webhooksGroupStatus',
   session: 'settings.webhooksGroupSession',
+  decision: 'settings.webhooksGroupDecision',
 }
 
 export function WebhookSection({ open }: { open: boolean }) {
@@ -140,18 +146,21 @@ function WebhookForm({ webhook, onClose }: { webhook?: Webhook, onClose: () => v
     webhook?.events ?? [...WEBHOOK_EVENT_TYPES],
   )
   const [isActive, setIsActive] = useState(webhook?.isActive ?? true)
+  const [interactive, setInteractive] = useState(webhook?.interactive ?? false)
   const [error, setError] = useState<string | null>(null)
 
   const isEditing = !!webhook
   const isPending = createWebhook.isPending || updateWebhook.isPending
   const isTelegram = channel === 'telegram'
+  const isInteractive = isTelegram && interactive
+  const hasNothingToSend = events.length === 0 && !isInteractive
 
   const toggleEvent = useCallback((event: WebhookEventType) => {
     setEvents(prev => (prev.includes(event) ? prev.filter(e => e !== event) : [...prev, event]))
   }, [])
 
   const handleSubmit = () => {
-    if (!url || (!secret && isTelegram) || events.length === 0) return
+    if (!url || (!secret && isTelegram) || hasNothingToSend) return
     setError(null)
 
     if (isEditing) {
@@ -162,6 +171,7 @@ function WebhookForm({ webhook, onClose }: { webhook?: Webhook, onClose: () => v
           secret: secret || null,
           events,
           isActive,
+          interactive: isInteractive,
         },
         {
           onSuccess: onClose,
@@ -170,7 +180,7 @@ function WebhookForm({ webhook, onClose }: { webhook?: Webhook, onClose: () => v
       )
     } else {
       createWebhook.mutate(
-        { channel, url, secret: secret || undefined, events, isActive },
+        { channel, url, secret: secret || undefined, events, isActive, interactive: isInteractive },
         {
           onSuccess: onClose,
           onError: err => setError(err.message),
@@ -251,6 +261,15 @@ function WebhookForm({ webhook, onClose }: { webhook?: Webhook, onClose: () => v
                   {t('settings.webhooksTelegramChatIdHint')}
                 </p>
               </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Switch size="sm" checked={interactive} onCheckedChange={setInteractive} />
+                  <span className="text-xs">{t('settings.webhooksInteractive')}</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {t('settings.webhooksInteractiveHint')}
+                </p>
+              </div>
             </>
           ) :
           (
@@ -328,7 +347,7 @@ function WebhookForm({ webhook, onClose }: { webhook?: Webhook, onClose: () => v
           <Button
             size="sm"
             onClick={handleSubmit}
-            disabled={!url || (isTelegram && !secret) || events.length === 0 || isPending}
+            disabled={!url || (isTelegram && !secret) || hasNothingToSend || isPending}
           >
             {isPending ? <Loader2 className="mr-1 size-3.5 animate-spin" /> : null}
             {isPending ?
@@ -394,6 +413,11 @@ function WebhookCard({
             <span className="truncate text-sm font-mono">
               {isTelegram ? `Telegram (${webhook.url})` : webhook.url}
             </span>
+            {webhook.interactive && (
+              <Badge variant="secondary" className="text-[10px]">
+                {t('settings.webhooksInteractiveBadge')}
+              </Badge>
+            )}
             {!webhook.isActive && (
               <Badge variant="secondary" className="text-[10px]">
                 {t('settings.webhooksDisabled')}

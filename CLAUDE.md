@@ -81,7 +81,7 @@ bun scripts/migrate-to-lode.ts --root /opt/bkd --apply --prune
 
 #### Data Layer
 
-Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings` (key-value store for server settings), `decisionEvents`.
+Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings` (key-value store for server settings), `decisionEvents`, `decisionChannelMessages`.
 
 Statuses are hardcoded constants in `config.ts` (`todo`, `working`, `review`, `done`) — no DB table.
 
@@ -200,7 +200,9 @@ One question a coordinating agent needs the user to answer, per the `bkd` skill'
 - Deciding sends `[event-decision eventId=… campaignId=…]` to the `notify` issue via `dispatchFollowUp()` (`routes/issues/_shared.ts`, shared with the follow-up route). A failed delivery leaves the event `decided`; `POST …/notify` resends.
 - Closing is the user's way to end an event without answering; it sends no follow-up.
 - Every write emits `decision-event-updated` (bus + SSE).
+- `webhooks/dispatcher.ts` sends each state once per channel as `decision.{opened,decided,applied,withdrawn,closed}`; interactive Telegram channels are skipped there.
 - Webhook URLs may target loopback and private networks; `utils/url-safety.ts` still blocks link-local (cloud metadata) and reserved ranges, at save time and at delivery.
+- `decisions/telegram/`: a Telegram channel with `webhooks.interactive` posts open events with option buttons and long-polls `getUpdates` for presses and replies (no inbound route). Answers go through `decideEvent()` in `decisions/service.ts`, shared with the REST route; `decisionChannelMessages` maps event → chat message. One poller per bot token — the bot must not be consumed elsewhere.
 
 Routes: `GET /api/decisions` (capability probe, `{ supported, contractVersion }`), `GET/POST /api/decisions/events`, `GET/PATCH /api/decisions/events/:id`, `POST /api/decisions/events/:id/{decision,notify,ack,withdraw,close}`.
 

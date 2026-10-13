@@ -651,6 +651,11 @@ export type WebhookEventType =
   | 'session.started'
   | 'session.completed'
   | 'session.failed'
+  | 'decision.opened'
+  | 'decision.decided'
+  | 'decision.applied'
+  | 'decision.withdrawn'
+  | 'decision.closed'
   | 'issue.status_changed' // legacy — kept for backwards compat with existing DB records
 
 /** Event types grouped by category for UI display. */
@@ -667,6 +672,10 @@ export const WEBHOOK_EVENT_GROUPS: { category: string, events: WebhookEventType[
     category: 'session',
     events: ['session.started', 'session.completed', 'session.failed'],
   },
+  {
+    category: 'decision',
+    events: ['decision.opened', 'decision.decided', 'decision.applied', 'decision.withdrawn', 'decision.closed'],
+  },
 ]
 
 export const WEBHOOK_EVENT_TYPES: WebhookEventType[] = WEBHOOK_EVENT_GROUPS.flatMap(g => g.events)
@@ -682,6 +691,8 @@ export interface Webhook {
   secret: string | null
   events: WebhookEventType[]
   isActive: boolean
+  /** Telegram only: decision events are posted to the chat and can be answered there. */
+  interactive: boolean
   createdAt: string
   updatedAt: string
 }

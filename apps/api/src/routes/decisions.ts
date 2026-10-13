@@ -1,14 +1,18 @@
-import type { DecisionEventOption, DecisionEventStatus } from '@bkd/shared'
+import type { DecisionEventOption } from '@bkd/shared'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from '@/db'
 import { decisionEvents } from '@/db/schema'
-import type { DecisionEventRow } from '@/decisions/service'
 import {
+  decideEvent,
   emitDecisionEventUpdated,
+  findEvent,
   findNotifyIssue,
+  hasOption,
   notifyDecision,
   serializeEvent,
   serializeEvents,
+  transition,
+  updateFrom,
 } from '@/decisions/service'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
@@ -20,30 +24,6 @@ const NOT_FOUND = { success: false as const, error: 'Decision event not found' }
 
 function conflict(status: string) {
   return { success: false as const, error: `Not allowed while the event is ${status}` }
-}
-
-async function findEvent(id: string): Promise<DecisionEventRow | null> {
-  const [row] = await db.select().from(decisionEvents).where(and(eq(decisionEvents.id, id), notDeleted))
-  return row ?? null
-}
-
-/** Update an event only while it is in one of `from`; null when it has moved on. */
-async function updateFrom(
-  id: string,
-  from: DecisionEventStatus[],
-  set: Partial<typeof decisionEvents.$inferInsert>,
-): Promise<DecisionEventRow | null> {
-  const [row] = await db
-    .update(decisionEvents)
-    .set(set)
-    .where(and(eq(decisionEvents.id, id), notDeleted, inArray(decisionEvents.status, from)))
-    .returning()
-  if (row) emitDecisionEventUpdated(row)
-  return row ?? null
-}
-
-function hasOption(options: DecisionEventOption[], optionId: string): boolean {
-  return options.some(o => o.id === optionId)
 }
 
 // GET /api/decisions
@@ -135,30 +115,18 @@ decisionsRoutes.openapi(R.updateDecisionEvent, async (c) => {
 
 // POST /api/decisions/events/:eventId/decision
 decisionsRoutes.openapi(R.decideDecisionEvent, async (c) => {
-  const { eventId } = c.req.valid('param')
   const body = c.req.valid('json')
-  const existing = await findEvent(eventId)
-  if (!existing) return c.json(NOT_FOUND, 404)
-  if (existing.status !== 'open') return c.json(conflict(existing.status), 409)
-  if (body.optionId && !hasOption(JSON.parse(existing.options), body.optionId)) {
+  const result = await decideEvent(c.req.valid('param').eventId, {
+    optionId: body.optionId ?? null,
+    instruction: body.instruction,
+    decidedBy: body.decidedBy,
+  })
+  if (result.ok) return c.json({ success: true as const, data: await serializeEvent(result.row) }, 200)
+  if (result.reason === 'not-found') return c.json(NOT_FOUND, 404)
+  if (result.reason === 'bad-option') {
     return c.json({ success: false as const, error: 'optionId is not one of the options' }, 400)
   }
-
-  const decided = await updateFrom(eventId, ['open'], {
-    status: 'decided',
-    decision: JSON.stringify({
-      optionId: body.optionId ?? null,
-      instruction: body.instruction,
-      decidedBy: body.decidedBy,
-      // Whole seconds, like the integer timestamp columns, so it never sorts after notifiedAt
-      decidedAt: new Date(Math.floor(Date.now() / 1000) * 1000).toISOString(),
-    }),
-  })
-  if (!decided) return c.json(conflict('no longer open'), 409)
-
-  // The decision stands even when the wake signal fails; the raiser's scan picks it up.
-  const notified = await notifyDecision(decided)
-  return c.json({ success: true as const, data: await serializeEvent(notified ?? decided) }, 200)
+  return c.json(conflict(result.status), 409)
 })
 
 // POST /api/decisions/events/:eventId/notify
@@ -174,20 +142,6 @@ decisionsRoutes.openapi(R.notifyDecisionEvent, async (c) => {
   emitDecisionEventUpdated(notified)
   return c.json({ success: true as const, data: await serializeEvent(notified) }, 200)
 })
-
-/**
- * Move an event to another status. Returns the row, or the status that
- * blocked the move (null when the event does not exist).
- */
-async function transition(
-  eventId: string,
-  from: DecisionEventStatus[],
-  set: Partial<typeof decisionEvents.$inferInsert>,
-): Promise<{ row: DecisionEventRow } | { blockedBy: string | null }> {
-  const row = await updateFrom(eventId, from, set)
-  if (row) return { row }
-  return { blockedBy: (await findEvent(eventId))?.status ?? null }
-}
 
 // POST /api/decisions/events/:eventId/ack
 decisionsRoutes.openapi(R.ackDecisionEvent, async (c) => {

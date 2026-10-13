@@ -611,6 +611,7 @@ export const kanbanApi = {
     secret?: string
     events: WebhookEventType[]
     isActive?: boolean
+    interactive?: boolean
   }) => post<Webhook>('/api/settings/webhooks', data),
   updateWebhook: (
     id: string,
@@ -620,6 +621,7 @@ export const kanbanApi = {
       secret?: string | null
       events?: WebhookEventType[]
       isActive?: boolean
+      interactive?: boolean
     },
   ) => patch<Webhook>(`/api/settings/webhooks/${id}`, data),
   deleteWebhook: (id: string) => del<{ id: string }>(`/api/settings/webhooks/${id}`),

@@ -127,4 +127,40 @@ The user ends an `open` or `decided` event without answering. Sends no follow-up
 }
 ```
 
-`decision` is `{ optionId, instruction, decidedBy, decidedAt }` once decided; `decidedAt` is whole seconds, like every other timestamp. `links.ref` and `links.notify` are `{ issueId, projectId, issueNumber, title }` when the issue resolves.
+`decision` is `{ optionId, instruction, decidedBy, decidedAt }` once decided; `decidedBy` is `telegram:<username or id>` for an answer given in Telegram; `decidedAt` is whole seconds, like every other timestamp. `links.ref` and `links.notify` are `{ issueId, projectId, issueNumber, title }` when the issue resolves.
+
+## Notifications
+
+Every state of an event can be sent to a notification channel (`/api/settings/webhooks`) as `decision.opened`, `decision.decided`, `decision.applied`, `decision.withdrawn` or `decision.closed`. Each state is delivered once per channel; an edit of an open event is not announced again.
+
+A `webhook` channel receives a `POST` with `X-Webhook-Event` set to the event type and this body:
+
+```json
+{
+  "event": "decision.opened",
+  "timestamp": "2026-10-13T22:10:00.000Z",
+  "id": "a1b2c3d4",
+  "status": "open",
+  "question": "…",
+  "options": [{ "id": "A", "label": "…", "impact": "…" }],
+  "decisionsUrl": "https://bkd.example.com/decisions",
+  "apiUrl": "https://bkd.example.com/api/decisions/events/a1b2c3d4"
+}
+```
+
+The body carries every field of the event as returned by `GET /events/:eventId`. `decisionsUrl` and `apiUrl` are present only when the server URL is configured in settings. The receiver answers with the routes above, for example `POST {apiUrl}/decision`; BKD does not authenticate that call, and the channel's API key is only sent outbound.
+
+A `telegram` channel receives the same event as a text message. An interactive Telegram channel is skipped here and gets the answerable message described below.
+
+## Answering from Telegram
+
+A Telegram notification channel created with `interactive: true` (`POST /api/settings/webhooks`) is a second surface for the same events. It adds no route: BKD long-polls the Bot API (`getUpdates`), so nothing has to reach BKD from the internet.
+
+- Each `open` event is posted to the chat once, with one button per option and a `Close` button. An edit by the raiser redraws the message.
+- An option button asks for confirmation, then records the decision with that `optionId`.
+- A reply to the event message records the reply text as `instruction`, with no option. An option together with an instruction is only possible in the inbox or over REST.
+- `Close`, once confirmed, closes the event; no follow-up is sent.
+- Any transition, wherever it was made, redraws the message with the result and removes the buttons.
+- An answer goes through the same transition and wake follow-up as `POST …/decision`. When the follow-up cannot be delivered, the chat is told to resend from the inbox.
+
+Only updates from the configured chat id are processed; anyone in that chat can decide. A bot allows one consumer of its updates, so an interactive bot must not be polled by another BKD instance or service, and must have no webhook set — Telegram answers `409` and BKD retries every 30 seconds.

@@ -567,7 +567,16 @@
     "webhooksEventStatusChanged": "Status Changed (legacy)",
     "webhooksGroupIssue": "Issue",
     "webhooksGroupStatus": "Status",
-    "webhooksGroupSession": "Session"
+    "webhooksGroupSession": "Session",
+    "webhooksGroupDecision": "Decision",
+    "webhooksEventDecisionOpened": "Opened",
+    "webhooksEventDecisionDecided": "Decided",
+    "webhooksEventDecisionApplied": "Applied",
+    "webhooksEventDecisionWithdrawn": "Withdrawn",
+    "webhooksEventDecisionClosed": "Closed",
+    "webhooksInteractive": "Answer decisions in this chat",
+    "webhooksInteractiveHint": "Decision events are posted here with buttons, and a reply to the message counts as the answer. Anyone in the chat can decide. The bot must be used by this BKD instance only.",
+    "webhooksInteractiveBadge": "Decisions"
   },
   "contextMenu": {
     "pinToTop": "Pin to top",

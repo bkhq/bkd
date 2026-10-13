@@ -242,6 +242,8 @@ A decision event is one question a coordinating agent needs the user to answer. 
 - `close` (user) ends an event without answering it and sends no follow-up. It is an extension of the skill contract.
 - `ack` and `withdraw` belong to the raiser.
 - Every write emits `decision-event-updated` on the event bus and over SSE.
+- `webhooks/dispatcher.ts` turns `decision-event-updated` into the `decision.*` notification events (one delivery per state and channel, payload = the serialized event plus `decisionsUrl` / `apiUrl`); interactive Telegram channels are skipped there.
+- `decisions/telegram/` is a second answering surface. A Telegram notification channel with `webhooks.interactive` set gets each open event as a message with option buttons; `index.ts` listens to `decision-event-updated` to post and redraw, and runs one `getUpdates` long-poll loop per bot token for button presses and replies. Answers call `decideEvent()` in `decisions/service.ts`, the same path as the REST route. `decision_channel_messages` maps an event to the chat message that carries it. Updates from any chat other than the configured one are dropped.
 - Retention: the `decision-event-cleanup` cron action soft-deletes every non-open event whose `updatedAt` is more than one day old. Open events are never removed.
 
 ### Event System (`events/`)

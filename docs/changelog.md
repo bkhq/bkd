@@ -685,6 +685,28 @@ cron action (daily at 05:00). It soft-deletes every decision event that is no lo
 `decision-event-updated` for each. A `decided` event whose follow-up was never
 delivered is removed on the same schedule.
 
+## 2026-10-13 22:18 [progress]
+
+`20261013-2159-decision-telegram-interactive`: decision events can be answered
+from Telegram. A Telegram notification channel with the new `interactive` flag
+gets each open event as a message with option buttons; a confirmed button or a
+reply to the message records the decision, and any transition redraws the
+message. BKD long-polls `getUpdates`, so no inbound route was added. The decide
+logic moved from the route into `decideEvent()` in `decisions/service.ts`.
+Migration `0027` adds `webhooks.interactive` and `decision_channel_messages`.
+`events` may now be empty on an interactive channel. Not done yet: the
+`decision.*` events for one-way webhook and Telegram notifications (step 1 of
+the plan).
+
+## 2026-10-13 22:23 [progress]
+
+`20261013-2159-decision-telegram-interactive`: decision events are now
+notification events. `decision.opened`, `decision.decided`, `decision.applied`,
+`decision.withdrawn` and `decision.closed` can be subscribed to on webhook and
+Telegram channels; each state is delivered once per channel, with the full
+event plus `decisionsUrl` and `apiUrl`. Interactive Telegram channels are
+skipped and keep getting the answerable message. This completes the plan.
+
 ## 2026-10-13 22:23 [security]
 
 `20261013-2219-webhook-local-targets`: webhook URLs may target `localhost`,

@@ -127,8 +127,11 @@ Create a webhook.
 | `channel` | `"webhook" \| "telegram"` | No | Notification channel (default: `webhook`) |
 | `url` | `string` | Yes | Webhook URL (must be http/https for webhook channel) or Telegram chat ID |
 | `secret` | `string` (0-256) | No | Webhook signing secret or Telegram bot token (required for Telegram) |
-| `events` | `string[]` | Yes | Event types to subscribe to |
+| `events` | `string[]` | Yes | Event types to subscribe to. May be empty only when `interactive` is set |
 | `isActive` | `boolean` | No | Active state (default: true) |
+| `interactive` | `boolean` | No | Telegram only: post decision events to the chat and accept answers there (default: false). See [Decision Events](decisions.md#answering-from-telegram) |
+
+**Events:** `issue.created`, `issue.updated`, `issue.deleted`, `issue.status.{todo,working,review,done}`, `session.{started,completed,failed}`, `decision.{opened,decided,applied,withdrawn,closed}`. The decision payload is described in [Decision Events](decisions.md#notifications).
 
 **Targets:** A webhook URL may point at a local system: `localhost`, loopback, RFC 1918, CGNAT (`100.64.0.0/10`) and IPv6 unique-local addresses are allowed. Link-local addresses (including the cloud metadata address `169.254.169.254`), multicast, unspecified and reserved ranges are rejected, as IP literals when saving and again at delivery time when a hostname resolves to one. Redirects are not followed: a `3xx` answer is recorded as a failed delivery.
 
@@ -138,7 +141,7 @@ Create a webhook.
 
 Update a webhook. Channel is immutable after creation. Masked secret value is treated as "unchanged".
 
-**Request Body:** `{ url?, secret?, events?, isActive? }`
+**Request Body:** `{ url?, secret?, events?, isActive?, interactive? }`
 
 ### DELETE /api/settings/webhooks/:id
 

@@ -566,7 +566,16 @@
     "webhooksEventStatusChanged": "状态变更（旧版）",
     "webhooksGroupIssue": "任务",
     "webhooksGroupStatus": "状态变更",
-    "webhooksGroupSession": "会话"
+    "webhooksGroupSession": "会话",
+    "webhooksGroupDecision": "决策",
+    "webhooksEventDecisionOpened": "待决定",
+    "webhooksEventDecisionDecided": "已决定",
+    "webhooksEventDecisionApplied": "已应用",
+    "webhooksEventDecisionWithdrawn": "已撤回",
+    "webhooksEventDecisionClosed": "已关闭",
+    "webhooksInteractive": "在此聊天中回答决策",
+    "webhooksInteractiveHint": "决策事件会带按钮发到这里，回复该消息即作为回答。聊天中的任何成员都可以做决定。该机器人只能由这一个 BKD 实例使用。",
+    "webhooksInteractiveBadge": "决策"
   },
   "contextMenu": {
     "pinToTop": "置顶",
