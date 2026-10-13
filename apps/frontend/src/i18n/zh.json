@@ -469,7 +469,7 @@
     "virtualEngineModelPlaceholder": "回退模型（可选，获取失败时使用）",
     "virtualEngineEnvPlaceholder": "EXTRA_VAR=value\n# 每行一个 KEY=VALUE",
     "worktreeAutoCleanup": "自动清理工作区",
-    "worktreeAutoCleanupHint": "自动清理已完成超过 1 天的工作区",
+    "worktreeAutoCleanupHint": "自动清理已完成或已删除超过 1 天的工作区",
     "upgradeAvailable": "发现新版本：v{{version}}",
     "supervisedMode": "受管",
     "upgradeStatusLabel": "监管器状态",

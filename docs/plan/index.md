@@ -1,6 +1,6 @@
 # BKD - Plan Index
 
-> Updated: 2026-10-11
+> Updated: 2026-10-13
 
 ## Usage
 
@@ -67,3 +67,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261011-0213-codex-failure-visibility Surface Codex turn failures and stop stall probes from ending Codex turns**](20261011-0213-codex-failure-visibility.md) `2026-10-11`
 - [x] [**20261012-1547-lode-update-check Check for updates on demand and soften retried-error styling**](20261012-1547-lode-update-check.md) `2026-10-12`
 - [x] [**20261012-2207-chat-message-layout Flatten chat headings, add an agent message surface, restore message actions**](20261012-2207-chat-message-layout.md) `2026-10-12`
+- [x] [**20261013-0244-worktree-cleanup-on-delete Clean up worktrees of deleted issues and stop cleanup stats from timing out**](20261013-0244-worktree-cleanup-on-delete.md) `2026-10-13`
