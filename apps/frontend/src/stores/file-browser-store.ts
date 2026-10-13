@@ -15,6 +15,16 @@ function clampWidth(w: number): number {
   return Math.max(min, Math.min(w, max))
 }
 
+/** Unsaved editor content plus the on-disk version it started from. */
+export interface FileDraft {
+  content: string
+  baseModifiedAt: string
+}
+
+function draftKey(root: string, path: string): string {
+  return `${root}\n${path}`
+}
+
 /** Build a cache key for per-context path persistence. */
 function contextKey(projectId: string, rootPath: string | null, issueId?: string | null): string {
   if (issueId) return `${projectId}:issue:${issueId}`
@@ -37,6 +47,12 @@ interface FileBrowserStore {
   showTree: boolean
   /** Soft-wrap long lines in the file editor. */
   wrap: boolean
+  /**
+   * Unsaved edits by workspace root + path. Kept in the store so they survive
+   * the browser unmounting (tab closed, panel hidden) and never leak between
+   * worktrees that share a relative path.
+   */
+  drafts: Record<string, FileDraft>
   /** Per-context path cache so switching contexts restores the last position. */
   pathCache: Map<string, string>
   open: (projectId: string, rootPath?: string) => void
@@ -55,6 +71,7 @@ interface FileBrowserStore {
   toggleHideIgnored: () => void
   toggleTree: () => void
   toggleWrap: () => void
+  setDraft: (root: string, path: string, draft: FileDraft | null) => void
 }
 
 export { MIN_WIDTH as FILE_BROWSER_MIN_WIDTH }
@@ -99,6 +116,7 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
   hideIgnored: false,
   showTree: true,
   wrap: false,
+  drafts: {},
   pathCache: new Map(),
 
   open: (projectId, rootPath) =>
@@ -195,7 +213,28 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
   toggleHideIgnored: () => set(s => ({ hideIgnored: !s.hideIgnored })),
   toggleTree: () => set(s => ({ showTree: !s.showTree })),
   toggleWrap: () => set(s => ({ wrap: !s.wrap })),
+  setDraft: (root, path, draft) =>
+    set((s) => {
+      const drafts = { ...s.drafts }
+      if (draft) drafts[draftKey(root, path)] = draft
+      else delete drafts[draftKey(root, path)]
+      return { drafts }
+    }),
 }))
+
+export function selectDraft(s: FileBrowserStore, root: string, path: string): FileDraft | null {
+  return s.drafts[draftKey(root, path)] ?? null
+}
+
+// Unsaved drafts may belong to a browser that is no longer on screen; let the
+// browser's leave-page prompt cover them.
+if (typeof window !== 'undefined') {
+  const onBeforeUnload = (e: BeforeUnloadEvent) => {
+    if (Object.keys(useFileBrowserStore.getState().drafts).length > 0) e.preventDefault()
+  }
+  window.addEventListener('beforeunload', onBeforeUnload)
+  import.meta.hot?.dispose(() => window.removeEventListener('beforeunload', onBeforeUnload))
+}
 
 // Re-clamp width on window resize (HMR-safe via import.meta.hot.dispose)
 attachResizeClamp(useFileBrowserStore.getState, clampWidth, import.meta.hot)

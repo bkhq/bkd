@@ -23,7 +23,8 @@ const FILE = {
   modifiedAt: '2026-10-13T08:00:00.000Z',
 }
 
-vi.mock('@/hooks/use-kanban', () => ({
+vi.mock('@/hooks/use-kanban', async () => ({
+  queryKeys: (await vi.importActual<typeof import('@/hooks/use-kanban')>('@/hooks/use-kanban')).queryKeys,
   useProject: () => ({ data: { id: 'p1', name: 'Proj', directory: '/ws/proj' } }),
   useProjectFiles: () => ({
     data: mocks.listing,
@@ -44,7 +45,7 @@ vi.mock('@/components/files/FileEditor', () => ({
   ),
 }))
 
-function renderBrowser(currentPath = 'src') {
+function renderBrowser(currentPath = 'src', client = new QueryClient()) {
   useFileBrowserStore.setState({
     projectId: 'p1',
     issueId: null,
@@ -52,9 +53,10 @@ function renderBrowser(currentPath = 'src') {
     currentPath,
     isOpen: true,
     showTree: true,
+    hideIgnored: false,
   })
   return render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={client}>
       <FileBrowserContent />
     </QueryClientProvider>,
   )
@@ -91,15 +93,24 @@ describe('file browser upload', () => {
     const file = new File(['x'], 'dropped.txt')
     const zone = screen.getByText('Select a file in the tree to view or edit it')
 
-    fireEvent.dragOver(zone, { dataTransfer: { files: [file] } })
+    fireEvent.dragOver(zone, { dataTransfer: { files: [file], types: ['Files'] } })
     expect(screen.getByText('Drop files to upload here')).toBeInTheDocument()
 
-    fireEvent.drop(zone, { dataTransfer: { files: [file] } })
+    fireEvent.drop(zone, { dataTransfer: { files: [file], types: ['Files'] } })
     expect(screen.queryByText('Drop files to upload here')).not.toBeInTheDocument()
     expect(mocks.uploadMutate).toHaveBeenCalledWith(
       { root: '/ws/proj', path: 'src', files: [file], overwrite: false },
       expect.anything(),
     )
+  })
+
+  it('leaves text drags alone, so the editor can still move text', () => {
+    renderBrowser()
+    const zone = screen.getByText('Select a file in the tree to view or edit it')
+    fireEvent.dragOver(zone, { dataTransfer: { files: [], types: ['text/plain'] } })
+    expect(screen.queryByText('Drop files to upload here')).not.toBeInTheDocument()
+    fireEvent.drop(zone, { dataTransfer: { files: [], types: ['text/plain'] } })
+    expect(mocks.uploadMutate).not.toHaveBeenCalled()
   })
 
   it('asks before replacing existing files and retries with overwrite', () => {
@@ -137,6 +148,7 @@ describe('file browser upload', () => {
 describe('file browser editing', () => {
   beforeEach(async () => {
     mocks.saveMutate.mockReset()
+    useFileBrowserStore.setState({ drafts: {} })
     await i18n.changeLanguage('en')
   })
 
@@ -172,5 +184,41 @@ describe('file browser editing', () => {
       { root: '/ws/proj', path: 'src/a.ts', content: 'mine', expectedModifiedAt: undefined },
       expect.anything(),
     )
+  })
+
+  it('ignores a draft for the same path in another workspace root', () => {
+    mocks.listing = FILE
+    useFileBrowserStore.getState().setDraft('/other/worktree', 'src/a.ts', { content: 'foreign', baseModifiedAt: FILE.modifiedAt })
+    renderBrowser('src/a.ts')
+    expect(screen.getByLabelText('editor')).toHaveValue(FILE.content)
+    expect(screen.queryByText('Modified')).not.toBeInTheDocument()
+  })
+
+  it('keeps unsaved edits when the browser unmounts and comes back', () => {
+    mocks.listing = FILE
+    const first = renderBrowser('src/a.ts')
+    fireEvent.change(screen.getByLabelText('editor'), { target: { value: 'kept' } })
+    first.unmount()
+
+    renderBrowser('src/a.ts')
+    expect(screen.getByLabelText('editor')).toHaveValue('kept')
+    expect(screen.getByText('Modified')).toBeInTheDocument()
+  })
+
+  it('writes the saved content into the file cache before dropping the draft', () => {
+    mocks.listing = FILE
+    mocks.saveMutate.mockImplementationOnce((_vars, opts) => {
+      opts?.onSuccess?.({ size: 5, modifiedAt: '2026-10-13T09:00:00.000Z' })
+    })
+    const client = new QueryClient()
+    renderBrowser('src/a.ts', client)
+    fireEvent.change(screen.getByLabelText('editor'), { target: { value: 'saved' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save file' }))
+
+    expect(client.getQueryData(['files', '/ws/proj', 'src/a.ts', { hideIgnored: false }])).toMatchObject({
+      content: 'saved',
+      modifiedAt: '2026-10-13T09:00:00.000Z',
+    })
+    expect(useFileBrowserStore.getState().drafts).toEqual({})
   })
 })

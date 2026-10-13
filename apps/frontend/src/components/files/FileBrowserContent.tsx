@@ -40,11 +40,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useDeleteFile, useProject, useProjectFiles, useSaveFile, useUploadFiles } from '@/hooks/use-kanban'
+import { queryKeys, useDeleteFile, useProject, useProjectFiles, useSaveFile, useUploadFiles } from '@/hooks/use-kanban'
 import { eventBus } from '@/lib/event-bus'
 import { ApiError, kanbanApi } from '@/lib/kanban-api'
 import { joinRootPath } from '@/lib/path-tree'
-import { useFileBrowserStore } from '@/stores/file-browser-store'
+import { selectDraft, useFileBrowserStore } from '@/stores/file-browser-store'
 import { FileBreadcrumb } from './FileBreadcrumb'
 import { FileEditor } from './FileEditor'
 import { FileList } from './FileList'
@@ -57,6 +57,11 @@ const CONFLICT_PREFIX = /^Already exists:\s*/
 
 function parentDir(path: string): string {
   return path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.'
+}
+
+/** Only OS file drags upload; text dragged inside the editor stays the editor's. */
+function isFileDrag(e: DragEvent): boolean {
+  return [...e.dataTransfer.types].includes('Files')
 }
 
 function isMarkdown(path: string): boolean {
@@ -123,9 +128,7 @@ export function FileBrowserContent({
   const [isDragOver, setIsDragOver] = useState(false)
   const [conflict, setConflict] = useState<{ files: File[], names: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  // Unsaved edits of the opened file (with the on-disk version they started
-  // from), and a navigation waiting on "discard?"
-  const [draft, setDraft] = useState<{ path: string, content: string, baseModifiedAt: string } | null>(null)
+  // A navigation waiting on "discard?"; drafts themselves live in the store
   const [saveConflict, setSaveConflict] = useState(false)
   const [pendingNav, setPendingNav] = useState<(() => void) | null>(null)
   const [previewPath, setPreviewPath] = useState<string | null>(null)
@@ -153,7 +156,13 @@ export function FileBrowserContent({
   } = useProjectFiles(effectiveRoot, currentPath, !!effectiveRoot && enabled)
 
   const file = listing?.type === 'file' ? listing : null
-  const draftContent = draft && draft.path === currentPath ? draft.content : null
+  // Unsaved edits of the opened file, scoped to this workspace root
+  const draft = useFileBrowserStore(s => (effectiveRoot ? selectDraft(s, effectiveRoot, currentPath) : null))
+  const setStoreDraft = useFileBrowserStore(s => s.setDraft)
+  const clearDraft = useCallback((path: string) => {
+    if (effectiveRoot) setStoreDraft(effectiveRoot, path, null)
+  }, [effectiveRoot, setStoreDraft])
+  const draftContent = draft?.content ?? null
   const editorValue = draftContent ?? file?.content ?? ''
   const isDirty = !!file && draftContent !== null && draftContent !== file.content
   // The file changed on disk under unsaved edits (typically an agent wrote it)
@@ -169,10 +178,10 @@ export function FileBrowserContent({
   const openPath = useCallback((path: string) => {
     if (path === currentPath) return
     guardDirty(() => {
-      setDraft(null)
+      clearDraft(currentPath)
       navigateTo(path)
     })
-  }, [currentPath, guardDirty, navigateTo])
+  }, [currentPath, guardDirty, clearDraft, navigateTo])
 
   /** Save the draft; `overwrite` skips the changed-on-disk check. */
   const handleSave = useCallback((overwrite = false) => {
@@ -186,34 +195,38 @@ export function FileBrowserContent({
         expectedModifiedAt: overwrite ? undefined : draft?.baseModifiedAt,
       },
       {
-        onSuccess: () => setDraft(null),
+        onSuccess: (saved) => {
+          // Show the saved text right away; dropping the draft first would
+          // flash the pre-save cache until the refetch lands
+          queryClient.setQueryData(
+            queryKeys.projectFiles(effectiveRoot, file.path, hideIgnored),
+            { ...file, content: editorValue, size: saved.size, modifiedAt: saved.modifiedAt },
+          )
+          clearDraft(file.path)
+        },
         onError: (err) => {
           if (err instanceof ApiError && err.statusCode === 409) setSaveConflict(true)
           else toast.error(err.message)
         },
       },
     )
-  }, [effectiveRoot, file, isDirty, editorValue, draft, saveFileMutation])
+  }, [effectiveRoot, file, isDirty, editorValue, draft, saveFileMutation, queryClient, hideIgnored, clearDraft])
 
   const handleEditorChange = useCallback((content: string) => {
-    if (!file) return
+    if (!file || !effectiveRoot) return
     // Typing back to the on-disk text drops the draft, so a later refresh
     // shows the new disk content instead of a stale "edit"
-    if (content === file.content) {
-      setDraft(null)
-      return
-    }
-    setDraft(prev => ({
-      path: file.path,
-      content,
-      baseModifiedAt: prev?.path === file.path ? prev.baseModifiedAt : file.modifiedAt,
-    }))
-  }, [file])
+    setStoreDraft(
+      effectiveRoot,
+      file.path,
+      content === file.content ? null : { content, baseModifiedAt: draft?.baseModifiedAt ?? file.modifiedAt },
+    )
+  }, [file, effectiveRoot, draft, setStoreDraft])
 
   const handleDiscard = useCallback(() => {
-    setDraft(null)
+    clearDraft(currentPath)
     void refetch()
-  }, [refetch])
+  }, [clearDraft, currentPath, refetch])
 
   const copyText = useCallback((text: string) => {
     void navigator.clipboard.writeText(text).then(() => toast.success(t('fileBrowser.copied')))
@@ -233,13 +246,13 @@ export function FileBrowserContent({
       { root: effectiveRoot, path: file.path },
       {
         onSuccess: () => {
-          setDraft(null)
+          clearDraft(file.path)
           navigateTo(parentDir(file.path))
         },
       },
     )
     setDeleteFileConfirm(false)
-  }, [effectiveRoot, file, deleteFileMutation, navigateTo])
+  }, [effectiveRoot, file, deleteFileMutation, clearDraft, navigateTo])
 
   const handleEntryClick = useCallback((name: string) => {
     openPath(currentPath === '.' ? name : `${currentPath}/${name}`)
@@ -273,7 +286,7 @@ export function FileBrowserContent({
   }, [effectiveRoot, uploadDir, uploadMutation])
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
-    if (!canUpload) return
+    if (!canUpload || !isFileDrag(e)) return
     e.preventDefault()
     setIsDragOver(true)
   }, [canUpload])
@@ -285,7 +298,7 @@ export function FileBrowserContent({
   }, [])
 
   const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-    if (!canUpload) return
+    if (!canUpload || !isFileDrag(e)) return
     e.preventDefault()
     setIsDragOver(false)
     uploadFiles([...e.dataTransfer.files])

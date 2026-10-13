@@ -8,6 +8,7 @@ import { CreateIssueDialog } from '@/components/kanban/CreateIssueDialog'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import { useProject } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { shouldHideListPanel } from '@/lib/list-panel'
 import { useWorkspacePanelStore } from '@/stores/workspace-panel-store'
 
 const SIDEBAR_WIDTH = 56
@@ -47,7 +48,7 @@ export default function IssueDetailPage() {
   // On mobile: show list when no issue selected, show chat when issue selected
   // On desktop: hide list panel when workspace panel needs more than 50% of available space
   const availableWidth = typeof window !== 'undefined' ? window.innerWidth - SIDEBAR_WIDTH : 1200
-  const hideListPanel = (isMobile && !!issueId) || (panelOpen && panelWidth > availableWidth * 0.5)
+  const hideListPanel = shouldHideListPanel({ isMobile, issueId, panelOpen, panelWidth, availableWidth })
 
   const handlePanelWidthChange = useCallback(
     (w: number) => {

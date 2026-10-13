@@ -8,6 +8,7 @@ import { AppSidebar } from '@/components/kanban/AppSidebar'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import { useReviewIssues } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { shouldHideListPanel } from '@/lib/list-panel'
 import { useWorkspacePanelStore } from '@/stores/workspace-panel-store'
 
 const SIDEBAR_WIDTH = 56
@@ -49,7 +50,7 @@ export default function ReviewPage() {
   )
 
   const availableWidth = typeof window !== 'undefined' ? window.innerWidth - SIDEBAR_WIDTH : 1200
-  const hideListPanel = (isMobile && !!issueId) || (panelOpen && panelWidth > availableWidth * 0.5)
+  const hideListPanel = shouldHideListPanel({ isMobile, issueId, panelOpen, panelWidth, availableWidth })
 
   const handlePanelWidthChange = useCallback(
     (w: number) => {
