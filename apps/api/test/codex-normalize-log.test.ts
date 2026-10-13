@@ -40,6 +40,33 @@ describe('CodexExecutor.normalizeLog', () => {
   // 2. item/started
   // ------------------------------------------------------------------
   describe('item/started', () => {
+    test('commandExecution prefers the bare command over the shell wrapper', () => {
+      const entry = normalize('item/started', {
+        item: {
+          type: 'commandExecution',
+          id: 'cmd-wrapped',
+          command: '/usr/bin/bash -c \'git status\'',
+          commandActions: [{ type: 'unknown', command: 'git status' }],
+        },
+      })
+      expect(entry!.toolAction).toMatchObject({ kind: 'command-run', command: 'git status' })
+    })
+
+    test('commandExecution keeps the full command when it has several actions', () => {
+      const entry = normalize('item/started', {
+        item: {
+          type: 'commandExecution',
+          id: 'cmd-multi',
+          command: '/usr/bin/bash -c \'cat a && ls\'',
+          commandActions: [
+            { type: 'read', command: 'cat a' },
+            { type: 'listFiles', command: 'ls' },
+          ],
+        },
+      })
+      expect(entry!.toolAction).toMatchObject({ command: '/usr/bin/bash -c \'cat a && ls\'' })
+    })
+
     test('commandExecution returns tool-use', () => {
       const entry = normalize('item/started', {
         item: { type: 'commandExecution', id: 'cmd-1' },
@@ -286,6 +313,11 @@ describe('CodexExecutor.normalizeLog', () => {
       expect(entry!.entryType).toBe('system-message')
       expect(entry!.content).toBe('Thread started')
       expect(entry!.metadata?.threadId).toBe('thr-abc')
+    })
+
+    test('thread/started reads the id from params.thread.id', () => {
+      const entry = normalize('thread/started', { thread: { id: 'thr-nested' } })
+      expect(entry!.metadata?.threadId).toBe('thr-nested')
     })
 
     test('thread/status/changed with systemError returns error-message', () => {

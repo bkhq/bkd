@@ -529,7 +529,8 @@ export class CodexProtocolHandler {
     }
 
     if (method === 'turn/started' && params) {
-      const turnId = (params as Record<string, unknown>).turnId as string | undefined
+      const p = params as { turn?: { id?: string }, turnId?: string }
+      const turnId = p.turn?.id ?? p.turnId
       if (turnId) {
         this._turnId = turnId
       }
