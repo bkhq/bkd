@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test'
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -9,6 +9,7 @@ import { runWorktreeCleanup, WORKTREE_AUTO_CLEANUP_KEY } from '@/cron/actions/bu
 import { db } from '@/db'
 import { getAppSetting, setAppSetting } from '@/db/helpers'
 import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
+import { issueEngine } from '@/engines/issue'
 import {
   createWorktree,
   isWorktreeRegistered,
@@ -111,6 +112,35 @@ describe('auto-cleanup cron', () => {
     await softDelete(id)
 
     await runWorktreeCleanup()
+
+    expect(existsSync(path)).toBe(true)
+  })
+
+  test('removes a deleted issue whose session is stuck as running with no live process', async () => {
+    // Deleting a running issue terminates best-effort; on failure the row
+    // keeps `running`, and the reconciler skips deleted rows
+    const { id, path } = await createWorktreeIssue()
+    await softDelete(id)
+    // One write: any update bumps updatedAt, which stands in for the deletion time
+    await db
+      .update(issuesTable)
+      .set({ sessionStatus: 'running', updatedAt: new Date(Date.now() - DAY_MS - 60_000) })
+      .where(eq(issuesTable.id, id))
+
+    await runWorktreeCleanup()
+
+    expect(existsSync(path)).toBe(false)
+  })
+
+  test('keeps a deleted issue\'s worktree while its process is still alive', async () => {
+    const { id, path } = await createWorktreeIssue()
+    await softDelete(id, DAY_MS + 60_000)
+    const live = spyOn(issueEngine, 'hasActiveProcessForIssue').mockImplementation(issueId => issueId === id)
+    try {
+      await runWorktreeCleanup()
+    } finally {
+      live.mockRestore()
+    }
 
     expect(existsSync(path)).toBe(true)
   })

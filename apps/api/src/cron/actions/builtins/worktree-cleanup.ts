@@ -4,6 +4,7 @@ import { and, eq, inArray, isNull, lte, notInArray, or } from 'drizzle-orm'
 import { db } from '@/db'
 import { getAppSetting } from '@/db/helpers'
 import { issues as issuesTable, projects as projectsTable } from '@/db/schema'
+import { issueEngine } from '@/engines/issue'
 import { removeWorktree, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
 import { logger } from '@/logger'
 
@@ -68,10 +69,11 @@ export async function runWorktreeCleanup(): Promise<string> {
 
     if (issueIds.length === 0) continue
 
-    const cleanableIssues = await db
+    const candidates = await db
       .select({
         id: issuesTable.id,
         projectId: issuesTable.projectId,
+        isDeleted: issuesTable.isDeleted,
       })
       .from(issuesTable)
       .where(
@@ -83,17 +85,21 @@ export async function runWorktreeCleanup(): Promise<string> {
               eq(issuesTable.statusId, 'done'),
               eq(issuesTable.isDeleted, 0),
               lte(issuesTable.statusUpdatedAt, cutoff),
+              or(
+                isNull(issuesTable.sessionStatus),
+                notInArray(issuesTable.sessionStatus, ['running', 'pending']),
+              ),
             ),
             // The soft delete bumps `updatedAt`, and nothing writes a deleted
             // issue afterwards, so it stands in for the deletion time.
             and(eq(issuesTable.isDeleted, 1), lte(issuesTable.updatedAt, cutoff)),
           ),
-          or(
-            isNull(issuesTable.sessionStatus),
-            notInArray(issuesTable.sessionStatus, ['running', 'pending']),
-          ),
         ),
       )
+    // A deleted row's sessionStatus can be stuck at running/pending (delete
+    // terminates best-effort, and the reconciler skips deleted rows), so for
+    // those ask whether a process is actually alive.
+    const cleanableIssues = candidates.filter(i => !i.isDeleted || !issueEngine.hasActiveProcessForIssue(i.id))
 
     if (cleanableIssues.length === 0) continue
 

@@ -689,3 +689,19 @@ are `20261013-0538-spawn-leak-tests-order-dependent`).
 `20261013-0726-workspace-side-panel`: file saves from the editor send the `modifiedAt` they
 started from; the API answers 409 if the file changed on disk (an agent wrote it), and the
 editor offers reload or overwrite. File listings refresh on `changes-summary` events.
+
+## 2026-10-13 10:20 [BUG-P1]
+
+Follow-ups from the Codex review of #149 / #150 / #151, fixed on `release`:
+
+- Editor drafts lived in `FileBrowserContent` state keyed by relative path only: closing the Files
+  tab or hiding the panel dropped them, and switching issues could show (and, via "overwrite",
+  save) one worktree's draft over another worktree's same-named file. Drafts now live in
+  `file-browser-store`, keyed by workspace root + path, with a `beforeunload` prompt. Saves write the
+  new content and `modifiedAt` into the query cache before dropping the draft (no pre-save flash,
+  no false 409).
+- Issue / review pages went blank when the workspace panel was open and wide with no issue
+  selected; the list-hiding rule (`lib/list-panel.ts`) now requires a selected issue.
+- The upload drop zone intercepted text drags inside the editor; only file drags upload now.
+- Worktree auto-cleanup skipped deleted issues whose `sessionStatus` stayed `running` after a
+  failed best-effort terminate; deleted rows are now checked against live processes instead.
