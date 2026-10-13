@@ -240,3 +240,49 @@ export function getNextTurnIndex(issueId: string): number {
     .all()
   return (row?.maxTurn ?? -1) + 1
 }
+
+export interface TurnSummary {
+  messageId: string
+  userText: string
+  replyText: string
+  /** Visible log entries from this turn's message to the newest one */
+  entriesSince: number
+}
+
+/** Longest user/reply text returned per turn; previews show a few lines. */
+const TURN_TEXT_LENGTH = 300
+
+/**
+ * One summary per chat turn, oldest first: each top-level user message the
+ * chat shows as a turn, paired with the first top-level reply after it.
+ * Meta-turn, queued, and subagent messages are not turns.
+ */
+export function getTurnSummaries(issueId: string): TurnSummary[] {
+  const rows = db.all<{ id: string, entryType: string, text: string, entriesSince: number }>(sql`
+    SELECT id, entry_type AS entryType, text, entries_since AS entriesSince FROM (
+      SELECT
+        id,
+        entry_type,
+        metadata,
+        CASE WHEN entry_type IN ('user-message', 'assistant-message')
+          THEN substr(content, 1, ${TURN_TEXT_LENGTH}) END AS text,
+        COUNT(*) OVER (ORDER BY id DESC) AS entries_since
+      FROM ${logsTable}
+      WHERE ${logsTable.issueId} = ${issueId} AND ${logsTable.visible} = 1
+    )
+    WHERE entry_type IN ('user-message', 'assistant-message')
+      AND json_extract(metadata, '$.subagent') IS NULL
+      AND coalesce(json_extract(metadata, '$.type'), '') NOT IN ('system', 'pending', 'done')
+    ORDER BY id
+  `)
+  const turns: TurnSummary[] = []
+  for (const row of rows) {
+    if (row.entryType === 'user-message') {
+      turns.push({ messageId: row.id, userText: row.text, replyText: '', entriesSince: row.entriesSince })
+      continue
+    }
+    const current = turns.at(-1)
+    if (current && !current.replyText) current.replyText = row.text
+  }
+  return turns
+}

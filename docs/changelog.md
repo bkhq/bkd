@@ -636,3 +636,27 @@ longer keeps stale `.git/worktrees` entries. Cleanup stats report the
 worktree count only (`totalSize: 0`). Task
 `20261013-0244-worktree-cleanup-on-delete`, plan
 `20261013-0244-worktree-cleanup-on-delete`.
+
+## 2026-10-13 05:58 [progress]
+
+Chat area gets a turn navigator: a rail of ticks at the right-middle of the
+message list, one per user message, with the turn at the top of the viewport
+highlighted. Hovering a tick previews the user message and the start of the
+agent reply; clicking scrolls there and stops auto-follow, in both the plain
+and the virtualized list. Shown from 2 turns on `md`+ viewports; covers the
+loaded turns only. Task `20261013-0540-chat-turn-navigator`, plan
+`20261013-0540-chat-turn-navigator`.
+
+## 2026-10-13 06:25 [progress]
+
+The chat turn navigator lists every turn of an issue, not only the loaded
+page: a new `GET /api/projects/:projectId/issues/:id/turns` returns one
+summary per turn (user text, first reply, both cut to 300 chars, and the
+visible entry count from that turn on), fetched while older history exists.
+Clicking an unloaded turn loads history up to it (`loadOlderUntil`, 200 per
+request) and then scrolls there; when that would load more than about 1000
+entries it asks first. Ticks no longer animate when the active turn changes;
+they highlight by colour and only grow on hover. Task
+`20261013-0553-turn-navigator-full-history`, plan
+`20261013-0553-turn-navigator-full-history`; full-list rebuild cost tracked in
+`20261013-0614-incremental-chat-messages`.

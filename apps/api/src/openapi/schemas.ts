@@ -267,6 +267,15 @@ export const IssueLogsResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 }).openapi('IssueLogsResponse')
 
+export const IssueTurnsResponseSchema = z.object({
+  turns: z.array(z.object({
+    messageId: z.string(),
+    userText: z.string(),
+    replyText: z.string(),
+    entriesSince: z.number().int(),
+  })),
+}).openapi('IssueTurnsResponse')
+
 export const IssueChangedFileSchema = z.object({
   path: z.string(),
   status: z.string(),

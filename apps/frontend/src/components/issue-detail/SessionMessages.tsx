@@ -1,12 +1,16 @@
-import type { ChatMessage, NormalizedLogEntry, TaskPlanChatMessage } from '@bkd/shared'
+import type { ChatMessage, IssueTurnSummary, NormalizedLogEntry, TaskPlanChatMessage } from '@bkd/shared'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { CheckCircle2, ChevronDown, Circle, ListTodo, Loader2 } from 'lucide-react'
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useChatMessages } from '@/hooks/use-chat-messages'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import { LogEntry } from './LogEntry'
 import { ToolGroupMessage } from './ToolItems'
+import type { ChatTurn } from './turn-navigator'
+import { buildTurns, mergeTurns } from './turn-navigator'
+import { TurnNavigator } from './TurnNavigator'
 
 // ── ChatMessage renderer ─────────────────────────────────
 
@@ -157,6 +161,11 @@ export function SessionMessages({ sessionKey, ...props }: {
   hasOlderLogs?: boolean
   isLoadingOlder?: boolean
   onLoadOlder?: () => void
+  /** Element the turn navigator is portaled into; it must not scroll with the list */
+  navigatorContainer?: HTMLElement | null
+  /** Every turn of the issue, so the navigator can list unloaded history */
+  serverTurns?: IssueTurnSummary[]
+  loadOlderUntil?: (messageId: string) => Promise<boolean>
 }) {
   return <LegacySessionMessages key={sessionKey} {...props} />
 }
@@ -174,6 +183,9 @@ function LegacySessionMessages({
   hasOlderLogs = false,
   isLoadingOlder = false,
   onLoadOlder,
+  navigatorContainer,
+  serverTurns,
+  loadOlderUntil,
 }: {
   logs: NormalizedLogEntry[]
   scrollRef?: React.RefObject<HTMLDivElement | null>
@@ -184,6 +196,11 @@ function LegacySessionMessages({
   hasOlderLogs?: boolean
   isLoadingOlder?: boolean
   onLoadOlder?: () => void
+  /** Element the turn navigator is portaled into; it must not scroll with the list */
+  navigatorContainer?: HTMLElement | null
+  /** Every turn of the issue, so the navigator can list unloaded history */
+  serverTurns?: IssueTurnSummary[]
+  loadOlderUntil?: (messageId: string) => Promise<boolean>
 }) {
   const { t } = useTranslation()
   const fullWidthChat = useViewModeStore(s => s.fullWidthChat)
@@ -192,6 +209,12 @@ function LegacySessionMessages({
   const { messages } = useChatMessages(logs)
 
   const useVirtual = messages.length >= VIRTUALIZE_THRESHOLD
+  const oldestLoadedId = logs[0]?.messageId
+  const turns = useMemo(
+    () => mergeTurns(serverTurns, buildTurns(messages), oldestLoadedId),
+    [serverTurns, messages, oldestLoadedId],
+  )
+  const showNavigator = !!navigatorContainer && turns.length >= 2
 
   const contentRef = useRef<HTMLDivElement>(null)
   const nearBottomRef = useRef(true)
@@ -251,7 +274,7 @@ function LegacySessionMessages({
   }, [messages, isRunning, scheduleFollow])
 
   return (
-    <div ref={contentRef} className={`flex flex-col py-2 px-5${fullWidthChat ? '' : ' max-w-4xl'}`}>
+    <div ref={contentRef} className={`flex flex-col py-2 px-5${showNavigator ? ' md:pr-9' : ''}${fullWidthChat ? '' : ' max-w-4xl'}`}>
       {hasOlderLogs && onLoadOlder ?
           (
             <div className="flex justify-center py-2">
@@ -273,6 +296,13 @@ function LegacySessionMessages({
         messages={messages}
         scrollRef={scrollRef}
         virtualize={useVirtual}
+        turns={turns}
+        navigatorContainer={showNavigator ? navigatorContainer : null}
+        loadedEntries={logs.length}
+        loadOlderUntil={loadOlderUntil}
+        onJump={() => {
+          nearBottomRef.current = false
+        }}
       />
       <ThinkingIndicator
         isRunning={isRunning}
@@ -290,10 +320,21 @@ function VirtualMessageList({
   messages,
   scrollRef,
   virtualize,
+  turns,
+  navigatorContainer,
+  loadedEntries,
+  loadOlderUntil,
+  onJump,
 }: {
   messages: ChatMessage[]
   scrollRef?: React.RefObject<HTMLDivElement | null>
   virtualize: boolean
+  turns: ChatTurn[]
+  navigatorContainer?: HTMLElement | null
+  loadedEntries: number
+  loadOlderUntil?: (messageId: string) => Promise<boolean>
+  /** Called before jumping to a turn */
+  onJump: () => void
 }) {
   const listRef = useRef<HTMLDivElement>(null)
   const [scrollMargin, setScrollMargin] = useState<number | null>(null)
@@ -328,6 +369,26 @@ function VirtualMessageList({
   })
 
   const totalSize = virtualizer.getTotalSize()
+  const activeTurnIndex = navigatorContainer ? findActiveTurn(virtualizer, turns) : -1
+
+  // An unloaded turn is scrolled to once the history load has rendered it.
+  const [pendingTurnId, setPendingTurnId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!pendingTurnId) return
+    const index = turns.find(turn => turn.messageId === pendingTurnId)?.index
+    if (index == null) return
+    setPendingTurnId(null)
+    virtualizer.scrollToIndex(index, { align: 'start' })
+  }, [pendingTurnId, turns, virtualizer])
+
+  const jumpToTurn = async (turn: ChatTurn) => {
+    onJump()
+    if (turn.index !== null) {
+      virtualizer.scrollToIndex(turn.index, { align: 'start', behavior: 'smooth' })
+      return
+    }
+    if (await loadOlderUntil?.(turn.messageId)) setPendingTurnId(turn.messageId)
+  }
   // Normal-flow rows still share measurements and anchors with the virtual layout.
   const items = virtualize
     ? virtualizer.getVirtualItems()
@@ -354,8 +415,42 @@ function VirtualMessageList({
           </div>
         )
       })}
+      {navigatorContainer ?
+          createPortal(
+            <TurnNavigator
+              turns={turns}
+              activeIndex={activeTurnIndex}
+              loadedEntries={loadedEntries}
+              onJump={jumpToTurn}
+            />,
+            navigatorContainer,
+          ) :
+        null}
     </div>
   )
+}
+
+/** Slack for sub-pixel scroll positions after jumping to a turn. */
+const ACTIVE_TURN_TOLERANCE = 8
+
+/**
+ * The turn in view: the last one starting at or above the top of the
+ * viewport. Rows are measured in both list modes, so the virtualizer's
+ * offsets apply to either.
+ */
+function findActiveTurn(
+  virtualizer: ReturnType<typeof useVirtualizer<HTMLDivElement, Element>>,
+  turns: ChatTurn[],
+): number {
+  const offset = virtualizer.scrollOffset ?? 0
+  let active = turns.find(turn => turn.index !== null)?.index ?? -1
+  for (const turn of turns) {
+    if (turn.index === null) continue
+    const start = virtualizer.measurementsCache[turn.index]?.start
+    if (start === undefined || start > offset + ACTIVE_TURN_TOLERANCE) break
+    active = turn.index
+  }
+  return active
 }
 
 // ── Thinking indicator ───────────────────────────────────

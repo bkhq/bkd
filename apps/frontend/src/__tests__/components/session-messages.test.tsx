@@ -1,5 +1,5 @@
 import type { NormalizedLogEntry } from '@bkd/shared'
-import { act, cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionMessages } from '@/components/issue-detail/SessionMessages'
 
@@ -274,5 +274,68 @@ describe('sessionMessages', () => {
     view.update([tool, { messageId: 'result', entryType: 'tool-use', content: 'updated result', metadata: { toolCallId: 'call', isResult: true } }, { ...plan, metadata: { toolName: 'TodoWrite', input: { todos: [{ content: 'Revised task', status: 'completed' }] } } }])
     expect(scroll).toHaveTextContent('updated result')
     expect(scroll).toHaveTextContent('Revised task')
+  })
+  it.each([30, 50])('jumps to a turn from the navigator and stops following the bottom (%i turns)', (count) => {
+    const rail = document.createElement('div')
+    document.body.append(rail)
+    const conversation = (n: number): NormalizedLogEntry[] => Array.from({ length: n }, (_, i): NormalizedLogEntry[] => [
+      { messageId: `u${i}`, entryType: 'user-message', content: `question ${i} ${'q'.repeat(40)}` },
+      { messageId: `a${i}`, entryType: 'assistant-message', content: 'a'.repeat(200) },
+    ]).flat()
+    const scrollRef = { current: scroll }
+    const entries = conversation(count)
+    const view = render(<SessionMessages logs={entries} scrollRef={scrollRef} isRunning navigatorContainer={rail} />, { container: scroll })
+    settle()
+    expect(scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight).toBeLessThanOrEqual(1)
+
+    const ticks = within(rail).getAllByRole('button')
+    expect(ticks).toHaveLength(count)
+    // At the bottom the 600px viewport spans the last two 252px turns, so its top is inside the third-to-last.
+    expect(ticks.at(-3)).toHaveAttribute('aria-current', 'true')
+
+    fireEvent.click(ticks[1])
+    settle()
+    const second = 'question 0 '.length + 40 + 200
+    expect(Math.abs(scroll.scrollTop - second)).toBeLessThanOrEqual(1)
+    expect(within(rail).getAllByRole('button')[1]).toHaveAttribute('aria-current', 'true')
+
+    view.rerender(<SessionMessages logs={[...entries, { messageId: 'tail', entryType: 'assistant-message', content: 'more' }]} scrollRef={scrollRef} isRunning navigatorContainer={rail} />)
+    settle()
+    expect(Math.abs(scroll.scrollTop - second)).toBeLessThanOrEqual(1)
+    rail.remove()
+  })
+  it('loads history up to an unloaded turn before jumping to it', async () => {
+    const rail = document.createElement('div')
+    document.body.append(rail)
+    const conversation = (from: number, to: number): NormalizedLogEntry[] => Array.from({ length: to - from }, (_, k): NormalizedLogEntry[] => {
+      const i = from + k
+      return [
+        { messageId: `01J${String(i * 2).padStart(23, '0')}`, entryType: 'user-message', content: `question ${i} ${'q'.repeat(40)}` },
+        { messageId: `01J${String(i * 2 + 1).padStart(23, '0')}`, entryType: 'assistant-message', content: 'a'.repeat(200) },
+      ]
+    }).flat()
+    const scrollRef = { current: scroll }
+    const older = conversation(0, 10)
+    const latest = conversation(10, 20)
+    const serverTurns = older.filter(e => e.entryType === 'user-message').map((e, i) => ({ messageId: e.messageId!, userText: e.content, replyText: 'a', entriesSince: 40 - i * 2 }))
+    const props = { scrollRef, isRunning: true, navigatorContainer: rail, serverTurns, hasOlderLogs: true, onLoadOlder: vi.fn() }
+    const loadOlderUntil = vi.fn(async () => {
+      view.rerender(<SessionMessages logs={[...older, ...latest]} {...props} loadOlderUntil={loadOlderUntil} />)
+      return true
+    })
+    const view = render(<SessionMessages logs={latest} {...props} loadOlderUntil={loadOlderUntil} />, { container: scroll })
+    settle()
+
+    const ticks = within(rail).getAllByRole('button')
+    expect(ticks).toHaveLength(20)
+    await act(async () => {
+      fireEvent.click(ticks[3])
+    })
+    settle()
+
+    expect(loadOlderUntil).toHaveBeenCalledWith(serverTurns[3].messageId)
+    // Three earlier turns of 51px questions and 200px replies sit above the target.
+    expect(Math.abs(scroll.scrollTop - 3 * (51 + 200))).toBeLessThanOrEqual(1)
+    rail.remove()
   })
 })

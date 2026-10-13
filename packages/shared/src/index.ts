@@ -380,6 +380,19 @@ export interface IssueLogsResponse {
   nextCursor: string | null
 }
 
+/** One chat turn: a user message and the start of the first reply after it. */
+export interface IssueTurnSummary {
+  messageId: string
+  userText: string
+  replyText: string
+  /** Visible log entries from this turn's message to the newest one */
+  entriesSince: number
+}
+
+export interface IssueTurnsResponse {
+  turns: IssueTurnSummary[]
+}
+
 export interface IssueChangedFile {
   path: string
   status: string
