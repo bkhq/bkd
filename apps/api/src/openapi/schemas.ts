@@ -8,6 +8,9 @@
  * Convention: every schema that appears in the generated spec
  * must call `.openapi('SchemaName')` so it gets a $ref.
  */
+// Patches `.openapi()` onto zod; without it, whichever module loads this file
+// first (e.g. a test importing db helpers) hits an undefined method.
+import '@hono/zod-openapi'
 import * as z from 'zod'
 
 // ── Common helpers ─────────────────────────────────────
