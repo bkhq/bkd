@@ -158,6 +158,34 @@
   }
 }
 
+/* Workspace side panel: one-sided keyframes animate to/from the panel's
+   inline width, so they follow whatever width the user dragged. */
+@keyframes panel-expand {
+  from {
+    width: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes panel-collapse {
+  to {
+    width: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes panel-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes panel-slide-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+
 @keyframes thinking-dot {
   0%,
   80%,
@@ -268,6 +296,32 @@
 
   .animate-message-enter {
     animation: message-enter 0.25s ease-out both;
+  }
+
+  .animate-panel-expand {
+    animation: panel-expand 0.22s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .animate-panel-collapse {
+    animation: panel-collapse 0.18s cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+
+  .animate-panel-slide-in {
+    animation: panel-slide-in 0.22s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .animate-panel-slide-out {
+    animation: panel-slide-out 0.18s cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+
+  /* Near-zero rather than none: the panel unmounts on animationend */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-panel-expand,
+    .animate-panel-collapse,
+    .animate-panel-slide-in,
+    .animate-panel-slide-out {
+      animation-duration: 1ms;
+    }
   }
 
   .thinking-dots span {
