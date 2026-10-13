@@ -614,3 +614,10 @@ UI-009 is back as a footer action next to the copy buttons. The file-browser
 preview is unchanged. Task
 `20261012-2028-chat-heading-size-and-agent-bg`, plan
 `20261012-2207-chat-message-layout`.
+
+## 2026-10-13 01:58 [UI-P2]
+
+Agent messages use the same card as user messages (border, 3px left bar,
+padding, outer spacing) instead of a borderless tinted block, marked by a
+primary-tinted bar and background where user messages stay neutral. Task
+`20261013-0155-agent-message-card-style`.

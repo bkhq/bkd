@@ -52,9 +52,15 @@ describe('assistant message actions', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('sets the message body on its own surface', () => {
+  it('uses the user message card shape with its own colour', () => {
     renderEntry()
-    expect(screen.getByTestId('assistant-message-body')).toHaveClass('rounded-lg', 'bg-muted/40')
+    expect(screen.getByTestId('assistant-message-body')).toHaveClass(
+      'rounded-lg',
+      'border',
+      'border-l-[3px]',
+      'border-l-primary/60',
+      'bg-primary/[0.04]',
+    )
   })
 
   it('copy text writes the rendered text without markup', async () => {
