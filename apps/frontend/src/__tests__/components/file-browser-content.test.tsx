@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '@/i18n'
@@ -7,33 +8,56 @@ import { useFileBrowserStore } from '@/stores/file-browser-store'
 
 const mocks = vi.hoisted(() => ({
   uploadMutate: vi.fn(),
+  saveMutate: vi.fn(),
+  listing: null as unknown,
 }))
+
+const DIRECTORY = { path: 'src', type: 'directory', entries: [] }
+const FILE = {
+  path: 'src/a.ts',
+  type: 'file',
+  content: 'const a = 1\n',
+  size: 12,
+  isTruncated: false,
+  isBinary: false,
+  modifiedAt: '2026-10-13T08:00:00.000Z',
+}
 
 vi.mock('@/hooks/use-kanban', () => ({
   useProject: () => ({ data: { id: 'p1', name: 'Proj', directory: '/ws/proj' } }),
   useProjectFiles: () => ({
-    data: { path: 'src', type: 'directory', entries: [] },
+    data: mocks.listing,
     isLoading: false,
     isError: false,
     error: null,
+    refetch: vi.fn(),
   }),
   useDeleteFile: () => ({ mutate: vi.fn(), isPending: false }),
-  useSaveFile: () => ({ mutate: vi.fn(), isPending: false }),
+  useSaveFile: () => ({ mutate: mocks.saveMutate, isPending: false }),
   useUploadFiles: () => ({ mutate: mocks.uploadMutate, isPending: false }),
 }))
 
-// FileViewer pulls in the Shiki bundle; the upload flow never renders it.
-vi.mock('@/components/files/FileViewer', () => ({ FileViewer: () => null }))
+// The real editor is CodeMirror; a textarea stands in for it.
+vi.mock('@/components/files/FileEditor', () => ({
+  FileEditor: ({ value, onChange }: { value: string, onChange: (v: string) => void }) => (
+    <textarea aria-label="editor" value={value} onChange={e => onChange(e.target.value)} />
+  ),
+}))
 
-function renderBrowser() {
+function renderBrowser(currentPath = 'src') {
   useFileBrowserStore.setState({
     projectId: 'p1',
     issueId: null,
     rootPath: null,
-    currentPath: 'src',
+    currentPath,
     isOpen: true,
+    showTree: true,
   })
-  return render(<FileBrowserContent />)
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <FileBrowserContent />
+    </QueryClientProvider>,
+  )
 }
 
 function pickFiles(container: HTMLElement, files: File[]) {
@@ -44,6 +68,8 @@ function pickFiles(container: HTMLElement, files: File[]) {
 describe('file browser upload', () => {
   beforeEach(async () => {
     mocks.uploadMutate.mockReset()
+    mocks.saveMutate.mockReset()
+    mocks.listing = DIRECTORY
     await i18n.changeLanguage('en')
   })
 
@@ -63,7 +89,7 @@ describe('file browser upload', () => {
   it('shows a drop hint while dragging and uploads dropped files', () => {
     renderBrowser()
     const file = new File(['x'], 'dropped.txt')
-    const zone = screen.getByText('Empty directory')
+    const zone = screen.getByText('Select a file in the tree to view or edit it')
 
     fireEvent.dragOver(zone, { dataTransfer: { files: [file] } })
     expect(screen.getByText('Drop files to upload here')).toBeInTheDocument()
@@ -105,5 +131,46 @@ describe('file browser upload', () => {
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(screen.getByText('File "big.bin" exceeds 10MB limit')).toBeInTheDocument()
+  })
+})
+
+describe('file browser editing', () => {
+  beforeEach(async () => {
+    mocks.saveMutate.mockReset()
+    await i18n.changeLanguage('en')
+  })
+
+  it('shows Modified + Save once the opened file is edited, and saves the draft', () => {
+    mocks.listing = FILE
+    renderBrowser('src/a.ts')
+    expect(screen.queryByRole('button', { name: 'Save file' })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('editor'), { target: { value: 'const a = 2\n' } })
+    expect(screen.getByText('Modified')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save file' }))
+
+    expect(mocks.saveMutate).toHaveBeenCalledWith(
+      { root: '/ws/proj', path: 'src/a.ts', content: 'const a = 2\n', expectedModifiedAt: FILE.modifiedAt },
+      expect.anything(),
+    )
+  })
+
+  it('on a 409 offers reload or overwrite, and overwrite saves without the version check', () => {
+    mocks.listing = FILE
+    mocks.saveMutate.mockImplementationOnce((_vars, opts) => {
+      opts?.onError?.(new ApiError('File changed on disk since it was opened', 409))
+    })
+    renderBrowser('src/a.ts')
+    fireEvent.change(screen.getByLabelText('editor'), { target: { value: 'mine' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save file' }))
+
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByRole('button', { name: 'Reload from disk' })).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Overwrite' }))
+
+    expect(mocks.saveMutate).toHaveBeenLastCalledWith(
+      { root: '/ws/proj', path: 'src/a.ts', content: 'mine', expectedModifiedAt: undefined },
+      expect.anything(),
+    )
   })
 })
