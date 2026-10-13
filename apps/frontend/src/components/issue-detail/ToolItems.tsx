@@ -31,7 +31,6 @@ import {
   ShikiUnifiedDiff,
   ToolPanel,
 } from './CodeRenderers'
-import { MarkdownContent } from './MarkdownContent'
 
 function getItemToolName(item: ToolGroupItem): string | undefined {
   return (
@@ -386,8 +385,8 @@ function SubagentThreadView({ thread }: { thread: SubagentThread }) {
                   )
                 }
                 return (
-                  <div key={step.entry.messageId ?? index} className="px-3 py-1.5">
-                    <MarkdownContent content={step.entry.content} className="text-[12px] leading-[1.7]" />
+                  <div key={step.entry.messageId ?? index} className="px-3 py-1.5 text-[12px] leading-[1.7] whitespace-pre-wrap break-words">
+                    {step.entry.content}
                   </div>
                 )
               })}
@@ -458,9 +457,9 @@ export function AgentToolItem({ item }: { item: ToolGroupItem }) {
       {resultContent
         ? (
             <div
-              className={`overflow-y-auto max-h-96 ${hasError ? 'text-red-600 dark:text-red-400' : ''}`}
+              className={`overflow-y-auto max-h-96 px-3 py-1.5 text-[12px] leading-[1.7] whitespace-pre-wrap break-words ${hasError ? 'text-red-600 dark:text-red-400' : ''}`}
             >
-              <MarkdownContent content={resultContent} className="text-[12px] leading-[1.7]" />
+              {resultContent}
             </div>
           )
         : null}

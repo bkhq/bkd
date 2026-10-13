@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToolGroupMessage } from '@/components/issue-detail/ToolItems'
 import i18n from '@/i18n'
+import { useViewModeStore } from '@/stores/view-mode-store'
 
 /** Subagent thread rendering (ENG-032). */
 
@@ -57,6 +58,8 @@ describe('toolGroupMessage subagent rendering', () => {
     // Collapsed state advertises the thread
     expect(screen.getByText('1 steps')).toBeInTheDocument()
     expect(screen.getAllByText('completed').length).toBeGreaterThan(0)
+    // The body is not mounted until the panel is opened
+    expect(screen.queryByText('the file has 4 lines')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Read a.txt and count lines'))
     expect(screen.getByText('Sub-agent activity')).toBeInTheDocument()
@@ -69,5 +72,22 @@ describe('toolGroupMessage subagent rendering', () => {
     render(<ToolGroupMessage message={message} />)
 
     expect(screen.queryByText(/steps/)).not.toBeInTheDocument()
+  })
+
+  it('shows subagent text and the agent result as plain text, not Markdown', () => {
+    useViewModeStore.setState({ renderMarkdown: true })
+    const message = group('Agent', 'agent')
+    const item = message.items[0]!
+    item.subagent = {
+      ...thread,
+      items: [{ kind: 'text', entry: { entryType: 'assistant-message', content: '**step** one', messageId: 'e1' } }],
+    }
+    item.result = { entryType: 'tool-use', content: '# Report\n**done**', messageId: 'r1' }
+    render(<ToolGroupMessage message={message} />)
+
+    fireEvent.click(screen.getByText('Read a.txt and count lines'))
+    expect(screen.getByText('**step** one')).toBeInTheDocument()
+    expect(screen.getByText(/# Report\s+\*\*done\*\*/)).toBeInTheDocument()
+    useViewModeStore.setState({ renderMarkdown: false })
   })
 })

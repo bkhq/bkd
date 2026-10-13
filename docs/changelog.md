@@ -646,6 +646,16 @@ Scope history: the first draft was a project-scoped ticket thread written by
 hand, the second a global inbox auto-fed by `review` transitions. Both were
 dropped before implementation in favour of the skill contract.
 
+## 2026-10-13 20:06 [progress]
+
+Chat rendering cost. `ToolPanel` kept its body inside a native `<details>`,
+which hides the body but still mounts it, so every collapsed tool call in the
+visible window ran Shiki, DOMPurify, `@pierre/diffs` or the Markdown renderer.
+The body now mounts on the first open. Tool calls also stop using
+`MarkdownContent`: Agent results and subagent text render as plain pre-wrapped
+text, leaving Markdown rendering to top-level agent messages. Task
+`20261013-2004-tool-panel-lazy-render`.
+
 ## 2026-10-13 20:06 [BUG-P1]
 
 `20261013-1950-engine-protocol-drift`: Claude Code and Codex wire shapes had

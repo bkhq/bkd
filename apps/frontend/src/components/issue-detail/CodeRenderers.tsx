@@ -265,15 +265,20 @@ export function ToolPanel({
   actions?: React.ReactNode
   collapsible?: boolean
 }) {
+  // <details> hides its body but still mounts it; defer that until the first open.
+  const [opened, setOpened] = useState(false)
   if (collapsible) {
     return (
       <details className="group/panel transition-all duration-200">
-        <summary className="flex items-center cursor-pointer list-none px-3 py-1.5 transition-colors hover:bg-muted/10">
+        <summary
+          className="flex items-center cursor-pointer list-none px-3 py-1.5 transition-colors hover:bg-muted/10"
+          onClick={() => setOpened(true)}
+        >
           <div className="flex-1 min-w-0">{summary}</div>
           {actions ? <div className="shrink-0 ml-1">{actions}</div> : null}
           <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/40 transition-transform group-open/panel:rotate-90 ml-1" />
         </summary>
-        <div className="border-t border-border">{children}</div>
+        {opened ? <div className="border-t border-border">{children}</div> : null}
       </details>
     )
   }
