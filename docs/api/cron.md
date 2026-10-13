@@ -2,7 +2,7 @@
 
 Scheduled jobs. Each job runs one action on a cron schedule. A job is paused automatically after 3 consecutive failures. Jobs are soft-deleted.
 
-`:jobId` accepts the job ID or its name.
+`:jobId` is the job ID only; a name returns `404`. There is no single-job `GET`: a deleted job disappears from `GET /api/cron` and every by-ID route on it returns `404`.
 
 ## GET /api/cron/actions
 
@@ -21,7 +21,7 @@ List jobs. Deleted jobs are never returned.
 
 **Response:** `CronJob[]` without pagination params, `{ jobs, hasMore, nextCursor }` with them.
 
-`CronJob`: `{ id, name, cron, taskType, taskConfig, enabled, lastRun, createdAt, updatedAt }`
+`CronJob`: `{ id, name, cron, taskType, taskConfig, enabled, status, nextExecution, lastRun, createdAt, updatedAt }`. `lastRun` is `{ status, startedAt, durationMs, result, error }` or `null`.
 
 ## POST /api/cron
 

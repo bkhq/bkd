@@ -15,7 +15,7 @@ Start execution with a new prompt. Validates working directory against workspace
 | `model` | `string` (regex: `/^[\w./:\-[\]]{1,160}$/`) | No | Model identifier |
 | `permissionMode` | `"auto" \| "supervised" \| "plan"` | No | Permission mode |
 
-**Response:** `{ issueId, executionId?, messageId?, queued? }`
+**Response:** `{ executionId, issueId, messageId }`
 
 ## POST .../follow-up
 

@@ -146,7 +146,7 @@ cronRoute.openapi(R.createCronJob, async (c) => {
   return c.json({ success: true, data: serializeJob(row) }, 201 as const)
 })
 
-// DELETE /api/cron/:jobId — soft-delete a cron job (by ID or name)
+// DELETE /api/cron/:jobId — soft-delete a cron job (by ID)
 cronRoute.openapi(R.deleteCronJob, (c) => {
   const jobId = c.req.param('jobId')
   const row = findJob(jobId)
