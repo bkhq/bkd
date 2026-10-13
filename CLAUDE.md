@@ -207,6 +207,7 @@ Routes: `GET /api/decisions` (capability probe, `{ supported, contractVersion }`
 
 - `upload-cleanup` (every 1h) — deletes files in `data/uploads/` older than 7 days
 - `worktree-cleanup` (every 30 min) — removes worktrees for `done` issues older than 1 day; gated by `worktree:autoCleanup` setting
+- `decision-event-cleanup` (daily at 05:00) — soft-deletes decision events that are no longer `open` and unchanged for 1 day
 
 #### Upgrade (`upgrade/`)
 

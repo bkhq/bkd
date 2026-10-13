@@ -226,7 +226,7 @@ Three-tier caching: memory (10 min) → DB (`appSettings`) → live probe (15s t
 
 Powered by `cronbake` scheduler:
 
-- **Built-in jobs**: `upload-cleanup` (hourly), `log-cleanup`, `worktree-cleanup` (30 min), `issue-log-retention`
+- **Built-in jobs**: `upload-cleanup` (hourly), `log-cleanup`, `worktree-cleanup` (30 min), `issue-log-retention`, `decision-event-cleanup` (daily)
 - **Issue jobs**: `issue-execute`, `issue-follow-up`, `issue-close`, `issue-check-status`
 - Tables: `cronJobs` + `cronJobLogs`
 - Jobs are addressed by ID only; a job auto-pauses after 3 consecutive failures
@@ -242,6 +242,7 @@ A decision event is one question a coordinating agent needs the user to answer. 
 - `close` (user) ends an event without answering it and sends no follow-up. It is an extension of the skill contract.
 - `ack` and `withdraw` belong to the raiser.
 - Every write emits `decision-event-updated` on the event bus and over SSE.
+- Retention: the `decision-event-cleanup` cron action soft-deletes every non-open event whose `updatedAt` is more than one day old. Open events are never removed.
 
 ### Event System (`events/`)
 

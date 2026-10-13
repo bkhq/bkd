@@ -676,3 +676,11 @@ moved away from what the normalizers read.
 decision-events capability probe and `docs/api/decisions.md`. Removed the
 outdated `skills/` copy of the BKD skill, now maintained in `zzci/skills`;
 `scripts/gen-openapi.ts` defaults to `tmp/openapi.json`.
+
+## 2026-10-13 22:14 [progress]
+
+`20261013-2212-decision-event-retention`: added the `decision-event-cleanup`
+cron action (daily at 05:00). It soft-deletes every decision event that is no longer
+`open` once its `updatedAt` is more than one day old, and emits
+`decision-event-updated` for each. A `decided` event whose follow-up was never
+delivered is removed on the same schedule.

@@ -1,4 +1,5 @@
 import { registerAction } from '../registry'
+import { runDecisionEventCleanup } from './decision-event-cleanup'
 import { runIssueLogRetention } from './issue-log-retention'
 import { runLogCleanup } from './log-cleanup'
 import { runUploadCleanup } from './upload-cleanup'
@@ -31,4 +32,11 @@ registerAction('issue-log-retention', {
   category: 'builtin',
   defaultCron: '0 0 4 * * *', // daily at 4 AM
   handler: () => runIssueLogRetention(),
+})
+
+registerAction('decision-event-cleanup', {
+  description: 'Remove decision events that are no longer open and unchanged for 1 day',
+  category: 'builtin',
+  defaultCron: '0 0 5 * * *', // daily at 5 AM
+  handler: () => runDecisionEventCleanup(),
 })

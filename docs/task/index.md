@@ -155,3 +155,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261013-1950-engine-protocol-drift Fix Claude and Codex wire-protocol drift**](20261013-1950-engine-protocol-drift.md) `P1`
 - [x] [**20261013-2004-tool-panel-lazy-render Stop rendering collapsed tool calls, keep Markdown for agent messages only**](20261013-2004-tool-panel-lazy-render.md) `P1`
 - [x] [**20261013-2005-decision-capability-probe Add a decision-events capability probe and drop the bundled skill**](20261013-2005-decision-capability-probe.md) `P2`
+- [x] [**20261013-2212-decision-event-retention Delete decided decision events after one day**](20261013-2212-decision-event-retention.md) `P2`
+- [ ] [**20261013-2222-api-execution-test-timeout api-execution test times out in the full suite**](20261013-2222-api-execution-test-timeout.md) `P2`

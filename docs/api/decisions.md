@@ -6,6 +6,8 @@ Base: `/api/decisions`. A coordinator sets `BKD_EVENT_URL=$BKD_URL/api/decisions
 
 States: `open → decided → applied`, `open → withdrawn`, `open | decided → closed`. A transition from any other state returns `409`. Every write emits `decision-event-updated` over SSE.
 
+Retention: an event that is no longer `open` is removed by a daily cleanup once its last change is more than one day old, and then answers `404`. Open events are kept until they are answered, withdrawn or closed.
+
 ## GET /api/decisions
 
 Capability probe. Call it before raising an event.
