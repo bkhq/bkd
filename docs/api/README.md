@@ -27,7 +27,7 @@ Most JSON CRUD responses use a standard envelope. Exceptions include binary/file
 
 ## Validation
 
-All POST/PATCH routes use Zod schema validation via `@hono/zod-validator`. Validation errors return `400` with comma-separated error messages.
+All routes declare their request schemas with Zod through `@hono/zod-openapi`. Validation errors return `400` with comma-separated error messages. The live contract is served at `/api/docs/openapi.json`, with Swagger UI at `/api/docs`.
 
 ## Soft Deletion
 
@@ -49,11 +49,10 @@ Database-backed DELETE operations (projects, issues, notes, webhooks, etc.) use 
 - XSS prevention via `Content-Disposition: attachment` (SEC-024)
 - Symlink traversal prevention via `realpath()` (SEC-025)
 - SSRF protection on webhook URLs (private/internal network blocking)
-- MCP API key uses timing-safe comparison
 
 ### Compression
 
-gzip/deflate compression on all routes except SSE (`/api/events`), streaming (`*/stream`), and MCP (`/api/mcp*`).
+gzip/deflate compression on all routes except SSE (`/api/events`) and streaming (`*/stream`).
 
 ## Sections
 
@@ -70,10 +69,12 @@ gzip/deflate compression on all routes except SSE (`/api/events`), streaming (`*
 | [events.md](./events.md) | Server-Sent Events (SSE) |
 | [files.md](./files.md) | File browser, read, write, delete |
 | [terminal.md](./terminal.md) | PTY sessions, WebSocket |
-| [processes.md](./processes.md) | Engine process management |
+| [processes.md](./processes.md) | Engine process management, capacity |
 | [worktrees.md](./worktrees.md) | Git worktree management |
 | [git.md](./git.md) | Git utilities |
 | [filesystem.md](./filesystem.md) | Directory browsing and creation |
 | [notes.md](./notes.md) | Notes CRUD |
 | [decisions.md](./decisions.md) | Decision events, capability probe |
-| [settings.md](./settings.md) | System settings, MCP, webhooks, cleanup, upgrade |
+| [settings.md](./settings.md) | System settings, webhooks, cleanup, upgrade |
+| [cron.md](./cron.md) | Scheduled jobs |
+| [sessions.md](./sessions.md) | Local engine sessions |

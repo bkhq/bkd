@@ -115,7 +115,7 @@ Hardcoded constants — no DB table:
 | `/api/git/*` | GET | `git.ts` | Git status, diff |
 | `/api/processes/*` | GET, DELETE | `processes.ts` | Active engine processes |
 | `/api/worktrees/*` | GET, DELETE | `worktrees.ts` | Worktree management |
-| `/api/cron/*` | GET, POST, PATCH, DELETE | `cron.ts` | Cron job management |
+| `/api/cron/*` | GET, POST, DELETE | `cron.ts` | Cron job management |
 | `/api/notes/*` | GET, POST, PATCH, DELETE | `notes.ts` | Notes CRUD |
 | `/api/decisions/events/*` | GET, POST, PATCH | `decisions.ts` | Decision events: raise, decide, ack, withdraw, close |
 | `/api/mcp/*` | GET, POST | `mcp.ts` | MCP server routes |

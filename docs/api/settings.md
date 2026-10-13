@@ -110,32 +110,6 @@ Get system information including app version, runtime details, server config, an
 }
 ```
 
-## MCP Settings
-
-When MCP is enabled, AI engines automatically connect to the MCP endpoint during task execution.
-
-### GET /api/settings/mcp
-
-Get MCP endpoint configuration. `MCP_ENABLED` env var takes precedence over DB setting.
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "enabled": true,
-    "envOverride": { "enabled": false }
-  }
-}
-```
-
-### PATCH /api/settings/mcp
-
-Update MCP enabled state.
-
-**Request Body:** `{ enabled?: boolean }`
-
 ## Webhooks
 
 ### GET /api/settings/webhooks
@@ -228,54 +202,80 @@ Run cleanup for specified targets. Hard-deletes data (irreversible). Runs `VACUU
 
 **Response:** `{ [target]: { cleaned: number } }`
 
-## Upgrade
+## Engine Permissions
 
-### GET /api/settings/upgrade/version
+### GET /api/settings/skip-permissions
 
-Get current version info.
+Whether engines run with permission checks skipped.
 
-### GET /api/settings/upgrade/enabled
+**Response:** `{ enabled: boolean }`
 
-Check if upgrade is enabled.
-
-### PATCH /api/settings/upgrade/enabled
-
-Toggle upgrade on/off.
+### PATCH /api/settings/skip-permissions
 
 **Request Body:** `{ enabled: boolean }`
 
-### GET /api/settings/upgrade/check
+### GET /api/settings/disable-ask-user
 
-Check for updates (uses cached result if recent).
+Whether the engine's `AskUserQuestion` tool is disabled.
+
+**Response:** `{ enabled: boolean }`
+
+### PATCH /api/settings/disable-ask-user
+
+**Request Body:** `{ enabled: boolean }`
+
+## Global Environment Variables
+
+### GET /api/settings/global-env-vars
+
+Environment variables passed to every engine process.
+
+**Response:** `{ [name]: string }`
+
+### PUT /api/settings/global-env-vars
+
+Replace the whole set. At most 50 variables; names and values must not contain line breaks.
+
+**Request Body:** `{ vars: { [name]: string } }`
+
+## Upgrade
+
+BKD does not update itself. These routes read the state of the [lode](https://github.com/bkhq/lode) supervisor and ask it to act; see `docs/deployment.md`. Update policy lives in `lode.toml` and cannot be changed here.
+
+### GET /api/settings/upgrade/version
+
+**Response:** `{ version, commit, supervised, activeVersion }`. `supervised` is `false` when BKD is not running under lode.
+
+### GET /api/settings/upgrade/status
+
+Supervisor state.
+
+**Response:** `{ supervised, status, current, lastGood, available, hasUpdate, target, lastCheck, lastError, checking, checkError, history: [{ at, version, result: "good" | "bad" }] }`
 
 ### POST /api/settings/upgrade/check
 
-Force-check for updates from GitHub Releases.
+Ask lode to look for a newer version now. Poll `status` for the result.
 
-### POST /api/settings/upgrade/download
+**Response:** `{ status: "checking" }`
 
-Start downloading an update. Only URLs from `github.com` and `objects.githubusercontent.com` are allowed. Returns `409` if a download is already in progress.
+### POST /api/settings/upgrade/update
 
-**Request Body:**
+Ask lode to install a version.
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `url` | `string` (GitHub URL) | Yes | Download URL |
-| `fileName` | `string` | Yes | File name (must match `bkd-<type>-v<version>` format) |
-| `checksumUrl` | `string` (GitHub URL) | No | SHA-256 checksum URL |
+**Request Body:** `{ version?: "latest" | "x.y.z" }` (default `latest`)
 
-### GET /api/settings/upgrade/download/status
+**Response:** `{ requested }`
 
-Check download progress.
+### POST /api/settings/upgrade/rollback
+
+Go back to the last good version, or to an explicit one.
+
+**Request Body:** `{ version?: "x.y.z" }`
+
+**Response:** `{ requested }`
 
 ### POST /api/settings/upgrade/restart
 
-Apply downloaded upgrade and restart the server.
+Relaunch the current version.
 
-### GET /api/settings/upgrade/downloads
-
-List downloaded update files.
-
-### DELETE /api/settings/upgrade/downloads/:fileName
-
-Delete a downloaded update file.
+**Response:** `{ status: "restarting" }`

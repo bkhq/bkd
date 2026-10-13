@@ -86,6 +86,22 @@ Export issue logs as JSON file download.
 
 **Response:** File download (`Content-Disposition: attachment`) containing `{ issue, logs }`.
 
+## POST /api/projects/:projectId/issues/import-session
+
+Create an issue from a local engine session (see [sessions.md](./sessions.md)).
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `engine` | `"claude-code" \| "codex"` | Yes | Engine that owns the session |
+| `sessionId` | `string` (1-200) | Yes | Session to import |
+| `title` | `string` (1-500) | No | Issue title (defaults to the session title) |
+| `statusId` | `"todo" \| "working" \| "review" \| "done"` | No | Initial status (default `review`) |
+| `importLogs` | `boolean` | No | Copy the transcript into the issue's logs (default `true`) |
+
+**Response:** `201` with `{ issue, importedEntries, droppedEntries, cwdMatches }`. `404` when the project or session is missing, `409` when the session is already imported.
+
 ## GET /api/issues/review
 
 List all issues in `review` status across all projects (global, not project-scoped). Only includes issues from non-deleted projects.

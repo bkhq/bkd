@@ -89,3 +89,35 @@ Update hidden models for an engine type.
 Force live re-probe of all engines. Bypasses cache.
 
 **Response:** `{ engines, models }`
+
+## GET /api/engines/virtual
+
+List virtual engines. A virtual engine runs a base engine's executor with preset environment variables, for example a different API endpoint.
+
+**Response:** `VirtualEngine[]`
+
+`VirtualEngine`: `{ id, name, baseEngine: "claude-code" | "codex", baseUrl?, authToken?, model?, envVars }`
+
+## PUT /api/engines/virtual
+
+Replace the whole list.
+
+**Request Body:** `{ engines: VirtualEngine[] }`
+
+**Response:** `VirtualEngine[]`
+
+## GET /api/engines/claude/usage
+
+Claude subscription usage.
+
+**Response:** `{ available, reason?, fiveHour?: { usedPercentage, resetsAt }, sevenDay?: { usedPercentage, resetsAt }, modelWindows?: [{ model, usedPercentage, resetsAt }] }`
+
+When `available` is `false`, `reason` is one of `no_credentials`, `api_key_mode`, `token_expired`, `upstream_error`.
+
+## GET /api/engines/codex/usage
+
+Codex subscription usage.
+
+**Response:** `{ available, reason?, primary?: { usedPercentage, windowMinutes, resetsAt }, secondary?, planType? }`
+
+When `available` is `false`, `reason` is one of `not_installed`, `unauthenticated`, `unsupported`, `upstream_error`.

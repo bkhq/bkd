@@ -33,6 +33,12 @@ List all active engine processes across all projects.
 }
 ```
 
+## GET /api/processes/capacity
+
+Whether a new execution can start right now.
+
+**Response:** `{ summary, maxConcurrent, availableSlots, canStartNewExecution }`. `availableSlots` is `null` when there is no limit.
+
 ## POST /api/processes/:issueId/terminate
 
 Terminate an engine process. Validates that the issue exists and its project is not deleted.
