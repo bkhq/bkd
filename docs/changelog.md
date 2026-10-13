@@ -660,3 +660,17 @@ they highlight by colour and only grow on hover. Task
 `20261013-0553-turn-navigator-full-history`, plan
 `20261013-0553-turn-navigator-full-history`; full-list rebuild cost tracked in
 `20261013-0614-incremental-chat-messages`.
+
+## 2026-10-13 06:40 [progress]
+
+The issue detail title bar no longer opens the issue menu on right-click; the
+"..." button at its right is the only entry point. The issue list keeps its
+right-click menu.
+
+## 2026-10-13 06:55 [progress]
+
+Top-left alignment: the rail's logo now sits in a 49px block with the same
+bottom border as the page headers (logo kept at 36px like the project
+buttons, centred with 6px above and below), replacing the separator that sat
+8px lower; the kanban header's top row is fixed at 48px (+1px border) so the
+line also meets on the board.

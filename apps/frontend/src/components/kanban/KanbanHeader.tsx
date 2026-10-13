@@ -31,8 +31,8 @@ export function KanbanHeader({
 
   return (
     <div className="shrink-0 border-b border-border bg-card">
-      {/* Top row: project name + actions */}
-      <div className="flex items-center justify-between px-3 py-3 md:px-5">
+      {/* Top row: project name + actions. 48px + the border matches the other page headers. */}
+      <div className="flex h-12 items-center justify-between px-3 md:px-5">
         <div className="flex items-center gap-2 md:gap-3 min-w-0">
           {mobileNav}
           <h1 className="text-base font-semibold text-foreground truncate">{project.name}</h1>
