@@ -978,8 +978,8 @@ export function useDeleteFile() {
 export function useSaveFile() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ root, path, content }: { root: string, path: string, content: string }) =>
-      kanbanApi.saveFile(root, path, content),
+    mutationFn: ({ root, path, content, expectedModifiedAt }: { root: string, path: string, content: string, expectedModifiedAt?: string }) =>
+      kanbanApi.saveFile(root, path, content, expectedModifiedAt),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files'] })
     },
