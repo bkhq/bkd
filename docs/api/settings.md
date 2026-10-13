@@ -192,13 +192,15 @@ Returns `400` if the parent project no longer exists (hard-deleted).
 
 ### GET /api/settings/cleanup/stats
 
-Get sizes of cleanable data across four categories: orphaned logs, old version files, orphaned worktrees, and soft-deleted issues/projects.
+Get sizes of cleanable data across three categories: orphaned logs, orphaned worktrees, and soft-deleted issues/projects.
+
+**Response:** `{ logs, worktrees, deletedIssues }`
 
 ### POST /api/settings/cleanup
 
 Run cleanup for specified targets. Hard-deletes data (irreversible). Runs `VACUUM` after deleting DB records.
 
-**Request Body:** `{ targets: ("logs" | "oldVersions" | "worktrees" | "deletedIssues")[] }`
+**Request Body:** `{ targets: ("logs" | "worktrees" | "deletedIssues")[] }` (at least one)
 
 **Response:** `{ [target]: { cleaned: number } }`
 

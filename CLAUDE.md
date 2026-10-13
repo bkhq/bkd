@@ -103,13 +103,22 @@ POST           /api/projects/:projectId/issues/:id/execute
 POST           /api/projects/:projectId/issues/:id/follow-up
 POST           /api/projects/:projectId/issues/:id/restart
 POST           /api/projects/:projectId/issues/:id/cancel
-POST           /api/projects/:projectId/issues/:id/messages
+POST           /api/projects/:projectId/issues/:id/terminate
+POST           /api/projects/:projectId/issues/:id/clear-session
+GET/DEL        /api/projects/:projectId/issues/:id/pending
 GET            /api/projects/:projectId/issues/:id/logs
 GET            /api/projects/:projectId/issues/:id/logs/filter/*
-GET/POST       /api/projects/:projectId/issues/:id/attachments
+GET            /api/projects/:projectId/issues/:id/attachments/:attachmentId
 GET            /api/projects/:projectId/issues/:id/changes
+GET            /api/projects/:projectId/issues/:id/changes/file
+POST           /api/projects/:projectId/issues/:id/duplicate
+GET            /api/projects/:projectId/issues/:id/export
 GET            /api/projects/:projectId/issues/:id/slash-commands
+POST           /api/projects/:projectId/issues/import-session
+GET            /api/issues/review
 ```
+
+Attachments are uploaded through the multipart form of issue create and follow-up; there is no separate upload route.
 
 The `/logs/filter/*` route accepts path-based key/value filter pairs (order-independent):
 - `types/<comma-separated>` — filter by entry type (`user-message`, `assistant-message`, `tool-use`, `system-message`, `thinking`)
@@ -117,9 +126,9 @@ The `/logs/filter/*` route accepts path-based key/value filter pairs (order-inde
 - Example: `/logs/filter/types/user-message,assistant-message/turn/last3`
 - Pagination via query params: `cursor`, `before`, `limit`
 
-System routes: `/api/engines/*`, `/api/events` (SSE), `/api/decisions/events/*`, `/api/settings/*` (incl. `/api/settings/upgrade/*`), `/api/sessions/*`, `/api/terminal/ws`, `/api/files/*`, `/api/filesystem/*`, `/api/git/*`, `/api/processes/*`, `/api/worktrees/*`, `/api/cron/*`.
+System routes: `/api/engines/*`, `/api/events` (SSE), `/api/decisions/events/*`, `/api/settings/*` (incl. `/api/settings/upgrade/*`), `/api/sessions/*`, `/api/terminal/*` (incl. `/api/terminal/ws/:id`), `/api/files/:root/*`, `/api/filesystem/dirs`, `/api/git/detect-remote`, `/api/processes/*`, `/api/projects/:projectId/worktrees/*`, `/api/cron/*`, `/api/notes/*`.
 
-Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`. Shared schemas and helpers in `_shared.ts`.
+Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`, `duplicate.ts`, `export.ts`, `import-session.ts`, `review.ts`. Shared schemas and helpers in `_shared.ts`.
 
 #### Engine System (`engines/`)
 
@@ -230,11 +239,14 @@ Deployment, migration from the old launcher, and the `lode.toml` reference: `doc
 /projects/:projectId                 → KanbanPage (board view)
 /projects/:projectId/issues          → IssueDetailPage (list + chat)
 /projects/:projectId/issues/:issueId → IssueDetailPage (specific issue)
+/review[/:projectId/:issueId]        → ReviewPage (global review queue)
 /terminal                            → TerminalPage
+/cron                                → CronPage
 /decisions                           → DecisionsPage (global decision inbox)
+/sessions                            → SessionsPage (local engine sessions)
 ```
 
-Three global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`.
+Four global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`.
 
 #### State Management
 

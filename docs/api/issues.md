@@ -4,9 +4,14 @@ All issue routes are scoped under `/api/projects/:projectId` (except the global 
 
 ## GET /api/projects/:projectId/issues
 
-List issues for a project. Ordered by `isPinned` DESC, then `statusUpdatedAt` DESC.
+List issues for a project. Ordered by `isPinned` DESC, then `statusUpdatedAt` DESC. Keyset-paginated.
 
-**Response:** `Issue[]`
+| Query Param | Type | Description |
+|---|---|---|
+| `limit` | `number` (1-200) | Page size (default 100) |
+| `cursor` | `string` | Cursor from a previous page (`400` when invalid) |
+
+**Response:** `{ success, data: Issue[], nextCursor, hasMore }` (pagination fields sit next to `data`, not inside it)
 
 ## GET /api/projects/:projectId/issues/:id
 
@@ -27,7 +32,7 @@ Create an issue. Auto-executes if `statusId` is `working` or `review` (review is
 | `statusId` | `"todo" \| "working" \| "review" \| "done"` | Yes | Initial status |
 | `useWorktree` | `boolean` | No | Run in git worktree |
 | `keepAlive` | `boolean` | No | Prevent idle timeout |
-| `engineType` | `string` | No | Engine type (e.g. `claude-code`, `codex`). Defaults to server setting. |
+| `engineType` | `string` | No | Engine type (`claude-code`, `codex`, `grok`, `cursor`) or a virtual engine id. Defaults to the project's `defaultEngine`, then the global default. |
 | `model` | `string` (regex: `/^[\w./:\-[\]]{1,160}$/`) | No | Model identifier |
 | `permissionMode` | `"auto" \| "supervised" \| "plan"` | No | Permission mode |
 

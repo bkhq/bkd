@@ -20,7 +20,7 @@ A server without decision events answers `404`. `contractVersion` increases when
 
 ## GET /api/decisions/events
 
-List events, newest first.
+List events, newest first, at most 500.
 
 **Query:**
 
@@ -49,7 +49,7 @@ Raise an event. It starts `open`.
 | `blocks` | `string` (0-2000) | No | What waits on the answer |
 | `continues` | `string` (0-2000) | No | What carries on meanwhile |
 
-**Response:** `201` with `DecisionEvent`. `400` when the notify issue is not in the notify project.
+**Response:** `201` with `DecisionEvent`. `400` when the notify issue is not in the notify project, or when `recommendation.optionId` is not one of `options`.
 
 ## GET /api/decisions/events/:id
 
@@ -59,7 +59,7 @@ Raise an event. It starts `open`.
 
 Update the facts of an `open` event. Accepts `ref`, `question`, `context`, `options`, `recommendation`, `blocks`, `continues`.
 
-**Response:** `DecisionEvent`. `409` unless the event is `open`.
+**Response:** `DecisionEvent`. `409` unless the event is `open`; `400` when the resulting `recommendation.optionId` is not one of the resulting `options`.
 
 ## POST /api/decisions/events/:id/decision
 

@@ -22,11 +22,11 @@ List detected engines and their models. Uses 3-tier cache (memory -> DB -> live 
     ],
     "models": {
       "claude-code": [
-        { "id": "opus", "name": "Opus", "isDefault": true },
-        { "id": "sonnet", "name": "Sonnet" }
+        { "id": "claude-sonnet-5-5", "name": "Claude Sonnet 5.5", "isDefault": true },
+        { "id": "claude-opus-5-5", "name": "Claude Opus 5.5" }
       ],
       "codex": [
-        { "id": "o3", "name": "o3", "isDefault": true }
+        { "id": "gpt-5.6-sol", "name": "gpt-5.6-sol", "isDefault": true }
       ]
     }
   }
@@ -53,8 +53,8 @@ Get all engine settings: default engine, per-engine default models, and hidden m
   "data": {
     "defaultEngine": "claude-code",
     "engines": {
-      "claude-code": { "defaultModel": "sonnet", "hiddenModels": [] },
-      "codex": { "defaultModel": "o3" }
+      "claude-code": { "defaultModel": "claude-sonnet-5-5", "hiddenModels": [] },
+      "codex": { "defaultModel": "gpt-5.6-sol" }
     }
   }
 }
@@ -62,7 +62,7 @@ Get all engine settings: default engine, per-engine default models, and hidden m
 
 ## PATCH /api/engines/default-engine
 
-Set the global default engine. Accepts base types (`claude-code`, `codex`).
+Set the global default engine. Accepts a real engine type (`claude-code`, `codex`, `grok`, `cursor`) or a configured virtual engine id; anything else returns `400`.
 
 **Request Body:** `{ defaultEngine: string }`
 
