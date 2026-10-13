@@ -238,6 +238,11 @@
     "cancellingBtn": "取消中...",
     "loadMore": "查看更多记录",
     "scrollToTop": "滚动到顶部",
+    "turnNavigator": "对话轮次",
+    "jumpToTurn": "跳转到第 {{n}} 轮",
+    "loadHistoryTitle": "加载更早的记录？",
+    "loadHistoryDescription": "跳转到这一轮需要加载约 {{count}} 条更早的记录，记录较多时聊天可能变卡。",
+    "loadHistoryConfirm": "加载并跳转",
     "scrollToBottom": "滚动到底部",
     "executionFailed": "执行失败",
     "errorKind": {

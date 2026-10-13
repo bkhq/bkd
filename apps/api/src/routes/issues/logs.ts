@@ -5,6 +5,7 @@ import { errorResponse, IssueLogsResponseSchema, successResponse } from '@/opena
 import { findProject, getAppSetting } from '@/db/helpers'
 import { issueEngine } from '@/engines/issue'
 import { DEFAULT_LOG_PAGE_SIZE, LOG_PAGE_SIZE_KEY } from '@/engines/issue/constants'
+import { getTurnSummaries } from '@/engines/issue/persistence'
 import type { LogQueryOpts } from '@/engines/issue/persistence/queries'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
@@ -201,6 +202,19 @@ logs.openapi(R.getIssueLogs, async (c) => {
       hasMore: result.hasMore,
     },
   }, 200 as const)
+})
+
+// GET /:issueId/turns — Turn summaries for the chat turn navigator
+logs.openapi(R.getIssueTurns, async (c) => {
+  const project = await findProject(c.req.param('projectId')!)
+  if (!project) {
+    return c.json({ success: false, error: 'Project not found' }, 404 as const)
+  }
+  const issue = await getProjectOwnedIssue(project.id, c.req.param('issueId')!)
+  if (!issue) {
+    return c.json({ success: false, error: 'Issue not found' }, 404 as const)
+  }
+  return c.json({ success: true, data: { turns: getTurnSummaries(issue.id) } }, 200 as const)
 })
 
 // GET /:id/logs/filter/* — Filtered logs with path-based key/value pairs
