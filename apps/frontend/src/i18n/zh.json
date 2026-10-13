@@ -226,7 +226,18 @@
     "oversizedBannerTitle": "检测到大文件 — 提交前请检查",
     "oversizedBannerHint": "建议将这些文件添加到 .gitignore，避免仓库体积膨胀。",
     "timedOut": "Git 操作超时。仓库可能包含非常大的文件或磁盘较慢，请稍后重试。",
-    "resizePanel": "调整差异面板宽度"
+    "viewOptions": "视图选项",
+    "view": "视图",
+    "stacked": "堆叠",
+    "split": "拆分",
+    "wordWrap": "启用自动换行",
+    "expandAll": "全部展开",
+    "collapseAll": "全部折叠",
+    "jumpToFile": "跳转到文件",
+    "jumpPlaceholder": "跳转到文件…",
+    "noMatchingFiles": "没有匹配的文件",
+    "fileTree": "文件树",
+    "filterFiles": "筛选文件…"
   },
   "session": {
     "connected": "已连接",
@@ -607,7 +618,7 @@
     "breadcrumb": "文件路径",
     "name": "名称",
     "size": "大小",
-    "modified": "修改时间",
+    "modified": "已修改",
     "emptyDirectory": "空目录",
     "noDirectory": "此项目未配置目录，请在项目设置中添加目录路径",
     "loadError": "加载失败",
@@ -640,7 +651,29 @@
     "dropToUpload": "拖放文件到此处上传",
     "uploadConflictTitle": "替换已有文件",
     "uploadConflictDesc": "此目录中已存在：{{names}}。是否用上传的文件替换？",
-    "replace": "替换"
+    "replace": "替换",
+    "fileTree": "文件树",
+    "copyRelativePath": "复制相对路径",
+    "pathCopied": "已复制路径",
+    "resizeTree": "调整文件树宽度",
+    "copied": "已复制",
+    "saveFile": "保存文件",
+    "fileActions": "文件操作",
+    "copyContent": "复制文件内容",
+    "discardAndReload": "放弃更改并重新加载",
+    "wordWrap": "启用自动换行",
+    "selectFile": "从左侧文件树选择一个文件进行查看或编辑",
+    "unsavedTitle": "放弃未保存的更改？",
+    "unsavedDesc": "\"{{name}}\" 有未保存的更改，离开后这些更改会丢失。",
+    "discard": "放弃更改",
+    "truncatedReadOnly": "文件过大，只显示了部分内容，当前为只读。",
+    "refresh": "刷新",
+    "collapseAll": "全部折叠",
+    "changedOnDisk": "磁盘上已更改",
+    "saveConflictTitle": "文件已被其他程序修改",
+    "saveConflictDesc": "\"{{name}}\" 在你打开之后已在磁盘上被修改（通常是 AI 代理写入的）。覆盖会丢弃那些修改。",
+    "reloadFromDisk": "重新加载（放弃我的更改）",
+    "overwrite": "覆盖保存"
   },
   "processManager": {
     "title": "进程",
@@ -724,5 +757,24 @@
     "deleting": "删除中...",
     "deleteConfirmTitle": "删除定时任务？",
     "deleteConfirm": "定时任务“{{name}}”将从调度中移除，其执行日志会被保留。"
+  },
+  "workspace": {
+    "files": "工作区文件",
+    "review": "审阅",
+    "closeTab": "关闭 {{name}} 标签页",
+    "showPanel": "显示侧边栏",
+    "hidePanel": "隐藏侧边栏",
+    "resizePanel": "调整侧边栏宽度",
+    "maximizePanel": "全屏显示工作区",
+    "restorePanel": "退出全屏",
+    "open": {
+      "files": "打开工作区文件",
+      "review": "打开审阅"
+    },
+    "openHint": {
+      "files": "浏览和编辑工作区中的文件",
+      "review": "查看工作区的代码变更"
+    },
+    "addTab": "打开标签页"
   }
 }

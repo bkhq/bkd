@@ -33,10 +33,14 @@ interface FileBrowserStore {
   rootPath: string | null
   currentPath: string
   hideIgnored: boolean
+  /** Directory tree beside the file view (open by default). */
+  showTree: boolean
+  /** Soft-wrap long lines in the file editor. */
+  wrap: boolean
   /** Per-context path cache so switching contexts restores the last position. */
   pathCache: Map<string, string>
   open: (projectId: string, rootPath?: string) => void
-  /** Open for a specific issue — tracks path per issue, opens as inline panel. */
+  /** Bind to a specific issue — tracks path per issue, shown in the workspace panel. */
   openForIssue: (projectId: string, issueId: string, rootPath?: string) => void
   openFullscreen: (projectId: string, rootPath?: string) => void
   close: () => void
@@ -49,6 +53,8 @@ interface FileBrowserStore {
   setWidth: (w: number) => void
   navigateTo: (path: string) => void
   toggleHideIgnored: () => void
+  toggleTree: () => void
+  toggleWrap: () => void
 }
 
 export { MIN_WIDTH as FILE_BROWSER_MIN_WIDTH }
@@ -91,6 +97,8 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
   rootPath: null,
   currentPath: '.',
   hideIgnored: false,
+  showTree: true,
+  wrap: false,
   pathCache: new Map(),
 
   open: (projectId, rootPath) =>
@@ -108,10 +116,6 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
     }),
   openForIssue: (projectId, issueId, rootPath) =>
     set((s) => {
-      // Toggle off if already open as inline for the same issue
-      if (s.isOpen && !s.isDrawer && s.issueId === issueId) {
-        return { isOpen: false }
-      }
       const ctx = switchContext(s, projectId, rootPath ?? null, issueId)
       return {
         isOpen: true,
@@ -189,6 +193,8 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
   setWidth: w => set({ width: clampWidth(w) }),
   navigateTo: path => set({ currentPath: path }),
   toggleHideIgnored: () => set(s => ({ hideIgnored: !s.hideIgnored })),
+  toggleTree: () => set(s => ({ showTree: !s.showTree })),
+  toggleWrap: () => set(s => ({ wrap: !s.wrap })),
 }))
 
 // Re-clamp width on window resize (HMR-safe via import.meta.hot.dispose)

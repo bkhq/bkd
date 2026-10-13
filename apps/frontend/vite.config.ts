@@ -58,6 +58,12 @@ const config = defineConfig(({ mode }) => {
       tailwindcss(),
       viteReact(),
     ],
+    // The diff highlighter worker code-splits (shiki), which needs ES output,
+    // and must get the same slim shiki bundles as the main build.
+    worker: {
+      format: 'es',
+      plugins: () => [shikiSlim()],
+    },
     resolve: {
       tsconfigPaths: true,
       // Libraries (class-variance-authority, streamdown) still import the old

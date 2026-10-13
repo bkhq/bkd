@@ -8,7 +8,6 @@ import { useIssue, useUpdateIssue } from '@/hooks/use-kanban'
 import { getIssueUrl } from '@/stores/server-store'
 import { isImeComposing } from '@/lib/keyboard'
 
-const DEFAULT_DIFF_WIDTH = 360
 const LazyDiffPanel = lazy(() =>
   import('@/components/issue-detail/DiffPanel').then(m => ({
     default: m.DiffPanel,
@@ -32,7 +31,6 @@ export function IssuePanel({ projectId, issueId, onClose, hideHeaderActions }: I
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const [showDiff, setShowDiff] = useState(false)
-  const [diffWidth, setDiffWidth] = useState(DEFAULT_DIFF_WIDTH)
 
   const { data: issue } = useIssue(projectId, issueId ?? '')
   const effectiveIssue = issue
@@ -199,10 +197,7 @@ export function IssuePanel({ projectId, issueId, onClose, hideHeaderActions }: I
                 <LazyDiffPanel
                   projectId={projectId}
                   issueId={issueId}
-                  width={diffWidth}
-                  onWidthChange={setDiffWidth}
                   onClose={() => setShowDiff(false)}
-                  fullScreen
                 />
               </Suspense>
             </div>
