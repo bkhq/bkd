@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useIssue, useUpdateIssue } from '@/hooks/use-kanban'
-import { IssueContextMenu, IssueContextMenuButton, IssueRightClickMenu } from '@/components/issue-detail/IssueContextMenu'
+import { IssueContextMenu, IssueContextMenuButton } from '@/components/issue-detail/IssueContextMenu'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import { ChatBody } from './ChatBody'
@@ -105,59 +105,56 @@ export function ChatArea({
       <div className="flex flex-1 min-w-0 flex-col">
         {/* Title bar */}
         <div className="flex items-center gap-2 px-2.5 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] md:gap-2.5 md:px-3 bg-background/80 backdrop-blur-sm">
-          {/* Right-click area: the "..." button must stay outside the context menu. */}
-          <IssueRightClickMenu issue={issue} projectId={projectId} showPin showCopyLink onDeleted={handleAfterDelete} className="contents">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0 transition-colors"
-              onClick={() => navigate(resolvedBackPath)}
-              title={
-                backPath ?
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0 transition-colors"
+            onClick={() => navigate(resolvedBackPath)}
+            title={
+              backPath ?
+                  t('issue.backToList') :
+                showBackToList ?
                     t('issue.backToList') :
-                  showBackToList ?
-                      t('issue.backToList') :
-                      t('issue.backToBoard')
-              }
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-mono text-muted-foreground/70 bg-muted/50 rounded px-1.5 py-0.5 shrink-0 tabular-nums">
-                  #
-                  {issue.issueNumber}
-                </span>
-                {editingTitle ?
-                    (
-                      <input
-                        className="text-base md:text-sm font-semibold bg-transparent border-b-2 border-primary outline-none min-w-0 flex-1 tracking-tight"
-                        value={titleDraft}
-                        onChange={e => setTitleDraft(e.target.value)}
-                        onBlur={saveTitle}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !isImeComposing(e)) {
-                            e.preventDefault()
-                            saveTitle()
-                          } else if (e.key === 'Escape') {
-                            setEditingTitle(false)
-                          }
-                        }}
-                        autoFocus
-                      />
-                    ) :
-                    (
-                      <span
-                        className="text-sm font-semibold truncate cursor-pointer hover:text-primary transition-colors duration-200 tracking-tight decoration-primary/30 hover:underline underline-offset-2"
-                        onClick={startEditingTitle}
-                        title={t('issue.editTitle')}
-                      >
-                        {issue.title}
-                      </span>
-                    )}
-              </div>
+                    t('issue.backToBoard')
+            }
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-muted-foreground/70 bg-muted/50 rounded px-1.5 py-0.5 shrink-0 tabular-nums">
+                #
+                {issue.issueNumber}
+              </span>
+              {editingTitle ?
+                  (
+                    <input
+                      className="text-base md:text-sm font-semibold bg-transparent border-b-2 border-primary outline-none min-w-0 flex-1 tracking-tight"
+                      value={titleDraft}
+                      onChange={e => setTitleDraft(e.target.value)}
+                      onBlur={saveTitle}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !isImeComposing(e)) {
+                          e.preventDefault()
+                          saveTitle()
+                        } else if (e.key === 'Escape') {
+                          setEditingTitle(false)
+                        }
+                      }}
+                      autoFocus
+                    />
+                  ) :
+                  (
+                    <span
+                      className="text-sm font-semibold truncate cursor-pointer hover:text-primary transition-colors duration-200 tracking-tight decoration-primary/30 hover:underline underline-offset-2"
+                      onClick={startEditingTitle}
+                      title={t('issue.editTitle')}
+                    >
+                      {issue.title}
+                    </span>
+                  )}
             </div>
-          </IssueRightClickMenu>
+          </div>
           <IssueContextMenu issue={issue} projectId={projectId} showPin showCopyLink onDeleted={handleAfterDelete}>
             <IssueContextMenuButton className="h-7 w-7 shrink-0" />
           </IssueContextMenu>
