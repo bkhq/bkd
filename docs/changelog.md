@@ -645,3 +645,24 @@ notification both call it. Migration `0026`. Task and plan
 Scope history: the first draft was a project-scoped ticket thread written by
 hand, the second a global inbox auto-fed by `review` transitions. Both were
 dropped before implementation in favour of the skill contract.
+
+## 2026-10-13 20:06 [BUG-P1]
+
+`20261013-1950-engine-protocol-drift`: Claude Code and Codex wire shapes had
+moved away from what the normalizers read.
+
+- Claude `result.total_cost_usd` is cumulative per process, and one prompt now
+  yields several results. The normalizer reports the delta, so
+  `issues.totalCostUsd` no longer counts the same spend two or three times.
+  Totals stored before this fix stay inflated; there is no backfill.
+- The empty result that closes a task notification no longer renders a line.
+- `rate_limit_event` is recognised; only `status: "rejected"` is shown.
+- Codex `turn/started` and `thread/started` read the nested `turn.id` /
+  `thread.id`; command display uses the bare command from `commandActions`.
+
+## 2026-10-13 20:06 [progress]
+
+`20261013-2005-decision-capability-probe`: added `GET /api/decisions` as the
+decision-events capability probe and `docs/api/decisions.md`. Removed the
+outdated `skills/` copy of the BKD skill, now maintained in `zzci/skills`;
+`scripts/gen-openapi.ts` defaults to `tmp/openapi.json`.

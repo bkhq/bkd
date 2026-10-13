@@ -233,6 +233,7 @@ Powered by `cronbake` scheduler:
 A decision event is one question a coordinating agent needs the user to answer. BKD is the platform only: it stores events, shows them, and wakes the raiser — it never creates one itself.
 
 - Contract: `skills/bkd/references/decision-events.md` in `zzci/skills`. A coordinator sets `BKD_EVENT_URL=$BKD_URL/api/decisions` and calls `/events/...` as written there. The mount point avoids `GET /api/events`, which is the SSE stream.
+- `GET /api/decisions` is the capability probe: `{ supported: true, contractVersion: 1 }`. A server without decision events answers 404.
 - States: `open → decided → applied`, `open → withdrawn`, and `open | decided → closed`. A transition from any other state returns 409.
 - `decision` (user): an option, a free-form instruction, or both. BKD then sends `[event-decision eventId=… campaignId=…]` to the `notify` issue through `dispatchFollowUp()` — the same routing the follow-up route uses. The message is a wake signal; the raiser re-reads the event. A failed delivery leaves the event `decided` with `notifiedAt` empty, and `POST /events/:id/notify` resends it.
 - `close` (user) ends an event without answering it and sends no follow-up. It is an extension of the skill contract.

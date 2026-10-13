@@ -95,7 +95,7 @@ Requires `OPENAI_API_KEY` or `CODEX_API_KEY`, or authenticate via `codex` CLI.
 
 ## BKD Skill
 
-This repository includes a single BKD skill package at `skills/bkd/`. Install it with `npx skills` and use it to operate a running BKD server through the REST API.
+The BKD skill lives in [`zzci/skills`](https://github.com/zzci/skills). Install it with `npx skills` and use it to operate a running BKD server through the REST API.
 
 ### Prerequisite
 
@@ -108,13 +108,13 @@ export BKD_URL=http://localhost:3000/api
 ### Global (all projects)
 
 ```bash
-npx skills add bkhq/bkd --skill bkd --global
+npx skills add zzci/skills --skill bkd --global
 ```
 
 ### Project (current project only)
 
 ```bash
-npx skills add bkhq/bkd --skill bkd
+npx skills add zzci/skills --skill bkd
 ```
 
 Restart Codex after installing the skill. You can then invoke it with prompts such as `Use $bkd to list projects` or `Use $bkd to check execution capacity`.

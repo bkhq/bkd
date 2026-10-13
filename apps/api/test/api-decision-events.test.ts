@@ -84,6 +84,15 @@ beforeAll(async () => {
   subjectId = await createIssue('Subject')
 })
 
+describe('capability probe', () => {
+  test('reports decision-event support', async () => {
+    const data = expectSuccess(
+      await get<{ supported: boolean, contractVersion: number }>('/api/decisions'),
+    )
+    expect(data).toEqual({ supported: true, contractVersion: 1 })
+  })
+})
+
 describe('create', () => {
   test('stores the card and returns it open', async () => {
     const res = await post<DecisionEvent>(BASE, body())

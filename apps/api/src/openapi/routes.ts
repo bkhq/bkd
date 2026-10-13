@@ -1032,6 +1032,20 @@ const decisionEventErrors = {
   500: errorResponse('Internal error'),
 }
 
+export const getDecisionCapability = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Decisions'],
+  summary: 'Probe decision-event support',
+  operationId: 'getDecisionCapability',
+  responses: {
+    200: successResponse(z.object({
+      supported: z.literal(true),
+      contractVersion: z.number().int(),
+    }), 'Decision events are supported'),
+  },
+})
+
 export const listDecisionEvents = createRoute({
   method: 'get',
   path: '/events',

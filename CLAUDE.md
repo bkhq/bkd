@@ -192,7 +192,7 @@ One question a coordinating agent needs the user to answer, per the `bkd` skill'
 - Closing is the user's way to end an event without answering; it sends no follow-up.
 - Every write emits `decision-event-updated` (bus + SSE).
 
-Routes: `GET/POST /api/decisions/events`, `GET/PATCH /api/decisions/events/:id`, `POST /api/decisions/events/:id/{decision,notify,ack,withdraw,close}`.
+Routes: `GET /api/decisions` (capability probe, `{ supported, contractVersion }`), `GET/POST /api/decisions/events`, `GET/PATCH /api/decisions/events/:id`, `POST /api/decisions/events/:id/{decision,notify,ack,withdraw,close}`.
 
 #### Background Jobs (`jobs/`)
 

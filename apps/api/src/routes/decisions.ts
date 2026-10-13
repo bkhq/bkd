@@ -46,6 +46,11 @@ function hasOption(options: DecisionEventOption[], optionId: string): boolean {
   return options.some(o => o.id === optionId)
 }
 
+// GET /api/decisions
+decisionsRoutes.openapi(R.getDecisionCapability, (c) => {
+  return c.json({ success: true as const, data: { supported: true as const, contractVersion: 1 } })
+})
+
 // GET /api/decisions/events
 decisionsRoutes.openapi(R.listDecisionEvents, async (c) => {
   const { campaignId, status } = c.req.valid('query')

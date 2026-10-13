@@ -75,4 +75,5 @@ gzip/deflate compression on all routes except SSE (`/api/events`), streaming (`*
 | [git.md](./git.md) | Git utilities |
 | [filesystem.md](./filesystem.md) | Directory browsing and creation |
 | [notes.md](./notes.md) | Notes CRUD |
+| [decisions.md](./decisions.md) | Decision events, capability probe |
 | [settings.md](./settings.md) | System settings, MCP, webhooks, cleanup, upgrade |
