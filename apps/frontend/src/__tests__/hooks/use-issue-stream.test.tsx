@@ -248,4 +248,33 @@ describe('useIssueStream', () => {
       expect(result.current.logs[0]?.metadata?.type).toBeUndefined()
     })
   })
+  it('loads older pages until the target message is loaded', async () => {
+    subscribeMock.mockImplementation(() => () => {})
+    const entry = (id: string): NormalizedLogEntry => ({ messageId: id, entryType: 'assistant-message', content: id })
+    getIssueLogsMock
+      .mockResolvedValueOnce({ issue: null, logs: [entry('01J0000000000000000000009')], nextCursor: '01J0000000000000000000009', hasMore: true })
+      .mockResolvedValueOnce({ issue: null, logs: [entry('01J0000000000000000000005')], nextCursor: '01J0000000000000000000005', hasMore: true })
+      .mockResolvedValueOnce({ issue: null, logs: [entry('01J0000000000000000000002')], nextCursor: '01J0000000000000000000002', hasMore: true })
+
+    const { result } = renderHook(
+      () => useIssueStream({ projectId: 'proj-1', issueId: 'issue-1' }),
+      { wrapper: createWrapper() },
+    )
+    await waitFor(() => expect(result.current.hasOlderLogs).toBe(true))
+
+    let loaded = false
+    await act(async () => {
+      loaded = await result.current.loadOlderUntil('01J0000000000000000000002')
+    })
+
+    expect(loaded).toBe(true)
+    expect(getIssueLogsMock).toHaveBeenCalledTimes(3)
+    expect(getIssueLogsMock.mock.calls[2][2]).toMatchObject({ before: '01J0000000000000000000005', limit: 200 })
+    expect(result.current.logs.map(e => e.messageId)).toEqual([
+      '01J0000000000000000000002',
+      '01J0000000000000000000005',
+      '01J0000000000000000000009',
+    ])
+    expect(result.current.isLoadingOlder).toBe(false)
+  })
 })

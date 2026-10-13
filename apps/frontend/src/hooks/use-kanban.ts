@@ -21,6 +21,8 @@ export const queryKeys = {
     ['projects', projectId, 'issues', issueId] as const,
   issueChanges: (projectId: string, issueId: string) =>
     ['projects', projectId, 'issues', issueId, 'changes'] as const,
+  issueTurns: (projectId: string, issueId: string) =>
+    ['projects', projectId, 'issues', issueId, 'turns'] as const,
   issueFilePatch: (projectId: string, issueId: string, path: string) =>
     ['projects', projectId, 'issues', issueId, 'changes', 'file', path] as const,
   slashCommands: (projectId: string, issueId: string) =>
@@ -221,6 +223,19 @@ export function useIssueChanges(projectId: string, issueId: string, enabled = tr
   return useQuery({
     queryKey: queryKeys.issueChanges(projectId, issueId),
     queryFn: () => kanbanApi.getIssueChanges(projectId, issueId),
+    enabled: !!projectId && !!issueId && enabled,
+    staleTime: STALE_TIME.STANDARD,
+  })
+}
+
+/**
+ * Turn summaries for the chat turn navigator. Only history that is not
+ * loaded needs them, so callers enable this while older logs exist.
+ */
+export function useIssueTurns(projectId: string, issueId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.issueTurns(projectId, issueId),
+    queryFn: () => kanbanApi.getIssueTurns(projectId, issueId),
     enabled: !!projectId && !!issueId && enabled,
     staleTime: STALE_TIME.STANDARD,
   })

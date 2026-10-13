@@ -33,6 +33,7 @@ import {
   IssueChangesResponseSchema,
   IssueLogsResponseSchema,
   IssueSchema,
+  IssueTurnsResponseSchema,
   LocalSessionSchema,
   NormalizedLogEntrySchema,
   NoteSchema,
@@ -478,6 +479,19 @@ export const getIssueLogs = createRoute({
   },
   responses: {
     200: successResponse(IssueLogsResponseSchema, 'Issue logs'),
+    404: errorResponse('Issue not found'),
+  },
+})
+
+export const getIssueTurns = createRoute({
+  method: 'get',
+  path: '/{issueId}/turns',
+  tags: ['Issue Logs'],
+  summary: 'List chat turns with short previews, oldest first',
+  operationId: 'getIssueTurns',
+  request: { params: projectIssueParams },
+  responses: {
+    200: successResponse(IssueTurnsResponseSchema, 'Chat turns'),
     404: errorResponse('Issue not found'),
   },
 })

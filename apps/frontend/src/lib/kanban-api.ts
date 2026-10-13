@@ -19,6 +19,7 @@ import type {
   IssueChangesResponse,
   IssueFilePatchResponse,
   IssueLogsResponse,
+  IssueTurnsResponse,
   LocalSessionListResponse,
   LocalSessionPreview,
   Note,
@@ -409,6 +410,8 @@ export const kanbanApi = {
         : ''
     return get<IssueLogsResponse>(`${base}${filterSegment}${qs ? `?${qs}` : ''}`)
   },
+  getIssueTurns: (projectId: string, issueId: string) =>
+    get<IssueTurnsResponse>(`/api/projects/${projectId}/issues/${issueId}/turns`),
   getSlashCommands: (projectId: string, issueId: string) =>
     get<CategorizedCommands>(`/api/projects/${projectId}/issues/${issueId}/slash-commands`),
   getIssueChanges: (projectId: string, issueId: string) =>
