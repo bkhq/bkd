@@ -3,7 +3,7 @@ import { errorResponse, successResponse } from '@/openapi/schemas'
 import { createRoute } from '@hono/zod-openapi'
 import { existsSync } from 'node:fs'
 import { readdir, rm, stat } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import * as z from 'zod'
 import { db } from '@/db'
@@ -14,7 +14,7 @@ import {
   issues as issuesTable,
   projects as projectsTable,
 } from '@/db/schema'
-import { removeWorktree, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
+import { removeWorktree, resolveWorktreePath, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import { DATA_DIR } from '@/root'
@@ -210,11 +210,9 @@ async function scanCleanableWorktrees(): Promise<Array<{ projectDir: string, iss
 
 async function getWorktreesStats() {
   const cleanable = await scanCleanableWorktrees()
-  let totalSize = 0
-  for (const w of cleanable) {
-    totalSize += await getDirSize(w.path)
-  }
-  return { count: cleanable.length, totalSize }
+  // Sizing walks every file (node_modules, build output) and outran the
+  // client's request timeout, so only the count is reported.
+  return { count: cleanable.length, totalSize: 0 }
 }
 
 async function getDeletedIssuesStats() {
@@ -278,14 +276,24 @@ async function cleanupLogs(): Promise<{ cleaned: number }> {
 }
 
 async function cleanupWorktrees(): Promise<{ cleaned: number }> {
-  const cleanable = await scanCleanableWorktrees()
+  const cleaned = await removeWorktrees(await scanCleanableWorktrees())
+  logger.info({ cleaned }, 'cleanup_worktrees_done')
+  return { cleaned }
+}
+
+export async function removeWorktrees(
+  cleanable: Array<{ projectDir: string, issueId: string, path: string }>,
+): Promise<number> {
   let cleaned = 0
 
+  const repoDirs = await getProjectRepoDirs([...new Set(cleanable.map(w => basename(w.projectDir)))])
   const projectDirs = new Set<string>()
   for (const w of cleanable) {
     projectDirs.add(w.projectDir)
     try {
-      await removeWorktree(process.cwd(), w.path)
+      // Without a project row there is no repo to deregister from;
+      // removeWorktree then falls back to deleting the directory.
+      await removeWorktree(repoDirs.get(basename(w.projectDir)) ?? process.cwd(), w.path)
       cleaned++
     } catch {
       await rm(w.path, { recursive: true }).catch(() => {})
@@ -301,16 +309,43 @@ async function cleanupWorktrees(): Promise<{ cleaned: number }> {
     }
   }
 
-  logger.info({ cleaned }, 'cleanup_worktrees_done')
-  return { cleaned }
+  return cleaned
+}
+
+/** Map project IDs to their repository directories, soft-deleted projects included. */
+async function getProjectRepoDirs(projectIds: string[]): Promise<Map<string, string>> {
+  const dirs = new Map<string, string>()
+  const BATCH = 500
+  for (let i = 0; i < projectIds.length; i += BATCH) {
+    const rows = await db
+      .select({ id: projectsTable.id, directory: projectsTable.directory })
+      .from(projectsTable)
+      .where(inArray(projectsTable.id, projectIds.slice(i, i + BATCH)))
+    for (const r of rows) {
+      if (r.directory) dirs.set(r.id, resolve(r.directory))
+    }
+  }
+  return dirs
 }
 
 async function cleanupDeletedIssues(): Promise<{ cleaned: number }> {
   // Find all soft-deleted issues
   const deletedIssues = await db
-    .select({ id: issuesTable.id })
+    .select({ id: issuesTable.id, projectId: issuesTable.projectId })
     .from(issuesTable)
     .where(eq(issuesTable.isDeleted, 1))
+
+  // Remove worktrees while the project rows still exist: once the issue rows
+  // are gone, nothing can match these worktrees to their repository again.
+  await removeWorktrees(
+    deletedIssues
+      .map(i => ({
+        projectDir: join(WORKTREE_BASE, i.projectId),
+        issueId: i.id,
+        path: resolveWorktreePath(i.projectId, i.id),
+      }))
+      .filter(w => existsSync(w.path)),
+  )
 
   const deletedProjects = await db
     .select({ id: projectsTable.id })

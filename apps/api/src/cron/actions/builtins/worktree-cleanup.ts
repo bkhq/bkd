@@ -9,8 +9,12 @@ import { logger } from '@/logger'
 
 export const WORKTREE_AUTO_CLEANUP_KEY = 'worktree:autoCleanup'
 
-/** Only clean up worktrees for issues that have been done for at least 1 day */
-const DONE_AGE_MS = 24 * 60 * 60 * 1000
+/**
+ * Only clean up worktrees for issues done, or deleted, for at least 1 day.
+ * Deleted issues keep their worktree inside that window so a recycle-bin
+ * restore is lossless.
+ */
+const CLEANUP_AGE_MS = 24 * 60 * 60 * 1000
 
 /** Max entries per inArray batch to stay within SQLite variable limits */
 const MAX_BATCH = 500
@@ -44,7 +48,7 @@ export async function runWorktreeCleanup(): Promise<string> {
     .where(inArray(projectsTable.id, projectDirNames))
   const projectMap = new Map(projectRows.map(p => [p.id, p.directory]))
 
-  const cutoff = new Date(Date.now() - DONE_AGE_MS)
+  const cutoff = new Date(Date.now() - CLEANUP_AGE_MS)
   let cleaned = 0
 
   for (const projectDirName of projectDirNames) {
@@ -64,7 +68,7 @@ export async function runWorktreeCleanup(): Promise<string> {
 
     if (issueIds.length === 0) continue
 
-    const doneIssues = await db
+    const cleanableIssues = await db
       .select({
         id: issuesTable.id,
         projectId: issuesTable.projectId,
@@ -73,10 +77,17 @@ export async function runWorktreeCleanup(): Promise<string> {
       .where(
         and(
           inArray(issuesTable.id, issueIds),
-          eq(issuesTable.statusId, 'done'),
-          eq(issuesTable.isDeleted, 0),
           eq(issuesTable.useWorktree, true),
-          lte(issuesTable.statusUpdatedAt, cutoff),
+          or(
+            and(
+              eq(issuesTable.statusId, 'done'),
+              eq(issuesTable.isDeleted, 0),
+              lte(issuesTable.statusUpdatedAt, cutoff),
+            ),
+            // The soft delete bumps `updatedAt`, and nothing writes a deleted
+            // issue afterwards, so it stands in for the deletion time.
+            and(eq(issuesTable.isDeleted, 1), lte(issuesTable.updatedAt, cutoff)),
+          ),
           or(
             isNull(issuesTable.sessionStatus),
             notInArray(issuesTable.sessionStatus, ['running', 'pending']),
@@ -84,12 +95,12 @@ export async function runWorktreeCleanup(): Promise<string> {
         ),
       )
 
-    if (doneIssues.length === 0) continue
+    if (cleanableIssues.length === 0) continue
 
     const directory = projectMap.get(projectDirName)
     const baseDir = directory ? resolve(directory) : process.cwd()
 
-    for (const issue of doneIssues) {
+    for (const issue of cleanableIssues) {
       const worktreePath = join(projectWorktreeDir, issue.id)
       try {
         await removeWorktree(baseDir, worktreePath)
