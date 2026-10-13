@@ -204,6 +204,9 @@ describe('decision', () => {
     expect(decided.decision?.decidedBy).toBe('user')
     expect(decided.decision?.decidedAt).toBeTruthy()
     expect(decided.notifiedAt).toBeTruthy()
+    // Whole seconds, like every other timestamp, so notifiedAt never sorts before decidedAt
+    expect(decided.decision?.decidedAt).toMatch(/\.000Z$/)
+    expect(new Date(decided.notifiedAt!).getTime()).toBeGreaterThanOrEqual(new Date(decided.decision!.decidedAt).getTime())
 
     expect(await pendingOf(coordinator)).toEqual([
       `[event-decision eventId=${event.id} campaignId=camp-wake]`,

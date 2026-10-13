@@ -150,7 +150,8 @@ decisionsRoutes.openapi(R.decideDecisionEvent, async (c) => {
       optionId: body.optionId ?? null,
       instruction: body.instruction,
       decidedBy: body.decidedBy,
-      decidedAt: new Date().toISOString(),
+      // Whole seconds, like the integer timestamp columns, so it never sorts after notifiedAt
+      decidedAt: new Date(Math.floor(Date.now() / 1000) * 1000).toISOString(),
     }),
   })
   if (!decided) return c.json(conflict('no longer open'), 409)

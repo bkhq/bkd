@@ -125,4 +125,4 @@ The user ends an `open` or `decided` event without answering. Sends no follow-up
 }
 ```
 
-`decision` is `{ optionId, instruction, decidedBy, decidedAt }` once decided. `links.ref` and `links.notify` are `{ issueId, projectId, issueNumber, title }` when the issue resolves.
+`decision` is `{ optionId, instruction, decidedBy, decidedAt }` once decided; `decidedAt` is whole seconds, like every other timestamp. `links.ref` and `links.notify` are `{ issueId, projectId, issueNumber, title }` when the issue resolves.
