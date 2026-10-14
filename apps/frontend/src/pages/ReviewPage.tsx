@@ -50,7 +50,15 @@ export default function ReviewPage() {
   )
 
   const availableWidth = typeof window !== 'undefined' ? window.innerWidth - SIDEBAR_WIDTH : 1200
-  const hideListPanel = shouldHideListPanel({ isMobile, issueId, panelOpen, panelWidth, availableWidth })
+  const hideListPanel = shouldHideListPanel({
+    isMobile,
+    issueId,
+    panelOpen,
+    panelWidth,
+    availableWidth,
+    listMinWidth: LIST_MIN_WIDTH,
+    minChatWidth: MIN_CHAT_WIDTH,
+  })
 
   const handlePanelWidthChange = useCallback(
     (w: number) => {

@@ -48,7 +48,15 @@ export default function IssueDetailPage() {
   // On mobile: show list when no issue selected, show chat when issue selected
   // On desktop: hide list panel when workspace panel needs more than 50% of available space
   const availableWidth = typeof window !== 'undefined' ? window.innerWidth - SIDEBAR_WIDTH : 1200
-  const hideListPanel = shouldHideListPanel({ isMobile, issueId, panelOpen, panelWidth, availableWidth })
+  const hideListPanel = shouldHideListPanel({
+    isMobile,
+    issueId,
+    panelOpen,
+    panelWidth,
+    availableWidth,
+    listMinWidth: LIST_MIN_WIDTH,
+    minChatWidth: MIN_CHAT_WIDTH,
+  })
 
   const handlePanelWidthChange = useCallback(
     (w: number) => {
