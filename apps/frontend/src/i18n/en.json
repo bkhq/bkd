@@ -831,6 +831,7 @@
     "rootLoadFailed": "Couldn't resolve this issue's workspace.",
     "retry": "Retry",
     "browserInDrawer": "The file browser is open in the drawer.",
-    "openHere": "Open here"
+    "openHere": "Open here",
+    "worktreeMissing": "This issue's worktree no longer exists. The file browser is unavailable here so the main checkout is not edited by mistake."
   }
 }

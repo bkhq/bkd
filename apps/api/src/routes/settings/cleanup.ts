@@ -284,6 +284,8 @@ async function cleanupWorktrees(): Promise<{ cleaned: number }> {
 
 export async function removeWorktrees(
   cleanable: Array<{ projectDir: string, issueId: string, path: string }>,
+  /** Checked right before each removal; false skips that worktree. */
+  stillRemovable?: (issueId: string) => boolean,
 ): Promise<number> {
   let cleaned = 0
 
@@ -291,6 +293,7 @@ export async function removeWorktrees(
   const projectDirs = new Set<string>()
   for (const w of cleanable) {
     projectDirs.add(w.projectDir)
+    if (stillRemovable && !stillRemovable(w.issueId)) continue
     try {
       // Without a project row there is no repo to deregister from;
       // removeWorktree then falls back to deleting the directory.
@@ -352,6 +355,11 @@ async function cleanupDeletedIssues(): Promise<{ cleaned: number }> {
         path: resolveWorktreePath(i.projectId, i.id),
       }))
       .filter(w => existsSync(w.path)),
+    // Earlier removals are awaited, so a restore (or a re-spawn) may have
+    // landed since the list was read: re-check each issue right before its
+    // worktree goes, keeping the filesystem work outside any transaction
+    issueId => !issueEngine.hasActiveProcessForIssue(issueId)
+      && db.select({ isDeleted: issuesTable.isDeleted }).from(issuesTable).where(eq(issuesTable.id, issueId)).get()?.isDeleted === 1,
   )
 
   const deletedProjects = await db

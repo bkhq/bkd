@@ -830,6 +830,7 @@
     "rootLoadFailed": "无法确定此任务的工作区目录。",
     "retry": "重试",
     "browserInDrawer": "文件管理器正在抽屉中打开。",
-    "openHere": "在此处打开"
+    "openHere": "在此处打开",
+    "worktreeMissing": "此任务的 worktree 已不存在。为避免误改主工作区，文件管理器在此不可用。"
   }
 }

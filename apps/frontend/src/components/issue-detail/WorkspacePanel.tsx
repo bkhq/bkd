@@ -78,7 +78,10 @@ export function WorkspacePanel({
   // than fall back to the project directory, which for a worktree issue is the
   // main checkout. null means the project has no directory at all.
   const changes = useIssueChanges(projectId, issueId)
-  const issueRoot = changes.data ? (changes.data.root ?? null) : undefined
+  // A worktree issue whose worktree is gone gets the project root back: never
+  // treat that as its workspace (the browser would edit the main checkout)
+  const worktreeMissing = !!changes.data?.worktreeMissing
+  const issueRoot = changes.data && !worktreeMissing ? (changes.data.root ?? null) : undefined
   const fileCount = useFileBrowserEntryCount()
   const counts: Record<WorkspaceTab, number | null> = {
     files: fileCount,
@@ -217,25 +220,27 @@ export function WorkspacePanel({
               ? <FileBrowserContent />
               : (
                   <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
-                    {changes.isError
-                      ? (
-                          <>
-                            <p>{t('workspace.rootLoadFailed')}</p>
-                            <button type="button" onClick={() => void changes.refetch()} className="rounded-md border border-border px-3 py-1 text-xs hover:bg-accent">
-                              {t('workspace.retry')}
-                            </button>
-                          </>
-                        )
-                      : drawerOwnsBrowser && issueRoot !== undefined
+                    {worktreeMissing
+                      ? <p>{t('workspace.worktreeMissing')}</p>
+                      : changes.isError
                         ? (
                             <>
-                              <p>{t('workspace.browserInDrawer')}</p>
-                              <button type="button" onClick={bindFiles} className="rounded-md border border-border px-3 py-1 text-xs hover:bg-accent">
-                                {t('workspace.openHere')}
+                              <p>{t('workspace.rootLoadFailed')}</p>
+                              <button type="button" onClick={() => void changes.refetch()} className="rounded-md border border-border px-3 py-1 text-xs hover:bg-accent">
+                                {t('workspace.retry')}
                               </button>
                             </>
                           )
-                        : <p>{t('common.loading')}</p>}
+                        : drawerOwnsBrowser && issueRoot !== undefined
+                          ? (
+                              <>
+                                <p>{t('workspace.browserInDrawer')}</p>
+                                <button type="button" onClick={bindFiles} className="rounded-md border border-border px-3 py-1 text-xs hover:bg-accent">
+                                  {t('workspace.openHere')}
+                                </button>
+                              </>
+                            )
+                          : <p>{t('common.loading')}</p>}
                   </div>
                 )}
           </div>

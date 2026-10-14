@@ -294,6 +294,8 @@ export const IssueChangedFileSchema = z.object({
 export const IssueChangesResponseSchema = z.object({
   // Absent when the project has no directory configured.
   root: z.string().optional(),
+  // The issue uses a worktree that no longer exists; `root` is the project root.
+  worktreeMissing: z.boolean().optional(),
   gitRepo: z.boolean(),
   files: z.array(IssueChangedFileSchema),
   additions: z.number().int(),

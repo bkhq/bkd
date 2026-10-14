@@ -154,6 +154,18 @@ describe('auto-cleanup cron', () => {
   })
 })
 
+describe('issue changes root', () => {
+  test('flags a worktree issue whose worktree is gone instead of passing off the main checkout', async () => {
+    const { id, path } = await createWorktreeIssue()
+    const present = expectSuccess(await get<{ root: string, worktreeMissing?: boolean }>(`/api/projects/${projectId}/issues/${id}/changes`))
+    expect(present.worktreeMissing).toBeFalsy()
+
+    rmSync(path, { recursive: true, force: true })
+    const missing = expectSuccess(await get<{ root: string, worktreeMissing?: boolean }>(`/api/projects/${projectId}/issues/${id}/changes`))
+    expect(missing.worktreeMissing).toBe(true)
+  })
+})
+
 describe('settings cleanup', () => {
   test('hard-deleting issues removes their worktrees from the project repo', async () => {
     const { id, path } = await createWorktreeIssue()
@@ -182,10 +194,10 @@ describe('settings cleanup', () => {
     expect(row?.id).toBe(id)
   })
 
-  test('an issue restored while cleanup runs is not hard-deleted', async () => {
+  test('an issue restored while cleanup runs keeps its row and its worktree', async () => {
     // The restore lands after cleanup has listed the deleted issues (here,
     // during its liveness check), before the destructive phase
-    const { id } = await createWorktreeIssue()
+    const { id, path } = await createWorktreeIssue()
     await softDelete(id)
     const restoreMidway = spyOn(issueEngine, 'hasActiveProcessForIssue').mockImplementation((issueId) => {
       if (issueId === id) db.update(issuesTable).set({ isDeleted: 0 }).where(eq(issuesTable.id, id)).run()
@@ -199,6 +211,7 @@ describe('settings cleanup', () => {
 
     const [row] = await db.select({ id: issuesTable.id, isDeleted: issuesTable.isDeleted }).from(issuesTable).where(eq(issuesTable.id, id))
     expect(row).toEqual({ id, isDeleted: 0 })
+    expect(existsSync(path)).toBe(true)
   })
 
   test('manual worktree removal deregisters from the owning project repo', async () => {

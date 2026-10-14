@@ -165,11 +165,14 @@ changes.openapi(R.getIssueChanges, async (c) => {
     }, 200 as const)
   }
   const root = await resolveIssueDir(project.id, issueId, issue.useWorktree, projectRoot)
+  // resolveIssueDir falls back to the project root when the worktree is gone;
+  // say so, or clients would take the main checkout for the issue workspace
+  const worktreeMissing = issue.useWorktree && root === projectRoot ? true : undefined
   const gitRepo = await isGitRepo(root)
   if (!gitRepo) {
     return c.json({
       success: true as const,
-      data: { root, gitRepo: false, files: [], additions: 0, deletions: 0 },
+      data: { root, worktreeMissing, gitRepo: false, files: [], additions: 0, deletions: 0 },
     }, 200 as const)
   }
 
@@ -178,7 +181,7 @@ changes.openapi(R.getIssueChanges, async (c) => {
   if (timedOut) {
     return c.json({
       success: true as const,
-      data: { root, gitRepo: true, files: [], additions: 0, deletions: 0, timedOut: true },
+      data: { root, worktreeMissing, gitRepo: true, files: [], additions: 0, deletions: 0, timedOut: true },
     }, 200 as const)
   }
 
@@ -192,7 +195,7 @@ changes.openapi(R.getIssueChanges, async (c) => {
   const deletions = filesWithStats.reduce((sum, file) => sum + (file.deletions ?? 0), 0)
   return c.json({
     success: true as const,
-    data: { root, gitRepo: true, files: filesWithStats, additions, deletions },
+    data: { root, worktreeMissing, gitRepo: true, files: filesWithStats, additions, deletions },
   }, 200 as const)
 })
 

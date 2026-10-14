@@ -46,6 +46,14 @@ describe('workspace panel Files tab', () => {
     expect(screen.getByText('file browser')).toBeInTheDocument()
   })
 
+  it('refuses to open the main checkout when the issue worktree is gone', () => {
+    mocks.changes = { isLoading: false, isError: false, data: { root: '/main/checkout', worktreeMissing: true, gitRepo: true, files: [] }, refetch: vi.fn() }
+    renderPanel()
+    expect(screen.queryByText('file browser')).not.toBeInTheDocument()
+    expect(useFileBrowserStore.getState().issueId).toBeNull()
+    expect(screen.getByText(/worktree no longer exists/)).toBeInTheDocument()
+  })
+
   it('shows an error with retry when the workspace cannot be resolved', () => {
     mocks.changes = { isLoading: false, isError: true, data: undefined, refetch: vi.fn() }
     renderPanel()
