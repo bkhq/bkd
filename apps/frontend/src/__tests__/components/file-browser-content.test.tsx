@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '@/i18n'
 import { FileBrowserContent } from '@/components/files/FileBrowserContent'
 import { ApiError } from '@/lib/kanban-api'
-import { useFileBrowserStore } from '@/stores/file-browser-store'
+import { selectDraft, useFileBrowserStore } from '@/stores/file-browser-store'
 
 const mocks = vi.hoisted(() => ({
   uploadMutate: vi.fn(),
@@ -193,6 +193,29 @@ describe('file browser editing', () => {
       { root: '/ws/proj', path: 'src/a.ts', content: 'mine', expectedModifiedAt: undefined },
       expect.anything(),
     )
+  })
+
+  it('keeps edits typed while a save is in flight', () => {
+    mocks.listing = FILE
+    let finish: (() => void) | undefined
+    mocks.saveMutate.mockImplementationOnce((_vars, opts) => {
+      finish = () => opts?.onSuccess?.({ size: 2, modifiedAt: '2026-10-13T09:00:00.000Z' })
+    })
+    renderBrowser('src/a.ts')
+    fireEvent.change(screen.getByLabelText('editor'), { target: { value: 'v1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save file' }))
+    fireEvent.change(screen.getByLabelText('editor'), { target: { value: 'v2' } })
+    act(() => finish?.())
+
+    expect(screen.getByLabelText('editor')).toHaveValue('v2')
+    // Still unsaved (the mocked listing ignores the query cache, so only the
+    // dirty state is asserted, not its label)
+    expect(screen.getByRole('button', { name: 'Save file' })).toBeInTheDocument()
+    // Based on the version just saved, so the next save is not a false conflict
+    expect(selectDraft(useFileBrowserStore.getState(), '/ws/proj', 'src/a.ts')).toEqual({
+      content: 'v2',
+      baseModifiedAt: '2026-10-13T09:00:00.000Z',
+    })
   })
 
   it('ignores a draft for the same path in another workspace root', () => {

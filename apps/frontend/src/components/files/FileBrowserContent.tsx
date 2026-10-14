@@ -211,7 +211,11 @@ export function FileBrowserContent({
             queryKeys.projectFiles(effectiveRoot, file.path, hideIgnored),
             { ...file, content: editorValue, size: saved.size, modifiedAt: saved.modifiedAt },
           )
-          clearDraft(file.path)
+          // Typing may have continued while the request was in flight: keep
+          // that newer text, now based on the version just written
+          const latest = selectDraft(useFileBrowserStore.getState(), effectiveRoot, file.path)
+          if (!latest || latest.content === editorValue) clearDraft(file.path)
+          else setStoreDraft(effectiveRoot, file.path, { content: latest.content, baseModifiedAt: saved.modifiedAt })
         },
         onError: (err) => {
           if (err instanceof ApiError && err.statusCode === 409) setSaveConflict(true)
@@ -219,7 +223,7 @@ export function FileBrowserContent({
         },
       },
     )
-  }, [effectiveRoot, file, isDirty, editorValue, draft, saveFileMutation, queryClient, hideIgnored, clearDraft])
+  }, [effectiveRoot, file, isDirty, editorValue, draft, saveFileMutation, queryClient, hideIgnored, clearDraft, setStoreDraft])
 
   const handleEditorChange = useCallback((content: string) => {
     if (!file || !effectiveRoot) return
