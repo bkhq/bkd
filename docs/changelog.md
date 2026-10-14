@@ -801,3 +801,25 @@ delivery. `isPrivateHostname()` was removed; the delivery log now records
 `Blocked: …` instead of `SSRF blocked: …`.
 Webhook delivery no longer follows redirects, so a target cannot redirect to
 a blocked address; a `3xx` answer counts as a failed delivery.
+
+## 2026-10-14 02:40 [BUG-P1]
+
+Second round of Codex review follow-ups on #151, fixed on `release`:
+
+- The Files tab bound the shared browser with a null root while `/changes` was loading or had
+  failed, so a worktree issue briefly (or, after an error, permanently) showed and edited the
+  main checkout; it also rendered the global drawer's context while the drawer owned the browser.
+  The tab now waits for the issue root, shows a retry on error, and offers "Open here" when the
+  drawer owns the browser.
+- Permanent cleanup of deleted issues removed the worktree (and row) of an issue whose process was
+  still alive after a failed terminate; such issues and their projects are now kept.
+- The workspace panel width is capped to leave the chat its minimum and re-clamps on resize.
+- The file tree pane is capped at 60% of the panel.
+- The chat turn navigator counted queued / done / system user rows as turns, unlike the server
+  turn list.
+- Deleting a directory now clears unsaved drafts of the files inside it.
+
+## 2026-10-14 02:40 [progress]
+
+`20261013-0538-files-upload-test-poisons-suite` closed: fixed by `0e0af90` (the
+`@hono/zod-openapi` side-effect import in `src/openapi/schemas.ts`).
