@@ -238,7 +238,8 @@
     "jumpPlaceholder": "Jump to file…",
     "noMatchingFiles": "No matching files",
     "fileTree": "File tree",
-    "filterFiles": "Filter files…"
+    "filterFiles": "Filter files…",
+    "worktreeMissing": "This issue's worktree no longer exists, so its changes cannot be shown."
   },
   "session": {
     "connected": "Connected",

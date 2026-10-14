@@ -5,7 +5,7 @@ import i18n from '@/i18n'
 import { DiffChanges } from '@/components/issue-detail/DiffPanel'
 import { useDiffViewStore } from '@/stores/diff-view-store'
 
-const mocks = vi.hoisted(() => ({ isMobile: true }))
+const mocks = vi.hoisted(() => ({ isMobile: true, worktreeMissing: false }))
 
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => mocks.isMobile }))
 vi.mock('@/hooks/use-theme', () => ({ useTheme: () => ({ resolved: 'light' }) }))
@@ -16,6 +16,7 @@ vi.mock('@/hooks/use-kanban', () => ({
     data: {
       gitRepo: true,
       root: '/ws',
+      worktreeMissing: mocks.worktreeMissing,
       additions: 3,
       deletions: 1,
       files: [
@@ -42,6 +43,7 @@ function renderChanges() {
 describe('review tab on a phone', () => {
   beforeEach(async () => {
     mocks.isMobile = true
+    mocks.worktreeMissing = false
     localStorage.clear()
     useDiffViewStore.setState({ showTree: false, diffStyle: 'split' })
     globalThis.IntersectionObserver ??= class {
@@ -73,5 +75,19 @@ describe('review tab on a phone', () => {
     fireEvent.click(screen.getByRole('button', { name: 'View options' }))
     expect(screen.queryByText('Split')).not.toBeInTheDocument()
     expect(screen.getByText('Wrap lines')).toBeInTheDocument()
+  })
+})
+
+describe('review tab with a missing worktree', () => {
+  beforeEach(async () => {
+    mocks.isMobile = false
+    mocks.worktreeMissing = true
+    await i18n.changeLanguage('en')
+  })
+
+  it('explains instead of listing changes', () => {
+    renderChanges()
+    expect(screen.queryByText('src/a.ts')).not.toBeInTheDocument()
+    expect(screen.getByText(/worktree no longer exists/)).toBeInTheDocument()
   })
 })

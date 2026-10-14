@@ -169,6 +169,13 @@ changes.openapi(R.getIssueChanges, async (c) => {
   // say so, or clients would take the main checkout for the issue workspace
   const worktreeMissing = issue.useWorktree && root === projectRoot ? true : undefined
   const gitRepo = await isGitRepo(root)
+  // The main checkout's changes are not the issue's: report none
+  if (worktreeMissing) {
+    return c.json({
+      success: true as const,
+      data: { root, worktreeMissing, gitRepo, files: [], additions: 0, deletions: 0 },
+    }, 200 as const)
+  }
   if (!gitRepo) {
     return c.json({
       success: true as const,
@@ -246,6 +253,13 @@ changes.openapi(createRoute({
     }, 200)
   }
   const root = await resolveIssueDir(project.id, issueId, issue.useWorktree, projectRoot)
+  // A missing worktree falls back to the main checkout, whose files are not the issue's
+  if (issue.useWorktree && root === projectRoot) {
+    return c.json({
+      success: true as const,
+      data: { path, patch: '', truncated: false },
+    }, 200)
+  }
 
   // SEC-019: Validate path is inside working directory on ALL code paths
   if (!isPathInsideRoot(root, path)) {

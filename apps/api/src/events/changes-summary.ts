@@ -56,10 +56,12 @@ async function computeAndEmit(issueId: string): Promise<void> {
 
     // Resolve worktree path if applicable
     const root = await resolveIssueDir(issue.projectId, issueId, issue.useWorktree, projectRoot)
+    // A missing worktree falls back to the main checkout, whose changes are not the issue's
+    const worktreeMissing = issue.useWorktree && root === projectRoot
 
     // Check git repo
-    const gitCheck = await runGit(['rev-parse', '--is-inside-work-tree'], root)
-    if (gitCheck.code !== 0 || gitCheck.stdout.trim() !== 'true') {
+    const gitCheck = worktreeMissing ? null : await runGit(['rev-parse', '--is-inside-work-tree'], root)
+    if (!gitCheck || gitCheck.code !== 0 || gitCheck.stdout.trim() !== 'true') {
       appEvents.emit('changes-summary', {
         issueId,
         fileCount: 0,

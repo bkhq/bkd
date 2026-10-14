@@ -152,7 +152,9 @@ export function DiffChanges({
 }) {
   const { t } = useTranslation()
   const changesQuery = useIssueChanges(projectId, issueId, true)
-  const files = changesQuery.data?.files ?? []
+  // A missing worktree falls back to the main checkout: its files are not the issue's
+  const worktreeMissing = !!changesQuery.data?.worktreeMissing
+  const files = worktreeMissing ? [] : (changesQuery.data?.files ?? [])
   const [openPaths, setOpenPaths] = useState<ReadonlySet<string>>(() => new Set())
 
   const setFileOpen = useCallback((path: string, open: boolean) => {
@@ -230,62 +232,70 @@ export function DiffChanges({
                     </span>
                   </div>
                 ) :
-                !changesQuery.data?.gitRepo ?
-                    (
-                      <div className="flex-1 flex items-center justify-center px-4">
-                        <span className="text-sm text-muted-foreground text-center">
-                          {t('diff.notGitRepo')}
-                        </span>
-                      </div>
-                    ) :
-                  changesQuery.data?.timedOut ?
+              worktreeMissing ?
+                  (
+                    <div className="flex-1 flex items-center justify-center px-4">
+                      <span className="text-sm text-muted-foreground text-center">
+                        {t('diff.worktreeMissing')}
+                      </span>
+                    </div>
+                  ) :
+                  !changesQuery.data?.gitRepo ?
                       (
                         <div className="flex-1 flex items-center justify-center px-4">
-                          <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 max-w-xs">
-                            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-                            <span className="text-sm text-amber-700 dark:text-amber-300">
-                              {t('diff.timedOut')}
-                            </span>
-                          </div>
+                          <span className="text-sm text-muted-foreground text-center">
+                            {t('diff.notGitRepo')}
+                          </span>
                         </div>
                       ) :
-                    files.length === 0 ?
+                    changesQuery.data?.timedOut ?
                         (
                           <div className="flex-1 flex items-center justify-center px-4">
-                            <span className="text-sm text-muted-foreground text-center">{t('diff.noChanges')}</span>
+                            <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 max-w-xs">
+                              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                              <span className="text-sm text-amber-700 dark:text-amber-300">
+                                {t('diff.timedOut')}
+                              </span>
+                            </div>
                           </div>
                         ) :
-                        (
-                    // The virtualizer renders only the visible lines of each
-                    // diff, so expanding many files or switching the view
-                    // stays cheap.
-                          <WorkerPoolContextProvider {...DIFF_WORKER_POOL}>
-                            <Virtualizer
-                              className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain touch-pan-y"
-                              contentClassName="p-2"
-                            >
-                              <div ref={listRef} className="space-y-2">
-                                <OversizedFilesBanner files={files} />
-                                {files.map(file => (
-                                  <DiffFileCard
-                                    key={file.path}
-                                    projectId={projectId}
-                                    issueId={issueId}
-                                    path={file.path}
-                                    type={file.type}
-                                    additions={file.additions}
-                                    deletions={file.deletions}
-                                    oversized={file.oversized}
-                                    sizeDisplay={file.sizeDisplay}
-                                    diffStyle={diffStyle}
-                                    isOpen={openPaths.has(file.path)}
-                                    onOpenChange={open => setFileOpen(file.path, open)}
-                                  />
-                                ))}
-                              </div>
-                            </Virtualizer>
-                          </WorkerPoolContextProvider>
-                        )}
+                      files.length === 0 ?
+                          (
+                            <div className="flex-1 flex items-center justify-center px-4">
+                              <span className="text-sm text-muted-foreground text-center">{t('diff.noChanges')}</span>
+                            </div>
+                          ) :
+                          (
+                      // The virtualizer renders only the visible lines of each
+                      // diff, so expanding many files or switching the view
+                      // stays cheap.
+                            <WorkerPoolContextProvider {...DIFF_WORKER_POOL}>
+                              <Virtualizer
+                                className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain touch-pan-y"
+                                contentClassName="p-2"
+                              >
+                                <div ref={listRef} className="space-y-2">
+                                  <OversizedFilesBanner files={files} />
+                                  {files.map(file => (
+                                    <DiffFileCard
+                                      key={file.path}
+                                      projectId={projectId}
+                                      issueId={issueId}
+                                      path={file.path}
+                                      type={file.type}
+                                      additions={file.additions}
+                                      deletions={file.deletions}
+                                      oversized={file.oversized}
+                                      sizeDisplay={file.sizeDisplay}
+                                      diffStyle={diffStyle}
+                                      isOpen={openPaths.has(file.path)}
+                                      onOpenChange={open => setFileOpen(file.path, open)}
+                                    />
+                                  ))}
+                                </div>
+                              </Virtualizer>
+                            </WorkerPoolContextProvider>
+                          )}
         </div>
       </div>
     </>

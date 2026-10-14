@@ -237,7 +237,8 @@
     "jumpPlaceholder": "跳转到文件…",
     "noMatchingFiles": "没有匹配的文件",
     "fileTree": "文件树",
-    "filterFiles": "筛选文件…"
+    "filterFiles": "筛选文件…",
+    "worktreeMissing": "此任务的 worktree 已不存在，无法显示它的变更。"
   },
   "session": {
     "connected": "已连接",

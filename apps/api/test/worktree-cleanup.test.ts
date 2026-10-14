@@ -132,6 +132,24 @@ describe('auto-cleanup cron', () => {
     expect(existsSync(path)).toBe(false)
   })
 
+  test('keeps the worktree of an issue restored while the cron runs', async () => {
+    // The restore lands after the candidates are read (here, during the
+    // liveness check), before the awaited removal
+    const { id, path } = await createWorktreeIssue()
+    await softDelete(id, DAY_MS + 60_000)
+    const restoreMidway = spyOn(issueEngine, 'hasActiveProcessForIssue').mockImplementation((issueId) => {
+      if (issueId === id) db.update(issuesTable).set({ isDeleted: 0 }).where(eq(issuesTable.id, id)).run()
+      return false
+    })
+    try {
+      await runWorktreeCleanup()
+    } finally {
+      restoreMidway.mockRestore()
+    }
+
+    expect(existsSync(path)).toBe(true)
+  })
+
   test('keeps a deleted issue\'s worktree while its process is still alive', async () => {
     const { id, path } = await createWorktreeIssue()
     await softDelete(id, DAY_MS + 60_000)
@@ -161,8 +179,18 @@ describe('issue changes root', () => {
     expect(present.worktreeMissing).toBeFalsy()
 
     rmSync(path, { recursive: true, force: true })
-    const missing = expectSuccess(await get<{ root: string, worktreeMissing?: boolean }>(`/api/projects/${projectId}/issues/${id}/changes`))
-    expect(missing.worktreeMissing).toBe(true)
+    // The main checkout has its own change, which must not pass for the issue's
+    writeFileSync(join(gitRoot, 'main-only.txt'), 'not the issue\n')
+    try {
+      const missing = expectSuccess(await get<{ root: string, worktreeMissing?: boolean, files: unknown[] }>(`/api/projects/${projectId}/issues/${id}/changes`))
+      expect(missing.worktreeMissing).toBe(true)
+      expect(missing.files).toEqual([])
+
+      const patch = expectSuccess(await get<{ patch: string }>(`/api/projects/${projectId}/issues/${id}/changes/file?path=main-only.txt`))
+      expect(patch.patch).toBe('')
+    } finally {
+      rmSync(join(gitRoot, 'main-only.txt'), { force: true })
+    }
   })
 })
 
