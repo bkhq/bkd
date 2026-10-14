@@ -823,3 +823,17 @@ Second round of Codex review follow-ups on #151, fixed on `release`:
 
 `20261013-0538-files-upload-test-poisons-suite` closed: fixed by `0e0af90` (the
 `@hono/zod-openapi` side-effect import in `src/openapi/schemas.ts`).
+
+## 2026-10-14 11:20 [BUG-P2]
+
+Review follow-ups on #151, fixed on `release` before merge:
+
+- `worktreeMissing` is also true for a worktree issue that has not run yet, since the worktree is
+  created on first run. The Files and Review tabs said the worktree "no longer exists" for every
+  such issue, and kept saying so through the first turn: `/changes` was only refetched on the
+  `changes-summary` push after the turn settled. The copy now covers both cases (not created yet,
+  or cleaned up; running the issue creates it), and `useIssueChanges` refetches on the issue's
+  first log, state or done event while the worktree is absent.
+- Permanent cleanup skipped the worktree of a deleted issue whose process came alive mid-run, but
+  its hard-delete transaction only re-checked `isDeleted`, so the row went and the worktree was
+  orphaned. The transaction now also skips issues with a live process.
