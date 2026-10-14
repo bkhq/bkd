@@ -705,3 +705,99 @@ Follow-ups from the Codex review of #149 / #150 / #151, fixed on `release`:
 - The upload drop zone intercepted text drags inside the editor; only file drags upload now.
 - Worktree auto-cleanup skipped deleted issues whose `sessionStatus` stayed `running` after a
   failed best-effort terminate; deleted rows are now checked against live processes instead.
+
+## 2026-10-13 18:58 [progress]
+
+Decision events. BKD now implements the decision-event contract from the `bkd`
+skill (`decision-events.md` in `zzci/skills`): a coordinating agent raises one
+event per question over REST, the user decides in a global `/decisions` inbox,
+and BKD wakes the raiser with a `[event-decision …]` follow-up. BKD is the
+platform only and never creates an event. Routes live under
+`/api/decisions/events` so `BKD_EVENT_URL=$BKD_URL/api/decisions` serves the
+contract paths unchanged; `/api/events` stays the SSE stream.
+
+Two additions to the contract: `POST …/close` lets the user end an open or
+decided event without notifying anyone (status `closed`), and `POST …/notify`
+resends a wake signal that failed. The skill still needs a rule for `closed`
+events, which drop out of its `open`/`decided` scan.
+
+The follow-up routing moved out of the `follow-up` route handler into
+`dispatchFollowUp()` in `routes/issues/_shared.ts`; the route and the
+notification both call it. Migration `0026`. Task and plan
+`20261013-1706-tickets`.
+
+Scope history: the first draft was a project-scoped ticket thread written by
+hand, the second a global inbox auto-fed by `review` transitions. Both were
+dropped before implementation in favour of the skill contract.
+
+## 2026-10-13 20:06 [progress]
+
+Chat rendering cost. `ToolPanel` kept its body inside a native `<details>`,
+which hides the body but still mounts it, so every collapsed tool call in the
+visible window ran Shiki, DOMPurify, `@pierre/diffs` or the Markdown renderer.
+The body now mounts on the first open. Tool calls also stop using
+`MarkdownContent`: Agent results and subagent text render as plain pre-wrapped
+text, leaving Markdown rendering to top-level agent messages. Task
+`20261013-2004-tool-panel-lazy-render`.
+
+## 2026-10-13 20:06 [BUG-P1]
+
+`20261013-1950-engine-protocol-drift`: Claude Code and Codex wire shapes had
+moved away from what the normalizers read.
+
+- Claude `result.total_cost_usd` is cumulative per process, and one prompt now
+  yields several results. The normalizer reports the delta, so
+  `issues.totalCostUsd` no longer counts the same spend two or three times.
+  Totals stored before this fix stay inflated; there is no backfill.
+- The empty result that closes a task notification no longer renders a line.
+- `rate_limit_event` is recognised; only `status: "rejected"` is shown.
+- Codex `turn/started` and `thread/started` read the nested `turn.id` /
+  `thread.id`; command display uses the bare command from `commandActions`.
+
+## 2026-10-13 20:06 [progress]
+
+`20261013-2005-decision-capability-probe`: added `GET /api/decisions` as the
+decision-events capability probe and `docs/api/decisions.md`. Removed the
+outdated `skills/` copy of the BKD skill, now maintained in `zzci/skills`;
+`scripts/gen-openapi.ts` defaults to `tmp/openapi.json`.
+
+## 2026-10-13 22:14 [progress]
+
+`20261013-2212-decision-event-retention`: added the `decision-event-cleanup`
+cron action (daily at 05:00). It soft-deletes every decision event that is no longer
+`open` once its `updatedAt` is more than one day old, and emits
+`decision-event-updated` for each. A `decided` event whose follow-up was never
+delivered is removed on the same schedule.
+
+## 2026-10-13 22:18 [progress]
+
+`20261013-2159-decision-telegram-interactive`: decision events can be answered
+from Telegram. A Telegram notification channel with the new `interactive` flag
+gets each open event as a message with option buttons; a confirmed button or a
+reply to the message records the decision, and any transition redraws the
+message. BKD long-polls `getUpdates`, so no inbound route was added. The decide
+logic moved from the route into `decideEvent()` in `decisions/service.ts`.
+Migration `0027` adds `webhooks.interactive` and `decision_channel_messages`.
+`events` may now be empty on an interactive channel. Not done yet: the
+`decision.*` events for one-way webhook and Telegram notifications (step 1 of
+the plan).
+
+## 2026-10-13 22:23 [progress]
+
+`20261013-2159-decision-telegram-interactive`: decision events are now
+notification events. `decision.opened`, `decision.decided`, `decision.applied`,
+`decision.withdrawn` and `decision.closed` can be subscribed to on webhook and
+Telegram channels; each state is delivered once per channel, with the full
+event plus `decisionsUrl` and `apiUrl`. Interactive Telegram channels are
+skipped and keep getting the answerable message. This completes the plan.
+
+## 2026-10-13 22:23 [security]
+
+`20261013-2219-webhook-local-targets`: webhook URLs may target `localhost`,
+loopback, RFC 1918, CGNAT and IPv6 unique-local addresses, so BKD can notify
+systems on the same host or LAN. Link-local (including `169.254.169.254`),
+multicast, unspecified and reserved ranges stay blocked, at save time and at
+delivery. `isPrivateHostname()` was removed; the delivery log now records
+`Blocked: …` instead of `SSRF blocked: …`.
+Webhook delivery no longer follows redirects, so a target cannot redirect to
+a blocked address; a `3xx` answer counts as a failed delivery.

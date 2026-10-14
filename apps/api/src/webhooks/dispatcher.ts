@@ -1,4 +1,4 @@
-import type { WebhookEventType } from '@bkd/shared'
+import type { DecisionEvent, DecisionEventStatus, WebhookEventType } from '@bkd/shared'
 import { and, desc, eq, gte, inArray, notInArray } from 'drizzle-orm'
 import { db } from '@/db'
 import { getServerUrl } from '@/db/helpers'
@@ -9,6 +9,8 @@ import {
   webhookDeliveries,
   webhooks,
 } from '@/db/schema'
+import { findEvent, serializeEvent } from '@/decisions/service'
+import { renderNotification } from '@/decisions/telegram/render'
 import { appEvents } from '@/events'
 import { logger } from '@/logger'
 import { validateWebhookUrl } from '@/utils/url-safety'
@@ -20,6 +22,7 @@ interface WebhookRow {
   secret: string | null
   events: string
   isActive: boolean
+  interactive?: boolean
 }
 
 // ── Helpers ──────────────────────────────────────────────
@@ -235,12 +238,11 @@ async function deliverWebhook(
   response: string | null
   success: boolean
 }> {
-  // Defense-in-depth: re-validate at delivery time to catch DNS rebinding
-  // between the time the URL was stored and now.
+  // Re-validate at delivery time: the hostname may now resolve to a blocked address
   const check = await validateWebhookUrl(webhook.url)
   if (!check.ok) {
-    logger.warn({ webhookId: webhook.id, url: webhook.url, error: check.error }, 'webhook_ssrf_blocked')
-    return { statusCode: null, response: `SSRF blocked: ${check.error}`, success: false }
+    logger.warn({ webhookId: webhook.id, url: webhook.url, error: check.error }, 'webhook_target_blocked')
+    return { statusCode: null, response: `Blocked: ${check.error}`, success: false }
   }
 
   const body = JSON.stringify(payload)
@@ -256,6 +258,8 @@ async function deliverWebhook(
     method: 'POST',
     headers,
     body,
+    // A redirect could lead to an address the URL check blocks
+    redirect: 'manual',
     signal: AbortSignal.timeout(10_000),
   })
   const response = (await res.text()).slice(0, 1024)
@@ -281,7 +285,9 @@ async function deliverTelegram(
     }
   }
 
-  const text = formatTelegramMessage(event, payload)
+  const text = event.startsWith('decision.')
+    ? renderNotification(payload as unknown as DecisionEvent, (payload.decisionsUrl as string | undefined) ?? null)
+    : formatTelegramMessage(event, payload)
   const apiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`
 
   const res = await fetch(apiUrl, {
@@ -345,10 +351,12 @@ export async function deliver(
 /** Dedup window — skip delivery if the same dedupKey was sent within this period. */
 const DEDUP_WINDOW_MS = 30_000
 
+/** `dedupWindowMs: null` skips a dedupKey that was ever delivered. */
 export async function dispatch(
   event: WebhookEventType,
   payload: Record<string, unknown>,
   dedupKey?: string,
+  dedupWindowMs: number | null = DEDUP_WINDOW_MS,
 ) {
   let rows: WebhookRow[]
   try {
@@ -360,6 +368,7 @@ export async function dispatch(
         secret: webhooks.secret,
         events: webhooks.events,
         isActive: webhooks.isActive,
+        interactive: webhooks.interactive,
       })
       .from(webhooks)
       .where(and(eq(webhooks.isActive, true), eq(webhooks.isDeleted, 0)))
@@ -370,6 +379,8 @@ export async function dispatch(
 
   // Filter to subscribed webhooks
   const subscribedRows = rows.filter((row) => {
+    // An interactive chat gets decision events from the decision bot instead
+    if (row.interactive && event.startsWith('decision.')) return false
     let subscribed: string[]
     try {
       subscribed = JSON.parse(row.events)
@@ -385,7 +396,7 @@ export async function dispatch(
   const dedupSkipIds = new Set<string>()
   if (dedupKey && subscribedRows.length > 0) {
     try {
-      const cutoff = new Date(Date.now() - DEDUP_WINDOW_MS)
+      const cutoff = new Date(dedupWindowMs === null ? 0 : Date.now() - dedupWindowMs)
       const webhookIds = subscribedRows.map(r => r.id)
       const recentDeliveries = await db
         .select({ webhookId: webhookDeliveries.webhookId })
@@ -420,9 +431,50 @@ export async function dispatch(
   }
 }
 
+// ── Decision events ─────────────────────────────────────
+
+const DECISION_EVENT_TYPES: Record<DecisionEventStatus, WebhookEventType> = {
+  open: 'decision.opened',
+  decided: 'decision.decided',
+  applied: 'decision.applied',
+  withdrawn: 'decision.withdrawn',
+  closed: 'decision.closed',
+}
+
+/** Notify about the state a decision event is in now; each state is announced once per webhook. */
+export async function dispatchDecisionEvent(eventId: string) {
+  const row = await findEvent(eventId)
+  if (!row) return
+  const decisionEvent = await serializeEvent(row)
+  const eventType = DECISION_EVENT_TYPES[decisionEvent.status]
+
+  const payload: Record<string, unknown> = {
+    event: eventType,
+    timestamp: new Date().toISOString(),
+    ...decisionEvent,
+  }
+  const serverUrl = (await getServerUrl())?.replace(/\/+$/, '')
+  if (serverUrl) {
+    payload.decisionsUrl = `${serverUrl}/decisions`
+    payload.apiUrl = `${serverUrl}/api/decisions/events/${decisionEvent.id}`
+  }
+
+  await dispatch(eventType, payload, `${eventType}:${decisionEvent.id}`, null)
+}
+
 // ── Event listeners ─────────────────────────────────────
 
 export function initWebhookDispatcher() {
+  appEvents.on(
+    'decision-event-updated',
+    (data) => {
+      void dispatchDecisionEvent(data.id).catch((err) => {
+        logger.warn({ err, eventId: data.id }, 'webhook_decision_event_failed')
+      })
+    },
+    { order: 200 },
+  )
+
   // Issue lifecycle events — dispatch granular status events OR updated
   appEvents.on(
     'issue-updated',

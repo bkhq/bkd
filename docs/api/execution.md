@@ -38,12 +38,17 @@ Send a follow-up message. Accepts `application/json` or `multipart/form-data`.
 | `model` | `string` (regex: `/^[\w./:\-[\]]{1,160}$/`) | No | Model override |
 | `permissionMode` | `"auto" \| "supervised" \| "plan"` | No | Permission mode |
 | `busyAction` | `"queue" \| "cancel"` | No | What to do if agent is busy |
-| `meta` | `boolean` | No | Meta/system command flag |
 | `displayPrompt` | `string` (0-500) | No | Display-only prompt text (shown in UI instead of full prompt) |
 
 **Multipart:** same fields + `files[]` for attachments. File validation applied.
 
 **Response:** `{ executionId, issueId, messageId, queued?: true }`
+
+## GET .../pending
+
+List the issue's pending (queued) messages.
+
+**Response:** `[{ messageId, content, metadata, createdAt }]`
 
 ## DELETE .../pending
 
@@ -69,8 +74,20 @@ Cancel active execution.
 
 **Response:** `{ issueId, status }`
 
+## POST .../terminate
+
+Force-terminate the engine process of the issue. Use it when `cancel` does not stop the process.
+
+**Response:** `{ issueId, status }`
+
+## POST .../clear-session
+
+Clear the stored engine session ID so the next run starts a fresh session instead of resuming. Useful when the session has grown too large to resume.
+
+**Response:** `{ issueId }`
+
 ## GET .../slash-commands
 
 Get available slash commands for the issue's engine type.
 
-**Response:** `{ commands, agents, plugins }` where `plugins` contains `[{ name, ... }]`.
+**Response:** `{ commands, agents, plugins }` where `plugins` contains `[{ name, path }]`.

@@ -3,7 +3,7 @@
  *
  * Usage: bun scripts/gen-openapi.ts [--output path]
  *
- * Default output: skills/bkd/references/openapi.json
+ * Default output: tmp/openapi.json
  */
 import { resolve } from 'node:path'
 import app from '../apps/api/src/app'
@@ -12,7 +12,7 @@ const args = process.argv.slice(2)
 const outputIdx = args.indexOf('--output')
 const outputPath = outputIdx !== -1 && args[outputIdx + 1]
   ? resolve(args[outputIdx + 1])
-  : resolve(import.meta.dir, '../skills/bkd/references/openapi.json')
+  : resolve(import.meta.dir, '../tmp/openapi.json')
 
 const spec = app.getOpenAPI31Document({
   openapi: '3.1.0',

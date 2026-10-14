@@ -143,7 +143,10 @@ export interface ClaudeResult {
   subtype?: string
   is_error?: boolean
   duration_ms?: number
-  /** Modern CLI field; `cost_usd` is the legacy top-level variant. */
+  /** What started this result; `null` for the user's own prompt. */
+  origin?: { kind?: string } | null
+  result_index?: number
+  /** Modern CLI field, cumulative for the process; `cost_usd` is the legacy per-turn variant. */
   total_cost_usd?: number
   cost_usd?: number
   /** Legacy top-level token fields; modern CLI nests them under `usage`. */
@@ -168,7 +171,7 @@ export interface ClaudeError {
 }
 
 export interface ClaudeRateLimit {
-  type: 'rate_limit'
+  type: 'rate_limit' | 'rate_limit_event'
   session_id?: string
   rate_limit_info?: Record<string, unknown>
   timestamp?: string

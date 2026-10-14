@@ -2,7 +2,7 @@
 
 ## Overview
 
-BKD is a Kanban application for managing autonomous AI coding agents. Issues on the board are assigned to CLI-based AI engines (Claude Code, Codex) that execute in the user's workspace. The system handles process orchestration, streaming log aggregation, real-time SSE updates, cron scheduling, and self-upgrades.
+BKD is a Kanban application for managing autonomous AI coding agents. Issues on the board are assigned to CLI-based AI engines (Claude Code, Codex, Grok Build, Cursor) that execute in the user's workspace. The system handles process orchestration, streaming log aggregation, real-time SSE updates, cron scheduling, and decision events; upgrades are driven by the [lode](https://github.com/bkhq/lode) supervisor.
 
 **Deployment assumption:** BKD is currently designed as a single-user application. The backend, frontend, SSE event model, workspace access model, and settings surface assume one trusted operator per deployment. It is not currently designed as a multi-tenant or per-project-isolated system for mutually untrusted users. This assumption is especially important for features such as the global SSE stream, shared process visibility, workspace browsing, and settings management. If BKD is extended to support multi-user deployments in the future, server-side authorization boundaries will need to be added explicitly.
 
@@ -27,7 +27,7 @@ BKD is a Kanban application for managing autonomous AI coding agents. Issues on 
 - **Router**: Hono mounted at `/api` via `app.ts`
 - **Logging**: pino (structured HTTP request logging)
 - **Caching**: In-process LRU+TTL Map (max 500 entries, 5-min sweep)
-- **Static serving**: three modes — embedded (compiled binary), `APP_DIR/public/` (package), `apps/frontend/dist/` (dev)
+- **Static serving**: `APP_DIR/public/` (package), `apps/frontend/dist/` (dev)
 
 ### Middleware (`app.ts`)
 
@@ -35,7 +35,7 @@ BKD is a Kanban application for managing autonomous AI coding agents. Issues on 
 2. `compress()` — gzip/deflate (skipped for SSE routes)
 3. `httpLogger()` — pino-based request logging
 4. Global error handler — returns `{ success: false, error }` envelope
-5. `@hono/zod-validator` — Zod schema validation on all POST/PATCH routes
+5. `@hono/zod-openapi` — shared Zod request schemas and the REST contract (`/api/docs/openapi.json`, Swagger UI at `/api/docs`); multipart handlers validate the same schemas explicitly
 
 ### Database (`db/`)
 
@@ -58,6 +58,7 @@ SQLite via `bun:sqlite` + Drizzle ORM. WAL mode, foreign keys, 64 MB cache, 256 
 | `attachments` | `id` (ULID), `issueId`, `logId`, `originalName`, `storedName`, `mimeType`, `size` | File uploads |
 | `appSettings` | `key` (PK), `value` | Key-value store for server config |
 | `notes` | `id` (ULID), `title`, `content`, `isPinned` | User notes |
+| `decisionEvents` | `id`, `status`, `campaignId`, `ref`, `question`, `options`, `notify`, `decision` | Decision events raised by coordinating agents |
 | `webhooks` | `id` (ULID), `channel`, `url`, `secret`, `events`, `isActive` | Webhook endpoints |
 | `webhookDeliveries` | `id`, `webhookId`, `dedupKey`, `statusCode`, `success`, `duration` | Delivery audit trail |
 | `cronJobs` | `id`, `name`, `cron`, `taskType`, `taskConfig`, `enabled` | Scheduled jobs |
@@ -85,38 +86,42 @@ Hardcoded constants — no DB table:
 | `/api/projects` | GET, POST | `projects.ts` | List/create projects |
 | `/api/projects/:id` | GET, PATCH, DELETE | `projects.ts` | Get/update/soft-delete project |
 | `/api/.../issues` | GET, POST | `issues/query.ts`, `create.ts` | List/create issues |
-| `/api/.../issues/bulk` | PATCH | `issues/create.ts` | Bulk update status/sort |
+| `/api/projects/:id/{archive,unarchive}` | POST | `projects.ts` | Archive state |
+| `/api/projects/sort` | PATCH | `projects.ts` | Reorder projects |
+| `/api/projects/:id/worktrees[/:issueId]` | GET, DELETE | `worktrees.ts` | Worktree management |
+| `/api/.../issues/bulk` | PATCH | `issues/update.ts` | Bulk update status/sort |
+| `/api/.../issues/import-session` | POST | `issues/import-session.ts` | Create an issue from a local engine session |
 | `/api/.../issues/:id` | GET, PATCH, DELETE | `issues/query.ts`, `update.ts`, `delete.ts` | Single issue CRUD |
 | `/api/.../issues/:id/execute` | POST | `issues/command.ts` | Start AI engine execution |
-| `/api/.../issues/:id/follow-up` | POST | `issues/message.ts` | Follow-up to active session |
-| `/api/.../issues/:id/restart` | POST | `issues/command.ts` | Restart session |
-| `/api/.../issues/:id/cancel` | POST | `issues/command.ts` | Cancel active session |
-| `/api/.../issues/:id/messages` | POST | `issues/message.ts` | Queue pending message |
+| `/api/.../issues/:id/follow-up` | POST | `issues/message.ts` | Follow-up (JSON or multipart with attachments) |
+| `/api/.../issues/:id/pending` | GET, DELETE | `issues/message.ts` | List / recall queued messages |
+| `/api/.../issues/:id/{restart,cancel,terminate,clear-session}` | POST | `issues/command.ts` | Session control |
+| `/api/.../issues/:id/slash-commands` | GET | `issues/command.ts` | Slash commands of the issue's engine |
 | `/api/.../issues/:id/logs` | GET | `issues/logs.ts` | Paginated logs (cursor-based) |
 | `/api/.../issues/:id/logs/filter/*` | GET | `issues/logs.ts` | Filtered logs (path key/value) |
-| `/api/.../issues/:id/attachments` | GET, POST | `issues/attachments.ts` | File upload (multipart) |
-| `/api/.../issues/:id/changes` | GET | `issues/changes.ts` | Git diff stats |
+| `/api/.../issues/:id/attachments/:attachmentId` | GET | `issues/attachments.ts` | Download an attachment (uploads go through create / follow-up multipart) |
+| `/api/.../issues/:id/changes[/file]` | GET | `issues/changes.ts` | Git change summary, per-file diff |
 | `/api/.../issues/:id/duplicate` | POST | `issues/duplicate.ts` | Clone issue |
-| `/api/.../issues/:id/export` | GET | `issues/export.ts` | Export as JSON/TXT |
-| `/api/.../issues/:id/title/generate` | POST | `issues/title.ts` | AI-generated title |
+| `/api/.../issues/:id/export` | GET | `issues/export.ts` | Export as JSON |
+| `/api/issues/review` | GET | `issues/review.ts` | Global review queue |
 
 **System routes:**
 
 | Route | Methods | File | Description |
 |-------|---------|------|-------------|
-| `/api/health` | GET | `api.ts` | DB health + version |
-| `/api/engines/*` | GET, POST | `engines.ts` | Engine discovery, models, probe |
+| `/api`, `/api/health`, `/api/status`, `/api/runtime` | GET | `api.ts` | Status, DB health + version, runtime info |
+| `/api/engines/*` | GET, POST, PATCH, PUT | `engines.ts` | Engine discovery, models, settings, virtual engines, usage, probe |
 | `/api/events` | GET | `events.ts` | Global SSE endpoint |
-| `/api/settings/*` | GET, PATCH | `settings/` | App settings (8 sub-routes) |
-| `/api/terminal/ws` | WS | `terminal.ts` | WebSocket terminal |
-| `/api/files/*` | GET, POST | `files.ts` | File operations, chunked upload |
-| `/api/filesystem/*` | GET | `filesystem.ts` | Directory listing |
-| `/api/git/*` | GET | `git.ts` | Git status, diff |
-| `/api/processes/*` | GET, DELETE | `processes.ts` | Active engine processes |
-| `/api/worktrees/*` | GET, DELETE | `worktrees.ts` | Worktree management |
-| `/api/cron/*` | GET, POST, PATCH, DELETE | `cron.ts` | Cron job management |
+| `/api/settings/*` | GET, POST, PATCH, PUT, DELETE | `settings/` | App settings, webhooks, cleanup, system logs, upgrade |
+| `/api/terminal/*`, `/api/terminal/ws/:id` | GET, POST, DELETE, WS | `terminal.ts` | PTY sessions, WebSocket terminal |
+| `/api/files/:root/*` | GET, PUT, POST, DELETE | `files.ts` | File browser: list, read, save, upload, delete |
+| `/api/filesystem/dirs` | GET, POST | `filesystem.ts` | Directory listing / creation |
+| `/api/git/detect-remote` | POST | `git.ts` | Remote URL detection |
+| `/api/processes/*` | GET, POST | `processes.ts` | Active engine processes, capacity, terminate |
+| `/api/sessions/*` | GET, POST | `sessions.ts` | Local engine sessions (list, preview, bulk delete) |
+| `/api/cron/*` | GET, POST, DELETE | `cron.ts` | Cron job management |
 | `/api/notes/*` | GET, POST, PATCH, DELETE | `notes.ts` | Notes CRUD |
-| `/api/mcp/*` | GET, POST | `mcp.ts` | MCP server routes |
+| `/api/decisions[/events/*]` | GET, POST, PATCH | `decisions.ts` | Capability probe; decision events: raise, decide, ack, withdraw, close |
 
 ### Engine System (`engines/`)
 
@@ -221,10 +226,25 @@ Three-tier caching: memory (10 min) → DB (`appSettings`) → live probe (15s t
 
 Powered by `cronbake` scheduler:
 
-- **Built-in jobs**: `upload-cleanup` (hourly), `log-cleanup`, `worktree-cleanup` (30 min)
+- **Built-in jobs**: `upload-cleanup` (hourly), `log-cleanup`, `worktree-cleanup` (30 min), `issue-log-retention`, `decision-event-cleanup` (daily)
 - **Issue jobs**: `issue-execute`, `issue-follow-up`, `issue-close`, `issue-check-status`
 - Tables: `cronJobs` + `cronJobLogs`
-- MCP integration: cron jobs exposed as MCP tools for AI agents
+- Jobs are addressed by ID only; a job auto-pauses after 3 consecutive failures
+
+### Decision Events (`decisions/`)
+
+A decision event is one question a coordinating agent needs the user to answer. BKD is the platform only: it stores events, shows them, and wakes the raiser — it never creates one itself.
+
+- Contract: `skills/bkd/references/decision-events.md` in `zzci/skills`. A coordinator sets `BKD_EVENT_URL=$BKD_URL/api/decisions` and calls `/events/...` as written there. The mount point avoids `GET /api/events`, which is the SSE stream.
+- `GET /api/decisions` is the capability probe: `{ supported: true, contractVersion: 1 }`. A server without decision events answers 404.
+- States: `open → decided → applied`, `open → withdrawn`, and `open | decided → closed`. A transition from any other state returns 409.
+- `decision` (user): an option, a free-form instruction, or both. BKD then sends `[event-decision eventId=… campaignId=…]` to the `notify` issue through `dispatchFollowUp()` — the same routing the follow-up route uses. The message is a wake signal; the raiser re-reads the event. A failed delivery leaves the event `decided` with `notifiedAt` empty, and `POST /events/:id/notify` resends it.
+- `close` (user) ends an event without answering it and sends no follow-up. It is an extension of the skill contract.
+- `ack` and `withdraw` belong to the raiser.
+- Every write emits `decision-event-updated` on the event bus and over SSE.
+- `webhooks/dispatcher.ts` turns `decision-event-updated` into the `decision.*` notification events (one delivery per state and channel, payload = the serialized event plus `decisionsUrl` / `apiUrl`); interactive Telegram channels are skipped there.
+- `decisions/telegram/` is a second answering surface. A Telegram notification channel with `webhooks.interactive` set gets each open event as a message with option buttons; `index.ts` listens to `decision-event-updated` to post and redraw, and runs one `getUpdates` long-poll loop per bot token for button presses and replies. Answers call `decideEvent()` in `decisions/service.ts`, the same path as the REST route. `decision_channel_messages` maps an event to the chat message that carries it. Updates from any chat other than the configured one are dropped.
+- Retention: the `decision-event-cleanup` cron action soft-deletes every non-open event whose `updatedAt` is more than one day old. Open events are never removed.
 
 ### Event System (`events/`)
 
@@ -232,19 +252,20 @@ Powered by `cronbake` scheduler:
 
 **Single-user assumption:** `/api/events` is intentionally implemented as one global event stream with client-side filtering. This is an explicit tradeoff under the current single-user deployment model, where all visible issue activity belongs to the same trusted operator. It should not be interpreted as a multi-user authorization boundary.
 
-- Event types: `log`, `state`, `done`, `issue-updated`, `changes-summary`, `heartbeat` (15s)
-- Subscribes to: `IssueEngine.onLog`, `.onStateChange`, `.onIssueSettled`, `onIssueUpdated`, `onChangesSummary`
+- Event types: `log`, `log-updated`, `log-removed`, `state`, `done`, `issue-updated`, `changes-summary`, `decision-event-updated`, `heartbeat` (15s)
+- Subscribes to: `IssueEngine.onLog`, `.onStateChange`, `.onIssueSettled`, `onIssueUpdated`, `onChangesSummary`, and the `decision-event-updated` bus event
 
 **`changes-summary.ts`**: runs `git status/diff` after each issue settles; pushes file change stats via SSE.
 
-### Self-Upgrade System (`upgrade/`)
+### Upgrade (`upgrade/`)
 
-Polls GitHub Releases (`repos/bkhq/bkd/releases/latest`) every 1h:
+BKD does not update itself. It runs as a child of the [lode](https://github.com/bkhq/lode) supervisor, which fetches `bkd-server.tar.gz` from GitHub Releases, verifies it, installs it under `<dir>/versions/<version>/`, and restarts BKD, rolling back if the new version fails its health grace.
 
-- **Binary mode**: downloads compiled binary, spawns on restart
-- **Package mode**: downloads `.tar.gz`, extracts to `data/app/v{version}/`
-- Mandatory SHA-256 checksum verification
-- Downloads to `data/updates/` with `.tmp` suffix, atomic rename
+- `lode-sdk.ts` — vendored from `bkhq/lode`
+- `service.ts` — reads lode's `state.json` and writes the request fields the app owns (`target`, `restart_nonce`, `ready`)
+- `/api/settings/upgrade/*` exposes version, status, check, update, rollback, and restart; update policy lives in `lode.toml`
+
+See `docs/deployment.md`.
 
 ### Webhook System (`webhooks/`)
 
@@ -253,21 +274,13 @@ Polls GitHub Releases (`repos/bkhq/bkd/releases/latest`) every 1h:
 - Delivery audit trail in `webhookDeliveries` table
 - Deduplication via `dedupKey`
 
-### MCP Server (`mcp/`)
-
-Model Context Protocol server exposing BKD operations as tools:
-
-- Project/issue CRUD, execute/follow-up/cancel
-- Engine listing, process management
-- Cron job management
-
 ---
 
 ## Frontend (`apps/frontend/src/`)
 
 ### Stack
 
-- **Framework**: React 19 + Vite 7 + TypeScript
+- **Framework**: React 19 + Vite 8 + TypeScript
 - **Styling**: Tailwind CSS v4 (`@tailwindcss/vite`) + shadcn/ui components
 - **Routing**: react-router-dom v7 (all pages lazy-loaded)
 - **Server state**: TanStack React Query v5 (`staleTime: 30s`, `retry: 1`)
@@ -277,7 +290,7 @@ Model Context Protocol server exposing BKD operations as tools:
 - **Terminal**: xterm.js 6.0 + WebSocket
 - **i18n**: i18next + react-i18next (Chinese default, English)
 - **Path alias**: `@/*` → `src/*`
-- **Dev proxy**: Vite forwards `/api/*` to `localhost:3010`
+- **Dev URL routing**: `nsl run` wraps both servers so `http://bkd.localhost/api/*` reaches the API and the rest reaches Vite; Vite has no `/api/*` proxy
 
 ### Routes
 
@@ -286,9 +299,11 @@ Model Context Protocol server exposing BKD operations as tools:
 | `/` | `HomePage` | Project dashboard |
 | `/projects/:projectId` | `KanbanPage` | Kanban board with drag-and-drop |
 | `/projects/:projectId/issues[/:issueId]` | `IssueDetailPage` | Three-panel: list + chat + diff |
-| `/review[/:projectAlias/:issueId]` | `ReviewPage` | Review queue |
+| `/review[/:projectId/:issueId]` | `ReviewPage` | Review queue |
 | `/terminal` | `TerminalPage` | Full-page terminal |
 | `/cron` | `CronPage` | Cron job management |
+| `/decisions` | `DecisionsPage` | Global decision inbox |
+| `/sessions` | `SessionsPage` | Local engine sessions |
 
 Four global drawers (lazy-mounted): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`.
 
@@ -323,6 +338,8 @@ components/
 | `process-manager-store` | Process manager drawer |
 | `notes-store` | Notes drawer state |
 | `server-store` | Server name, URL |
+| `chat-filter-store` | Chat entry-type filter |
+| `session-panel-store` | Local session panel state |
 
 ### Real-Time Data Flow
 
@@ -353,7 +370,7 @@ Typed async functions wrapping all backend endpoints. Internal helpers (`get`, `
 
 Single source of truth consumed by both backend and frontend:
 
-- **Domain**: `Project`, `Issue`, `EngineType`, `SessionStatus`, `Priority`, `PermissionMode`, `BusyAction`
+- **Domain**: `Project`, `Issue`, `EngineType`, `SessionStatus`, `PermissionMode`, `BusyAction`
 - **Logs**: `NormalizedLogEntry`, `LogEntryType`, `ChatMessage` (8 variants), `ToolAction`, `ToolDetail`
 - **Engine**: `EngineAvailability`, `EngineModel`, `EngineDiscoveryResult`, `EngineProfile`, `ProbeResult`
 - **API**: `ApiResponse<T>`, `ExecuteIssueRequest`, `IssueLogsResponse`, `IssueChangesResponse`
@@ -366,37 +383,20 @@ Frontend re-exports via `types/kanban.ts`.
 
 ## Build & Distribution
 
-### Three Distribution Modes
+### Release Artifact
 
-**1. Full binary** (`bun run compile`):
-- Builds Vite frontend → embeds assets into `static-assets.ts`
-- Embeds Drizzle migrations into `embedded-migrations.ts`
-- Compiles to standalone binary (~105 MB) via `bun build --compile`
-- SHA-256 checksum generated
-
-**2. Launcher binary** (`bun run compile:launcher`):
-- Compiles only `scripts/launcher.ts` (~90 MB)
-- At runtime: reads `data/app/version.json`, loads server from `data/app/v{version}/`
-- Auto-downloads latest release if no local version; URL allowlist, 50 MB cap, SHA-256 verify
-
-**3. App package** (`bun run package`):
-- Bundles server → `server.js`, creates `.tar.gz` (~1 MB)
-- Contains `server.js`, `public/`, `migrations/`, `version.json`
-- Used with launcher binary for incremental updates
+`bun run package` (`scripts/package.ts`) is the only distributable: it builds the frontend, bundles the server into `server.js`, and creates `bkd-server.tar.gz` (~2 MB) containing `server.js`, `public/`, `migrations/`, and `version.json`. lode installs and runs it; `scripts/migrate-to-lode.ts` moves a pre-lode install onto lode. See `docs/deployment.md`.
 
 ### CI/CD (`.github/workflows/`)
 
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| `ci.yml` | PRs to `main` | Lint + format check |
-| `release.yml` | `v*` tags | Build full binary (3 platforms) + app package → GitHub Release |
-| `launcher.yml` | Manual dispatch | Build launcher binary (3 platforms) → `launcher-v1` pre-release |
-
-Platforms: `linux-x64`, `linux-arm64`, `darwin-arm64`.
+| Workflow | Purpose |
+|----------|---------|
+| `ci.yml` | Lint, typecheck, migration drift check, tests, frontend build |
+| `release.yml` | Build the package and publish the GitHub Release |
 
 ### Database Migrations
 
-16 migrations in `apps/api/drizzle/` (0000–0015). Auto-applied on startup. Sources: filesystem, `APP_DIR/migrations/`, or embedded (compiled binary).
+27 migrations in `apps/api/drizzle/` (0000–0026). Auto-applied on startup in `meta/_journal.json` order. Sources: `apps/api/drizzle` (dev), `APP_DIR/migrations/` (package), or the embedded map (`db/embedded-migrations.ts`, used only when no filesystem migrations exist).
 
 ---
 
@@ -431,7 +431,7 @@ Platforms: `linux-x64`, `linux-arm64`, `darwin-arm64`.
 | Runtime | Bun |
 | Backend | Hono |
 | Database | SQLite + Drizzle ORM |
-| Frontend | React 19 + Vite 7 |
+| Frontend | React 19 + Vite 8 |
 | Styling | Tailwind CSS v4 + shadcn/ui |
 | Drag & Drop | @atlaskit/pragmatic-drag-and-drop |
 | Terminal | xterm.js 6.0 |
@@ -439,5 +439,5 @@ Platforms: `linux-x64`, `linux-arm64`, `darwin-arm64`.
 | Cron | cronbake |
 | i18n | i18next |
 | Linting | @antfu/eslint-config |
-| AI Engines | Claude Code, OpenAI Codex |
-| MCP | @modelcontextprotocol/sdk |
+| AI Engines | Claude Code, OpenAI Codex, Grok Build, Cursor CLI |
+| Supervisor | lode |

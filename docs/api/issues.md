@@ -4,9 +4,14 @@ All issue routes are scoped under `/api/projects/:projectId` (except the global 
 
 ## GET /api/projects/:projectId/issues
 
-List issues for a project. Ordered by `isPinned` DESC, then `statusUpdatedAt` DESC.
+List issues for a project. Ordered by `isPinned` DESC, then `statusUpdatedAt` DESC. Keyset-paginated.
 
-**Response:** `Issue[]`
+| Query Param | Type | Description |
+|---|---|---|
+| `limit` | `number` (1-200) | Page size (default 100) |
+| `cursor` | `string` | Cursor from a previous page (`400` when invalid) |
+
+**Response:** `{ success, data: Issue[], nextCursor, hasMore }` (pagination fields sit next to `data`, not inside it)
 
 ## GET /api/projects/:projectId/issues/:id
 
@@ -27,7 +32,7 @@ Create an issue. Auto-executes if `statusId` is `working` or `review` (review is
 | `statusId` | `"todo" \| "working" \| "review" \| "done"` | Yes | Initial status |
 | `useWorktree` | `boolean` | No | Run in git worktree |
 | `keepAlive` | `boolean` | No | Prevent idle timeout |
-| `engineType` | `string` | No | Engine type (e.g. `claude-code`, `codex`). Defaults to server setting. |
+| `engineType` | `string` | No | Engine type (`claude-code`, `codex`, `grok`, `cursor`) or a virtual engine id. Defaults to the project's `defaultEngine`, then the global default. |
 | `model` | `string` (regex: `/^[\w./:\-[\]]{1,160}$/`) | No | Model identifier |
 | `permissionMode` | `"auto" \| "supervised" \| "plan"` | No | Permission mode |
 
@@ -85,6 +90,22 @@ Export issue logs as JSON file download.
 | `format` | `"json"` | Export format (currently only JSON) |
 
 **Response:** File download (`Content-Disposition: attachment`) containing `{ issue, logs }`.
+
+## POST /api/projects/:projectId/issues/import-session
+
+Create an issue from a local engine session (see [sessions.md](./sessions.md)).
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `engine` | `"claude-code" \| "codex"` | Yes | Engine that owns the session |
+| `sessionId` | `string` (1-200) | Yes | Session to import |
+| `title` | `string` (1-500) | No | Issue title (defaults to the session title) |
+| `statusId` | `"todo" \| "working" \| "review" \| "done"` | No | Initial status (default `review`) |
+| `importLogs` | `boolean` | No | Copy the transcript into the issue's logs (default `true`) |
+
+**Response:** `201` with `{ issue, importedEntries, droppedEntries, cwdMatches }`. `404` when the project or session is missing, `409` when the session is already imported.
 
 ## GET /api/issues/review
 

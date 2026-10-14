@@ -54,6 +54,7 @@ const IssueDetailPage = lazy(() => import('./pages/IssueDetailPage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const TerminalPage = lazy(() => import('./pages/TerminalPage'))
 const CronPage = lazy(() => import('./pages/CronPage'))
+const DecisionsPage = lazy(() => import('./pages/DecisionsPage'))
 const LocalSessionsPage = lazy(() => import('./pages/LocalSessionsPage'))
 const LazyTerminalDrawer = lazy(() =>
   import('./components/terminal/TerminalDrawer').then(m => ({
@@ -229,6 +230,14 @@ if (!rootElement.innerHTML) {
                   element={(
                     <ErrorBoundary>
                       <TerminalPage />
+                    </ErrorBoundary>
+                  )}
+                />
+                <Route
+                  path="/decisions"
+                  element={(
+                    <ErrorBoundary>
+                      <DecisionsPage />
                     </ErrorBoundary>
                   )}
                 />

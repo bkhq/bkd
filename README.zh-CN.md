@@ -91,7 +91,7 @@ npm install -g @openai/codex
 
 ## BKD Skill
 
-仓库当前只内置了一个 BKD skill，位于 `skills/bkd/`。你可以使用 `npx skills` 安装它，然后通过 REST API 操作正在运行的 BKD 服务。
+BKD skill 维护在 [`zzci/skills`](https://github.com/zzci/skills)。你可以使用 `npx skills` 安装它，然后通过 REST API 操作正在运行的 BKD 服务。
 
 ### 必备条件
 
@@ -104,13 +104,13 @@ export BKD_URL=http://localhost:3000/api
 ### Global（所有项目）
 
 ```bash
-npx skills add bkhq/bkd --skill bkd --global
+npx skills add zzci/skills --skill bkd --global
 ```
 
 ### Project（仅当前项目）
 
 ```bash
-npx skills add bkhq/bkd --skill bkd
+npx skills add zzci/skills --skill bkd
 ```
 
 安装完成后重启 Codex。之后可以用 `Use $bkd to list projects` 或 `Use $bkd to check execution capacity` 这样的提示词来调用它。

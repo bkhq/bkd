@@ -70,3 +70,7 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261013-0244-worktree-cleanup-on-delete Clean up worktrees of deleted issues and stop cleanup stats from timing out**](20261013-0244-worktree-cleanup-on-delete.md) `2026-10-13`
 - [x] [**20261013-0540-chat-turn-navigator Add a turn navigator rail with hover previews to the chat area**](20261013-0540-chat-turn-navigator.md) `2026-10-13`
 - [x] [**20261013-0553-turn-navigator-full-history Show every turn in the chat turn navigator, including unloaded history**](20261013-0553-turn-navigator-full-history.md) `2026-10-13`
+- [x] [**20261013-1706-tickets Add tickets for decisions and user feedback**](20261013-1706-tickets.md) `2026-10-13`
+- [x] [**20261013-1950-engine-protocol-drift Fix Claude and Codex wire-protocol drift**](20261013-1950-engine-protocol-drift.md) `2026-10-13`
+- [x] [**20261013-2005-decision-capability-probe Add a decision-events capability probe and drop the bundled skill**](20261013-2005-decision-capability-probe.md) `2026-10-13`
+- [x] [**20261013-2159-decision-telegram-interactive Answer decision events from Telegram**](20261013-2159-decision-telegram-interactive.md) `2026-10-13`

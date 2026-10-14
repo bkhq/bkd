@@ -1045,6 +1045,7 @@ export function useCreateWebhook() {
       secret?: string
       events: WebhookEventType[]
       isActive?: boolean
+      interactive?: boolean
     }) => kanbanApi.createWebhook(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.webhooks() })
@@ -1061,6 +1062,7 @@ export function useUpdateWebhook() {
       secret?: string | null
       events?: WebhookEventType[]
       isActive?: boolean
+      interactive?: boolean
     }) => {
       const { id, ...rest } = data
       return kanbanApi.updateWebhook(id, rest)

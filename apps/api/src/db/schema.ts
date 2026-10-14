@@ -118,6 +118,37 @@ export const notes = sqliteTable('notes', {
   ...commonFields,
 })
 
+export const decisionEvents = sqliteTable(
+  'decision_events',
+  {
+    id: shortId(),
+    status: text('status').notNull().default('open'),
+    campaignId: text('campaign_id').notNull(),
+    ref: text('ref'), // issue id the decision concerns
+    question: text('question').notNull(),
+    context: text('context').notNull().default(''),
+    options: text('options').notNull().default('[]'), // JSON: DecisionEventOption[]
+    recommendation: text('recommendation'), // JSON: DecisionEventRecommendation
+    blocks: text('blocks'),
+    continues: text('continues'),
+    notify: text('notify').notNull(), // JSON: DecisionEventNotify
+    decision: text('decision'), // JSON: DecisionEventDecision
+    outcome: text('outcome'),
+    withdrawReason: text('withdraw_reason'),
+    closeReason: text('close_reason'),
+    notifiedAt: integer('notified_at', { mode: 'timestamp' }),
+    ...commonFields,
+  },
+  table => [
+    index('decision_events_status_idx').on(table.status),
+    index('decision_events_campaign_id_idx').on(table.campaignId),
+    check(
+      'decision_events_status_check',
+      sql`${table.status} IN ('open','decided','applied','withdrawn','closed')`,
+    ),
+  ],
+)
+
 export const issueLogs = sqliteTable(
   'issues_logs',
   {
@@ -179,8 +210,30 @@ export const webhooks = sqliteTable('webhooks', {
   secret: text('secret'), // webhook: API key, telegram: bot token
   events: text('events').notNull(), // JSON: WebhookEventType[]
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  interactive: integer('interactive', { mode: 'boolean' }).notNull().default(false), // telegram: answer decision events in chat
   ...commonFields,
 })
+
+// The chat message that carries a decision event on an interactive channel
+export const decisionChannelMessages = sqliteTable(
+  'decision_channel_messages',
+  {
+    id: id(),
+    webhookId: text('webhook_id')
+      .notNull()
+      .references(() => webhooks.id),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => decisionEvents.id),
+    chatId: text('chat_id').notNull(),
+    messageId: integer('message_id').notNull(),
+    ...commonFields,
+  },
+  table => [
+    uniqueIndex('decision_channel_messages_webhook_event_idx').on(table.webhookId, table.eventId),
+    index('decision_channel_messages_chat_message_idx').on(table.chatId, table.messageId),
+  ],
+)
 
 export const webhookDeliveries = sqliteTable(
   'webhook_deliveries',

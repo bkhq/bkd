@@ -81,7 +81,7 @@ bun scripts/migrate-to-lode.ts --root /opt/bkd --apply --prune
 
 #### Data Layer
 
-Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings` (key-value store for server settings).
+Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings` (key-value store for server settings), `decisionEvents`, `decisionChannelMessages`.
 
 Statuses are hardcoded constants in `config.ts` (`todo`, `working`, `review`, `done`) — no DB table.
 
@@ -103,13 +103,22 @@ POST           /api/projects/:projectId/issues/:id/execute
 POST           /api/projects/:projectId/issues/:id/follow-up
 POST           /api/projects/:projectId/issues/:id/restart
 POST           /api/projects/:projectId/issues/:id/cancel
-POST           /api/projects/:projectId/issues/:id/messages
+POST           /api/projects/:projectId/issues/:id/terminate
+POST           /api/projects/:projectId/issues/:id/clear-session
+GET/DEL        /api/projects/:projectId/issues/:id/pending
 GET            /api/projects/:projectId/issues/:id/logs
 GET            /api/projects/:projectId/issues/:id/logs/filter/*
-GET/POST       /api/projects/:projectId/issues/:id/attachments
+GET            /api/projects/:projectId/issues/:id/attachments/:attachmentId
 GET            /api/projects/:projectId/issues/:id/changes
+GET            /api/projects/:projectId/issues/:id/changes/file
+POST           /api/projects/:projectId/issues/:id/duplicate
+GET            /api/projects/:projectId/issues/:id/export
 GET            /api/projects/:projectId/issues/:id/slash-commands
+POST           /api/projects/:projectId/issues/import-session
+GET            /api/issues/review
 ```
+
+Attachments are uploaded through the multipart form of issue create and follow-up; there is no separate upload route.
 
 The `/logs/filter/*` route accepts path-based key/value filter pairs (order-independent):
 - `types/<comma-separated>` — filter by entry type (`user-message`, `assistant-message`, `tool-use`, `system-message`, `thinking`)
@@ -117,9 +126,9 @@ The `/logs/filter/*` route accepts path-based key/value filter pairs (order-inde
 - Example: `/logs/filter/types/user-message,assistant-message/turn/last3`
 - Pagination via query params: `cursor`, `before`, `limit`
 
-System routes: `/api/engines/*`, `/api/events` (SSE), `/api/settings/*`, `/api/upgrade/*`, `/api/terminal/ws`, `/api/files/*`, `/api/filesystem/*`, `/api/git/*`, `/api/processes/*`, `/api/worktrees/*`, `/api/cron/*`.
+System routes: `/api/engines/*`, `/api/events` (SSE), `/api/decisions/events/*`, `/api/settings/*` (incl. `/api/settings/upgrade/*`), `/api/sessions/*`, `/api/terminal/*` (incl. `/api/terminal/ws/:id`), `/api/files/:root/*`, `/api/filesystem/dirs`, `/api/git/detect-remote`, `/api/processes/*`, `/api/projects/:projectId/worktrees/*`, `/api/cron/*`, `/api/notes/*`.
 
-Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`. Shared schemas and helpers in `_shared.ts`.
+Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`, `duplicate.ts`, `export.ts`, `import-session.ts`, `review.ts`. Shared schemas and helpers in `_shared.ts`.
 
 #### Engine System (`engines/`)
 
@@ -173,7 +182,7 @@ Route handler → IssueEngine.executeIssue() → acquires per-issue lock
 
 Global SSE endpoint (`GET /api/events`) via Hono `streamSSE`:
 
-- Event types: `log`, `state`, `done`, `issue-updated`, `changes-summary`, `heartbeat` (15s)
+- Event types: `log`, `state`, `done`, `issue-updated`, `changes-summary`, `decision-event-updated`, `heartbeat` (15s)
 - Subscribes to `IssueEngine` callbacks + `onIssueUpdated` + `onChangesSummary`
 - `changes-summary.ts`: runs `git status/diff` after each issue settles, pushes stats via SSE
 
@@ -181,12 +190,27 @@ Global SSE endpoint (`GET /api/events`) via Hono `streamSSE`:
 
 Scheduled task execution with cron expressions (powered by `baker` scheduler). DB tables: `cronJobs`, `cronJobLogs`. Supports pluggable actions (`actions/` directory) — each action type (e.g., execute issue, HTTP request) implements a standard interface. Features: auto-pause after 3 consecutive failures, execution logs with pagination, soft-delete.
 
-Routes: `GET/POST /api/cron`, `GET/PATCH/DELETE /api/cron/:id`, `POST /api/cron/:id/run`, `GET /api/cron/:id/logs`, `GET /api/cron/actions`.
+Routes: `GET/POST /api/cron`, `DELETE /api/cron/:jobId`, `POST /api/cron/:jobId/{trigger,pause,resume}`, `GET /api/cron/:jobId/logs`, `GET /api/cron/actions`.
+
+#### Decision Events (`decisions/`)
+
+One question a coordinating agent needs the user to answer, per the `bkd` skill's `decision-events.md` contract. BKD is the platform only — it never creates an event. Mounted at `/api/decisions` (so `BKD_EVENT_URL=$BKD_URL/api/decisions`) because `GET /api/events` is the SSE stream.
+
+- States: `open → decided → applied`, `open → withdrawn`, `open | decided → closed`; wrong-state transitions return 409.
+- Deciding sends `[event-decision eventId=… campaignId=…]` to the `notify` issue via `dispatchFollowUp()` (`routes/issues/_shared.ts`, shared with the follow-up route). A failed delivery leaves the event `decided`; `POST …/notify` resends.
+- Closing is the user's way to end an event without answering; it sends no follow-up.
+- Every write emits `decision-event-updated` (bus + SSE).
+- `webhooks/dispatcher.ts` sends each state once per channel as `decision.{opened,decided,applied,withdrawn,closed}`; interactive Telegram channels are skipped there.
+- Webhook URLs may target loopback and private networks; `utils/url-safety.ts` still blocks link-local (cloud metadata) and reserved ranges, at save time and at delivery.
+- `decisions/telegram/`: a Telegram channel with `webhooks.interactive` posts open events with option buttons and long-polls `getUpdates` for presses and replies (no inbound route). Answers go through `decideEvent()` in `decisions/service.ts`, shared with the REST route; `decisionChannelMessages` maps event → chat message. One poller per bot token — the bot must not be consumed elsewhere.
+
+Routes: `GET /api/decisions` (capability probe, `{ supported, contractVersion }`), `GET/POST /api/decisions/events`, `GET/PATCH /api/decisions/events/:id`, `POST /api/decisions/events/:id/{decision,notify,ack,withdraw,close}`.
 
 #### Background Jobs (`jobs/`)
 
 - `upload-cleanup` (every 1h) — deletes files in `data/uploads/` older than 7 days
 - `worktree-cleanup` (every 30 min) — removes worktrees for `done` issues older than 1 day; gated by `worktree:autoCleanup` setting
+- `decision-event-cleanup` (daily at 05:00) — soft-deletes decision events that are no longer `open` and unchanged for 1 day
 
 #### Upgrade (`upgrade/`)
 
@@ -219,10 +243,14 @@ Deployment, migration from the old launcher, and the `lode.toml` reference: `doc
 /projects/:projectId                 → KanbanPage (board view)
 /projects/:projectId/issues          → IssueDetailPage (list + chat)
 /projects/:projectId/issues/:issueId → IssueDetailPage (specific issue)
+/review[/:projectId/:issueId]        → ReviewPage (global review queue)
 /terminal                            → TerminalPage
+/cron                                → CronPage
+/decisions                           → DecisionsPage (global decision inbox)
+/sessions                            → SessionsPage (local engine sessions)
 ```
 
-Three global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`.
+Four global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`.
 
 #### State Management
 

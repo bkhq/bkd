@@ -568,6 +568,7 @@ export interface SSEEventMap {
   'issue-updated': { issueId: string, changes: Record<string, unknown> }
   'changes-summary': ChangesSummary
   'context-usage': ContextUsageEvent
+  'decision-event-updated': { id: string, campaignId: string, status: DecisionEventStatus }
   'heartbeat': { ts: string }
 }
 
@@ -592,6 +593,7 @@ export interface AppEventMap {
   'issue-updated': { issueId: string, changes: Record<string, unknown> }
   'changes-summary': ChangesSummary
   'context-usage': { issueId: string, contextTokens: number, contextWindow: number }
+  'decision-event-updated': SSEEventMap['decision-event-updated']
   'heartbeat': { ts: string }
 }
 
@@ -664,6 +666,11 @@ export type WebhookEventType =
   | 'session.started'
   | 'session.completed'
   | 'session.failed'
+  | 'decision.opened'
+  | 'decision.decided'
+  | 'decision.applied'
+  | 'decision.withdrawn'
+  | 'decision.closed'
   | 'issue.status_changed' // legacy — kept for backwards compat with existing DB records
 
 /** Event types grouped by category for UI display. */
@@ -680,6 +687,10 @@ export const WEBHOOK_EVENT_GROUPS: { category: string, events: WebhookEventType[
     category: 'session',
     events: ['session.started', 'session.completed', 'session.failed'],
   },
+  {
+    category: 'decision',
+    events: ['decision.opened', 'decision.decided', 'decision.applied', 'decision.withdrawn', 'decision.closed'],
+  },
 ]
 
 export const WEBHOOK_EVENT_TYPES: WebhookEventType[] = WEBHOOK_EVENT_GROUPS.flatMap(g => g.events)
@@ -695,6 +706,8 @@ export interface Webhook {
   secret: string | null
   events: WebhookEventType[]
   isActive: boolean
+  /** Telegram only: decision events are posted to the chat and can be answered there. */
+  interactive: boolean
   createdAt: string
   updatedAt: string
 }
@@ -718,6 +731,68 @@ export interface Note {
   title: string
   content: string
   isPinned: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+// ── Decision events ─────────────────────────────────────
+
+export type DecisionEventStatus = 'open' | 'decided' | 'applied' | 'withdrawn' | 'closed'
+
+export interface DecisionEventOption {
+  id: string
+  label: string
+  impact: string
+}
+
+export interface DecisionEventRecommendation {
+  optionId: string
+  reason: string
+}
+
+export interface DecisionEventNotify {
+  type: 'bkd-follow-up'
+  bkdUrl?: string
+  projectId: string
+  issueId: string
+}
+
+export interface DecisionEventDecision {
+  optionId: string | null
+  instruction: string
+  decidedBy: string
+  decidedAt: string
+}
+
+export interface DecisionEventIssueLink {
+  issueId: string
+  projectId: string
+  issueNumber: number
+  title: string
+}
+
+export interface DecisionEvent {
+  id: string
+  status: DecisionEventStatus
+  campaignId: string
+  ref: string | null
+  question: string
+  context: string
+  options: DecisionEventOption[]
+  recommendation: DecisionEventRecommendation | null
+  blocks: string | null
+  continues: string | null
+  notify: DecisionEventNotify
+  decision: DecisionEventDecision | null
+  outcome: string | null
+  withdrawReason: string | null
+  closeReason: string | null
+  notifiedAt: string | null
+  links: {
+    projectName: string | null
+    ref: DecisionEventIssueLink | null
+    notify: DecisionEventIssueLink | null
+  }
   createdAt: string
   updatedAt: string
 }

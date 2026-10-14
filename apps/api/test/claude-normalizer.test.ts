@@ -357,6 +357,88 @@ describe('ClaudeLogNormalizer', () => {
       expect(entries[0]!.entryType).toBe('system-message')
       expect(entries[0]!.content).toBe('Rate limit reached')
     })
+
+    test('rate_limit_event with status allowed is suppressed', () => {
+      const normalizer = new ClaudeLogNormalizer()
+      const entries = parseAll(
+        normalizer,
+        line({
+          type: 'rate_limit_event',
+          rate_limit_info: { status: 'allowed', rateLimitType: 'five_hour' },
+        }),
+      )
+      expect(entries).toHaveLength(0)
+    })
+
+    test('rate_limit_event with status rejected produces system-message', () => {
+      const normalizer = new ClaudeLogNormalizer()
+      const entries = parseAll(
+        normalizer,
+        line({
+          type: 'rate_limit_event',
+          rate_limit_info: { status: 'rejected', rateLimitType: 'five_hour' },
+        }),
+      )
+      expect(entries).toHaveLength(1)
+      expect(entries[0]!.content).toBe('Rate limit reached')
+      expect(entries[0]!.metadata?.rateLimitInfo).toEqual({
+        status: 'rejected',
+        rateLimitType: 'five_hour',
+      })
+    })
+  })
+
+  describe('multiple results in one process', () => {
+    const result = (extra: Record<string, unknown>) =>
+      line({ type: 'result', subtype: 'success', session_id: 's1', ...extra })
+
+    test('costUsd is the delta of the cumulative total_cost_usd', () => {
+      const normalizer = new ClaudeLogNormalizer()
+      const first = parseAll(
+        normalizer,
+        result({ result_index: 0, origin: null, num_turns: 4, duration_ms: 7067, total_cost_usd: 0.01 }),
+      )
+      const second = parseAll(
+        normalizer,
+        result({
+          result_index: 1,
+          origin: { kind: 'peer' },
+          num_turns: 1,
+          duration_ms: 1790,
+          total_cost_usd: 0.0105,
+        }),
+      )
+      expect(first[0]!.metadata?.costUsd).toBeCloseTo(0.01, 10)
+      expect(first[0]!.content).toContain('$0.0100')
+      expect(second[0]!.metadata?.costUsd).toBeCloseTo(0.0005, 10)
+      expect(second[0]!.content).toContain('$0.0005')
+    })
+
+    test('a lower total starts a new baseline', () => {
+      const normalizer = new ClaudeLogNormalizer()
+      parseAll(normalizer, result({ num_turns: 1, total_cost_usd: 0.05 }))
+      const next = parseAll(normalizer, result({ num_turns: 1, total_cost_usd: 0.02 }))
+      expect(next[0]!.metadata?.costUsd).toBe(0.02)
+    })
+
+    test('empty task-notification result completes the turn without a chat line', () => {
+      const normalizer = new ClaudeLogNormalizer()
+      parseAll(normalizer, result({ num_turns: 1, duration_ms: 1790, total_cost_usd: 0.0105 }))
+      const entries = parseAll(
+        normalizer,
+        result({
+          result_index: 2,
+          origin: { kind: 'task-notification', producer: 'session-task' },
+          num_turns: 0,
+          duration_ms: 3,
+          total_cost_usd: 0.0105,
+        }),
+      )
+      expect(entries).toHaveLength(1)
+      expect(entries[0]!.content).toBe('')
+      expect(entries[0]!.metadata?.turnCompleted).toBe(true)
+      expect(entries[0]!.metadata?.costUsd).toBe(0)
+    })
   })
 
   describe('replay and synthetic messages', () => {

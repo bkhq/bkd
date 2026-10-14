@@ -2,6 +2,7 @@ import type { NotificationChannel, WebhookEventType } from '@bkd/shared'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { webhookDeliveries, webhooks } from '@/db/schema'
+import { reloadDecisionTelegram } from '@/decisions/telegram'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 import { validateWebhookUrlForStorage } from '@/utils/url-safety'
@@ -26,6 +27,7 @@ function serializeWebhook(row: typeof webhooks.$inferSelect) {
     secret: row.secret ? SECRET_MASK : null,
     events,
     isActive: row.isActive,
+    interactive: row.interactive,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
@@ -72,6 +74,14 @@ webhooksRoute.openapi(R.createWebhook, async (c) => {
     }
   }
 
+  const interactive = body.interactive ?? false
+  if (interactive && channel !== 'telegram') {
+    return c.json({ success: false, error: 'Only a Telegram channel can be interactive' }, 400 as const)
+  }
+  if (body.events.length === 0 && !interactive) {
+    return c.json({ success: false, error: 'At least one event is required' }, 400 as const)
+  }
+
   const [row] = await db
     .insert(webhooks)
     .values({
@@ -80,8 +90,10 @@ webhooksRoute.openapi(R.createWebhook, async (c) => {
       secret: body.secret ?? null,
       events: JSON.stringify(body.events),
       isActive: body.isActive ?? true,
+      interactive,
     })
     .returning()
+  await reloadDecisionTelegram()
 
   return c.json({ success: true, data: serializeWebhook(row!) }, 201 as const)
 })
@@ -122,6 +134,15 @@ webhooksRoute.openapi(R.updateWebhook, async (c) => {
     }
   }
 
+  const effectiveInteractive = body.interactive ?? existing.interactive
+  if (effectiveInteractive && effectiveChannel !== 'telegram') {
+    return c.json({ success: false, error: 'Only a Telegram channel can be interactive' }, 400 as const)
+  }
+  const effectiveEvents = body.events ?? (JSON.parse(existing.events) as unknown[])
+  if ((body.events !== undefined || body.interactive !== undefined) && effectiveEvents.length === 0 && !effectiveInteractive) {
+    return c.json({ success: false, error: 'At least one event is required' }, 400 as const)
+  }
+
   const updates: Record<string, unknown> = {}
 
   if (body.url !== undefined) updates.url = body.url
@@ -131,12 +152,14 @@ webhooksRoute.openapi(R.updateWebhook, async (c) => {
   }
   if (body.events !== undefined) updates.events = JSON.stringify(body.events)
   if (body.isActive !== undefined) updates.isActive = body.isActive
+  if (body.interactive !== undefined) updates.interactive = body.interactive
 
   if (Object.keys(updates).length === 0) {
     return c.json({ success: true, data: serializeWebhook(existing) }, 200 as const)
   }
 
   const [updated] = await db.update(webhooks).set(updates).where(eq(webhooks.id, webhookId)).returning()
+  await reloadDecisionTelegram()
 
   return c.json({ success: true, data: serializeWebhook(updated!) }, 200 as const)
 })
@@ -154,6 +177,7 @@ webhooksRoute.openapi(R.deleteWebhook, async (c) => {
   }
 
   await db.update(webhooks).set({ isDeleted: 1 }).where(eq(webhooks.id, webhookId))
+  await reloadDecisionTelegram()
 
   return c.json({ success: true, data: { id: webhookId } }, 200 as const)
 })

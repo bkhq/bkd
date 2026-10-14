@@ -857,7 +857,8 @@ export class CodexLogNormalizer {
 
   private handleThreadStarted(data: Record<string, unknown>, now: string): NormalizedLogEntry {
     const params = (data.params ?? {}) as Record<string, unknown>
-    const threadId = params.threadId as string | undefined
+    const thread = params.thread as { id?: string } | undefined
+    const threadId = thread?.id ?? (params.threadId as string | undefined)
     return {
       entryType: 'system-message',
       content: 'Thread started',
@@ -1015,9 +1016,13 @@ function fileChangesToInput(
 
 /**
  * Extract the command string from a v2 CommandExecution item.
- * v2 sends `command` as a string; also check `commandActions[0].command` as fallback.
+ * v2 sends `command` wrapped in the shell invocation (`/usr/bin/bash -c '...'`);
+ * a single `commandActions` entry holds the bare command.
  */
 function extractCommandString(item: Record<string, unknown>): string {
+  const actions = item.commandActions as Array<{ command?: unknown }> | undefined
+  const bare = actions?.length === 1 ? actions[0]?.command : undefined
+  if (typeof bare === 'string' && bare) return bare
   const cmd = item.command
   if (typeof cmd === 'string') return cmd
   if (Array.isArray(cmd)) {
@@ -1028,7 +1033,6 @@ function extractCommandString(item: Record<string, unknown>): string {
       })
       .join(' ')
   }
-  const actions = item.commandActions as Array<{ command?: unknown }> | undefined
   const rawCmd = actions?.[0]?.command
   if (typeof rawCmd === 'string' && rawCmd) return rawCmd
   return ''

@@ -8,6 +8,8 @@ export type {
   ClaudeUsage,
   CodexUsage,
   CommandCategory,
+  DecisionEvent,
+  DecisionEventStatus,
   DeleteLocalSessionsRequest,
   DeleteLocalSessionsResult,
   DirectoryListing,

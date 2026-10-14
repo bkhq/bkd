@@ -4,6 +4,7 @@ import type {
   CategorizedCommands,
   ClaudeUsage,
   CodexUsage,
+  DecisionEvent,
   DeleteLocalSessionsRequest,
   DeleteLocalSessionsResult,
   EngineDiscoveryResult,
@@ -614,6 +615,7 @@ export const kanbanApi = {
     secret?: string
     events: WebhookEventType[]
     isActive?: boolean
+    interactive?: boolean
   }) => post<Webhook>('/api/settings/webhooks', data),
   updateWebhook: (
     id: string,
@@ -623,12 +625,22 @@ export const kanbanApi = {
       secret?: string | null
       events?: WebhookEventType[]
       isActive?: boolean
+      interactive?: boolean
     },
   ) => patch<Webhook>(`/api/settings/webhooks/${id}`, data),
   deleteWebhook: (id: string) => del<{ id: string }>(`/api/settings/webhooks/${id}`),
   getWebhookDeliveries: (id: string) =>
     get<WebhookDelivery[]>(`/api/settings/webhooks/${id}/deliveries`),
   testWebhook: (id: string) => post<{ sent: boolean }>(`/api/settings/webhooks/${id}/test`, {}),
+
+  // Decision events
+  getDecisionEvents: () => get<DecisionEvent[]>('/api/decisions/events'),
+  decideDecisionEvent: (id: string, data: { optionId?: string | null, instruction?: string }) =>
+    post<DecisionEvent>(`/api/decisions/events/${id}/decision`, data),
+  closeDecisionEvent: (id: string, reason?: string) =>
+    post<DecisionEvent>(`/api/decisions/events/${id}/close`, { reason }),
+  notifyDecisionEvent: (id: string) =>
+    post<DecisionEvent>(`/api/decisions/events/${id}/notify`, {}),
 
   // Notes
   getNotes: () => get<Note[]>('/api/notes'),

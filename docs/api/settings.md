@@ -110,32 +110,6 @@ Get system information including app version, runtime details, server config, an
 }
 ```
 
-## MCP Settings
-
-When MCP is enabled, AI engines automatically connect to the MCP endpoint during task execution.
-
-### GET /api/settings/mcp
-
-Get MCP endpoint configuration. `MCP_ENABLED` env var takes precedence over DB setting.
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "enabled": true,
-    "envOverride": { "enabled": false }
-  }
-}
-```
-
-### PATCH /api/settings/mcp
-
-Update MCP enabled state.
-
-**Request Body:** `{ enabled?: boolean }`
-
 ## Webhooks
 
 ### GET /api/settings/webhooks
@@ -153,10 +127,13 @@ Create a webhook.
 | `channel` | `"webhook" \| "telegram"` | No | Notification channel (default: `webhook`) |
 | `url` | `string` | Yes | Webhook URL (must be http/https for webhook channel) or Telegram chat ID |
 | `secret` | `string` (0-256) | No | Webhook signing secret or Telegram bot token (required for Telegram) |
-| `events` | `string[]` | Yes | Event types to subscribe to |
+| `events` | `string[]` | Yes | Event types to subscribe to. May be empty only when `interactive` is set |
 | `isActive` | `boolean` | No | Active state (default: true) |
+| `interactive` | `boolean` | No | Telegram only: post decision events to the chat and accept answers there (default: false). See [Decision Events](decisions.md#answering-from-telegram) |
 
-**Security:** Webhook URLs are validated against private/internal network hostnames (SSRF protection). Loopback, RFC 1918, link-local, cloud metadata, and IPv6 private addresses are blocked.
+**Events:** `issue.created`, `issue.updated`, `issue.deleted`, `issue.status.{todo,working,review,done}`, `session.{started,completed,failed}`, `decision.{opened,decided,applied,withdrawn,closed}`. The decision payload is described in [Decision Events](decisions.md#notifications).
+
+**Targets:** A webhook URL may point at a local system: `localhost`, loopback, RFC 1918, CGNAT (`100.64.0.0/10`) and IPv6 unique-local addresses are allowed. Link-local addresses (including the cloud metadata address `169.254.169.254`), multicast, unspecified and reserved ranges are rejected, as IP literals when saving and again at delivery time when a hostname resolves to one. Redirects are not followed: a `3xx` answer is recorded as a failed delivery.
 
 **Response:** `201` with `Webhook`
 
@@ -164,7 +141,7 @@ Create a webhook.
 
 Update a webhook. Channel is immutable after creation. Masked secret value is treated as "unchanged".
 
-**Request Body:** `{ url?, secret?, events?, isActive? }`
+**Request Body:** `{ url?, secret?, events?, isActive?, interactive? }`
 
 ### DELETE /api/settings/webhooks/:id
 
@@ -218,64 +195,92 @@ Returns `400` if the parent project no longer exists (hard-deleted).
 
 ### GET /api/settings/cleanup/stats
 
-Get sizes of cleanable data across four categories: orphaned logs, old version files, orphaned worktrees, and soft-deleted issues/projects.
+Get sizes of cleanable data across three categories: orphaned logs, orphaned worktrees, and soft-deleted issues/projects.
+
+**Response:** `{ logs, worktrees, deletedIssues }`
 
 ### POST /api/settings/cleanup
 
 Run cleanup for specified targets. Hard-deletes data (irreversible). Runs `VACUUM` after deleting DB records.
 
-**Request Body:** `{ targets: ("logs" | "oldVersions" | "worktrees" | "deletedIssues")[] }`
+**Request Body:** `{ targets: ("logs" | "worktrees" | "deletedIssues")[] }` (at least one)
 
 **Response:** `{ [target]: { cleaned: number } }`
 
-## Upgrade
+## Engine Permissions
 
-### GET /api/settings/upgrade/version
+### GET /api/settings/skip-permissions
 
-Get current version info.
+Whether engines run with permission checks skipped.
 
-### GET /api/settings/upgrade/enabled
+**Response:** `{ enabled: boolean }`
 
-Check if upgrade is enabled.
-
-### PATCH /api/settings/upgrade/enabled
-
-Toggle upgrade on/off.
+### PATCH /api/settings/skip-permissions
 
 **Request Body:** `{ enabled: boolean }`
 
-### GET /api/settings/upgrade/check
+### GET /api/settings/disable-ask-user
 
-Check for updates (uses cached result if recent).
+Whether the engine's `AskUserQuestion` tool is disabled.
+
+**Response:** `{ enabled: boolean }`
+
+### PATCH /api/settings/disable-ask-user
+
+**Request Body:** `{ enabled: boolean }`
+
+## Global Environment Variables
+
+### GET /api/settings/global-env-vars
+
+Environment variables passed to every engine process.
+
+**Response:** `{ [name]: string }`
+
+### PUT /api/settings/global-env-vars
+
+Replace the whole set. At most 50 variables; names and values must not contain line breaks.
+
+**Request Body:** `{ vars: { [name]: string } }`
+
+## Upgrade
+
+BKD does not update itself. These routes read the state of the [lode](https://github.com/bkhq/lode) supervisor and ask it to act; see `docs/deployment.md`. Update policy lives in `lode.toml` and cannot be changed here.
+
+### GET /api/settings/upgrade/version
+
+**Response:** `{ version, commit, supervised, activeVersion }`. `supervised` is `false` when BKD is not running under lode.
+
+### GET /api/settings/upgrade/status
+
+Supervisor state.
+
+**Response:** `{ supervised, status, current, lastGood, available, hasUpdate, target, lastCheck, lastError, checking, checkError, history: [{ at, version, result: "good" | "bad" }] }`
 
 ### POST /api/settings/upgrade/check
 
-Force-check for updates from GitHub Releases.
+Ask lode to look for a newer version now. Poll `status` for the result.
 
-### POST /api/settings/upgrade/download
+**Response:** `{ status: "checking" }`
 
-Start downloading an update. Only URLs from `github.com` and `objects.githubusercontent.com` are allowed. Returns `409` if a download is already in progress.
+### POST /api/settings/upgrade/update
 
-**Request Body:**
+Ask lode to install a version.
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `url` | `string` (GitHub URL) | Yes | Download URL |
-| `fileName` | `string` | Yes | File name (must match `bkd-<type>-v<version>` format) |
-| `checksumUrl` | `string` (GitHub URL) | No | SHA-256 checksum URL |
+**Request Body:** `{ version?: "latest" | "x.y.z" }` (default `latest`)
 
-### GET /api/settings/upgrade/download/status
+**Response:** `{ requested }`
 
-Check download progress.
+### POST /api/settings/upgrade/rollback
+
+Go back to the last good version, or to an explicit one.
+
+**Request Body:** `{ version?: "x.y.z" }`
+
+**Response:** `{ requested }`
 
 ### POST /api/settings/upgrade/restart
 
-Apply downloaded upgrade and restart the server.
+Relaunch the current version.
 
-### GET /api/settings/upgrade/downloads
-
-List downloaded update files.
-
-### DELETE /api/settings/upgrade/downloads/:fileName
-
-Delete a downloaded update file.
+**Response:** `{ status: "restarting" }`

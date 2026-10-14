@@ -1,9 +1,10 @@
 /**
- * SSRF-safe URL validation.
+ * Webhook target URL validation.
  *
- * Validates webhook target URLs by resolving DNS and checking the resulting
- * IP addresses against private/reserved ranges. This prevents DNS rebinding
- * attacks where a public hostname resolves to a loopback or internal address.
+ * Local targets (loopback and private networks) are allowed, so a webhook can
+ * reach a system on the same host or LAN. Link-local addresses — which include
+ * the cloud metadata endpoint — and reserved ranges are blocked, both as IP
+ * literals and when a hostname resolves to them.
  */
 import { lookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
@@ -75,21 +76,49 @@ export function isPrivateIP(ip: string): boolean {
   return true
 }
 
-// ── Hostname string pre-check ──────────────────────────────
+/** Returns true for loopback and private-network addresses, which a webhook may target. */
+function isLocalIP(ip: string): boolean {
+  const version = isIP(ip)
 
-/** Quick syntactic check for obviously-private hostnames (before DNS). */
-export function isPrivateHostname(hostname: string): boolean {
-  const h = hostname.toLowerCase()
-  if (h === 'localhost') return true
-  // IP literal already in private range
-  if (isIP(h) && isPrivateIP(h)) return true
-  // Bracketed IPv6 literal
-  if (h.startsWith('[') && h.endsWith(']')) {
-    const inner = h.slice(1, -1)
-    if (isIP(inner) && isPrivateIP(inner)) return true
+  if (version === 4) {
+    const [a, b] = ip.split('.').map(Number) as [number, number]
+    // 127.0.0.0/8 — loopback
+    if (a === 127) return true
+    // 10.0.0.0/8
+    if (a === 10) return true
+    // 172.16.0.0/12
+    if (a === 172 && b >= 16 && b <= 31) return true
+    // 192.168.0.0/16
+    if (a === 192 && b === 168) return true
+    // 100.64.0.0/10 — shared address (CGNAT, tailnets)
+    if (a === 100 && b >= 64 && b <= 127) return true
+    return false
   }
+
+  if (version === 6) {
+    const lower = ip.toLowerCase()
+    if (lower === '::1' || lower === '0:0:0:0:0:0:0:1') return true
+    const v4Mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
+    if (v4Mapped) return isLocalIP(v4Mapped[1]!)
+    // Unique local (fc00::/7)
+    return /^f[cd]/.test(lower)
+  }
+
   return false
 }
+
+/** Returns true when a webhook must not target `ip`: link-local, multicast, unspecified or reserved. */
+export function isBlockedIP(ip: string): boolean {
+  return isPrivateIP(ip) && !isLocalIP(ip)
+}
+
+/** The IP literal a URL hostname holds (IPv6 comes bracketed), or null for a DNS name. */
+function ipLiteral(hostname: string): string | null {
+  const bare = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+  return isIP(bare) ? bare : null
+}
+
+const BLOCKED_ERROR = 'URLs pointing to link-local or reserved addresses are not allowed'
 
 // ── DNS-resolving validation ───────────────────────────────
 
@@ -109,8 +138,8 @@ const defaultResolver: DnsResolver = async (hostname) => {
 /**
  * Validates a webhook URL:
  * 1. Parses it and checks protocol (http/https only).
- * 2. Rejects obviously-private hostnames.
- * 3. Resolves DNS and rejects if *any* resulting address is private.
+ * 2. Rejects blocked IP literals.
+ * 3. Resolves DNS and rejects if *any* resulting address is blocked.
  *
  * @param url — the webhook target URL to validate.
  * @param resolver — optional DNS resolver, defaults to node:dns/promises lookup.
@@ -126,23 +155,20 @@ export async function validateWebhookUrl(
   const parsed = new URL(url)
   const hostname = parsed.hostname.toLowerCase()
 
-  // If the hostname is already a public IP literal, skip DNS
-  if (isIP(hostname)) {
+  // An IP literal was already checked; skip DNS
+  if (ipLiteral(hostname)) {
     return { ok: true }
   }
 
-  // Resolve DNS and verify all addresses are public
+  // Resolve DNS and verify no address is blocked
   try {
     const addresses = await resolver(hostname)
     if (addresses.length === 0) {
       return { ok: false, error: 'Hostname does not resolve to any address' }
     }
     for (const entry of addresses) {
-      if (isPrivateIP(entry.address)) {
-        return {
-          ok: false,
-          error: 'URLs pointing to private/internal networks are not allowed',
-        }
+      if (isBlockedIP(entry.address)) {
+        return { ok: false, error: BLOCKED_ERROR }
       }
     }
   } catch {
@@ -157,8 +183,8 @@ export async function validateWebhookUrl(
  *
  * This intentionally does not resolve DNS. Saving a webhook does not perform a
  * delivery, and unresolved hostnames may become valid later. Delivery-time
- * validation must still call `validateWebhookUrl()` to block DNS rebinding and
- * private-network targets before any outbound request is made.
+ * validation must still call `validateWebhookUrl()` to block hostnames that
+ * resolve to a blocked address before any outbound request is made.
  */
 export function validateWebhookUrlForStorage(url: string): UrlValidationResult {
   let parsed: URL
@@ -172,11 +198,9 @@ export function validateWebhookUrlForStorage(url: string): UrlValidationResult {
     return { ok: false, error: 'URL must use http or https protocol' }
   }
 
-  const hostname = parsed.hostname.toLowerCase()
-
-  // Quick syntactic rejection
-  if (isPrivateHostname(hostname)) {
-    return { ok: false, error: 'URLs pointing to private/internal networks are not allowed' }
+  const literal = ipLiteral(parsed.hostname.toLowerCase())
+  if (literal && isBlockedIP(literal)) {
+    return { ok: false, error: BLOCKED_ERROR }
   }
 
   return { ok: true }

@@ -87,6 +87,7 @@ export class ClaudeLogNormalizer {
   private modelName: string | undefined
   /** Last assistant message text (used to deduplicate result.result text). */
   private lastAssistantMessage: string | undefined
+  private lastTotalCostUsd = 0
 
   parse(rawLine: string): NormalizedLogEntry | NormalizedLogEntry[] | null {
     let data: ClaudeJson
@@ -124,6 +125,7 @@ export class ClaudeLogNormalizer {
       case 'content_block_stop':
         return this.parseStreamEvent(data)
       case 'rate_limit':
+      case 'rate_limit_event':
         return this.parseRateLimit(data)
       // Internal lifecycle types — no user-facing value
       case 'queue-operation':
@@ -769,13 +771,18 @@ export class ClaudeLogNormalizer {
       : undefined
     const inputTokens = data.input_tokens ?? usageInput
     const outputTokens = data.output_tokens ?? usage?.output_tokens
-    const costUsd = data.cost_usd ?? data.total_cost_usd
+    const costUsd = data.cost_usd ?? this.takeCostDelta(data.total_cost_usd)
+
+    // The CLI closes a task notification with a result that ran no turn.
+    const isEmptyNotification = data.num_turns === 0 && data.origin?.kind === 'task-notification'
 
     const parts: string[] = []
-    if (data.duration_ms) parts.push(`${(data.duration_ms / 1000).toFixed(1)}s`)
-    if (inputTokens) parts.push(`${inputTokens} input`)
-    if (outputTokens) parts.push(`${outputTokens} output`)
-    if (costUsd) parts.push(`$${costUsd.toFixed(4)}`)
+    if (!isEmptyNotification) {
+      if (data.duration_ms) parts.push(`${(data.duration_ms / 1000).toFixed(1)}s`)
+      if (inputTokens) parts.push(`${inputTokens} input`)
+      if (outputTokens) parts.push(`${outputTokens} output`)
+      if (costUsd) parts.push(`$${costUsd.toFixed(4)}`)
+    }
 
     let errorSummary: string | undefined
     let errorKind: string | undefined
@@ -836,6 +843,14 @@ export class ClaudeLogNormalizer {
     return entries
   }
 
+  /** `total_cost_usd` is cumulative for the process; return this result's share. */
+  private takeCostDelta(total: number | undefined): number | undefined {
+    if (total === undefined) return undefined
+    const delta = total >= this.lastTotalCostUsd ? total - this.lastTotalCostUsd : total
+    this.lastTotalCostUsd = total
+    return delta
+  }
+
   // ---------- Error ----------
 
   private parseError(data: ClaudeError): NormalizedLogEntry {
@@ -849,7 +864,10 @@ export class ClaudeLogNormalizer {
 
   // ---------- Rate limit ----------
 
-  private parseRateLimit(data: ClaudeRateLimit): NormalizedLogEntry {
+  private parseRateLimit(data: ClaudeRateLimit): NormalizedLogEntry | null {
+    // `rate_limit_event` is also sent on healthy calls; only a rejection is worth a line.
+    const status = data.rate_limit_info?.status
+    if (status !== undefined && status !== 'rejected') return null
     return {
       entryType: 'system-message',
       content: 'Rate limit reached',

@@ -3,12 +3,12 @@
  *
  * Validates that:
  * - Private/reserved IPs are correctly classified
- * - DNS resolution is checked before allowing webhook URLs
- * - Public hostnames resolving to private addresses are blocked
+ * - Local targets (loopback, private networks) are allowed
+ * - Link-local and reserved targets are blocked, as literals and through DNS
  */
 import type { DnsResolver } from '@/utils/url-safety'
 import { describe, expect, test } from 'bun:test'
-import { isPrivateHostname, isPrivateIP, validateWebhookUrl, validateWebhookUrlForStorage } from '@/utils/url-safety'
+import { isBlockedIP, isPrivateIP, validateWebhookUrl, validateWebhookUrlForStorage } from '@/utils/url-safety'
 
 // ── Fake resolvers ─────────────────────────────────────────
 
@@ -100,28 +100,20 @@ describe('isPrivateIP', () => {
   })
 })
 
-// ── isPrivateHostname ──────────────────────────────────────
+// ── isBlockedIP ────────────────────────────────────────────
 
-describe('isPrivateHostname', () => {
-  test('localhost → private', () => {
-    expect(isPrivateHostname('localhost')).toBe(true)
-  })
+describe('isBlockedIP', () => {
+  for (const ip of ['127.0.0.1', '10.0.0.5', '172.16.0.1', '192.168.1.1', '100.64.0.1', '::1', 'fd12:3456::1', '::ffff:127.0.0.1', '8.8.8.8']) {
+    test(`${ip} → allowed`, () => {
+      expect(isBlockedIP(ip)).toBe(false)
+    })
+  }
 
-  test('127.0.0.1 → private', () => {
-    expect(isPrivateHostname('127.0.0.1')).toBe(true)
-  })
-
-  test('192.168.1.1 → private', () => {
-    expect(isPrivateHostname('192.168.1.1')).toBe(true)
-  })
-
-  test('example.com → not private (hostname only, no DNS)', () => {
-    expect(isPrivateHostname('example.com')).toBe(false)
-  })
-
-  test('8.8.8.8 → public', () => {
-    expect(isPrivateHostname('8.8.8.8')).toBe(false)
-  })
+  for (const ip of ['169.254.169.254', '0.0.0.0', '224.0.0.1', '255.255.255.255', '192.0.2.1', 'fe80::1', '::', 'ff02::1', '::ffff:169.254.169.254', 'not-an-ip']) {
+    test(`${ip} → blocked`, () => {
+      expect(isBlockedIP(ip)).toBe(true)
+    })
+  }
 })
 
 // ── validateWebhookUrl ─────────────────────────────────────
@@ -139,34 +131,25 @@ describe('validateWebhookUrl', () => {
     expect(result.error).toContain('Invalid URL')
   })
 
-  test('rejects localhost', async () => {
-    const result = await validateWebhookUrl('http://localhost:8080/hook')
-    expect(result.ok).toBe(false)
-    expect(result.error).toContain('private')
-  })
+  for (const url of ['http://127.0.0.1/hook', 'http://10.0.0.5/hook', 'http://192.168.1.100/hook', 'http://[::1]:8080/hook']) {
+    test(`accepts local IP literal ${url}`, async () => {
+      expect((await validateWebhookUrl(url, failingResolver())).ok).toBe(true)
+    })
+  }
 
-  test('rejects 127.0.0.1', async () => {
-    const result = await validateWebhookUrl('http://127.0.0.1/hook')
-    expect(result.ok).toBe(false)
-    expect(result.error).toContain('private')
+  test('accepts localhost', async () => {
+    const resolver = fakeResolver([{ address: '127.0.0.1', family: 4 }, { address: '::1', family: 6 }])
+    expect((await validateWebhookUrl('http://localhost:8080/hook', resolver)).ok).toBe(true)
   })
 
   test('rejects 169.254.169.254 (cloud metadata)', async () => {
     const result = await validateWebhookUrl('http://169.254.169.254/latest/meta-data/')
     expect(result.ok).toBe(false)
-    expect(result.error).toContain('private')
+    expect(result.error).toContain('link-local')
   })
 
-  test('rejects 10.x.x.x IP literal', async () => {
-    const result = await validateWebhookUrl('http://10.0.0.5/hook')
-    expect(result.ok).toBe(false)
-    expect(result.error).toContain('private')
-  })
-
-  test('rejects 192.168.x.x IP literal', async () => {
-    const result = await validateWebhookUrl('http://192.168.1.100/hook')
-    expect(result.ok).toBe(false)
-    expect(result.error).toContain('private')
+  test('rejects a link-local IPv6 literal', async () => {
+    expect((await validateWebhookUrl('http://[fe80::1]/hook')).ok).toBe(false)
   })
 
   test('accepts public IP literal', async () => {
@@ -174,51 +157,41 @@ describe('validateWebhookUrl', () => {
     expect(result.ok).toBe(true)
   })
 
-  // ── DNS rebinding scenarios (using injectable resolver) ──
+  // ── DNS scenarios (using injectable resolver) ──
 
-  test('rejects hostname resolving to loopback via DNS', async () => {
-    const resolver = fakeResolver([{ address: '127.0.0.1', family: 4 }])
-    const result = await validateWebhookUrl('https://evil-rebind.example.com/hook', resolver)
-    expect(result.ok).toBe(false)
-    expect(result.error).toContain('private')
+  for (const address of ['127.0.0.1', '10.0.0.1', '192.168.1.1', '100.100.1.1']) {
+    test(`accepts hostname resolving to local address ${address}`, async () => {
+      const resolver = fakeResolver([{ address, family: 4 }])
+      expect((await validateWebhookUrl('https://bridge.internal.example.com/hook', resolver)).ok).toBe(true)
+    })
+  }
+
+  test('accepts hostname resolving to IPv6 unique-local', async () => {
+    const resolver = fakeResolver([{ address: 'fd12:3456::1', family: 6 }])
+    expect((await validateWebhookUrl('https://ula.example.com/hook', resolver)).ok).toBe(true)
   })
 
   test('rejects hostname resolving to metadata IP via DNS', async () => {
     const resolver = fakeResolver([{ address: '169.254.169.254', family: 4 }])
     const result = await validateWebhookUrl('https://metadata-rebind.example.com/hook', resolver)
     expect(result.ok).toBe(false)
-    expect(result.error).toContain('private')
+    expect(result.error).toContain('link-local')
   })
 
-  test('rejects hostname resolving to 10.x private IP via DNS', async () => {
-    const resolver = fakeResolver([{ address: '10.0.0.1', family: 4 }])
-    const result = await validateWebhookUrl('https://internal.example.com/hook', resolver)
-    expect(result.ok).toBe(false)
-    expect(result.error).toContain('private')
-  })
-
-  test('rejects hostname resolving to 192.168 via DNS', async () => {
-    const resolver = fakeResolver([{ address: '192.168.1.1', family: 4 }])
-    const result = await validateWebhookUrl('https://home-router.example.com/hook', resolver)
-    expect(result.ok).toBe(false)
-    expect(result.error).toContain('private')
-  })
-
-  test('rejects if any resolved address is private (mixed results)', async () => {
+  test('rejects if any resolved address is blocked (mixed results)', async () => {
     const resolver = fakeResolver([
       { address: '93.184.216.34', family: 4 },
-      { address: '127.0.0.1', family: 4 },
+      { address: '169.254.169.254', family: 4 },
     ])
     const result = await validateWebhookUrl('https://dual-record.example.com/hook', resolver)
     expect(result.ok).toBe(false)
-    expect(result.error).toContain('private')
+    expect(result.error).toContain('link-local')
   })
 
-  test('rejects hostname resolving to private IPv6', async () => {
-    const resolver = fakeResolver([{ address: '::1', family: 6 }])
+  test('rejects hostname resolving to link-local IPv6', async () => {
+    const resolver = fakeResolver([{ address: 'fe80::1', family: 6 }])
     const result = await validateWebhookUrl('https://ipv6-rebind.example.com/hook', resolver)
     expect(result.ok).toBe(false)
-    expect(result.error).toContain('private')
   })
 
   test('accepts hostname resolving to public IP', async () => {
@@ -271,9 +244,16 @@ describe('validateWebhookUrlForStorage', () => {
     expect(result.error).toContain('http or https')
   })
 
-  test('rejects private hostnames and IP literals', () => {
-    expect(validateWebhookUrlForStorage('http://localhost:3000/hook').ok).toBe(false)
-    expect(validateWebhookUrlForStorage('http://127.0.0.1/hook').ok).toBe(false)
-    expect(validateWebhookUrlForStorage('http://10.0.0.5/hook').ok).toBe(false)
+  test('accepts local hostnames and IP literals', () => {
+    expect(validateWebhookUrlForStorage('http://localhost:3000/hook').ok).toBe(true)
+    expect(validateWebhookUrlForStorage('http://127.0.0.1/hook').ok).toBe(true)
+    expect(validateWebhookUrlForStorage('http://10.0.0.5/hook').ok).toBe(true)
+    expect(validateWebhookUrlForStorage('http://[::1]/hook').ok).toBe(true)
+  })
+
+  test('rejects link-local and reserved IP literals', () => {
+    expect(validateWebhookUrlForStorage('http://169.254.169.254/latest').ok).toBe(false)
+    expect(validateWebhookUrlForStorage('http://0.0.0.0/hook').ok).toBe(false)
+    expect(validateWebhookUrlForStorage('http://[fe80::1]/hook').ok).toBe(false)
   })
 })

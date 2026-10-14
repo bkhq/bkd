@@ -19,6 +19,7 @@ Compression is skipped for this route. Visibility filter is applied at the SSE b
 | `done` | `{ issueId, finalStatus }` | Issue execution completed (terminal state) |
 | `issue-updated` | `{ issueId, changes }` | Issue metadata updated (status, title, etc.) |
 | `changes-summary` | `{ issueId, ... }` | Git changes summary after settlement |
+| `decision-event-updated` | `DecisionEvent` | A decision event was created or changed state (see [decisions.md](./decisions.md)) |
 | `heartbeat` | `{ ts }` | Keep-alive (every 15s) |
 
 Terminal states (`completed`, `failed`, `cancelled`) are emitted via the `done` event after the DB is updated, not via `state`.

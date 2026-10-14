@@ -7,17 +7,22 @@
 import { createRoute } from '@hono/zod-openapi'
 import * as z from 'zod'
 import {
+  AckDecisionEventSchema,
   AttachmentFollowUpSchema,
   BulkUpdateSchema,
   CategorizedCommandsSchema,
   ClaudeUsageSchema,
+  CloseDecisionEventSchema,
   CodexUsageSchema,
   CreateCronJobSchema,
+  CreateDecisionEventSchema,
   CreateIssueSchema,
   CreateNoteSchema,
   CreateProjectSchema,
   CreateWebhookSchema,
   CronJobSchema,
+  DecideDecisionEventSchema,
+  DecisionEventSchema,
   DeleteLocalSessionsResultSchema,
   DeleteLocalSessionsSchema,
   EngineDiscoveryResultSchema,
@@ -34,6 +39,7 @@ import {
   IssueLogsResponseSchema,
   IssueSchema,
   IssueTurnsResponseSchema,
+  ListDecisionEventsQuerySchema,
   LocalSessionSchema,
   NormalizedLogEntrySchema,
   NoteSchema,
@@ -44,12 +50,14 @@ import {
   ProjectSchema,
   SortProjectSchema,
   successResponse,
+  UpdateDecisionEventSchema,
   UpdateIssueSchema,
   UpdateNoteSchema,
   UpdateProjectSchema,
   UpdateWebhookSchema,
   WebhookDeliverySchema,
   WebhookSchema,
+  WithdrawDecisionEventSchema,
   WorktreeEntrySchema,
   WriteFilterRuleSchema,
 } from './schemas'
@@ -1023,6 +1031,139 @@ export const deleteNote = createRoute({
     404: errorResponse('Note not found'),
     500: errorResponse('Internal error'),
   },
+})
+
+// ── Decision events ────────────────────────────────────
+
+const decisionEventParams = z.object({ eventId: z.string() })
+function jsonBody<T extends z.ZodType>(schema: T) {
+  return { required: true, content: { 'application/json': { schema } } } as const
+}
+const decisionEventErrors = {
+  400: errorResponse('Invalid request'),
+  404: errorResponse('Decision event not found'),
+  409: errorResponse('Not allowed in the current status'),
+  500: errorResponse('Internal error'),
+}
+
+export const getDecisionCapability = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Decisions'],
+  summary: 'Probe decision-event support',
+  operationId: 'getDecisionCapability',
+  responses: {
+    200: successResponse(z.object({
+      supported: z.literal(true),
+      contractVersion: z.number().int(),
+    }), 'Decision events are supported'),
+  },
+})
+
+export const listDecisionEvents = createRoute({
+  method: 'get',
+  path: '/events',
+  tags: ['Decisions'],
+  summary: 'List decision events',
+  operationId: 'listDecisionEvents',
+  request: { query: ListDecisionEventsQuerySchema },
+  responses: {
+    200: successResponse(z.array(DecisionEventSchema), 'Decision event list'),
+    400: errorResponse('Invalid request'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const createDecisionEvent = createRoute({
+  method: 'post',
+  path: '/events',
+  tags: ['Decisions'],
+  summary: 'Raise a decision event',
+  operationId: 'createDecisionEvent',
+  request: { body: jsonBody(CreateDecisionEventSchema) },
+  responses: {
+    201: successResponse(DecisionEventSchema, 'Created decision event'),
+    400: errorResponse('Invalid request'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const getDecisionEvent = createRoute({
+  method: 'get',
+  path: '/events/{eventId}',
+  tags: ['Decisions'],
+  summary: 'Get a decision event',
+  operationId: 'getDecisionEvent',
+  request: { params: decisionEventParams },
+  responses: {
+    200: successResponse(DecisionEventSchema, 'Decision event'),
+    404: errorResponse('Decision event not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const updateDecisionEvent = createRoute({
+  method: 'patch',
+  path: '/events/{eventId}',
+  tags: ['Decisions'],
+  summary: 'Update the facts of an open decision event',
+  operationId: 'updateDecisionEvent',
+  request: { params: decisionEventParams, body: jsonBody(UpdateDecisionEventSchema) },
+  responses: { 200: successResponse(DecisionEventSchema, 'Updated decision event'), ...decisionEventErrors },
+})
+
+export const decideDecisionEvent = createRoute({
+  method: 'post',
+  path: '/events/{eventId}/decision',
+  tags: ['Decisions'],
+  summary: 'Decide an open event and wake its notify issue',
+  operationId: 'decideDecisionEvent',
+  request: { params: decisionEventParams, body: jsonBody(DecideDecisionEventSchema) },
+  responses: { 200: successResponse(DecisionEventSchema, 'Decided event'), ...decisionEventErrors },
+})
+
+export const notifyDecisionEvent = createRoute({
+  method: 'post',
+  path: '/events/{eventId}/notify',
+  tags: ['Decisions'],
+  summary: 'Resend the wake follow-up of a decided event',
+  operationId: 'notifyDecisionEvent',
+  request: { params: decisionEventParams },
+  responses: {
+    200: successResponse(DecisionEventSchema, 'Notified event'),
+    ...decisionEventErrors,
+    502: errorResponse('Follow-up could not be delivered'),
+  },
+})
+
+export const ackDecisionEvent = createRoute({
+  method: 'post',
+  path: '/events/{eventId}/ack',
+  tags: ['Decisions'],
+  summary: 'Record what was done with a decision',
+  operationId: 'ackDecisionEvent',
+  request: { params: decisionEventParams, body: jsonBody(AckDecisionEventSchema) },
+  responses: { 200: successResponse(DecisionEventSchema, 'Applied event'), ...decisionEventErrors },
+})
+
+export const withdrawDecisionEvent = createRoute({
+  method: 'post',
+  path: '/events/{eventId}/withdraw',
+  tags: ['Decisions'],
+  summary: 'Withdraw an open event that is no longer needed',
+  operationId: 'withdrawDecisionEvent',
+  request: { params: decisionEventParams, body: jsonBody(WithdrawDecisionEventSchema) },
+  responses: { 200: successResponse(DecisionEventSchema, 'Withdrawn event'), ...decisionEventErrors },
+})
+
+export const closeDecisionEvent = createRoute({
+  method: 'post',
+  path: '/events/{eventId}/close',
+  tags: ['Decisions'],
+  summary: 'Close an open or decided event without notifying anyone',
+  operationId: 'closeDecisionEvent',
+  request: { params: decisionEventParams, body: jsonBody(CloseDecisionEventSchema) },
+  responses: { 200: successResponse(DecisionEventSchema, 'Closed event'), ...decisionEventErrors },
 })
 
 // ── Webhooks ───────────────────────────────────────────

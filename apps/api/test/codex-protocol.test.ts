@@ -348,6 +348,29 @@ describe('CodexProtocolHandler', () => {
     stdout.close()
   })
 
+  test('turn/started notification sets turnId from params.turn.id', async () => {
+    const { sink } = createMockStdin()
+    const stdout = createMockStdout()
+
+    const handler = new CodexProtocolHandler(sink, stdout.stream, 5000)
+    const reader = handler.notifications.getReader()
+
+    stdout.push(
+      JSON.stringify({
+        method: 'turn/started',
+        params: { threadId: 't1', turn: { id: 'turn-nested', status: 'inProgress' } },
+      }),
+    )
+    await tick()
+    await reader.read()
+
+    expect(handler.turnId).toBe('turn-nested')
+
+    reader.releaseLock()
+    handler.close()
+    stdout.close()
+  })
+
   test('turn/completed notification clears turnId', async () => {
     const { sink, written } = createMockStdin()
     const stdout = createMockStdout()
