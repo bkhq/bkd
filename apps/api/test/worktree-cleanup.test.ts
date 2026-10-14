@@ -242,6 +242,25 @@ describe('settings cleanup', () => {
     expect(existsSync(path)).toBe(true)
   })
 
+  test('an issue whose process comes alive while cleanup runs keeps its row and its worktree', async () => {
+    // Idle when the deleted issues are listed, alive by the time its worktree
+    // would go: skipping the worktree must also keep the row, or the worktree
+    // is left with nothing to match it
+    const { id, path } = await createWorktreeIssue()
+    await softDelete(id)
+    let calls = 0
+    const aliveMidway = spyOn(issueEngine, 'hasActiveProcessForIssue').mockImplementation(issueId => issueId === id && ++calls > 1)
+    try {
+      expectSuccess(await post('/api/settings/cleanup', { targets: ['deletedIssues'] }))
+    } finally {
+      aliveMidway.mockRestore()
+    }
+
+    const [row] = await db.select({ id: issuesTable.id }).from(issuesTable).where(eq(issuesTable.id, id))
+    expect(row?.id).toBe(id)
+    expect(existsSync(path)).toBe(true)
+  })
+
   test('manual worktree removal deregisters from the owning project repo', async () => {
     const { id, path } = await createWorktreeIssue()
     await softDelete(id)

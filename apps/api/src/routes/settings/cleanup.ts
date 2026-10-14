@@ -373,9 +373,10 @@ async function cleanupDeletedIssues(): Promise<{ cleaned: number }> {
   const projectIds = deletedProjects.map(p => p.id).filter(id => !projectsWithLiveIssues.has(id))
 
   // The worktree removal above is awaited, so a recycle-bin restore can land
-  // in between. Re-check what is still deleted inside one synchronous
-  // transaction (nothing interleaves with it), so a restored issue — or a
-  // project that still owns issues — is never hard-deleted.
+  // in between. Re-check what is still deleted (and idle) inside one
+  // synchronous transaction (nothing interleaves with it), so a restored or
+  // re-spawned issue — whose worktree was kept — or a project that still owns
+  // issues is never hard-deleted.
   db.transaction((tx) => {
     for (let i = 0; i < issueIds.length; i += BATCH) {
       const batch = tx
@@ -384,6 +385,7 @@ async function cleanupDeletedIssues(): Promise<{ cleaned: number }> {
         .where(and(inArray(issuesTable.id, issueIds.slice(i, i + BATCH)), eq(issuesTable.isDeleted, 1)))
         .all()
         .map(r => r.id)
+        .filter(id => !issueEngine.hasActiveProcessForIssue(id))
       if (batch.length === 0) continue
       // Delete related data first (FK order)
       tx.delete(issuesLogsToolsCall).where(inArray(issuesLogsToolsCall.issueId, batch)).run()
