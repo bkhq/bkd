@@ -72,6 +72,8 @@ interface FileBrowserStore {
   toggleTree: () => void
   toggleWrap: () => void
   setDraft: (root: string, path: string, draft: FileDraft | null) => void
+  /** Drop drafts of `path` and everything inside it (a deleted file or directory). */
+  clearDraftsUnder: (root: string, path: string) => void
 }
 
 export { MIN_WIDTH as FILE_BROWSER_MIN_WIDTH }
@@ -218,6 +220,14 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
       const drafts = { ...s.drafts }
       if (draft) drafts[draftKey(root, path)] = draft
       else delete drafts[draftKey(root, path)]
+      return { drafts }
+    }),
+  clearDraftsUnder: (root, path) =>
+    set((s) => {
+      const self = draftKey(root, path)
+      const drafts = Object.fromEntries(
+        Object.entries(s.drafts).filter(([key]) => key !== self && !key.startsWith(`${self}/`)),
+      )
       return { drafts }
     }),
 }))

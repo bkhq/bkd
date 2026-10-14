@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { attachResizeClamp } from '@/lib/store-resize'
 
 /**
  * Right-side workspace panel of the issue chat: one panel, one width, with
@@ -13,6 +14,13 @@ const MIN_WIDTH = 320
 const DEFAULT_WIDTH = 400
 /** ensureWidth never takes more than this share of the viewport. */
 const ENSURE_MAX_VIEWPORT_RATIO = 0.6
+/** App rail plus the chat's minimum width, which the panel must leave free. */
+const RESERVED_WIDTH = 56 + 300
+
+function clampWidth(w: number): number {
+  const viewport = typeof window === 'undefined' ? 1600 : window.innerWidth
+  return Math.max(MIN_WIDTH, Math.min(w, viewport - RESERVED_WIDTH))
+}
 
 interface WorkspacePanelStore {
   isOpen: boolean
@@ -69,10 +77,13 @@ export const useWorkspacePanelStore = create<WorkspacePanelStore>(set => ({
       return { tabs, activeTab }
     }),
   hide: () => set({ isOpen: false, isMaximized: false }),
-  setWidth: w => set({ width: Math.max(MIN_WIDTH, w) }),
+  setWidth: w => set({ width: clampWidth(w) }),
   ensureWidth: min =>
     set((s) => {
       const target = Math.min(min, Math.round(window.innerWidth * ENSURE_MAX_VIEWPORT_RATIO))
-      return target > s.width ? { width: target } : {}
+      return target > s.width ? { width: clampWidth(target) } : {}
     }),
 }))
+
+// Re-clamp when the window narrows (HMR-safe via import.meta.hot.dispose)
+attachResizeClamp(useWorkspacePanelStore.getState, clampWidth, import.meta.hot)

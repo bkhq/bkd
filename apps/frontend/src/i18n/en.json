@@ -827,6 +827,10 @@
       "files": "Browse and edit files in the workspace",
       "review": "See the code changes in the workspace"
     },
-    "addTab": "Open a tab"
+    "addTab": "Open a tab",
+    "rootLoadFailed": "Couldn't resolve this issue's workspace.",
+    "retry": "Retry",
+    "browserInDrawer": "The file browser is open in the drawer.",
+    "openHere": "Open here"
   }
 }

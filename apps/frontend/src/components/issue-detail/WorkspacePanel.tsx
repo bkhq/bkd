@@ -12,7 +12,7 @@ import {
 import { ResizeHandle } from '@/components/ui/resize-handle'
 import { SidePanelButton } from '@/components/ui/side-panel'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
-import { useProject, useProjectFiles } from '@/hooks/use-kanban'
+import { useIssueChanges, useProject, useProjectFiles } from '@/hooks/use-kanban'
 import { cn } from 'cn'
 import { useDiffViewStore } from '@/stores/diff-view-store'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
@@ -73,25 +73,35 @@ export function WorkspacePanel({
   }, [treeShown])
 
   const changesSummary = useChangesSummary(projectId, issueId)
-  const changesRoot = (changesSummary as { root?: string } | null)?.root
+  // The issue's own workspace (its worktree, or the project directory). Until
+  // /changes answers it is unknown (undefined): the Files tab must wait rather
+  // than fall back to the project directory, which for a worktree issue is the
+  // main checkout. null means the project has no directory at all.
+  const changes = useIssueChanges(projectId, issueId)
+  const issueRoot = changes.data ? (changes.data.root ?? null) : undefined
   const fileCount = useFileBrowserEntryCount()
   const counts: Record<WorkspaceTab, number | null> = {
     files: fileCount,
     review: changesSummary?.fileCount ?? 0,
   }
 
-  // Bind the shared file browser to this issue's workspace, unless the global
-  // drawer currently owns it; it re-binds once the drawer closes.
+  // Bind the shared file browser to this issue's workspace once it is known,
+  // unless the global drawer currently owns it; it re-binds once the drawer
+  // closes. The tab only renders the browser while it is bound here.
   const hasFilesTab = tabs.includes('files')
   const fbIssueId = useFileBrowserStore(s => s.issueId)
   const fbRootPath = useFileBrowserStore(s => s.rootPath)
   const fbOpen = useFileBrowserStore(s => s.isOpen)
   const fbDrawer = useFileBrowserStore(s => s.isDrawer)
+  const drawerOwnsBrowser = fbOpen && fbDrawer
+  const filesBound = issueRoot !== undefined && fbOpen && !fbDrawer && fbIssueId === issueId && fbRootPath === issueRoot
+  const bindFiles = () => {
+    if (issueRoot !== undefined) useFileBrowserStore.getState().openForIssue(projectId, issueId, issueRoot ?? undefined)
+  }
   useEffect(() => {
-    if (!hasFilesTab || (fbOpen && fbDrawer)) return
-    if (fbOpen && fbIssueId === issueId && fbRootPath === (changesRoot ?? null)) return
-    useFileBrowserStore.getState().openForIssue(projectId, issueId, changesRoot)
-  }, [hasFilesTab, fbOpen, fbDrawer, fbIssueId, fbRootPath, projectId, issueId, changesRoot])
+    if (!hasFilesTab || issueRoot === undefined || drawerOwnsBrowser || filesBound) return
+    useFileBrowserStore.getState().openForIssue(projectId, issueId, issueRoot ?? undefined)
+  }, [hasFilesTab, issueRoot, drawerOwnsBrowser, filesBound, projectId, issueId])
 
   const maxWidth = typeof window === 'undefined' ? 1600 : window.innerWidth
 
@@ -203,7 +213,31 @@ export function WorkspacePanel({
         {/* Tab contents stay mounted so switching keeps their state */}
         {hasFilesTab && (
           <div className={cn('flex flex-col flex-1 min-h-0', activeTab !== 'files' && 'hidden')}>
-            <FileBrowserContent />
+            {filesBound
+              ? <FileBrowserContent />
+              : (
+                  <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
+                    {changes.isError
+                      ? (
+                          <>
+                            <p>{t('workspace.rootLoadFailed')}</p>
+                            <button type="button" onClick={() => void changes.refetch()} className="rounded-md border border-border px-3 py-1 text-xs hover:bg-accent">
+                              {t('workspace.retry')}
+                            </button>
+                          </>
+                        )
+                      : drawerOwnsBrowser && issueRoot !== undefined
+                        ? (
+                            <>
+                              <p>{t('workspace.browserInDrawer')}</p>
+                              <button type="button" onClick={bindFiles} className="rounded-md border border-border px-3 py-1 text-xs hover:bg-accent">
+                                {t('workspace.openHere')}
+                              </button>
+                            </>
+                          )
+                        : <p>{t('common.loading')}</p>}
+                  </div>
+                )}
           </div>
         )}
         {tabs.includes('review') && (

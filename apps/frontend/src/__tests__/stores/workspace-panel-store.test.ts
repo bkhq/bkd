@@ -107,4 +107,19 @@ describe('workspace-panel-store', () => {
     store().ensureWidth(640)
     expect(store().width).toBe(540)
   })
+
+  it('keeps the chat at its minimum: width caps at the viewport and re-clamps on resize', () => {
+    window.innerWidth = 1600
+    store().setWidth(2000)
+    expect(store().width).toBe(1600 - 56 - 300)
+
+    useWorkspacePanelStore.setState({ width: 640 })
+    window.innerWidth = 800
+    window.dispatchEvent(new Event('resize'))
+    expect(store().width).toBe(800 - 56 - 300)
+
+    window.innerWidth = 500
+    window.dispatchEvent(new Event('resize'))
+    expect(store().width).toBe(320)
+  })
 })

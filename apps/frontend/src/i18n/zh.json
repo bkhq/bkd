@@ -826,6 +826,10 @@
       "files": "浏览和编辑工作区中的文件",
       "review": "查看工作区的代码变更"
     },
-    "addTab": "打开标签页"
+    "addTab": "打开标签页",
+    "rootLoadFailed": "无法确定此任务的工作区目录。",
+    "retry": "重试",
+    "browserInDrawer": "文件管理器正在抽屉中打开。",
+    "openHere": "在此处打开"
   }
 }

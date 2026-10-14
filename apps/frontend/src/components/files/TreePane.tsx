@@ -13,7 +13,9 @@ export function TreePane({ children, fill }: { children: ReactNode, fill?: boole
   const setWidth = useTreePaneStore(s => s.setWidth)
   if (fill) return <aside className="flex min-w-0 flex-1 flex-col">{children}</aside>
   return (
-    <aside className="relative shrink-0 border-r border-border/60" style={{ width }}>
+    // Capped to the panel so a wide tree in a narrow panel cannot squeeze the
+    // content (and its header buttons) to nothing
+    <aside className="relative shrink-0 border-r border-border/60" style={{ width, maxWidth: '60%' }}>
       {children}
       <ResizeHandle
         edge="right"

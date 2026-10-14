@@ -275,14 +275,14 @@ export function FileBrowserContent({
       { root: effectiveRoot, path },
       {
         onSuccess: () => {
-          clearDraft(path)
+          useFileBrowserStore.getState().clearDraftsUnder(effectiveRoot, path)
           // Leave the deleted file, or anything inside the deleted directory
           if (currentPath === path || currentPath.startsWith(`${path}/`)) navigateTo(parentDir(path))
         },
       },
     )
     setDeleteTarget(null)
-  }, [effectiveRoot, deleteTarget, deleteFileMutation, clearDraft, currentPath, navigateTo])
+  }, [effectiveRoot, deleteTarget, deleteFileMutation, currentPath, navigateTo])
 
   /**
    * The file actions, shared by the header "..." menu and the tree's
