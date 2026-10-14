@@ -14,6 +14,7 @@ import {
   issues as issuesTable,
   projects as projectsTable,
 } from '@/db/schema'
+import { issueEngine } from '@/engines/issue'
 import { removeWorktree, resolveWorktreePath, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
@@ -329,11 +330,17 @@ async function getProjectRepoDirs(projectIds: string[]): Promise<Map<string, str
 }
 
 async function cleanupDeletedIssues(): Promise<{ cleaned: number }> {
-  // Find all soft-deleted issues
-  const deletedIssues = await db
+  // Find all soft-deleted issues. Delete terminates best-effort, so one may
+  // still run: keep its row and worktree (removing the directory would pull
+  // it out from under the process) for auto-cleanup to reclaim after it exits.
+  const softDeleted = await db
     .select({ id: issuesTable.id, projectId: issuesTable.projectId })
     .from(issuesTable)
     .where(eq(issuesTable.isDeleted, 1))
+  const deletedIssues = softDeleted.filter(i => !issueEngine.hasActiveProcessForIssue(i.id))
+  const projectsWithLiveIssues = new Set(
+    softDeleted.filter(i => !deletedIssues.includes(i)).map(i => i.projectId),
+  )
 
   // Remove worktrees while the project rows still exist: once the issue rows
   // are gone, nothing can match these worktrees to their repository again.
@@ -367,8 +374,8 @@ async function cleanupDeletedIssues(): Promise<{ cleaned: number }> {
     cleaned += batch.length
   }
 
-  // Hard-delete soft-deleted projects
-  const projectIds = deletedProjects.map(p => p.id)
+  // Hard-delete soft-deleted projects, except those still owning a kept issue
+  const projectIds = deletedProjects.map(p => p.id).filter(id => !projectsWithLiveIssues.has(id))
   for (let i = 0; i < projectIds.length; i += BATCH) {
     const batch = projectIds.slice(i, i + BATCH)
     await db.delete(projectsTable).where(inArray(projectsTable.id, batch))

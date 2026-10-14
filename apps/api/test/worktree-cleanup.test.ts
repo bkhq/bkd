@@ -165,6 +165,23 @@ describe('settings cleanup', () => {
     expect(await isWorktreeRegistered(gitRoot, path)).toBe(false)
   })
 
+  test('hard-deleting keeps a deleted issue whose process is still alive', async () => {
+    // A failed terminate on delete leaves a live process; its worktree and row
+    // must survive so auto-cleanup can still match them once it exits
+    const { id, path } = await createWorktreeIssue()
+    await softDelete(id)
+    const live = spyOn(issueEngine, 'hasActiveProcessForIssue').mockImplementation(issueId => issueId === id)
+    try {
+      expectSuccess(await post('/api/settings/cleanup', { targets: ['deletedIssues'] }))
+    } finally {
+      live.mockRestore()
+    }
+
+    expect(existsSync(path)).toBe(true)
+    const [row] = await db.select({ id: issuesTable.id }).from(issuesTable).where(eq(issuesTable.id, id))
+    expect(row?.id).toBe(id)
+  })
+
   test('manual worktree removal deregisters from the owning project repo', async () => {
     const { id, path } = await createWorktreeIssue()
     await softDelete(id)
