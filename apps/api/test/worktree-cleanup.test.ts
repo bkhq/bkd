@@ -182,6 +182,25 @@ describe('settings cleanup', () => {
     expect(row?.id).toBe(id)
   })
 
+  test('an issue restored while cleanup runs is not hard-deleted', async () => {
+    // The restore lands after cleanup has listed the deleted issues (here,
+    // during its liveness check), before the destructive phase
+    const { id } = await createWorktreeIssue()
+    await softDelete(id)
+    const restoreMidway = spyOn(issueEngine, 'hasActiveProcessForIssue').mockImplementation((issueId) => {
+      if (issueId === id) db.update(issuesTable).set({ isDeleted: 0 }).where(eq(issuesTable.id, id)).run()
+      return false
+    })
+    try {
+      expectSuccess(await post('/api/settings/cleanup', { targets: ['deletedIssues'] }))
+    } finally {
+      restoreMidway.mockRestore()
+    }
+
+    const [row] = await db.select({ id: issuesTable.id, isDeleted: issuesTable.isDeleted }).from(issuesTable).where(eq(issuesTable.id, id))
+    expect(row).toEqual({ id, isDeleted: 0 })
+  })
+
   test('manual worktree removal deregisters from the owning project repo', async () => {
     const { id, path } = await createWorktreeIssue()
     await softDelete(id)

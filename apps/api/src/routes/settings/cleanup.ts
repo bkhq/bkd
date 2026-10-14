@@ -360,27 +360,48 @@ async function cleanupDeletedIssues(): Promise<{ cleaned: number }> {
     .where(eq(projectsTable.isDeleted, 1))
 
   let cleaned = 0
-
-  // Hard-delete in batches (issues + related data)
   const BATCH = 500
   const issueIds = deletedIssues.map(i => i.id)
-  for (let i = 0; i < issueIds.length; i += BATCH) {
-    const batch = issueIds.slice(i, i + BATCH)
-    // Delete related data first (FK order)
-    await db.delete(issuesLogsToolsCall).where(inArray(issuesLogsToolsCall.issueId, batch))
-    await db.delete(attachments).where(inArray(attachments.issueId, batch))
-    await db.delete(issueLogs).where(inArray(issueLogs.issueId, batch))
-    await db.delete(issuesTable).where(inArray(issuesTable.id, batch))
-    cleaned += batch.length
-  }
-
-  // Hard-delete soft-deleted projects, except those still owning a kept issue
   const projectIds = deletedProjects.map(p => p.id).filter(id => !projectsWithLiveIssues.has(id))
-  for (let i = 0; i < projectIds.length; i += BATCH) {
-    const batch = projectIds.slice(i, i + BATCH)
-    await db.delete(projectsTable).where(inArray(projectsTable.id, batch))
-    cleaned += batch.length
-  }
+
+  // The worktree removal above is awaited, so a recycle-bin restore can land
+  // in between. Re-check what is still deleted inside one synchronous
+  // transaction (nothing interleaves with it), so a restored issue — or a
+  // project that still owns issues — is never hard-deleted.
+  db.transaction((tx) => {
+    for (let i = 0; i < issueIds.length; i += BATCH) {
+      const batch = tx
+        .select({ id: issuesTable.id })
+        .from(issuesTable)
+        .where(and(inArray(issuesTable.id, issueIds.slice(i, i + BATCH)), eq(issuesTable.isDeleted, 1)))
+        .all()
+        .map(r => r.id)
+      if (batch.length === 0) continue
+      // Delete related data first (FK order)
+      tx.delete(issuesLogsToolsCall).where(inArray(issuesLogsToolsCall.issueId, batch)).run()
+      tx.delete(attachments).where(inArray(attachments.issueId, batch)).run()
+      tx.delete(issueLogs).where(inArray(issueLogs.issueId, batch)).run()
+      tx.delete(issuesTable).where(inArray(issuesTable.id, batch)).run()
+      cleaned += batch.length
+    }
+
+    for (let i = 0; i < projectIds.length; i += BATCH) {
+      const slice = projectIds.slice(i, i + BATCH)
+      const owning = new Set(
+        tx.select({ projectId: issuesTable.projectId }).from(issuesTable).where(inArray(issuesTable.projectId, slice)).all().map(r => r.projectId),
+      )
+      const batch = tx
+        .select({ id: projectsTable.id })
+        .from(projectsTable)
+        .where(and(inArray(projectsTable.id, slice), eq(projectsTable.isDeleted, 1)))
+        .all()
+        .map(r => r.id)
+        .filter(id => !owning.has(id))
+      if (batch.length === 0) continue
+      tx.delete(projectsTable).where(inArray(projectsTable.id, batch)).run()
+      cleaned += batch.length
+    }
+  })
 
   if (cleaned > 0) {
     db.run(sql`VACUUM`)
