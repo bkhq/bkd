@@ -39,6 +39,22 @@ describe('buildTurns', () => {
     expect(turn.replyText).toBe('ts const a = 1 Done.')
   })
 
+  it('skips queued, done and system user rows, like the server turn list', () => {
+    const withMeta = (id: string, metadata: Record<string, unknown>): ChatMessage => {
+      const message = user(id, id) as Extract<ChatMessage, { type: 'user' }>
+      return { ...message, entry: { ...message.entry, metadata } } as ChatMessage
+    }
+    const turns = buildTurns([
+      user('u1', 'Real question'),
+      withMeta('q1', { type: 'pending' }),
+      withMeta('d1', { type: 'done' }),
+      withMeta('s1', { type: 'system' }),
+      withMeta('sub1', { subagent: { id: 'x' } }),
+      user('u2', 'Second question'),
+    ])
+    expect(turns.map(t => t.messageId)).toEqual(['u1', 'u2'])
+  })
+
   it('caps long text', () => {
     const [turn] = buildTurns([user('u1', 'x'.repeat(1000))])
     expect(turn.userText.length).toBeLessThanOrEqual(300)

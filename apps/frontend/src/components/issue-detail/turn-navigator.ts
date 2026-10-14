@@ -23,11 +23,20 @@ function toPreviewText(markdown: string): string {
     .slice(0, MAX_TEXT_LENGTH)
 }
 
+/** User rows that are not conversation turns; the server turn list skips the same ones. */
+const NON_TURN_TYPES = new Set(['system', 'pending', 'done'])
+
+function isTurnMessage(message: Extract<ChatMessage, { type: 'user' }>): boolean {
+  const meta = message.entry.metadata
+  return !meta?.subagent && !NON_TURN_TYPES.has(String(meta?.type ?? ''))
+}
+
 /** One turn per user message, previewed with the first agent reply after it. */
 export function buildTurns(messages: ChatMessage[]): ChatTurn[] {
   const turns: ChatTurn[] = []
   messages.forEach((message, index) => {
     if (message.type === 'user') {
+      if (!isTurnMessage(message)) return
       turns.push({
         index,
         messageId: message.entry.messageId ?? message.id,
