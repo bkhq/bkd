@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { eventBus } from '@/lib/event-bus'
 import { kanbanApi } from '@/lib/kanban-api'
 import { STALE_TIME } from '@/lib/query-config'
 import { useBoardStore } from '@/stores/board-store'
@@ -220,12 +222,35 @@ export function useIssue(projectId: string, issueId: string) {
 }
 
 export function useIssueChanges(projectId: string, issueId: string, enabled = true) {
-  return useQuery({
+  const query = useQuery({
     queryKey: queryKeys.issueChanges(projectId, issueId),
     queryFn: () => kanbanApi.getIssueChanges(projectId, issueId),
     enabled: !!projectId && !!issueId && enabled,
     staleTime: STALE_TIME.STANDARD,
   })
+
+  // A worktree issue has no worktree before its first run (or after cleanup);
+  // the run creates it, so look again once the issue's process reports in
+  const worktreeMissing = !!query.data?.worktreeMissing
+  const { refetch } = query
+  useEffect(() => {
+    if (!worktreeMissing || !issueId) return
+    let sawLog = false
+    const refresh = () => void refetch()
+    return eventBus.subscribe(issueId, {
+      onLog: () => {
+        if (sawLog) return
+        sawLog = true
+        refresh()
+      },
+      onLogUpdated: () => {},
+      onLogRemoved: () => {},
+      onState: refresh,
+      onDone: refresh,
+    })
+  }, [worktreeMissing, issueId, refetch])
+
+  return query
 }
 
 /**

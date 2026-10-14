@@ -165,8 +165,9 @@ changes.openapi(R.getIssueChanges, async (c) => {
     }, 200 as const)
   }
   const root = await resolveIssueDir(project.id, issueId, issue.useWorktree, projectRoot)
-  // resolveIssueDir falls back to the project root when the worktree is gone;
-  // say so, or clients would take the main checkout for the issue workspace
+  // resolveIssueDir falls back to the project root when the worktree does not
+  // exist (not created yet, or cleaned up); say so, or clients would take the
+  // main checkout for the issue workspace
   const worktreeMissing = issue.useWorktree && root === projectRoot ? true : undefined
   const gitRepo = await isGitRepo(root)
   // The main checkout's changes are not the issue's: report none

@@ -410,7 +410,7 @@ export interface IssueChangedFile {
 export interface IssueChangesResponse {
   /** Absent when the project has no directory configured. */
   root?: string
-  /** The issue uses a worktree that no longer exists; `root` is then the project root. */
+  /** The issue runs in a worktree that does not exist now (not created yet, or cleaned up; its next run creates it). `root` is then the project root. */
   worktreeMissing?: boolean
   gitRepo: boolean
   files: IssueChangedFile[]

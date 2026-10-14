@@ -78,8 +78,9 @@ export function WorkspacePanel({
   // than fall back to the project directory, which for a worktree issue is the
   // main checkout. null means the project has no directory at all.
   const changes = useIssueChanges(projectId, issueId)
-  // A worktree issue whose worktree is gone gets the project root back: never
-  // treat that as its workspace (the browser would edit the main checkout)
+  // A worktree issue with no worktree (not created yet, or cleaned up) gets the
+  // project root back: never treat that as its workspace (the browser would
+  // edit the main checkout)
   const worktreeMissing = !!changes.data?.worktreeMissing
   const issueRoot = changes.data && !worktreeMissing ? (changes.data.root ?? null) : undefined
   const fileCount = useFileBrowserEntryCount()

@@ -238,7 +238,7 @@
     "noMatchingFiles": "没有匹配的文件",
     "fileTree": "文件树",
     "filterFiles": "筛选文件…",
-    "worktreeMissing": "此任务的 worktree 已不存在，无法显示它的变更。"
+    "worktreeMissing": "此任务的 worktree 尚未创建或已被清理，暂无可显示的变更。运行任务时会自动创建。"
   },
   "session": {
     "connected": "已连接",
@@ -832,6 +832,6 @@
     "retry": "重试",
     "browserInDrawer": "文件管理器正在抽屉中打开。",
     "openHere": "在此处打开",
-    "worktreeMissing": "此任务的 worktree 已不存在。为避免误改主工作区，文件管理器在此不可用。"
+    "worktreeMissing": "此任务的 worktree 尚未创建或已被清理，运行任务时会自动创建。在此之前文件管理器不可用，以免误改主工作区。"
   }
 }

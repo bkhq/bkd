@@ -88,6 +88,6 @@ describe('review tab with a missing worktree', () => {
   it('explains instead of listing changes', () => {
     renderChanges()
     expect(screen.queryByText('src/a.ts')).not.toBeInTheDocument()
-    expect(screen.getByText(/worktree no longer exists/)).toBeInTheDocument()
+    expect(screen.getByText(/has no worktree yet, or it was cleaned up/)).toBeInTheDocument()
   })
 })

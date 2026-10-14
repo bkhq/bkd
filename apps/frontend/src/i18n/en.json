@@ -239,7 +239,7 @@
     "noMatchingFiles": "No matching files",
     "fileTree": "File tree",
     "filterFiles": "Filter files…",
-    "worktreeMissing": "This issue's worktree no longer exists, so its changes cannot be shown."
+    "worktreeMissing": "This issue has no worktree yet, or it was cleaned up, so there are no changes to show. Running the issue creates it."
   },
   "session": {
     "connected": "Connected",
@@ -833,6 +833,6 @@
     "retry": "Retry",
     "browserInDrawer": "The file browser is open in the drawer.",
     "openHere": "Open here",
-    "worktreeMissing": "This issue's worktree no longer exists. The file browser is unavailable here so the main checkout is not edited by mistake."
+    "worktreeMissing": "This issue has no worktree yet, or it was cleaned up. Running the issue creates it; until then the file browser stays unavailable so the main checkout is not edited by mistake."
   }
 }
