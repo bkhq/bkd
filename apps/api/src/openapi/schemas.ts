@@ -8,6 +8,9 @@
  * Convention: every schema that appears in the generated spec
  * must call `.openapi('SchemaName')` so it gets a $ref.
  */
+// Patches `.openapi()` onto zod; without it, whichever module loads this file
+// first (e.g. a test importing db helpers) hits an undefined method.
+import '@hono/zod-openapi'
 import * as z from 'zod'
 
 // ── Common helpers ─────────────────────────────────────
@@ -267,6 +270,15 @@ export const IssueLogsResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 }).openapi('IssueLogsResponse')
 
+export const IssueTurnsResponseSchema = z.object({
+  turns: z.array(z.object({
+    messageId: z.string(),
+    userText: z.string(),
+    replyText: z.string(),
+    entriesSince: z.number().int(),
+  })),
+}).openapi('IssueTurnsResponse')
+
 export const IssueChangedFileSchema = z.object({
   path: z.string(),
   status: z.string(),
@@ -282,6 +294,9 @@ export const IssueChangedFileSchema = z.object({
 export const IssueChangesResponseSchema = z.object({
   // Absent when the project has no directory configured.
   root: z.string().optional(),
+  // The issue runs in a worktree that does not exist now (not created yet, or
+  // cleaned up; its next run creates it). `root` is then the project root.
+  worktreeMissing: z.boolean().optional(),
   gitRepo: z.boolean(),
   files: z.array(IssueChangedFileSchema),
   additions: z.number().int(),

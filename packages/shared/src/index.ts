@@ -380,6 +380,19 @@ export interface IssueLogsResponse {
   nextCursor: string | null
 }
 
+/** One chat turn: a user message and the start of the first reply after it. */
+export interface IssueTurnSummary {
+  messageId: string
+  userText: string
+  replyText: string
+  /** Visible log entries from this turn's message to the newest one */
+  entriesSince: number
+}
+
+export interface IssueTurnsResponse {
+  turns: IssueTurnSummary[]
+}
+
 export interface IssueChangedFile {
   path: string
   status: string
@@ -397,6 +410,8 @@ export interface IssueChangedFile {
 export interface IssueChangesResponse {
   /** Absent when the project has no directory configured. */
   root?: string
+  /** The issue runs in a worktree that does not exist now (not created yet, or cleaned up; its next run creates it). `root` is then the project root. */
+  worktreeMissing?: boolean
   gitRepo: boolean
   files: IssueChangedFile[]
   additions: number
@@ -606,6 +621,8 @@ export interface FileContent {
   size: number
   isTruncated: boolean
   isBinary: boolean
+  /** mtime (ISO) of the version returned; send it back to save without clobbering. */
+  modifiedAt: string
 }
 
 export type FileListingResult = DirectoryListing | FileContent

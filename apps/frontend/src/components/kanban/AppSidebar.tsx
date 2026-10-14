@@ -202,19 +202,19 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
   )
 
   return (
-    <div className="flex flex-col items-center h-full w-14 py-3 gap-1 bg-sidebar border-r border-sidebar-border shrink-0">
-      {/* Home */}
-      <button
-        type="button"
-        className="flex items-center justify-center w-9 h-9 rounded-lg cursor-pointer focus:outline-none"
-        aria-label={t('sidebar.home')}
-        title={t('sidebar.home')}
-        onClick={() => navigate('/')}
-      >
-        <AppLogo className="h-9 w-9" />
-      </button>
-
-      <Separator className="mx-2 my-1 w-8" />
+    <div className="flex flex-col items-center h-full w-14 pb-3 gap-1 bg-sidebar border-r border-sidebar-border shrink-0">
+      {/* Home — same height and bottom border as the page headers next to it, so the lines meet */}
+      <div className="flex h-[49px] w-full shrink-0 items-center justify-center border-b border-border/60">
+        <button
+          type="button"
+          className="flex items-center justify-center w-9 h-9 rounded-lg cursor-pointer focus:outline-none"
+          aria-label={t('sidebar.home')}
+          title={t('sidebar.home')}
+          onClick={() => navigate('/')}
+        >
+          <AppLogo className="h-9 w-9" />
+        </button>
+      </div>
 
       {/* Project list */}
       <div

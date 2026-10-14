@@ -151,6 +151,14 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261012-1926-failed-tool-result-error-box Keep failed tool results inside their tool call**](20261012-1926-failed-tool-result-error-box.md) `P2`
 - [x] [**20261012-2028-chat-heading-size-and-agent-bg Flatten chat Markdown headings and give agent messages a background**](20261012-2028-chat-heading-size-and-agent-bg.md) `P2`
 - [x] [**20261013-0155-agent-message-card-style Style agent messages as a card matching user messages**](20261013-0155-agent-message-card-style.md) `P2`
+- [x] [**20261013-0244-worktree-cleanup-on-delete Clean up worktrees of deleted issues and stop cleanup stats from timing out**](20261013-0244-worktree-cleanup-on-delete.md) `P1`
+- [x] [**20261013-0538-files-upload-test-poisons-suite Stop api-files-upload.test.ts from breaking every later API test**](20261013-0538-files-upload-test-poisons-suite.md) `P1`
+- [ ] [**20261013-0538-spawn-leak-tests-order-dependent Fix engine-spawn-leak concurrency tests that time out in the full suite**](20261013-0538-spawn-leak-tests-order-dependent.md) `P2`
+- [ ] [**20261013-0538-bkd-log-rotation Rotate data/logs/bkd.log and keep data/ out of ESLint**](20261013-0538-bkd-log-rotation.md) `P1`
+- [x] [**20261013-0540-chat-turn-navigator Add a turn navigator rail with hover previews to the chat area**](20261013-0540-chat-turn-navigator.md) `P2`
+- [x] [**20261013-0553-turn-navigator-full-history Show every turn in the chat turn navigator, including unloaded history**](20261013-0553-turn-navigator-full-history.md) `P2`
+- [ ] [**20261013-0614-incremental-chat-messages Rebuild chat messages incrementally instead of on every log change**](20261013-0614-incremental-chat-messages.md) `P2`
+- [-] [**20261013-0726-workspace-side-panel Merge the diff and file panels into one tabbed workspace side panel**](20261013-0726-workspace-side-panel.md) `P2`
 - [x] [**20261013-1706-tickets Add tickets for decisions and user feedback**](20261013-1706-tickets.md) `P1`
 - [x] [**20261013-1950-engine-protocol-drift Fix Claude and Codex wire-protocol drift**](20261013-1950-engine-protocol-drift.md) `P1`
 - [x] [**20261013-2004-tool-panel-lazy-render Stop rendering collapsed tool calls, keep Markdown for agent messages only**](20261013-2004-tool-panel-lazy-render.md) `P1`

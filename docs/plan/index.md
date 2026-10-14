@@ -67,6 +67,9 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261011-0213-codex-failure-visibility Surface Codex turn failures and stop stall probes from ending Codex turns**](20261011-0213-codex-failure-visibility.md) `2026-10-11`
 - [x] [**20261012-1547-lode-update-check Check for updates on demand and soften retried-error styling**](20261012-1547-lode-update-check.md) `2026-10-12`
 - [x] [**20261012-2207-chat-message-layout Flatten chat headings, add an agent message surface, restore message actions**](20261012-2207-chat-message-layout.md) `2026-10-12`
+- [x] [**20261013-0244-worktree-cleanup-on-delete Clean up worktrees of deleted issues and stop cleanup stats from timing out**](20261013-0244-worktree-cleanup-on-delete.md) `2026-10-13`
+- [x] [**20261013-0540-chat-turn-navigator Add a turn navigator rail with hover previews to the chat area**](20261013-0540-chat-turn-navigator.md) `2026-10-13`
+- [x] [**20261013-0553-turn-navigator-full-history Show every turn in the chat turn navigator, including unloaded history**](20261013-0553-turn-navigator-full-history.md) `2026-10-13`
 - [x] [**20261013-1706-tickets Add tickets for decisions and user feedback**](20261013-1706-tickets.md) `2026-10-13`
 - [x] [**20261013-1950-engine-protocol-drift Fix Claude and Codex wire-protocol drift**](20261013-1950-engine-protocol-drift.md) `2026-10-13`
 - [x] [**20261013-2005-decision-capability-probe Add a decision-events capability probe and drop the bundled skill**](20261013-2005-decision-capability-probe.md) `2026-10-13`

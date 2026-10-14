@@ -87,7 +87,11 @@ export const SystemInfoSchema = z.object({
   server: z.object({ name: z.string().nullable(), url: z.string().nullable() }),
   process: z.object({ pid: z.number() }),
 })
-export const SaveFileSchema = z.object({ content: z.string().refine(value => Buffer.byteLength(value, 'utf8') <= 5 * 1024 * 1024, 'Content exceeds maximum size of 5 MB') })
+export const SaveFileSchema = z.object({
+  content: z.string().refine(value => Buffer.byteLength(value, 'utf8') <= 5 * 1024 * 1024, 'Content exceeds maximum size of 5 MB'),
+  /** `modifiedAt` of the version the edit started from; a mismatch on disk is a 409. Omit to overwrite. */
+  expectedModifiedAt: z.string().optional(),
+})
 export const SavedFileSchema = z.object({ size: z.number(), modifiedAt: z.string() })
 export const UploadedFilesSchema = z.object({ uploaded: z.array(z.object({ name: z.string(), size: z.number() })) })
 export const FileListingSchema = z.union([
@@ -98,6 +102,7 @@ export const FileListingSchema = z.union([
     size: z.number(),
     isTruncated: z.boolean(),
     isBinary: z.boolean(),
+    modifiedAt: z.string(),
   }),
   z.object({
     path: z.string(),

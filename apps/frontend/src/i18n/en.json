@@ -227,7 +227,19 @@
     "oversizedBannerTitle": "Large files detected — review before committing",
     "oversizedBannerHint": "Consider adding these files to .gitignore to avoid bloating the repository.",
     "timedOut": "Git operation timed out. The repository may contain very large files or the disk is slow. Try again later.",
-    "resizePanel": "Resize diff panel"
+    "viewOptions": "View options",
+    "view": "View",
+    "stacked": "Stacked",
+    "split": "Split",
+    "wordWrap": "Wrap lines",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "jumpToFile": "Jump to file",
+    "jumpPlaceholder": "Jump to file…",
+    "noMatchingFiles": "No matching files",
+    "fileTree": "File tree",
+    "filterFiles": "Filter files…",
+    "worktreeMissing": "This issue has no worktree yet, or it was cleaned up, so there are no changes to show. Running the issue creates it."
   },
   "session": {
     "connected": "Connected",
@@ -239,6 +251,11 @@
     "cancellingBtn": "Cancelling...",
     "loadMore": "Load earlier messages",
     "scrollToTop": "Scroll to top",
+    "turnNavigator": "Conversation turns",
+    "jumpToTurn": "Jump to turn {{n}}",
+    "loadHistoryTitle": "Load earlier history?",
+    "loadHistoryDescription": "Jumping to this turn loads about {{count}} earlier log entries. Long histories can slow down the chat.",
+    "loadHistoryConfirm": "Load and jump",
     "scrollToBottom": "Scroll to bottom",
     "executionFailed": "Execution failed",
     "errorKind": {
@@ -470,7 +487,7 @@
     "virtualEngineModelPlaceholder": "fallback model (optional, used if discovery fails)",
     "virtualEngineEnvPlaceholder": "EXTRA_VAR=value\n# one KEY=VALUE per line",
     "worktreeAutoCleanup": "Auto-cleanup worktrees",
-    "worktreeAutoCleanupHint": "Automatically remove worktrees for issues that have been done for more than 1 day",
+    "worktreeAutoCleanupHint": "Automatically remove worktrees for issues that have been done or deleted for more than 1 day",
     "upgradeAvailable": "New version available: v{{version}}",
     "supervisedMode": "Supervised",
     "upgradeStatusLabel": "Supervisor status",
@@ -645,7 +662,29 @@
     "dropToUpload": "Drop files to upload here",
     "uploadConflictTitle": "Replace existing files",
     "uploadConflictDesc": "Already in this directory: {{names}}. Replace with the uploaded files?",
-    "replace": "Replace"
+    "replace": "Replace",
+    "fileTree": "File tree",
+    "copyRelativePath": "Copy relative path",
+    "pathCopied": "Path copied",
+    "resizeTree": "Resize file tree",
+    "copied": "Copied",
+    "saveFile": "Save file",
+    "fileActions": "File actions",
+    "copyContent": "Copy file contents",
+    "discardAndReload": "Discard changes and reload",
+    "wordWrap": "Wrap lines",
+    "selectFile": "Select a file in the tree to view or edit it",
+    "unsavedTitle": "Discard unsaved changes?",
+    "unsavedDesc": "\"{{name}}\" has unsaved changes that will be lost if you leave.",
+    "discard": "Discard changes",
+    "truncatedReadOnly": "This file is too large and only partly shown, so it is read-only.",
+    "refresh": "Refresh",
+    "collapseAll": "Collapse all",
+    "changedOnDisk": "Changed on disk",
+    "saveConflictTitle": "File changed on disk",
+    "saveConflictDesc": "\"{{name}}\" was modified on disk after you opened it (usually by an agent). Overwriting discards those changes.",
+    "reloadFromDisk": "Reload from disk",
+    "overwrite": "Overwrite"
   },
   "processManager": {
     "title": "Processes",
@@ -771,5 +810,29 @@
     "closeReasonPlaceholder": "Reason (optional)",
     "campaign": "Campaign",
     "allCampaigns": "All campaigns"
+  },
+  "workspace": {
+    "files": "Files",
+    "review": "Review",
+    "closeTab": "Close {{name}} tab",
+    "showPanel": "Show side panel",
+    "hidePanel": "Hide side panel",
+    "resizePanel": "Resize side panel",
+    "maximizePanel": "Maximize workspace",
+    "restorePanel": "Restore workspace",
+    "open": {
+      "files": "Open workspace files",
+      "review": "Open review"
+    },
+    "openHint": {
+      "files": "Browse and edit files in the workspace",
+      "review": "See the code changes in the workspace"
+    },
+    "addTab": "Open a tab",
+    "rootLoadFailed": "Couldn't resolve this issue's workspace.",
+    "retry": "Retry",
+    "browserInDrawer": "The file browser is open in the drawer.",
+    "openHere": "Open here",
+    "worktreeMissing": "This issue has no worktree yet, or it was cleaned up. Running the issue creates it; until then the file browser stays unavailable so the main checkout is not edited by mistake."
   }
 }

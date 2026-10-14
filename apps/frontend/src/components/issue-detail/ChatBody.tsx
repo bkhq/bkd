@@ -17,6 +17,7 @@ import {
   useCancelIssue,
   useDeleteIssue,
   useGlobalSlashCommands,
+  useIssueTurns,
   useSlashCommands,
   useUpdateIssue,
 } from '@/hooks/use-kanban'
@@ -87,6 +88,7 @@ export function useSessionState(
     hasOlderLogs,
     isLoadingOlder,
     loadOlderLogs,
+    loadOlderUntil,
     refreshLogs,
     removeEntries,
     appendServerMessage,
@@ -128,6 +130,7 @@ export function useSessionState(
     hasOlderLogs,
     isLoadingOlder,
     loadOlderLogs,
+    loadOlderUntil,
     refreshLogs,
     removeEntries,
     appendServerMessage,
@@ -142,6 +145,7 @@ export function ChatBody({
   issue,
   showDiff,
   onToggleDiff,
+  onToggleFiles,
   scrollRef: externalScrollRef,
   onAfterDelete,
 }: {
@@ -150,6 +154,7 @@ export function ChatBody({
   issue: Issue
   showDiff: boolean
   onToggleDiff: () => void
+  onToggleFiles?: () => void
   scrollRef?: React.RefObject<HTMLDivElement | null>
   onAfterDelete?: () => void
 }) {
@@ -163,6 +168,7 @@ export function ChatBody({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [pendingEditContent, setPendingEditContent] = useState<string | null>(null)
+  const [navigatorContainer, setNavigatorContainer] = useState<HTMLDivElement | null>(null)
 
   const handleDelete = useCallback(() => {
     setDeleteDialogOpen(true)
@@ -194,10 +200,12 @@ export function ChatBody({
     hasOlderLogs,
     isLoadingOlder,
     loadOlderLogs,
+    loadOlderUntil,
     refreshLogs,
     removeEntries,
     appendServerMessage,
   } = useSessionState(projectId, issueId, issue)
+  const { data: issueTurns } = useIssueTurns(projectId, issueId, hasOlderLogs)
 
   // Always fetch pending messages independently of stream state
   const { data: serverPendingMessages } = usePendingMessages(projectId, issueId)
@@ -283,7 +291,7 @@ export function ChatBody({
   return (
     <>
       {/* Messages */}
-      <div className="relative flex-1 overflow-hidden">
+      <div ref={setNavigatorContainer} className="relative flex-1 overflow-hidden">
         <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden">
           <div className="flex flex-col min-h-full justify-end py-2">
             <Suspense
@@ -307,6 +315,9 @@ export function ChatBody({
                 hasOlderLogs={hasOlderLogs}
                 isLoadingOlder={isLoadingOlder}
                 onLoadOlder={loadOlderLogs}
+                navigatorContainer={navigatorContainer}
+                serverTurns={issueTurns?.turns}
+                loadOlderUntil={loadOlderUntil}
               />
             </Suspense>
           </div>
@@ -393,6 +404,7 @@ export function ChatBody({
         issueId={issueId}
         diffOpen={showDiff}
         onToggleDiff={onToggleDiff}
+        onToggleFiles={onToggleFiles}
         scrollRef={scrollRef}
         engineType={issue.engineProfileId ?? issue.engineType ?? undefined}
         model={issue.model ?? undefined}

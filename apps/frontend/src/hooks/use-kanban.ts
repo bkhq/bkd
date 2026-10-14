@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { eventBus } from '@/lib/event-bus'
 import { kanbanApi } from '@/lib/kanban-api'
 import { STALE_TIME } from '@/lib/query-config'
 import { useBoardStore } from '@/stores/board-store'
@@ -21,6 +23,8 @@ export const queryKeys = {
     ['projects', projectId, 'issues', issueId] as const,
   issueChanges: (projectId: string, issueId: string) =>
     ['projects', projectId, 'issues', issueId, 'changes'] as const,
+  issueTurns: (projectId: string, issueId: string) =>
+    ['projects', projectId, 'issues', issueId, 'turns'] as const,
   issueFilePatch: (projectId: string, issueId: string, path: string) =>
     ['projects', projectId, 'issues', issueId, 'changes', 'file', path] as const,
   slashCommands: (projectId: string, issueId: string) =>
@@ -218,9 +222,45 @@ export function useIssue(projectId: string, issueId: string) {
 }
 
 export function useIssueChanges(projectId: string, issueId: string, enabled = true) {
-  return useQuery({
+  const query = useQuery({
     queryKey: queryKeys.issueChanges(projectId, issueId),
     queryFn: () => kanbanApi.getIssueChanges(projectId, issueId),
+    enabled: !!projectId && !!issueId && enabled,
+    staleTime: STALE_TIME.STANDARD,
+  })
+
+  // A worktree issue has no worktree before its first run (or after cleanup);
+  // the run creates it, so look again once the issue's process reports in
+  const worktreeMissing = !!query.data?.worktreeMissing
+  const { refetch } = query
+  useEffect(() => {
+    if (!worktreeMissing || !issueId) return
+    let sawLog = false
+    const refresh = () => void refetch()
+    return eventBus.subscribe(issueId, {
+      onLog: () => {
+        if (sawLog) return
+        sawLog = true
+        refresh()
+      },
+      onLogUpdated: () => {},
+      onLogRemoved: () => {},
+      onState: refresh,
+      onDone: refresh,
+    })
+  }, [worktreeMissing, issueId, refetch])
+
+  return query
+}
+
+/**
+ * Turn summaries for the chat turn navigator. Only history that is not
+ * loaded needs them, so callers enable this while older logs exist.
+ */
+export function useIssueTurns(projectId: string, issueId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.issueTurns(projectId, issueId),
+    queryFn: () => kanbanApi.getIssueTurns(projectId, issueId),
     enabled: !!projectId && !!issueId && enabled,
     staleTime: STALE_TIME.STANDARD,
   })
@@ -963,8 +1003,8 @@ export function useDeleteFile() {
 export function useSaveFile() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ root, path, content }: { root: string, path: string, content: string }) =>
-      kanbanApi.saveFile(root, path, content),
+    mutationFn: ({ root, path, content, expectedModifiedAt }: { root: string, path: string, content: string, expectedModifiedAt?: string }) =>
+      kanbanApi.saveFile(root, path, content, expectedModifiedAt),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files'] })
     },

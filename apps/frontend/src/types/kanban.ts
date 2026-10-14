@@ -33,6 +33,8 @@ export type {
   IssueChangesResponse,
   IssueFilePatchResponse,
   IssueLogsResponse,
+  IssueTurnsResponse,
+  IssueTurnSummary,
   LocalSession,
   LocalSessionListResponse,
   LocalSessionPreview,

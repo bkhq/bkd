@@ -165,11 +165,22 @@ changes.openapi(R.getIssueChanges, async (c) => {
     }, 200 as const)
   }
   const root = await resolveIssueDir(project.id, issueId, issue.useWorktree, projectRoot)
+  // resolveIssueDir falls back to the project root when the worktree does not
+  // exist (not created yet, or cleaned up); say so, or clients would take the
+  // main checkout for the issue workspace
+  const worktreeMissing = issue.useWorktree && root === projectRoot ? true : undefined
   const gitRepo = await isGitRepo(root)
+  // The main checkout's changes are not the issue's: report none
+  if (worktreeMissing) {
+    return c.json({
+      success: true as const,
+      data: { root, worktreeMissing, gitRepo, files: [], additions: 0, deletions: 0 },
+    }, 200 as const)
+  }
   if (!gitRepo) {
     return c.json({
       success: true as const,
-      data: { root, gitRepo: false, files: [], additions: 0, deletions: 0 },
+      data: { root, worktreeMissing, gitRepo: false, files: [], additions: 0, deletions: 0 },
     }, 200 as const)
   }
 
@@ -178,7 +189,7 @@ changes.openapi(R.getIssueChanges, async (c) => {
   if (timedOut) {
     return c.json({
       success: true as const,
-      data: { root, gitRepo: true, files: [], additions: 0, deletions: 0, timedOut: true },
+      data: { root, worktreeMissing, gitRepo: true, files: [], additions: 0, deletions: 0, timedOut: true },
     }, 200 as const)
   }
 
@@ -192,7 +203,7 @@ changes.openapi(R.getIssueChanges, async (c) => {
   const deletions = filesWithStats.reduce((sum, file) => sum + (file.deletions ?? 0), 0)
   return c.json({
     success: true as const,
-    data: { root, gitRepo: true, files: filesWithStats, additions, deletions },
+    data: { root, worktreeMissing, gitRepo: true, files: filesWithStats, additions, deletions },
   }, 200 as const)
 })
 
@@ -243,6 +254,13 @@ changes.openapi(createRoute({
     }, 200)
   }
   const root = await resolveIssueDir(project.id, issueId, issue.useWorktree, projectRoot)
+  // A missing worktree falls back to the main checkout, whose files are not the issue's
+  if (issue.useWorktree && root === projectRoot) {
+    return c.json({
+      success: true as const,
+      data: { path, patch: '', truncated: false },
+    }, 200)
+  }
 
   // SEC-019: Validate path is inside working directory on ALL code paths
   if (!isPathInsideRoot(root, path)) {

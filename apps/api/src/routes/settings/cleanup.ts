@@ -3,7 +3,7 @@ import { errorResponse, successResponse } from '@/openapi/schemas'
 import { createRoute } from '@hono/zod-openapi'
 import { existsSync } from 'node:fs'
 import { readdir, rm, stat } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import * as z from 'zod'
 import { db } from '@/db'
@@ -14,7 +14,8 @@ import {
   issues as issuesTable,
   projects as projectsTable,
 } from '@/db/schema'
-import { removeWorktree, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
+import { issueEngine } from '@/engines/issue'
+import { removeWorktree, resolveWorktreePath, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import { DATA_DIR } from '@/root'
@@ -210,11 +211,9 @@ async function scanCleanableWorktrees(): Promise<Array<{ projectDir: string, iss
 
 async function getWorktreesStats() {
   const cleanable = await scanCleanableWorktrees()
-  let totalSize = 0
-  for (const w of cleanable) {
-    totalSize += await getDirSize(w.path)
-  }
-  return { count: cleanable.length, totalSize }
+  // Sizing walks every file (node_modules, build output) and outran the
+  // client's request timeout, so only the count is reported.
+  return { count: cleanable.length, totalSize: 0 }
 }
 
 async function getDeletedIssuesStats() {
@@ -278,14 +277,27 @@ async function cleanupLogs(): Promise<{ cleaned: number }> {
 }
 
 async function cleanupWorktrees(): Promise<{ cleaned: number }> {
-  const cleanable = await scanCleanableWorktrees()
+  const cleaned = await removeWorktrees(await scanCleanableWorktrees())
+  logger.info({ cleaned }, 'cleanup_worktrees_done')
+  return { cleaned }
+}
+
+export async function removeWorktrees(
+  cleanable: Array<{ projectDir: string, issueId: string, path: string }>,
+  /** Checked right before each removal; false skips that worktree. */
+  stillRemovable?: (issueId: string) => boolean,
+): Promise<number> {
   let cleaned = 0
 
+  const repoDirs = await getProjectRepoDirs([...new Set(cleanable.map(w => basename(w.projectDir)))])
   const projectDirs = new Set<string>()
   for (const w of cleanable) {
     projectDirs.add(w.projectDir)
+    if (stillRemovable && !stillRemovable(w.issueId)) continue
     try {
-      await removeWorktree(process.cwd(), w.path)
+      // Without a project row there is no repo to deregister from;
+      // removeWorktree then falls back to deleting the directory.
+      await removeWorktree(repoDirs.get(basename(w.projectDir)) ?? process.cwd(), w.path)
       cleaned++
     } catch {
       await rm(w.path, { recursive: true }).catch(() => {})
@@ -301,16 +313,54 @@ async function cleanupWorktrees(): Promise<{ cleaned: number }> {
     }
   }
 
-  logger.info({ cleaned }, 'cleanup_worktrees_done')
-  return { cleaned }
+  return cleaned
+}
+
+/** Map project IDs to their repository directories, soft-deleted projects included. */
+async function getProjectRepoDirs(projectIds: string[]): Promise<Map<string, string>> {
+  const dirs = new Map<string, string>()
+  const BATCH = 500
+  for (let i = 0; i < projectIds.length; i += BATCH) {
+    const rows = await db
+      .select({ id: projectsTable.id, directory: projectsTable.directory })
+      .from(projectsTable)
+      .where(inArray(projectsTable.id, projectIds.slice(i, i + BATCH)))
+    for (const r of rows) {
+      if (r.directory) dirs.set(r.id, resolve(r.directory))
+    }
+  }
+  return dirs
 }
 
 async function cleanupDeletedIssues(): Promise<{ cleaned: number }> {
-  // Find all soft-deleted issues
-  const deletedIssues = await db
-    .select({ id: issuesTable.id })
+  // Find all soft-deleted issues. Delete terminates best-effort, so one may
+  // still run: keep its row and worktree (removing the directory would pull
+  // it out from under the process) for auto-cleanup to reclaim after it exits.
+  const softDeleted = await db
+    .select({ id: issuesTable.id, projectId: issuesTable.projectId })
     .from(issuesTable)
     .where(eq(issuesTable.isDeleted, 1))
+  const deletedIssues = softDeleted.filter(i => !issueEngine.hasActiveProcessForIssue(i.id))
+  const projectsWithLiveIssues = new Set(
+    softDeleted.filter(i => !deletedIssues.includes(i)).map(i => i.projectId),
+  )
+
+  // Remove worktrees while the project rows still exist: once the issue rows
+  // are gone, nothing can match these worktrees to their repository again.
+  await removeWorktrees(
+    deletedIssues
+      .map(i => ({
+        projectDir: join(WORKTREE_BASE, i.projectId),
+        issueId: i.id,
+        path: resolveWorktreePath(i.projectId, i.id),
+      }))
+      .filter(w => existsSync(w.path)),
+    // Earlier removals are awaited, so a restore (or a re-spawn) may have
+    // landed since the list was read: re-check each issue right before its
+    // worktree goes, keeping the filesystem work outside any transaction
+    issueId => !issueEngine.hasActiveProcessForIssue(issueId)
+      && db.select({ isDeleted: issuesTable.isDeleted }).from(issuesTable).where(eq(issuesTable.id, issueId)).get()?.isDeleted === 1,
+  )
 
   const deletedProjects = await db
     .select({ id: projectsTable.id })
@@ -318,27 +368,50 @@ async function cleanupDeletedIssues(): Promise<{ cleaned: number }> {
     .where(eq(projectsTable.isDeleted, 1))
 
   let cleaned = 0
-
-  // Hard-delete in batches (issues + related data)
   const BATCH = 500
   const issueIds = deletedIssues.map(i => i.id)
-  for (let i = 0; i < issueIds.length; i += BATCH) {
-    const batch = issueIds.slice(i, i + BATCH)
-    // Delete related data first (FK order)
-    await db.delete(issuesLogsToolsCall).where(inArray(issuesLogsToolsCall.issueId, batch))
-    await db.delete(attachments).where(inArray(attachments.issueId, batch))
-    await db.delete(issueLogs).where(inArray(issueLogs.issueId, batch))
-    await db.delete(issuesTable).where(inArray(issuesTable.id, batch))
-    cleaned += batch.length
-  }
+  const projectIds = deletedProjects.map(p => p.id).filter(id => !projectsWithLiveIssues.has(id))
 
-  // Hard-delete soft-deleted projects
-  const projectIds = deletedProjects.map(p => p.id)
-  for (let i = 0; i < projectIds.length; i += BATCH) {
-    const batch = projectIds.slice(i, i + BATCH)
-    await db.delete(projectsTable).where(inArray(projectsTable.id, batch))
-    cleaned += batch.length
-  }
+  // The worktree removal above is awaited, so a recycle-bin restore can land
+  // in between. Re-check what is still deleted (and idle) inside one
+  // synchronous transaction (nothing interleaves with it), so a restored or
+  // re-spawned issue — whose worktree was kept — or a project that still owns
+  // issues is never hard-deleted.
+  db.transaction((tx) => {
+    for (let i = 0; i < issueIds.length; i += BATCH) {
+      const batch = tx
+        .select({ id: issuesTable.id })
+        .from(issuesTable)
+        .where(and(inArray(issuesTable.id, issueIds.slice(i, i + BATCH)), eq(issuesTable.isDeleted, 1)))
+        .all()
+        .map(r => r.id)
+        .filter(id => !issueEngine.hasActiveProcessForIssue(id))
+      if (batch.length === 0) continue
+      // Delete related data first (FK order)
+      tx.delete(issuesLogsToolsCall).where(inArray(issuesLogsToolsCall.issueId, batch)).run()
+      tx.delete(attachments).where(inArray(attachments.issueId, batch)).run()
+      tx.delete(issueLogs).where(inArray(issueLogs.issueId, batch)).run()
+      tx.delete(issuesTable).where(inArray(issuesTable.id, batch)).run()
+      cleaned += batch.length
+    }
+
+    for (let i = 0; i < projectIds.length; i += BATCH) {
+      const slice = projectIds.slice(i, i + BATCH)
+      const owning = new Set(
+        tx.select({ projectId: issuesTable.projectId }).from(issuesTable).where(inArray(issuesTable.projectId, slice)).all().map(r => r.projectId),
+      )
+      const batch = tx
+        .select({ id: projectsTable.id })
+        .from(projectsTable)
+        .where(and(inArray(projectsTable.id, slice), eq(projectsTable.isDeleted, 1)))
+        .all()
+        .map(r => r.id)
+        .filter(id => !owning.has(id))
+      if (batch.length === 0) continue
+      tx.delete(projectsTable).where(inArray(projectsTable.id, batch)).run()
+      cleaned += batch.length
+    }
+  })
 
   if (cleaned > 0) {
     db.run(sql`VACUUM`)

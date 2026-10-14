@@ -20,6 +20,7 @@ import type {
   IssueChangesResponse,
   IssueFilePatchResponse,
   IssueLogsResponse,
+  IssueTurnsResponse,
   LocalSessionListResponse,
   LocalSessionPreview,
   Note,
@@ -410,6 +411,8 @@ export const kanbanApi = {
         : ''
     return get<IssueLogsResponse>(`${base}${filterSegment}${qs ? `?${qs}` : ''}`)
   },
+  getIssueTurns: (projectId: string, issueId: string) =>
+    get<IssueTurnsResponse>(`/api/projects/${projectId}/issues/${issueId}/turns`),
   getSlashCommands: (projectId: string, issueId: string) =>
     get<CategorizedCommands>(`/api/projects/${projectId}/issues/${issueId}/slash-commands`),
   getIssueChanges: (projectId: string, issueId: string) =>
@@ -584,12 +587,13 @@ export const kanbanApi = {
     return del<{ deleted: boolean }>(`/api/files/${encodedRoot}/delete/${encodedPath}`)
   },
 
-  saveFile: (root: string, path: string, content: string) => {
+  /** With `expectedModifiedAt`, the server answers 409 if the file changed on disk. */
+  saveFile: (root: string, path: string, content: string, expectedModifiedAt?: string) => {
     const encodedRoot = encodeRootPath(root)
     const encodedPath = path.split('/').map(encodeURIComponent).join('/')
     return request<{ size: number, modifiedAt: string }>(
       `/api/files/${encodedRoot}/save/${encodedPath}`,
-      { method: 'PUT', body: JSON.stringify({ content }) },
+      { method: 'PUT', body: JSON.stringify({ content, expectedModifiedAt }) },
     )
   },
 

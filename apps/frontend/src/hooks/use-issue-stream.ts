@@ -24,6 +24,8 @@ interface UseIssueStreamReturn {
   hasOlderLogs: boolean
   isLoadingOlder: boolean
   loadOlderLogs: () => void
+  /** Load older pages until `messageId` is loaded; resolves whether it was found. */
+  loadOlderUntil: (messageId: string) => Promise<boolean>
   clearLogs: () => void
   refreshLogs: () => void
   removeEntries: (messageIds: string[]) => void
@@ -38,6 +40,9 @@ const TERMINAL: Set<string> = new Set(['completed', 'failed', 'cancelled'])
 
 /** Max entries in the live logs array. Older entries are trimmed when SSE pushes beyond this. */
 const MAX_LIVE_LOGS = 500
+
+/** Page size when loading history up to a target (the logs route caps `limit` at 200). */
+const LOAD_UNTIL_PAGE_SIZE = 200
 
 function contentKey(entry: NormalizedLogEntry): string {
   return `${entry.turnIndex ?? 0}:${entry.timestamp ?? ''}:${entry.entryType}:${entry.content}`
@@ -301,6 +306,27 @@ export function useIssueStream({
     }
   }, [])
 
+  /** Prepend one page of older logs and advance the pagination cursor. */
+  const appendOlderPage = useCallback((data: { logs: NormalizedLogEntry[], nextCursor: string | null, hasMore: boolean }) => {
+    if (!data.logs.length) {
+      setHasOlderLogs(false)
+      olderCursorRef.current = null
+      return
+    }
+    olderCursorRef.current = data.nextCursor
+    setHasOlderLogs(data.hasMore)
+    const newEntries = data.logs.filter((e) => {
+      if (e.messageId && seenIdsRef.current.has(e.messageId)) return false
+      if (e.messageId) seenIdsRef.current.add(e.messageId)
+      return true
+    })
+    setOlderLogs((prev) => {
+      const next = [...newEntries, ...prev].sort(compareByMessageId)
+      olderLogsRef.current = next
+      return next
+    })
+  }, [])
+
   /** Load older logs into the separate olderLogs array (no cap) */
   const loadOlderLogs = useCallback(() => {
     if (!issueId || !olderCursorRef.current || isLoadingOlder) return
@@ -308,32 +334,37 @@ export function useIssueStream({
 
     kanbanApi
       .getIssueLogs(projectId, issueId, { before: olderCursorRef.current, types: typesFilter })
-      .then((data) => {
-        if (!data.logs.length) {
-          setHasOlderLogs(false)
-          olderCursorRef.current = null
-          return
-        }
-        olderCursorRef.current = data.nextCursor
-        setHasOlderLogs(data.hasMore)
-        setOlderLogs((prev) => {
-          const newEntries = data.logs.filter((e) => {
-            if (e.messageId && seenIdsRef.current.has(e.messageId)) return false
-            if (e.messageId) seenIdsRef.current.add(e.messageId)
-            return true
-          })
-          const next = [...newEntries, ...prev].sort(compareByMessageId)
-          olderLogsRef.current = next
-          return next
-        })
-      })
+      .then(appendOlderPage)
       .catch((err) => {
         console.warn('Failed to load older logs:', err)
       })
       .finally(() => {
         setIsLoadingOlder(false)
       })
-  }, [projectId, issueId, isLoadingOlder, typesFilter])
+  }, [projectId, issueId, isLoadingOlder, typesFilter, appendOlderPage])
+
+  const loadOlderUntil = useCallback(async (messageId: string): Promise<boolean> => {
+    if (!issueId || isLoadingOlder) return false
+    const scope = streamScopeRef.current
+    setIsLoadingOlder(true)
+    try {
+      while (olderCursorRef.current && !seenIdsRef.current.has(messageId)) {
+        const data = await kanbanApi.getIssueLogs(projectId, issueId, {
+          before: olderCursorRef.current,
+          limit: LOAD_UNTIL_PAGE_SIZE,
+          types: typesFilter,
+        })
+        if (streamScopeRef.current !== scope) return false
+        appendOlderPage(data)
+      }
+      return seenIdsRef.current.has(messageId)
+    } catch (err) {
+      console.warn('Failed to load older logs:', err)
+      return false
+    } finally {
+      setIsLoadingOlder(false)
+    }
+  }, [projectId, issueId, isLoadingOlder, typesFilter, appendOlderPage])
 
   useEffect(() => {
     if (!issueId || !enabled) {
@@ -499,6 +530,7 @@ export function useIssueStream({
     hasOlderLogs,
     isLoadingOlder,
     loadOlderLogs,
+    loadOlderUntil,
     clearLogs,
     refreshLogs,
     removeEntries,

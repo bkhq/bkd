@@ -147,6 +147,7 @@ async function handleShow(c: Context, relativePath: string) {
             size: targetStat.size,
             isTruncated: false,
             isBinary: true,
+            modifiedAt: targetStat.mtime.toISOString(),
           },
         }, 200)
       }
@@ -160,6 +161,7 @@ async function handleShow(c: Context, relativePath: string) {
           size: targetStat.size,
           isTruncated,
           isBinary: false,
+          modifiedAt: targetStat.mtime.toISOString(),
         },
       }, 200)
     }
@@ -296,6 +298,14 @@ async function handleSave(c: Context, relativePath: string) {
   }
   const body = parsed.data
   try {
+    // Refuse to clobber a file changed on disk (e.g. by an agent) since the
+    // editor read it. A file deleted meanwhile is a conflict too.
+    if (body.expectedModifiedAt !== undefined) {
+      const current = await stat(target).catch(() => null)
+      if (current?.mtime.toISOString() !== body.expectedModifiedAt) {
+        return c.json({ success: false as const, error: 'File changed on disk since it was opened' }, 409)
+      }
+    }
     await writeFile(target, body.content, 'utf-8')
 
     const fileStat = await stat(target)

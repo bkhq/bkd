@@ -622,6 +622,90 @@ padding, outer spacing) instead of a borderless tinted block, marked by a
 primary-tinted bar and background where user messages stay neutral. Task
 `20261013-0155-agent-message-card-style`.
 
+## 2026-10-13 05:38 [BUG-P1]
+
+Worktrees of deleted issues and projects were never removed, and the cleanup
+stats endpoint timed out (`ERR_CONNECTION_CLOSED` after the client's 30s limit)
+once they piled up: it walked every orphaned worktree file by file to size it.
+Deleted issues still keep their worktree so a recycle-bin restore is lossless;
+the `worktree:autoCleanup` cron now also removes it once the issue has been
+deleted for more than 1 day, and hard-deleting issues removes their worktrees
+before the rows go. Manual worktree cleanup runs `git worktree remove` in the
+owning project's repository instead of the server cwd, so the project no
+longer keeps stale `.git/worktrees` entries. Cleanup stats report the
+worktree count only (`totalSize: 0`). Task
+`20261013-0244-worktree-cleanup-on-delete`, plan
+`20261013-0244-worktree-cleanup-on-delete`.
+
+## 2026-10-13 05:58 [progress]
+
+Chat area gets a turn navigator: a rail of ticks at the right-middle of the
+message list, one per user message, with the turn at the top of the viewport
+highlighted. Hovering a tick previews the user message and the start of the
+agent reply; clicking scrolls there and stops auto-follow, in both the plain
+and the virtualized list. Shown from 2 turns on `md`+ viewports; covers the
+loaded turns only. Task `20261013-0540-chat-turn-navigator`, plan
+`20261013-0540-chat-turn-navigator`.
+
+## 2026-10-13 06:25 [progress]
+
+The chat turn navigator lists every turn of an issue, not only the loaded
+page: a new `GET /api/projects/:projectId/issues/:id/turns` returns one
+summary per turn (user text, first reply, both cut to 300 chars, and the
+visible entry count from that turn on), fetched while older history exists.
+Clicking an unloaded turn loads history up to it (`loadOlderUntil`, 200 per
+request) and then scrolls there; when that would load more than about 1000
+entries it asks first. Ticks no longer animate when the active turn changes;
+they highlight by colour and only grow on hover. Task
+`20261013-0553-turn-navigator-full-history`, plan
+`20261013-0553-turn-navigator-full-history`; full-list rebuild cost tracked in
+`20261013-0614-incremental-chat-messages`.
+
+## 2026-10-13 06:40 [progress]
+
+The issue detail title bar no longer opens the issue menu on right-click; the
+"..." button at its right is the only entry point. The issue list keeps its
+right-click menu.
+
+## 2026-10-13 06:55 [progress]
+
+Top-left alignment: the rail's logo now sits in a 49px block with the same
+bottom border as the page headers (logo kept at 36px like the project
+buttons, centred with 6px above and below), replacing the separator that sat
+8px lower; the kanban header's top row is fixed at 48px (+1px border) so the
+line also meets on the board.
+
+## 2026-10-13 08:50 [pitfall]
+
+API tests failed whole files with `z.object(...).openapi is not a function`: `.openapi()` is
+patched onto zod when `@hono/zod-openapi` is imported, and `src/openapi/schemas.ts` (which
+calls it at module scope) did not import it. In the app some route loads it first; a test
+importing `@/db/helpers` loaded the schemas first. A side-effect import in `schemas.ts` fixes
+the order — the API suite went from 510 pass / 32 fail to 783 pass / 6 fail (the remaining 6
+are `20261013-0538-spawn-leak-tests-order-dependent`).
+
+## 2026-10-13 08:50 [progress]
+
+`20261013-0726-workspace-side-panel`: file saves from the editor send the `modifiedAt` they
+started from; the API answers 409 if the file changed on disk (an agent wrote it), and the
+editor offers reload or overwrite. File listings refresh on `changes-summary` events.
+
+## 2026-10-13 10:20 [BUG-P1]
+
+Follow-ups from the Codex review of #149 / #150 / #151, fixed on `release`:
+
+- Editor drafts lived in `FileBrowserContent` state keyed by relative path only: closing the Files
+  tab or hiding the panel dropped them, and switching issues could show (and, via "overwrite",
+  save) one worktree's draft over another worktree's same-named file. Drafts now live in
+  `file-browser-store`, keyed by workspace root + path, with a `beforeunload` prompt. Saves write the
+  new content and `modifiedAt` into the query cache before dropping the draft (no pre-save flash,
+  no false 409).
+- Issue / review pages went blank when the workspace panel was open and wide with no issue
+  selected; the list-hiding rule (`lib/list-panel.ts`) now requires a selected issue.
+- The upload drop zone intercepted text drags inside the editor; only file drags upload now.
+- Worktree auto-cleanup skipped deleted issues whose `sessionStatus` stayed `running` after a
+  failed best-effort terminate; deleted rows are now checked against live processes instead.
+
 ## 2026-10-13 18:58 [progress]
 
 Decision events. BKD now implements the decision-event contract from the `bkd`
@@ -717,3 +801,39 @@ delivery. `isPrivateHostname()` was removed; the delivery log now records
 `Blocked: …` instead of `SSRF blocked: …`.
 Webhook delivery no longer follows redirects, so a target cannot redirect to
 a blocked address; a `3xx` answer counts as a failed delivery.
+
+## 2026-10-14 02:40 [BUG-P1]
+
+Second round of Codex review follow-ups on #151, fixed on `release`:
+
+- The Files tab bound the shared browser with a null root while `/changes` was loading or had
+  failed, so a worktree issue briefly (or, after an error, permanently) showed and edited the
+  main checkout; it also rendered the global drawer's context while the drawer owned the browser.
+  The tab now waits for the issue root, shows a retry on error, and offers "Open here" when the
+  drawer owns the browser.
+- Permanent cleanup of deleted issues removed the worktree (and row) of an issue whose process was
+  still alive after a failed terminate; such issues and their projects are now kept.
+- The workspace panel width is capped to leave the chat its minimum and re-clamps on resize.
+- The file tree pane is capped at 60% of the panel.
+- The chat turn navigator counted queued / done / system user rows as turns, unlike the server
+  turn list.
+- Deleting a directory now clears unsaved drafts of the files inside it.
+
+## 2026-10-14 02:40 [progress]
+
+`20261013-0538-files-upload-test-poisons-suite` closed: fixed by `0e0af90` (the
+`@hono/zod-openapi` side-effect import in `src/openapi/schemas.ts`).
+
+## 2026-10-14 11:20 [BUG-P2]
+
+Review follow-ups on #151, fixed on `release` before merge:
+
+- `worktreeMissing` is also true for a worktree issue that has not run yet, since the worktree is
+  created on first run. The Files and Review tabs said the worktree "no longer exists" for every
+  such issue, and kept saying so through the first turn: `/changes` was only refetched on the
+  `changes-summary` push after the turn settled. The copy now covers both cases (not created yet,
+  or cleaned up; running the issue creates it), and `useIssueChanges` refetches on the issue's
+  first log, state or done event while the worktree is absent.
+- Permanent cleanup skipped the worktree of a deleted issue whose process came alive mid-run, but
+  its hard-delete transaction only re-checked `isDeleted`, so the row went and the worktree was
+  orphaned. The transaction now also skips issues with a live process.
