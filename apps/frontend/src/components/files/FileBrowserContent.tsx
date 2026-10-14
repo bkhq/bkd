@@ -268,9 +268,9 @@ export function FileBrowserContent({
     if (path === currentPath) void refetch()
   }, [clearDraft, currentPath, refetch])
 
-  const handleConfirmDelete = useCallback(() => {
-    if (!effectiveRoot || !deleteTarget) return
-    const { path } = deleteTarget
+  /** Every delete (menus or list view) goes here, so drafts are always cleared. */
+  const deletePath = useCallback((path: string) => {
+    if (!effectiveRoot) return
     deleteFileMutation.mutate(
       { root: effectiveRoot, path },
       {
@@ -281,8 +281,12 @@ export function FileBrowserContent({
         },
       },
     )
+  }, [effectiveRoot, deleteFileMutation, currentPath, navigateTo])
+
+  const handleConfirmDelete = useCallback(() => {
+    if (deleteTarget) deletePath(deleteTarget.path)
     setDeleteTarget(null)
-  }, [effectiveRoot, deleteTarget, deleteFileMutation, currentPath, navigateTo])
+  }, [deleteTarget, deletePath])
 
   /**
    * The file actions, shared by the header "..." menu and the tree's
@@ -332,10 +336,10 @@ export function FileBrowserContent({
     openPath(currentPath === '.' ? name : `${currentPath}/${name}`)
   }, [currentPath, openPath])
 
+  // FileList confirms on its own
   const handleDeleteEntry = useCallback((name: string) => {
-    if (!effectiveRoot) return
-    deleteFileMutation.mutate({ root: effectiveRoot, path: currentPath === '.' ? name : `${currentPath}/${name}` })
-  }, [effectiveRoot, currentPath, deleteFileMutation])
+    deletePath(currentPath === '.' ? name : `${currentPath}/${name}`)
+  }, [currentPath, deletePath])
 
   // Uploads land in the shown directory, or beside the opened file
   const uploadDir = file ? parentDir(file.path) : currentPath

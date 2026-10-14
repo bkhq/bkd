@@ -294,4 +294,18 @@ describe('file actions menus', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
     expect(mocks.deleteMutate).toHaveBeenCalledWith({ root: '/ws/proj', path: 'a.ts' }, expect.anything())
   })
+
+  it('clears drafts under a directory deleted from the list view too', async () => {
+    mocks.listing = { path: 'src', type: 'directory', entries: [{ name: 'deep', type: 'directory', size: 0, modifiedAt: FILE.modifiedAt }] }
+    mocks.deleteMutate.mockImplementation((_vars, opts) => opts?.onSuccess?.())
+    useFileBrowserStore.getState().setDraft('/ws/proj', 'src/deep/x.ts', { content: 'stale', baseModifiedAt: FILE.modifiedAt })
+    renderBrowser('src')
+    useFileBrowserStore.setState({ showTree: false })
+
+    fireEvent.click(await screen.findByTitle('Delete'))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
+
+    expect(mocks.deleteMutate).toHaveBeenCalledWith({ root: '/ws/proj', path: 'src/deep' }, expect.anything())
+    expect(useFileBrowserStore.getState().drafts).toEqual({})
+  })
 })
