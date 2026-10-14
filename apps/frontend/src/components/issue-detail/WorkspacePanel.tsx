@@ -154,7 +154,7 @@ export function WorkspacePanel({
                   onClick={() => closeTab(tab)}
                   className={cn(
                     'flex items-center justify-center h-5 w-5 rounded transition-opacity hover:bg-destructive/15 hover:text-destructive focus-visible:opacity-100',
-                    active ? 'opacity-100' : 'opacity-0 group-hover/tab:opacity-100',
+                    active ? 'opacity-100' : 'opacity-0 group-hover/tab:opacity-100 pointer-coarse:opacity-100',
                   )}
                   aria-label={closeLabel}
                   title={closeLabel}

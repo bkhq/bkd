@@ -10,7 +10,11 @@ const mocks = vi.hoisted(() => ({
   uploadMutate: vi.fn(),
   saveMutate: vi.fn(),
   listing: null as unknown,
+  rootListing: null as unknown,
+  isMobile: false,
 }))
+
+vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => mocks.isMobile }))
 
 const DIRECTORY = { path: 'src', type: 'directory', entries: [] }
 const FILE = {
@@ -26,8 +30,8 @@ const FILE = {
 vi.mock('@/hooks/use-kanban', async () => ({
   queryKeys: (await vi.importActual<typeof import('@/hooks/use-kanban')>('@/hooks/use-kanban')).queryKeys,
   useProject: () => ({ data: { id: 'p1', name: 'Proj', directory: '/ws/proj' } }),
-  useProjectFiles: () => ({
-    data: mocks.listing,
+  useProjectFiles: (_root: string, path: string) => ({
+    data: path === '.' && mocks.rootListing ? mocks.rootListing : mocks.listing,
     isLoading: false,
     isError: false,
     error: null,
@@ -72,6 +76,8 @@ describe('file browser upload', () => {
     mocks.uploadMutate.mockReset()
     mocks.saveMutate.mockReset()
     mocks.listing = DIRECTORY
+    mocks.rootListing = null
+    mocks.isMobile = false
     await i18n.changeLanguage('en')
   })
 
@@ -148,6 +154,8 @@ describe('file browser upload', () => {
 describe('file browser editing', () => {
   beforeEach(async () => {
     mocks.saveMutate.mockReset()
+    mocks.rootListing = null
+    mocks.isMobile = false
     useFileBrowserStore.setState({ drafts: {} })
     await i18n.changeLanguage('en')
   })
@@ -220,5 +228,34 @@ describe('file browser editing', () => {
       modifiedAt: '2026-10-13T09:00:00.000Z',
     })
     expect(useFileBrowserStore.getState().drafts).toEqual({})
+  })
+})
+
+describe('file browser on a phone', () => {
+  beforeEach(async () => {
+    mocks.isMobile = true
+    mocks.rootListing = { path: '.', type: 'directory', entries: [{ name: 'a.ts', type: 'file', size: 12, modifiedAt: FILE.modifiedAt }] }
+    mocks.listing = FILE
+    useFileBrowserStore.setState({ drafts: {} })
+    await i18n.changeLanguage('en')
+  })
+
+  it('shows the tree full-width first, then swaps to the picked file and back', () => {
+    renderBrowser('.')
+    expect(screen.queryByLabelText('editor')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    expect(useFileBrowserStore.getState().currentPath).toBe('a.ts')
+    expect(screen.getByLabelText('editor')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'a.ts' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'File tree' }))
+    expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+  })
+
+  it('leaves the desktop tree preference alone', () => {
+    renderBrowser('.')
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    expect(useFileBrowserStore.getState().showTree).toBe(true)
   })
 })

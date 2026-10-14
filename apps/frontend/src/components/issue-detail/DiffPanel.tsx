@@ -28,6 +28,7 @@ import { TreePane } from '@/components/files/TreePane'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { SidePanelButton } from '@/components/ui/side-panel'
 import { useIssueChanges, useIssueFilePatch } from '@/hooks/use-kanban'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { useTheme } from '@/hooks/use-theme'
 import type { DiffStyle } from '@/stores/diff-view-store'
 import { useDiffViewStore } from '@/stores/diff-view-store'
@@ -164,20 +165,32 @@ export function DiffChanges({
     })
   }, [])
 
-  const showTree = useDiffViewStore(s => s.showTree) && !!toolbar && files.length > 0
+  // On a phone the tree covers the list instead of sitting beside it; a local
+  // flag drives it, so the persisted desktop preference stays untouched
+  const isMobile = useIsMobile()
+  const preferTree = useDiffViewStore(s => s.showTree)
+  const storeToggleTree = useDiffViewStore(s => s.toggleTree)
+  const [mobileTreeOpen, setMobileTreeOpen] = useState(false)
+  const treeOn = isMobile ? mobileTreeOpen : preferTree
+  const showTree = treeOn && !!toolbar && files.length > 0
+  const toggleTree = isMobile ? () => setMobileTreeOpen(v => !v) : storeToggleTree
+  // Side-by-side columns are unreadable on a phone
+  const storedStyle = useDiffViewStore(s => s.diffStyle)
+  const diffStyle: DiffStyle = isMobile ? 'unified' : storedStyle
   const listRef = useRef<HTMLDivElement>(null)
   const [activePath, setActivePath] = useState<string | null>(null)
   /** Expand a file's card and scroll it to the top of the list. */
   const revealFile = useCallback((path: string) => {
     setActivePath(path)
     setFileOpen(path, true)
+    if (isMobile) setMobileTreeOpen(false)
     // Scroll after the expanded card has rendered
     requestAnimationFrame(() => {
       listRef.current
         ?.querySelector(`[data-diff-path="${CSS.escape(path)}"]`)
         ?.scrollIntoView({ block: 'start' })
     })
-  }, [setFileOpen])
+  }, [setFileOpen, isMobile])
 
   return (
     <>
@@ -188,18 +201,21 @@ export function DiffChanges({
               allOpen={files.length > 0 && files.every(f => openPaths.has(f.path))}
               onToggleAll={open => setOpenPaths(open ? new Set(files.map(f => f.path)) : new Set())}
               onJumpToFile={revealFile}
+              showTree={treeOn}
+              onToggleTree={toggleTree}
+              allowSplit={!isMobile}
             />
           )
         : null}
       <div className="flex flex-1 min-h-0">
         {showTree
           ? (
-              <TreePane>
+              <TreePane fill={isMobile}>
                 <ChangesTree files={files} root={changesQuery.data?.root} activePath={activePath} onSelect={revealFile} />
               </TreePane>
             )
           : null}
-        <div className="flex flex-1 min-w-0 flex-col">
+        <div className="flex flex-1 min-w-0 flex-col" hidden={isMobile && showTree}>
           {changesQuery.isLoading ?
               (
                 <div className="flex-1 flex items-center justify-center px-4">
@@ -261,6 +277,7 @@ export function DiffChanges({
                                     deletions={file.deletions}
                                     oversized={file.oversized}
                                     sizeDisplay={file.sizeDisplay}
+                                    diffStyle={diffStyle}
                                     isOpen={openPaths.has(file.path)}
                                     onOpenChange={open => setFileOpen(file.path, open)}
                                   />
@@ -312,14 +329,19 @@ function DiffToolbar({
   allOpen,
   onToggleAll,
   onJumpToFile,
+  showTree,
+  onToggleTree,
+  allowSplit,
 }: {
   files: IssueChangedFile[]
   allOpen: boolean
   onToggleAll: (open: boolean) => void
   onJumpToFile: (path: string) => void
+  showTree: boolean
+  onToggleTree: () => void
+  /** Offer stacked / split; hidden on phones, which always stack. */
+  allowSplit: boolean
 }) {
-  const showTree = useDiffViewStore(s => s.showTree)
-  const toggleTree = useDiffViewStore(s => s.toggleTree)
   const { t } = useTranslation()
   const diffStyle = useDiffViewStore(s => s.diffStyle)
   const setDiffStyle = useDiffViewStore(s => s.setDiffStyle)
@@ -350,20 +372,24 @@ function DiffToolbar({
             <Ellipsis className="h-3.5 w-3.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-auto min-w-0">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>{t('diff.view')}</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={diffStyle} onValueChange={v => setDiffStyle(v as DiffStyle)}>
-                <DropdownMenuRadioItem value="unified" className="whitespace-nowrap text-xs">
-                  <Rows2 className="h-3.5 w-3.5" />
-                  {t('diff.stacked')}
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="split" className="whitespace-nowrap text-xs">
-                  <Columns2 className="h-3.5 w-3.5" />
-                  {t('diff.split')}
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
+            {allowSplit && (
+              <>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>{t('diff.view')}</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={diffStyle} onValueChange={v => setDiffStyle(v as DiffStyle)}>
+                    <DropdownMenuRadioItem value="unified" className="whitespace-nowrap text-xs">
+                      <Rows2 className="h-3.5 w-3.5" />
+                      {t('diff.stacked')}
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="split" className="whitespace-nowrap text-xs">
+                      <Columns2 className="h-3.5 w-3.5" />
+                      {t('diff.split')}
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuCheckboxItem checked={wrap} onCheckedChange={setWrap} className="whitespace-nowrap text-xs">
               <WrapText className="h-3.5 w-3.5" />
               {t('diff.wordWrap')}
@@ -378,7 +404,7 @@ function DiffToolbar({
         />
         <button
           type="button"
-          onClick={toggleTree}
+          onClick={onToggleTree}
           aria-pressed={showTree}
           aria-label={t('diff.fileTree')}
           title={t('diff.fileTree')}
@@ -474,6 +500,7 @@ function DiffFileCard({
   deletions,
   oversized,
   sizeDisplay,
+  diffStyle,
   isOpen,
   onOpenChange,
 }: {
@@ -485,12 +512,12 @@ function DiffFileCard({
   deletions?: number
   oversized?: boolean
   sizeDisplay?: string
+  diffStyle: DiffStyle
   isOpen: boolean
   onOpenChange: (open: boolean) => void
 }) {
   const { t } = useTranslation()
   const { resolved } = useTheme()
-  const diffStyle = useDiffViewStore(s => s.diffStyle)
   const wrap = useDiffViewStore(s => s.wrap)
   const [copied, setCopied] = useState(false)
 

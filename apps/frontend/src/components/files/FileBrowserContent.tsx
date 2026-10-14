@@ -40,6 +40,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { queryKeys, useDeleteFile, useProject, useProjectFiles, useSaveFile, useUploadFiles } from '@/hooks/use-kanban'
 import { eventBus } from '@/lib/event-bus'
 import { ApiError, kanbanApi } from '@/lib/kanban-api'
@@ -133,6 +134,12 @@ export function FileBrowserContent({
   const [pendingNav, setPendingNav] = useState<(() => void) | null>(null)
   const [previewPath, setPreviewPath] = useState<string | null>(null)
   const [collapseVersion, setCollapseVersion] = useState(0)
+  // On a phone the tree and the content take turns at full width; this local
+  // flag drives it, so the desktop `showTree` preference stays untouched
+  const isMobile = useIsMobile()
+  const [mobileTreeOpen, setMobileTreeOpen] = useState(true)
+  const treeVisible = isMobile ? mobileTreeOpen : showTree
+  const handleToggleTree = isMobile ? () => setMobileTreeOpen(v => !v) : toggleTree
   const queryClient = useQueryClient()
 
   // Agents edit the workspace too: refresh listings when a run reports changes
@@ -347,8 +354,8 @@ export function FileBrowserContent({
         </div>
       )}
 
-      {showTree && effectiveRoot && (
-        <TreePane>
+      {treeVisible && effectiveRoot && (
+        <TreePane fill={isMobile}>
           <div className="flex h-full min-h-0 flex-col">
             <div className="flex shrink-0 items-center gap-1.5 border-b border-border/60 px-2 py-1.5 min-h-[37px]">
               <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
@@ -362,15 +369,30 @@ export function FileBrowserContent({
                 onClick={() => void queryClient.invalidateQueries({ queryKey: ['files'] })}
               />
               <IconButton icon={ChevronsDownUp} label={t('fileBrowser.collapseAll')} onClick={() => setCollapseVersion(v => v + 1)} />
+              {/* The content header (and its toggle) is hidden behind the tree on a phone */}
+              {isMobile && (
+                <>
+                  <IconButton icon={ListTree} label={t('fileBrowser.fileTree')} onClick={handleToggleTree} active />
+                  {headerActions}
+                </>
+              )}
             </div>
             <div className="min-h-0 flex-1">
-              <FileTree root={effectiveRoot} currentPath={currentPath} onOpenFile={openPath} collapseVersion={collapseVersion} />
+              <FileTree
+                root={effectiveRoot}
+                currentPath={currentPath}
+                onOpenFile={(path) => {
+                  openPath(path)
+                  if (isMobile) setMobileTreeOpen(false)
+                }}
+                collapseVersion={collapseVersion}
+              />
             </div>
           </div>
         </TreePane>
       )}
 
-      <div className="flex flex-1 min-w-0 flex-col">
+      <div className={cn('flex flex-1 min-w-0 flex-col', isMobile && treeVisible && effectiveRoot && 'hidden')}>
         {/* Header: path, unsaved state + save, file menu, tree toggle */}
         <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-1.5 min-h-[37px]">
           <div className="min-w-0 flex-1">
@@ -400,7 +422,7 @@ export function FileBrowserContent({
                 onClick={() => setPreviewPath(preview ? null : file.path)}
               />
             )}
-            {!showTree && workspaceTools}
+            {!treeVisible && workspaceTools}
             {file && (
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -441,7 +463,7 @@ export function FileBrowserContent({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            <IconButton icon={ListTree} label={t('fileBrowser.fileTree')} onClick={toggleTree} active={showTree} />
+            <IconButton icon={ListTree} label={t('fileBrowser.fileTree')} onClick={handleToggleTree} active={treeVisible} />
             {headerActions}
           </div>
         </div>
@@ -485,7 +507,7 @@ export function FileBrowserContent({
                       />
                     )
                   : listing?.type === 'directory'
-                    ? (showTree
+                    ? (treeVisible
                         ? (
                             <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
                               {t('fileBrowser.selectFile')}
