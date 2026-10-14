@@ -8,6 +8,7 @@ import { useFileBrowserStore } from '@/stores/file-browser-store'
 
 const mocks = vi.hoisted(() => ({
   uploadMutate: vi.fn(),
+  deleteMutate: vi.fn(),
   saveMutate: vi.fn(),
   listing: null as unknown,
   rootListing: null as unknown,
@@ -37,7 +38,7 @@ vi.mock('@/hooks/use-kanban', async () => ({
     error: null,
     refetch: vi.fn(),
   }),
-  useDeleteFile: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteFile: () => ({ mutate: mocks.deleteMutate, isPending: false }),
   useSaveFile: () => ({ mutate: mocks.saveMutate, isPending: false }),
   useUploadFiles: () => ({ mutate: mocks.uploadMutate, isPending: false }),
 }))
@@ -257,5 +258,40 @@ describe('file browser on a phone', () => {
     renderBrowser('.')
     fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
     expect(useFileBrowserStore.getState().showTree).toBe(true)
+  })
+})
+
+describe('file actions menus', () => {
+  const ACTIONS = ['Copy path', 'Copy relative path', 'Copy file contents', 'Download', 'Delete']
+
+  beforeEach(async () => {
+    mocks.isMobile = false
+    mocks.deleteMutate.mockReset()
+    mocks.rootListing = { path: '.', type: 'directory', entries: [{ name: 'a.ts', type: 'file', size: 12, modifiedAt: FILE.modifiedAt }] }
+    mocks.listing = FILE
+    useFileBrowserStore.setState({ drafts: {} })
+    await i18n.changeLanguage('en')
+  })
+
+  it('gives the tree\'s right-click menu the same file actions as the header menu', async () => {
+    renderBrowser('a.ts')
+    fireEvent.click(screen.getByRole('button', { name: 'File actions' }))
+    const header = await screen.findAllByRole('menuitem')
+    expect(header.map(i => i.textContent)).toEqual(expect.arrayContaining(ACTIONS))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'a.ts' }))
+    const tree = await screen.findAllByRole('menuitem')
+    expect(tree.map(i => i.textContent)).toEqual(expect.arrayContaining(ACTIONS))
+  })
+
+  it('deletes the right-clicked file after confirmation', async () => {
+    renderBrowser('.')
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'a.ts' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+
+    const dialog = screen.getByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    expect(mocks.deleteMutate).toHaveBeenCalledWith({ root: '/ws/proj', path: 'a.ts' }, expect.anything())
   })
 })

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { TreeRow } from '@/components/files/TreeRow'
+import { CopyPathItems, TreeRow } from '@/components/files/TreeRow'
 import type { PathTreeNode } from '@/lib/path-tree'
 import { buildPathTree, joinRootPath } from '@/lib/path-tree'
 import type { IssueChangedFile } from '@/types/kanban'
@@ -58,7 +58,7 @@ export function ChangesTree({
             isDir
             expanded={expanded}
             onClick={() => toggleDir(node.path)}
-            copyPaths={{ absolute: joinRootPath(root, node.path), relative: node.path }}
+            menu={<CopyPathItems absolute={joinRootPath(root, node.path)} relative={node.path} />}
           />
           {expanded && renderNodes(node.children, depth + 1)}
         </div>
@@ -74,7 +74,7 @@ export function ChangesTree({
         title={node.path}
         selected={node.path === activePath}
         onClick={() => onSelect(node.path)}
-        copyPaths={{ absolute: joinRootPath(root, node.path), relative: node.path }}
+        menu={<CopyPathItems absolute={joinRootPath(root, node.path)} relative={node.path} />}
         trailing={<span className={`shrink-0 font-mono text-[10px] font-semibold ${status.className}`}>{status.letter}</span>}
       />
     )

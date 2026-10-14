@@ -1,9 +1,11 @@
+import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useProjectFiles } from '@/hooks/use-kanban'
-import { joinRootPath } from '@/lib/path-tree'
 import type { FileEntry } from '@/types/kanban'
 import { TreeRow } from './TreeRow'
+
+type RenderMenu = (path: string, type: FileEntry['type']) => ReactNode
 
 /**
  * Lazily loaded directory tree of a workspace root: a directory lists its
@@ -14,16 +16,27 @@ export function FileTree({
   currentPath,
   onOpenFile,
   collapseVersion = 0,
+  renderMenu,
 }: {
   root: string
   currentPath: string
   onOpenFile: (path: string) => void
   /** Bump to collapse every open directory. */
   collapseVersion?: number
+  /** Right-click menu items for an entry. */
+  renderMenu?: RenderMenu
 }) {
   return (
     <div className="h-full overflow-y-auto px-1 py-2">
-      <TreeDir root={root} path="." depth={0} currentPath={currentPath} onOpenFile={onOpenFile} collapseVersion={collapseVersion} />
+      <TreeDir
+        root={root}
+        path="."
+        depth={0}
+        currentPath={currentPath}
+        onOpenFile={onOpenFile}
+        collapseVersion={collapseVersion}
+        renderMenu={renderMenu}
+      />
     </div>
   )
 }
@@ -35,6 +48,7 @@ function TreeDir({
   currentPath,
   onOpenFile,
   collapseVersion,
+  renderMenu,
 }: {
   root: string
   path: string
@@ -42,6 +56,7 @@ function TreeDir({
   currentPath: string
   onOpenFile: (path: string) => void
   collapseVersion: number
+  renderMenu?: RenderMenu
 }) {
   const { t } = useTranslation()
   const { data: listing, isLoading } = useProjectFiles(root, path)
@@ -64,6 +79,7 @@ function TreeDir({
       currentPath={currentPath}
       onOpenFile={onOpenFile}
       collapseVersion={collapseVersion}
+      renderMenu={renderMenu}
     />
   ))
 }
@@ -76,6 +92,7 @@ function TreeEntry({
   currentPath,
   onOpenFile,
   collapseVersion,
+  renderMenu,
 }: {
   root: string
   parent: string
@@ -84,6 +101,7 @@ function TreeEntry({
   currentPath: string
   onOpenFile: (path: string) => void
   collapseVersion: number
+  renderMenu?: RenderMenu
 }) {
   const path = parent === '.' ? entry.name : `${parent}/${entry.name}`
   const isAncestor = currentPath.startsWith(`${path}/`)
@@ -100,7 +118,7 @@ function TreeEntry({
     setExpanded(false)
   }
 
-  const copyPaths = { absolute: joinRootPath(root, path), relative: path }
+  const menu = renderMenu?.(path, entry.type)
 
   if (entry.type === 'file') {
     return (
@@ -111,7 +129,7 @@ function TreeEntry({
         title={path}
         selected={currentPath === path}
         onClick={() => onOpenFile(path)}
-        copyPaths={copyPaths}
+        menu={menu}
       />
     )
   }
@@ -124,7 +142,7 @@ function TreeEntry({
         expanded={expanded}
         selected={currentPath === path}
         onClick={() => setExpanded(v => !v)}
-        copyPaths={copyPaths}
+        menu={menu}
       />
       {expanded && (
         <TreeDir
@@ -134,6 +152,7 @@ function TreeEntry({
           currentPath={currentPath}
           onOpenFile={onOpenFile}
           collapseVersion={collapseVersion}
+          renderMenu={renderMenu}
         />
       )}
     </>

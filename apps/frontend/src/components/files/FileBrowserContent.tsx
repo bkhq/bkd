@@ -111,6 +111,7 @@ export function FileBrowserContent({
   enabled?: boolean
 }) {
   const { t } = useTranslation()
+  const fileBrowser = useFileBrowserStore()
   const {
     projectId,
     rootPath,
@@ -122,9 +123,10 @@ export function FileBrowserContent({
     toggleTree,
     wrap,
     toggleWrap,
-  } = useFileBrowserStore()
+  } = fileBrowser
 
-  const [deleteFileConfirm, setDeleteFileConfirm] = useState(false)
+  // Entry awaiting delete confirmation (from either menu)
+  const [deleteTarget, setDeleteTarget] = useState<{ path: string, type: 'file' | 'directory' } | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [conflict, setConflict] = useState<{ files: File[], names: string } | null>(null)
@@ -239,27 +241,92 @@ export function FileBrowserContent({
     void navigator.clipboard.writeText(text).then(() => toast.success(t('fileBrowser.copied')))
   }, [t])
 
-  const handleDownload = useCallback(() => {
-    if (!effectiveRoot || !file) return
+  /** Contents as the editor would show them: draft first, then disk. */
+  const copyContent = useCallback(async (path: string) => {
+    if (!effectiveRoot) return
+    if (path === file?.path) return copyText(editorValue)
+    const pending = selectDraft(useFileBrowserStore.getState(), effectiveRoot, path)
+    if (pending) return copyText(pending.content)
+    const listed = await queryClient.fetchQuery({
+      queryKey: queryKeys.projectFiles(effectiveRoot, path, hideIgnored),
+      queryFn: () => kanbanApi.listFiles(effectiveRoot, path, hideIgnored),
+    })
+    if (listed.type !== 'file' || listed.isBinary) toast.error(t('fileBrowser.binaryFile'))
+    else copyText(listed.content)
+  }, [effectiveRoot, file, editorValue, copyText, queryClient, hideIgnored, t])
+
+  const download = useCallback((path: string) => {
+    if (!effectiveRoot) return
     const a = document.createElement('a')
-    a.href = kanbanApi.rawFileUrl(effectiveRoot, file.path)
+    a.href = kanbanApi.rawFileUrl(effectiveRoot, path)
     a.download = ''
     a.click()
-  }, [effectiveRoot, file])
+  }, [effectiveRoot])
 
-  const handleDeleteCurrentFile = useCallback(() => {
-    if (!effectiveRoot || !file) return
+  const discardPath = useCallback((path: string) => {
+    clearDraft(path)
+    if (path === currentPath) void refetch()
+  }, [clearDraft, currentPath, refetch])
+
+  const handleConfirmDelete = useCallback(() => {
+    if (!effectiveRoot || !deleteTarget) return
+    const { path } = deleteTarget
     deleteFileMutation.mutate(
-      { root: effectiveRoot, path: file.path },
+      { root: effectiveRoot, path },
       {
         onSuccess: () => {
-          clearDraft(file.path)
-          navigateTo(parentDir(file.path))
+          clearDraft(path)
+          // Leave the deleted file, or anything inside the deleted directory
+          if (currentPath === path || currentPath.startsWith(`${path}/`)) navigateTo(parentDir(path))
         },
       },
     )
-    setDeleteFileConfirm(false)
-  }, [effectiveRoot, file, deleteFileMutation, clearDraft, navigateTo])
+    setDeleteTarget(null)
+  }, [effectiveRoot, deleteTarget, deleteFileMutation, clearDraft, currentPath, navigateTo])
+
+  /**
+   * The file actions, shared by the header "..." menu and the tree's
+   * right-click menu so both stay in sync. Directories only copy or delete.
+   */
+  const renderFileActions = (path: string, type: 'file' | 'directory') => {
+    const isOpenFile = path === file?.path
+    const hasDraft = !!effectiveRoot && !!selectDraft(fileBrowser, effectiveRoot, path)
+    const item = 'whitespace-nowrap text-xs'
+    return (
+      <>
+        <DropdownMenuItem className={item} onClick={() => copyText(joinRootPath(effectiveRoot, path))}>
+          <Copy className="h-3.5 w-3.5" />
+          {t('fileBrowser.copyPath')}
+        </DropdownMenuItem>
+        <DropdownMenuItem className={item} onClick={() => copyText(path)}>
+          <Copy className="h-3.5 w-3.5" />
+          {t('fileBrowser.copyRelativePath')}
+        </DropdownMenuItem>
+        {type === 'file' && !(isOpenFile && file?.isBinary) && (
+          <DropdownMenuItem className={item} onClick={() => void copyContent(path)}>
+            <Copy className="h-3.5 w-3.5" />
+            {t('fileBrowser.copyContent')}
+          </DropdownMenuItem>
+        )}
+        {type === 'file' && (
+          <DropdownMenuItem className={item} onClick={() => download(path)}>
+            <Download className="h-3.5 w-3.5" />
+            {t('fileBrowser.download')}
+          </DropdownMenuItem>
+        )}
+        {type === 'file' && (isOpenFile || hasDraft) && (
+          <DropdownMenuItem variant="destructive" className={item} onClick={() => discardPath(path)}>
+            <RotateCcw className="h-3.5 w-3.5" />
+            {t('fileBrowser.discardAndReload')}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem variant="destructive" className={item} onClick={() => setDeleteTarget({ path, type })}>
+          <Trash2 className="h-3.5 w-3.5" />
+          {t('fileBrowser.delete')}
+        </DropdownMenuItem>
+      </>
+    )
+  }
 
   const handleEntryClick = useCallback((name: string) => {
     openPath(currentPath === '.' ? name : `${currentPath}/${name}`)
@@ -381,6 +448,7 @@ export function FileBrowserContent({
               <FileTree
                 root={effectiveRoot}
                 currentPath={currentPath}
+                renderMenu={renderFileActions}
                 onOpenFile={(path) => {
                   openPath(path)
                   if (isMobile) setMobileTreeOpen(false)
@@ -433,28 +501,7 @@ export function FileBrowserContent({
                   <Ellipsis className="h-3.5 w-3.5" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-auto min-w-0">
-                  <DropdownMenuItem className="whitespace-nowrap text-xs" onClick={() => copyText(joinRootPath(effectiveRoot, file.path))}>
-                    <Copy className="h-3.5 w-3.5" />
-                    {t('fileBrowser.copyPath')}
-                  </DropdownMenuItem>
-                  {!file.isBinary && (
-                    <DropdownMenuItem className="whitespace-nowrap text-xs" onClick={() => copyText(editorValue)}>
-                      <Copy className="h-3.5 w-3.5" />
-                      {t('fileBrowser.copyContent')}
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem className="whitespace-nowrap text-xs" onClick={handleDownload}>
-                    <Download className="h-3.5 w-3.5" />
-                    {t('fileBrowser.download')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem variant="destructive" className="whitespace-nowrap text-xs" onClick={handleDiscard}>
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    {t('fileBrowser.discardAndReload')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem variant="destructive" className="whitespace-nowrap text-xs" onClick={() => setDeleteFileConfirm(true)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                    {t('fileBrowser.delete')}
-                  </DropdownMenuItem>
+                  {renderFileActions(file.path, 'file')}
                   <DropdownMenuSeparator />
                   <DropdownMenuCheckboxItem checked={wrap} onCheckedChange={toggleWrap} className="whitespace-nowrap text-xs">
                     <WrapText className="h-3.5 w-3.5" />
@@ -572,13 +619,15 @@ export function FileBrowserContent({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete confirmation for current file */}
-      <AlertDialog open={deleteFileConfirm} onOpenChange={setDeleteFileConfirm}>
+      {/* Delete confirmation, from either file actions menu */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('fileBrowser.deleteConfirmTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('fileBrowser.deleteConfirmDesc', { name: currentFileName })}
+              {t(deleteTarget?.type === 'directory' ? 'fileBrowser.deleteConfirmDirDesc' : 'fileBrowser.deleteConfirmDesc', {
+                name: deleteTarget?.path.split('/').pop(),
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -586,7 +635,7 @@ export function FileBrowserContent({
             <AlertDialogAction
               variant="destructive"
               disabled={deleteFileMutation.isPending}
-              onClick={handleDeleteCurrentFile}
+              onClick={handleConfirmDelete}
             >
               {deleteFileMutation.isPending ? t('fileBrowser.deleting') : t('fileBrowser.delete')}
             </AlertDialogAction>

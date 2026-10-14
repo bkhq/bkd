@@ -16,7 +16,7 @@ export function TreeRow({
   title,
   trailing,
   onClick,
-  copyPaths,
+  menu,
 }: {
   depth: number
   name: string
@@ -26,8 +26,8 @@ export function TreeRow({
   title?: string
   trailing?: ReactNode
   onClick: () => void
-  /** Enables the right-click menu with copy-path actions. */
-  copyPaths?: { absolute: string, relative: string }
+  /** Right-click menu items (`DropdownMenuItem`s); no menu without them. */
+  menu?: ReactNode
 }) {
   const DirIcon = expanded ? FolderOpen : Folder
   const row = (
@@ -53,19 +53,28 @@ export function TreeRow({
       {trailing}
     </button>
   )
-  if (!copyPaths) return row
+  if (!menu) return row
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger className="contents">{row}</ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="isolate z-50 outline-none">
           <ContextMenu.Popup className={cn(dropdownMenuPopupClassName, 'w-auto')}>
-            <CopyItem label="fileBrowser.copyPath" text={copyPaths.absolute} />
-            <CopyItem label="fileBrowser.copyRelativePath" text={copyPaths.relative} />
+            {menu}
           </ContextMenu.Popup>
         </ContextMenu.Positioner>
       </ContextMenu.Portal>
     </ContextMenu.Root>
+  )
+}
+
+/** Copy absolute / relative path items, for trees whose rows only copy. */
+export function CopyPathItems({ absolute, relative }: { absolute: string, relative: string }) {
+  return (
+    <>
+      <CopyItem label="fileBrowser.copyPath" text={absolute} />
+      <CopyItem label="fileBrowser.copyRelativePath" text={relative} />
+    </>
   )
 }
 
