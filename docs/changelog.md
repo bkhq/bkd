@@ -895,3 +895,21 @@ Local review fixes for `20261015-0315-dnd-kit-board-restyle`:
   read only by the removed `board-store`.
 - The drag-end decision moved into the pure `planDropUpdates` (`issue-drag/drop.ts`), with
   tests for the slot index, a stale slot in another column, and a search-filtered column.
+
+## 2026-10-15 05:40 [BUG-P1]
+
+API tests launched the real `claude` CLI (task `20261013-0538-spawn-leak-tests-order-dependent`).
+
+- `test/preload.ts` mocked only the codex executor. Tests that move an issue to `working`
+  without an engine ran on the default `claude-code` and spawned the real CLI in the
+  repository root; the startup probe also ran `claude --version`, `claude auth status` and
+  `claude -p -- /` discovery. Since at least 2026-10-13, 42 test-started sessions with
+  replies (some ran read-only Bash) and 30 discovery sessions were written to the user's
+  Claude session history. The leftover processes held process-manager slots, which timed
+  out `engine-spawn-leak` and `api-execution` in the full suite. CI has no `claude` binary,
+  so it stayed green.
+- The preload now wraps `spawnNode` / `runCommand` and throws for engine CLIs, so every
+  executor, the probe and discovery fail like a missing binary. Pinned by
+  `test/no-real-engine-cli.test.ts`.
+- Full API suite: 917 pass / 0 fail (was 907 / 6), twice in a row. Also closes
+  `20260922-1712`, `20261002-1046`, `20261013-2222`.
