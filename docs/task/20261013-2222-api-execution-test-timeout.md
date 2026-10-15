@@ -1,8 +1,8 @@
 # 20261013-2222-api-execution-test-timeout api-execution test times out in the full suite
 
-- **status**: pending
+- **status**: completed
 - **priority**: P2
-- **owner**: (unassigned)
+- **owner**: main/issue-menu-20261015
 - **createdAt**: 2026-10-13 22:22
 
 ## Description
@@ -34,3 +34,9 @@ Diagnosing the api-execution test timeout
 ## Notes
 
 (none)
+
+## Resolution
+
+Same root cause as `20261013-0538-spawn-leak-tests-order-dependent`: real engine CLIs spawned by earlier test files held the shared process manager's slots. Fixed there; the full API suite passes (917 / 0, twice).
+
+- complete: Resolved by 20261013-0538

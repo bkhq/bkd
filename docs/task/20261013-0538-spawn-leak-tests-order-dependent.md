@@ -1,6 +1,6 @@
 # 20261013-0538-spawn-leak-tests-order-dependent Fix engine-spawn-leak concurrency tests that time out in the full suite
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P2
 - **owner**: main/issue-menu-20261015
 - **createdAt**: 2026-10-13 05:38
@@ -40,3 +40,17 @@ Found while verifying `20261013-0244-worktree-cleanup-on-delete`.
   `claude-code` executor with the existing mock process gives 913 pass / 0 fail
   (was 907 / 6). Mocking the whole executor broke two `resolveExecutionModel`
   tests that read its static model catalog.
+
+## Resolution
+
+`test/preload.ts` wraps `spawnNode` / `runCommand` from `@/engines/spawn` and throws for
+engine CLIs (`claude`, `codex`, `grok`, `cursor-agent`, `agent`, or the
+`@anthropic-ai/claude-code` / `@openai/codex` npx packages). Every executor, the startup
+probe and slash-command discovery spawn through those helpers, so a blocked spawn fails the
+way a missing binary does in CI. This replaces the proposed per-executor mock: one guard
+covers all engines and all spawn paths (including `claude --version`, `claude auth status`
+and `claude -p -- /` discovery). `test/no-real-engine-cli.test.ts` pins the guard.
+
+Full API suite, twice: 917 pass / 0 fail each; no new Claude session files were created.
+
+- complete: Engine CLIs blocked in the test preload; full API suite green twice

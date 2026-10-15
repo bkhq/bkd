@@ -1,8 +1,8 @@
 # 20261002-1046-api-execution-concurrency-flake Fix order-dependent concurrency failure in api-execution tests
 
-- **status**: pending
+- **status**: completed
 - **priority**: P2
-- **owner**: (unassigned)
+- **owner**: main/issue-menu-20261015
 - **createdAt**: 2026-10-02 10:46
 
 ## Description
@@ -27,3 +27,9 @@ Fixing the order-dependent api-execution test failure
 ## Notes
 
 Found while verifying `20261002-1007-engine-process-leak`.
+
+## Resolution
+
+Same root cause as `20261013-0538-spawn-leak-tests-order-dependent`: real engine CLIs spawned by earlier test files held the shared process manager's slots. Fixed there; the full API suite passes (917 / 0, twice).
+
+- complete: Resolved by 20261013-0538
