@@ -185,18 +185,22 @@ export function ChatArea({
           <IssueContextMenu issue={issue} projectId={projectId} showPin onDeleted={handleAfterDelete}>
             <IssueContextMenuButton className="h-7 w-7 shrink-0" />
           </IssueContextMenu>
-          {/* While the panel is open, its own header carries the hide button */}
-          {!panelOpen && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-              onClick={togglePanel}
-              title={t('workspace.showPanel')}
-            >
-              <PanelRight className="h-4 w-4" />
-            </Button>
-          )}
+          {/* Mobile: the fullscreen panel carries its own hide button. Desktop:
+              keep room for the fixed toggle below while it sits over this header;
+              once the panel is open it floats over the panel instead. */}
+          {isMobile
+            ? !panelOpen && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={togglePanel}
+                  title={t('workspace.showPanel')}
+                >
+                  <PanelRight className="h-4 w-4" />
+                </Button>
+              )
+            : !panelOpen && <span aria-hidden className="w-7 shrink-0" />}
         </div>
 
         {/* Shared chat body: messages + metadata bar + input */}
@@ -286,6 +290,21 @@ export function ChatArea({
                 )
           )
         : null}
+
+      {/* One toggle for both states, pinned to the top-right corner above the
+          panel, so opening or closing never moves it. */}
+      {!isMobile && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute right-3 top-2 z-[60] h-7 w-7 text-muted-foreground hover:text-foreground transition-colors"
+          onClick={togglePanel}
+          aria-label={panelOpen ? t('workspace.hidePanel') : t('workspace.showPanel')}
+          title={panelOpen ? t('workspace.hidePanel') : t('workspace.showPanel')}
+        >
+          <PanelRight className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   )
 }
