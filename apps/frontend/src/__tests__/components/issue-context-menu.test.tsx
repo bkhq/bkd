@@ -7,20 +7,23 @@ import { getIssueUrl } from '@/stores/server-store'
 
 /** Right-click and header variants of the issue action menu. */
 
+const updateMutate = vi.fn()
+
 vi.mock('@/hooks/use-kanban', () => ({
-  useUpdateIssue: () => ({ mutate: vi.fn() }),
+  useUpdateIssue: () => ({ mutate: updateMutate }),
   useDeleteIssue: () => ({ mutate: vi.fn() }),
   useDuplicateIssue: () => ({ mutate: vi.fn() }),
 }))
 
 const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
 
-const issue = { id: 'i1', issueNumber: 1, title: 'Fix it', isPinned: false } as unknown as Issue
+const issue = { id: 'i1', issueNumber: 1, title: 'Fix it', isPinned: false, statusId: 'todo' } as unknown as Issue
 
 describe('issue action menus', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('en')
     writeText.mockClear()
+    updateMutate.mockClear()
     Object.assign(navigator, { clipboard: { writeText } })
   })
 
@@ -31,14 +34,42 @@ describe('issue action menus', () => {
       </IssueRightClickMenu>,
     )
     fireEvent.contextMenu(screen.getByText('row'))
-    for (const label of ['Pin to top', 'Rename', 'Copy', 'Download', 'Delete'])
+    for (const label of ['Status', 'Pin to top', 'Rename', 'Copy', 'Download', 'Open in new tab', 'Copy link', 'Copy issue number', 'Delete'])
       expect(await screen.findByRole('menuitem', { name: label })).toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: 'Copy link' })).toBeNull()
   })
 
-  it('offers copy link in the header menu and writes the issue URL', async () => {
+  it('changes the status from the status submenu', async () => {
     render(
-      <IssueContextMenu issue={issue} projectId="p1" showPin showCopyLink>
+      <IssueRightClickMenu issue={issue} projectId="p1">
+        <div>row</div>
+      </IssueRightClickMenu>,
+    )
+    fireEvent.contextMenu(screen.getByText('row'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Status' }))
+    expect(await screen.findByRole('menuitemradio', { name: 'Todo' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Review' }))
+    expect(updateMutate).toHaveBeenCalledWith({ id: 'i1', statusId: 'review' })
+  })
+
+  it('copies the issue number and opens the issue in a new tab', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    render(
+      <IssueRightClickMenu issue={issue} projectId="p1">
+        <div>row</div>
+      </IssueRightClickMenu>,
+    )
+    fireEvent.contextMenu(screen.getByText('row'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy issue number' }))
+    expect(writeText).toHaveBeenCalledWith('#1')
+    fireEvent.contextMenu(screen.getByText('row'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Open in new tab' }))
+    expect(open).toHaveBeenCalledWith(getIssueUrl('p1', 'i1'), '_blank', 'noopener')
+    open.mockRestore()
+  })
+
+  it('offers copy link in the dropdown menu and writes the issue URL', async () => {
+    render(
+      <IssueContextMenu issue={issue} projectId="p1" showPin>
         <IssueContextMenuButton />
       </IssueContextMenu>,
     )

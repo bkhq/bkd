@@ -285,7 +285,7 @@ See `docs/deployment.md`.
 - **Routing**: react-router-dom v7 (all pages lazy-loaded)
 - **Server state**: TanStack React Query v5 (`staleTime: 30s`, `retry: 1`)
 - **Local UI state**: Zustand stores
-- **Drag & drop**: @atlaskit/pragmatic-drag-and-drop
+- **Drag & drop**: @dnd-kit/core + @dnd-kit/sortable for issue drag on the kanban board and list panel (`components/issue-drag/`); @atlaskit/pragmatic-drag-and-drop only for HomePage project ordering
 - **Syntax highlighting**: Shiki (slim bundle via custom Vite plugin)
 - **Terminal**: xterm.js 6.0 + WebSocket
 - **i18n**: i18next + react-i18next (Chinese default, English)
@@ -329,7 +329,6 @@ components/
 
 | Store | State |
 |-------|-------|
-| `board-store` | Grouped items by status, `isDragging` (pauses server sync) |
 | `panel-store` | Side panel open/closed, width, create dialog |
 | `view-mode-store` | Kanban/list toggle (persisted in localStorage) |
 | `terminal-store` | Terminal drawer state |
@@ -433,7 +432,7 @@ Frontend re-exports via `types/kanban.ts`.
 | Database | SQLite + Drizzle ORM |
 | Frontend | React 19 + Vite 8 |
 | Styling | Tailwind CSS v4 + shadcn/ui |
-| Drag & Drop | @atlaskit/pragmatic-drag-and-drop |
+| Drag & Drop | @dnd-kit (issues), @atlaskit/pragmatic-drag-and-drop (HomePage projects) |
 | Terminal | xterm.js 6.0 |
 | Syntax | Shiki 4.0 |
 | Cron | cronbake |

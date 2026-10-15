@@ -606,7 +606,11 @@
     "renameTitle": "重命名任务",
     "newTitle": "新标题",
     "save": "保存",
-    "moreActions": "更多操作"
+    "moreActions": "更多操作",
+    "status": "状态",
+    "openInNewTab": "在新标签页打开",
+    "copyNumber": "复制编号",
+    "numberCopied": "编号已复制"
   },
   "error": {
     "title": "出错了",

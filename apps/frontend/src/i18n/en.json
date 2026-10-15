@@ -607,7 +607,11 @@
     "renameTitle": "Rename issue",
     "newTitle": "New title",
     "save": "Save",
-    "moreActions": "More actions"
+    "moreActions": "More actions",
+    "status": "Status",
+    "openInNewTab": "Open in new tab",
+    "copyNumber": "Copy issue number",
+    "numberCopied": "Issue number copied"
   },
   "error": {
     "title": "Something went wrong",
