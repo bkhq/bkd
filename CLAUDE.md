@@ -230,7 +230,7 @@ Deployment, migration from the old launcher, and the `lode.toml` reference: `doc
 - **Styling**: Tailwind CSS v4 via `@tailwindcss/vite` + shadcn/ui components
 - **Routing**: react-router-dom v7 (all pages lazy-loaded)
 - **Data fetching**: TanStack React Query v5 (`staleTime: 30s`, `retry: 1`)
-- **Drag & drop**: @atlaskit/pragmatic-drag-and-drop for kanban board
+- **Drag & drop**: @dnd-kit/core + @dnd-kit/sortable for issue drag on the kanban board and list panel (`components/issue-drag/`); @atlaskit/pragmatic-drag-and-drop only for HomePage project ordering
 - **Syntax highlighting**: Shiki (slim bundle via custom Vite plugin)
 - **i18n**: i18next + react-i18next, Chinese (zh, default) and English (en). Translations in `src/i18n/{en,zh}.json`
 - **Path alias**: `@/*` maps to `src/*`
@@ -256,7 +256,6 @@ Four global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDraw
 
 - **TanStack React Query** — All server state. Hooks in `hooks/use-kanban.ts`. Query keys use `queryKeys` factory.
 - **Zustand stores** — Local UI state only:
-  - `board-store.ts` — Drag-and-drop grouped items by status. `isDragging` flag pauses server sync.
   - `panel-store.ts` — Side panel and create dialog open/close.
   - `view-mode-store.ts` — Kanban/list toggle (persisted in localStorage).
   - `terminal-store.ts` / `terminal-session-store.ts` — Terminal drawer state + xterm.js session.

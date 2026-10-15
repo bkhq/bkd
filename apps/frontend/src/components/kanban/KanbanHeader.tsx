@@ -30,7 +30,7 @@ export function KanbanHeader({
   const [showSettings, setShowSettings] = useState(false)
 
   return (
-    <div className="shrink-0 border-b border-border bg-card">
+    <div className="shrink-0 border-b border-border/60 bg-secondary">
       {/* Top row: project name + actions. 48px + the border matches the other page headers. */}
       <div className="flex h-12 items-center justify-between px-3 md:px-5">
         <div className="flex items-center gap-2 md:gap-3 min-w-0">

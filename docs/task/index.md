@@ -167,3 +167,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261013-2212-decision-event-retention Delete decided decision events after one day**](20261013-2212-decision-event-retention.md) `P2`
 - [ ] [**20261013-2222-api-execution-test-timeout api-execution test times out in the full suite**](20261013-2222-api-execution-test-timeout.md) `P2`
 - [x] [**20261013-2219-webhook-local-targets Allow webhooks to target local addresses**](20261013-2219-webhook-local-targets.md) `P2`
+- [x] [**20261015-0201-issue-menu-and-list-drag Extend the issue menu, add list drag, tidy kanban column headers**](20261015-0201-issue-menu-and-list-drag.md) `P2`
+- [x] [**20261015-0315-dnd-kit-board-restyle Move issue drag to dnd-kit and restyle the kanban board after bks**](20261015-0315-dnd-kit-board-restyle.md) `P2`

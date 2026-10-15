@@ -1,5 +1,5 @@
 import { ContextMenu } from '@base-ui/react/context-menu'
-import { Copy, Download, Link, MoreHorizontal, Pencil, Pin, PinOff, Trash2 } from 'lucide-react'
+import { CircleDot, Copy, Download, ExternalLink, Hash, Link, MoreHorizontal, Pencil, Pin, PinOff, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,11 +27,18 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   dropdownMenuPopupClassName,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useDeleteIssue, useDuplicateIssue, useUpdateIssue } from '@/hooks/use-kanban'
+import { tStatus } from '@/lib/i18n-utils'
 import { kanbanApi } from '@/lib/kanban-api'
+import { STATUSES } from '@/lib/statuses'
 import { cn } from 'cn'
 import { getIssueUrl } from '@/stores/server-store'
 import type { Issue } from '@/types/kanban'
@@ -107,8 +114,6 @@ interface IssueMenuOptions {
   issue: Issue
   projectId: string
   showPin?: boolean
-  /** Add a "Copy link" item (chat header). */
-  showCopyLink?: boolean
   /** Called after the issue is successfully deleted (e.g. to navigate away when it was active) */
   onDeleted?: () => void
 }
@@ -118,7 +123,7 @@ interface IssueMenuOptions {
  * and the right-click menu. Items are base-ui Menu items, so they work inside
  * either popup.
  */
-function useIssueMenu({ issue, projectId, showPin = false, showCopyLink = false, onDeleted }: IssueMenuOptions) {
+function useIssueMenu({ issue, projectId, showPin = false, onDeleted }: IssueMenuOptions) {
   const { t } = useTranslation()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
@@ -144,12 +149,27 @@ function useIssueMenu({ issue, projectId, showPin = false, showCopyLink = false,
     document.body.removeChild(a)
   }, [projectId, issue.id])
 
+  const handleStatusChange = useCallback((statusId: string) => {
+    if (statusId !== issue.statusId) updateIssue.mutate({ id: issue.id, statusId })
+  }, [updateIssue, issue.id, issue.statusId])
+
+  const handleOpenInNewTab = useCallback(() => {
+    window.open(getIssueUrl(projectId, issue.id), '_blank', 'noopener')
+  }, [projectId, issue.id])
+
   const handleCopyLink = useCallback(() => {
     navigator.clipboard
       .writeText(getIssueUrl(projectId, issue.id))
       .then(() => toast.success(t('issue.linkCopied')))
       .catch(() => {})
   }, [projectId, issue.id, t])
+
+  const handleCopyNumber = useCallback(() => {
+    navigator.clipboard
+      .writeText(`#${issue.issueNumber}`)
+      .then(() => toast.success(t('contextMenu.numberCopied')))
+      .catch(() => {})
+  }, [issue.issueNumber, t])
 
   const handleDelete = useCallback(() => {
     deleteIssue.mutate(issue.id, {
@@ -160,6 +180,23 @@ function useIssueMenu({ issue, projectId, showPin = false, showCopyLink = false,
 
   const items = (
     <>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          <CircleDot className="size-4" />
+          {t('contextMenu.status')}
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          <DropdownMenuRadioGroup value={issue.statusId} onValueChange={value => handleStatusChange(value as string)}>
+            {STATUSES.map(status => (
+              <DropdownMenuRadioItem key={status.id} value={status.id}>
+                <span className="size-2 rounded-full" style={{ backgroundColor: status.color }} />
+                {tStatus(t, status.name)}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+      <DropdownMenuSeparator />
       {showPin && (
         <DropdownMenuItem onSelect={handlePin}>
           {issue.isPinned
@@ -189,12 +226,19 @@ function useIssueMenu({ issue, projectId, showPin = false, showCopyLink = false,
         <Download className="size-4" />
         {t('contextMenu.download')}
       </DropdownMenuItem>
-      {showCopyLink && (
-        <DropdownMenuItem onSelect={handleCopyLink}>
-          <Link className="size-4" />
-          {t('issue.copyLink')}
-        </DropdownMenuItem>
-      )}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={handleOpenInNewTab}>
+        <ExternalLink className="size-4" />
+        {t('contextMenu.openInNewTab')}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={handleCopyLink}>
+        <Link className="size-4" />
+        {t('issue.copyLink')}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={handleCopyNumber}>
+        <Hash className="size-4" />
+        {t('contextMenu.copyNumber')}
+      </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
         <Trash2 className="size-4" />
@@ -240,7 +284,7 @@ export function IssueContextMenu({ children, ...options }: IssueContextMenuProps
     <>
       <DropdownMenu>
         <DropdownMenuTrigger render={children as React.JSX.Element} />
-        <DropdownMenuContent align="start" sideOffset={4}>
+        <DropdownMenuContent align="start" sideOffset={4} className="min-w-40">
           {items}
         </DropdownMenuContent>
       </DropdownMenu>
@@ -269,7 +313,7 @@ export function IssueRightClickMenu({ children, className, ...options }: IssueRi
         <ContextMenu.Trigger className={className} data-slot="issue-context-trigger">{children}</ContextMenu.Trigger>
         <ContextMenu.Portal>
           <ContextMenu.Positioner className="isolate z-50 outline-none">
-            <ContextMenu.Popup className={dropdownMenuPopupClassName}>
+            <ContextMenu.Popup className={cn(dropdownMenuPopupClassName, 'min-w-40')}>
               {items}
             </ContextMenu.Popup>
           </ContextMenu.Positioner>

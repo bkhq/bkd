@@ -74,3 +74,5 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261013-1950-engine-protocol-drift Fix Claude and Codex wire-protocol drift**](20261013-1950-engine-protocol-drift.md) `2026-10-13`
 - [x] [**20261013-2005-decision-capability-probe Add a decision-events capability probe and drop the bundled skill**](20261013-2005-decision-capability-probe.md) `2026-10-13`
 - [x] [**20261013-2159-decision-telegram-interactive Answer decision events from Telegram**](20261013-2159-decision-telegram-interactive.md) `2026-10-13`
+- [x] [**20261015-0201-issue-menu-and-list-drag Extend the issue menu, add list drag, tidy kanban column headers**](20261015-0201-issue-menu-and-list-drag.md) `2026-10-15`
+- [x] [**20261015-0315-dnd-kit-board-restyle Move issue drag to dnd-kit and restyle the kanban board after bks**](20261015-0315-dnd-kit-board-restyle.md) `2026-10-15`

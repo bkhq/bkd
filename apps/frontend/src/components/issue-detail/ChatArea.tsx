@@ -182,7 +182,7 @@ export function ChatArea({
                   )}
             </div>
           </div>
-          <IssueContextMenu issue={issue} projectId={projectId} showPin showCopyLink onDeleted={handleAfterDelete}>
+          <IssueContextMenu issue={issue} projectId={projectId} showPin onDeleted={handleAfterDelete}>
             <IssueContextMenuButton className="h-7 w-7 shrink-0" />
           </IssueContextMenu>
           {/* While the panel is open, its own header carries the hide button */}
