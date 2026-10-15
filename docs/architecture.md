@@ -395,7 +395,7 @@ Frontend re-exports via `types/kanban.ts`.
 
 ### Database Migrations
 
-27 migrations in `apps/api/drizzle/` (0000–0026). Auto-applied on startup in `meta/_journal.json` order. Sources: `apps/api/drizzle` (dev), `APP_DIR/migrations/` (package), or the embedded map (`db/embedded-migrations.ts`, used only when no filesystem migrations exist).
+28 migrations in `apps/api/drizzle/` (0000–0027). Auto-applied on startup in `meta/_journal.json` order. Sources: `apps/api/drizzle` (dev), `APP_DIR/migrations/` (package), or the embedded map (`db/embedded-migrations.ts`, used only when no filesystem migrations exist).
 
 ---
 

@@ -921,3 +921,20 @@ On desktop `ChatArea` renders one toggle pinned to the top-right corner above th
 for both states; the inline panel's tab bar keeps an empty slot for it instead of its own
 hide button, and the chat header keeps one only while the panel is closed. Mobile is
 unchanged (header show button, fullscreen panel hide button).
+
+## 2026-10-15 06:50 [progress]
+
+Docs brought in line with the code.
+
+- `docs/development.md`: Vite 8 (was 7); drag & drop is dnd-kit core + sortable; removed
+  the deleted `compile` / `compile:launcher` scripts and `scripts/compile.ts`; the
+  self-upgrade section now describes lode; dev ports are assigned by nsl (not 3010/3000);
+  background jobs are built-in cron actions (five, not two); four engines; complete route,
+  table and page lists; four drawers; root `.env` for dev and for Vite; `@hono/zod-openapi`
+  instead of `@hono/zod-validator`.
+- `CLAUDE.md` / `AGENTS.md`: background jobs live in `cron/actions/builtins/` (no `jobs/`
+  directory) and include `log-cleanup` and `issue-log-retention`; full table list; dev
+  ports come from nsl; static serving covers package mode.
+- `docs/architecture.md`: 28 migrations (0000–0027).
+- `apps/frontend/README.md`: replaced the TanStack Start template text with a short,
+  accurate pointer.

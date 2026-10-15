@@ -20,8 +20,8 @@ Structured as a **Bun Workspaces monorepo**:
 # Access via http://bkd.localhost — nsl proxy routes /api/* → API, rest → Vite.
 # This is the only dev entry point: Vite no longer has a /api/* proxy.
 bun run dev                  # API + Vite in parallel
-bun run dev:api              # API server only (port 3010, registered at bkd.localhost/api)
-bun run dev:frontend         # Vite dev server only (port 3000, registered at bkd.localhost)
+bun run dev:api              # API server only (registered at bkd.localhost/api; nsl assigns the port)
+bun run dev:frontend         # Vite dev server only (registered at bkd.localhost; nsl assigns the port)
 
 # All workspaces
 bun install                  # single install for all workspaces
@@ -81,7 +81,7 @@ bun scripts/migrate-to-lode.ts --root /opt/bkd --apply --prune
 
 #### Data Layer
 
-Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings` (key-value store for server settings), `decisionEvents`, `decisionChannelMessages`.
+Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings` (key-value store for server settings), `notes`, `webhooks`, `webhookDeliveries`, `decisionEvents`, `decisionChannelMessages`, `cronJobs`, `cronJobLogs`.
 
 Statuses are hardcoded constants in `config.ts` (`todo`, `working`, `review`, `done`) — no DB table.
 
@@ -206,10 +206,14 @@ One question a coordinating agent needs the user to answer, per the `bkd` skill'
 
 Routes: `GET /api/decisions` (capability probe, `{ supported, contractVersion }`), `GET/POST /api/decisions/events`, `GET/PATCH /api/decisions/events/:id`, `POST /api/decisions/events/:id/{decision,notify,ack,withdraw,close}`.
 
-#### Background Jobs (`jobs/`)
+#### Background Jobs (built-in cron actions, `cron/actions/builtins/`)
 
-- `upload-cleanup` (every 1h) — deletes files in `data/uploads/` older than 7 days
-- `worktree-cleanup` (every 30 min) — removes worktrees for `done` issues older than 1 day; gated by `worktree:autoCleanup` setting
+Registered as `builtin` actions and scheduled through the cron system (see Cron System):
+
+- `upload-cleanup` (hourly) — deletes files in `data/uploads/` older than 7 days
+- `worktree-cleanup` (every 30 min, also on startup) — removes worktrees of `done` issues older than 1 day and of deleted issues; gated by the `worktree:autoCleanup` setting
+- `log-cleanup` (daily at 03:00) — trims cron job logs to the last 1000 per job
+- `issue-log-retention` (daily at 04:00) — deletes issue logs of `done` issues older than `log:retentionDays` (default 30)
 - `decision-event-cleanup` (daily at 05:00) — soft-deletes decision events that are no longer `open` and unchanged for 1 day
 
 #### Upgrade (`upgrade/`)
