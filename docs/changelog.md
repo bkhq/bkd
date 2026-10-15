@@ -913,3 +913,11 @@ API tests launched the real `claude` CLI (task `20261013-0538-spawn-leak-tests-o
   `test/no-real-engine-cli.test.ts`.
 - Full API suite: 917 pass / 0 fail (was 907 / 6), twice in a row. Also closes
   `20260922-1712`, `20261002-1046`, `20261013-2222`.
+
+## 2026-10-15 06:20 [progress]
+
+The workspace panel toggle no longer jumps (task `20261015-0610-workspace-toggle-fixed`).
+On desktop `ChatArea` renders one toggle pinned to the top-right corner above the panel,
+for both states; the inline panel's tab bar keeps an empty slot for it instead of its own
+hide button, and the chat header keeps one only while the panel is closed. Mobile is
+unchanged (header show button, fullscreen panel hide button).

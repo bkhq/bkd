@@ -75,3 +75,24 @@ describe('workspace panel Files tab', () => {
     expect(screen.getByText('file browser')).toBeInTheDocument()
   })
 })
+
+describe('workspace panel hide control', () => {
+  beforeEach(async () => {
+    mocks.changes = { isLoading: true, isError: false, data: undefined, refetch: vi.fn() }
+    useWorkspacePanelStore.setState({ isOpen: true, tabs: ['files'], activeTab: 'files', isMaximized: false })
+    await i18n.changeLanguage('en')
+  })
+
+  it('leaves hiding the inline panel to the chat area\'s fixed toggle', () => {
+    renderPanel()
+    // The toggle stays in one place whether the panel is open or closed, so the
+    // inline panel must not render a second one that would appear and vanish.
+    expect(screen.queryByRole('button', { name: 'Hide side panel' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Maximize workspace' })).toBeInTheDocument()
+  })
+
+  it('keeps its own hide button in fullscreen, where nothing else can close it', () => {
+    render(<WorkspacePanel projectId="p1" issueId="i1" width={0} onWidthChange={() => {}} fullScreen />)
+    expect(screen.getByRole('button', { name: 'Hide side panel' })).toBeInTheDocument()
+  })
+})
