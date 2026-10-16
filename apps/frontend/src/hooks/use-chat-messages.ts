@@ -51,6 +51,12 @@ function toolCallIdOf(entry: NormalizedLogEntry): string | undefined {
 
 // ---------- Subagent threads ----------
 
+function isAgentDispatch(entry: NormalizedLogEntry): boolean {
+  const kind = entry.toolDetail?.kind
+  const toolName = entry.toolDetail?.toolName ?? entry.metadata?.toolName
+  return kind === 'agent' || kind === 'task' || toolName === 'Agent' || toolName === 'Task'
+}
+
 /** Lifecycle events the CLI emits for a dispatched subagent. */
 const SUBAGENT_LIFECYCLE_SUBTYPES = new Set(['task_started', 'task_progress', 'task_notification'])
 
@@ -281,6 +287,8 @@ export function rebuildMessages(rawEntries: NormalizedLogEntry[]): ChatMessage[]
 
   function buildToolGroup(items: ToolGroupItem[], description?: string): ToolGroupChatMessage {
     const withSubagents = items.map((item) => {
+      // Background Bash/Monitor tasks emit task_* events too; only agent dispatches own a thread.
+      if (!isAgentDispatch(item.action)) return item
       const callId = toolCallIdOf(item.action)
       const thread = callId ? subagentThreads.get(callId) : undefined
       return thread ? { ...item, subagent: thread } : item

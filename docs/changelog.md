@@ -850,3 +850,12 @@ Review follow-ups on #151, fixed on `release` before merge:
   the index after each `VACUUM`.
 - The issue list search shows a "Message matches" section below the title matches. Kanban board
   search stays title-only.
+
+## 2026-10-16 05:00 [progress]
+
+Completed `20261016-0448-background-task-as-subagent`: background Bash tasks no longer render as subagents.
+
+- The CLI emits `task_started` / `task_notification` for background Bash and Monitor calls as well;
+  the chat rebuilder attached a subagent thread to those calls, so `ToolItems` drew them as Agent
+  panels with the command output as the agent result.
+- `buildToolGroup()` now attaches a thread only to `Agent` / `Task` dispatches.
