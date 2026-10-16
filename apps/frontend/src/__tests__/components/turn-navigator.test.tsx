@@ -137,3 +137,56 @@ describe('turnNavigator', () => {
     expect(onJump).toHaveBeenCalledWith({ ...unloaded, entriesSince: 300 })
   })
 })
+
+describe('turnNavigator paging', () => {
+  const manyTurns = Array.from({ length: 100 }, (_, i) => ({ index: i * 2, messageId: `u${i}`, userText: `Q${i}`, replyText: '' }))
+
+  /** jsdom has no layout: give the rail a fixed viewport over a taller list. */
+  function layoutRail(scrollHeight: number, clientHeight: number) {
+    const rail = screen.getByTestId('turn-rail')
+    Object.defineProperty(rail, 'scrollHeight', { configurable: true, value: scrollHeight })
+    Object.defineProperty(rail, 'clientHeight', { configurable: true, value: clientHeight })
+    return rail
+  }
+
+  it('shows no paging buttons while every tick fits', () => {
+    render(<TurnNavigator turns={manyTurns.slice(0, 3)} activeIndex={0} onJump={vi.fn()} />)
+    fireEvent.scroll(layoutRail(24, 320))
+    expect(screen.queryByRole('button', { name: 'session.earlierTurns' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'session.laterTurns' })).toBeNull()
+  })
+
+  it('pages the rail with the up and down buttons when ticks overflow', () => {
+    render(<TurnNavigator turns={manyTurns} activeIndex={0} onJump={vi.fn()} />)
+    const rail = layoutRail(800, 320)
+    rail.scrollTop = 0
+    fireEvent.scroll(rail)
+    const up = screen.getByRole('button', { name: 'session.earlierTurns' })
+    const down = screen.getByRole('button', { name: 'session.laterTurns' })
+    expect(up).toBeDisabled()
+    expect(down).toBeEnabled()
+
+    fireEvent.click(down)
+    expect(rail.scrollTop).toBeGreaterThan(0)
+    fireEvent.scroll(rail)
+    expect(screen.getByRole('button', { name: 'session.earlierTurns' })).toBeEnabled()
+
+    rail.scrollTop = 480 // scrolled to the end
+    fireEvent.scroll(rail)
+    expect(screen.getByRole('button', { name: 'session.laterTurns' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'session.earlierTurns' }))
+    expect(rail.scrollTop).toBeLessThan(480)
+  })
+
+  it('brings the tick of the turn in view into the rail when it is off-screen', () => {
+    const { rerender } = render(<TurnNavigator turns={manyTurns} activeIndex={0} onJump={vi.fn()} />)
+    const rail = layoutRail(800, 320)
+    rail.scrollTop = 0
+    const last = screen.getByRole('button', { name: 'session.jumpToTurn:100' })
+    Object.defineProperty(last, 'offsetTop', { configurable: true, value: 792 })
+    Object.defineProperty(last, 'offsetHeight', { configurable: true, value: 8 })
+    rerender(<TurnNavigator turns={manyTurns} activeIndex={198} onJump={vi.fn()} />)
+    // The tick ends at 800; the rail shows it once scrollTop reaches 800 - 320
+    expect(rail.scrollTop).toBeGreaterThanOrEqual(800 - 320)
+  })
+})

@@ -253,6 +253,8 @@
     "scrollToTop": "Scroll to top",
     "turnNavigator": "Conversation turns",
     "jumpToTurn": "Jump to turn {{n}}",
+    "earlierTurns": "Earlier turns",
+    "laterTurns": "Later turns",
     "loadHistoryTitle": "Load earlier history?",
     "loadHistoryDescription": "Jumping to this turn loads about {{count}} earlier log entries. Long histories can slow down the chat.",
     "loadHistoryConfirm": "Load and jump",

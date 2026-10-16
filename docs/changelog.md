@@ -938,3 +938,11 @@ Docs brought in line with the code.
 - `docs/architecture.md`: 28 migrations (0000–0027).
 - `apps/frontend/README.md`: replaced the TanStack Start template text with a short,
   accurate pointer.
+
+## 2026-10-16 02:45 [progress]
+
+The chat turn rail pages instead of hiding the current turn (task
+`20261016-0230-turn-rail-paging`). Beyond ~40 turns the ticks overflowed a scroll area
+whose hidden scrollbar started at the top, so the highlighted (newest) turn was off-screen.
+Up/down buttons now page the rail and disable at each end, and when the turn in view
+changes off-screen the rail centers its tick.

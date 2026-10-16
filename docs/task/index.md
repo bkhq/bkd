@@ -170,3 +170,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261015-0201-issue-menu-and-list-drag Extend the issue menu, add list drag, tidy kanban column headers**](20261015-0201-issue-menu-and-list-drag.md) `P2`
 - [x] [**20261015-0315-dnd-kit-board-restyle Move issue drag to dnd-kit and restyle the kanban board after bks**](20261015-0315-dnd-kit-board-restyle.md) `P2`
 - [x] [**20261015-0610-workspace-toggle-fixed Keep the workspace panel toggle in one place**](20261015-0610-workspace-toggle-fixed.md) `P2`
+- [x] [**20261016-0230-turn-rail-paging Page the chat turn rail and keep the current turn visible**](20261016-0230-turn-rail-paging.md) `P2`
