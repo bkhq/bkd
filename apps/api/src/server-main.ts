@@ -20,6 +20,7 @@ import { acquirePidLock, releasePidLock } from './pid-lock'
 import { APP_DIR, ROOT_DIR } from './root'
 import { printStartupBanner } from './startup-banner'
 import { reportReady } from './upgrade/service'
+import { MAX_REQUEST_BODY_SIZE } from './uploads'
 import { initWebhookDispatcher, startDeliveryCleanup } from './webhooks/dispatcher'
 
 // ---------- Global error handlers ----------
@@ -135,6 +136,7 @@ const http = Bun.serve({
   port: listenPort,
   hostname: listenHost,
   idleTimeout: 60,
+  maxRequestBodySize: MAX_REQUEST_BODY_SIZE,
   fetch: app.fetch,
   websocket,
 })

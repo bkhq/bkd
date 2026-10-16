@@ -35,6 +35,7 @@ import type {
   WebhookDelivery,
   WebhookEventType,
 } from '@/types/kanban'
+import { useUploadStore } from '@/stores/upload-store'
 
 /** Encode a filesystem path as base58 for use in URL path segments. */
 function encodeRootPath(path: string): string {
@@ -166,27 +167,54 @@ function del<T>(url: string) {
   return request<T>(url, { method: 'DELETE' })
 }
 
-async function postFormData<T>(url: string, formData: FormData, timeoutMs = 60_000): Promise<T> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+const UPLOAD_IDLE_TIMEOUT_MS = 60_000
 
-  let res: Response
-  try {
-    res = await fetch(url, { method: 'POST', body: formData, signal: controller.signal })
-  } catch (err) {
-    clearTimeout(timer)
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new ApiError(`Upload timed out after ${timeoutMs}ms: ${url}`, 408)
+/** Multipart POST via XHR so upload progress reaches the upload store. Aborts after 60s without progress. */
+function postFormData<T>(url: string, formData: FormData): Promise<T> {
+  const files = formData.getAll('files').filter((f): f is File => f instanceof File)
+  const uploads = useUploadStore.getState()
+  const uploadId = uploads.start(files)
+
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    let idleTimer: ReturnType<typeof setTimeout> | undefined
+    const armIdleTimer = () => {
+      clearTimeout(idleTimer)
+      idleTimer = setTimeout(() => xhr.abort(), UPLOAD_IDLE_TIMEOUT_MS)
     }
-    throw err
-  }
-  clearTimeout(timer)
+    const fail = (err: Error) => {
+      clearTimeout(idleTimer)
+      uploads.finish(uploadId, 'error')
+      reject(err)
+    }
 
-  const json = (await res.json()) as ApiResponse<T>
-  if (!json.success) {
-    throw new ApiError(json.error, res.status)
-  }
-  return json.data
+    xhr.upload.onprogress = (e) => {
+      armIdleTimer()
+      if (e.lengthComputable) uploads.progress(uploadId, e.loaded, e.total)
+    }
+    xhr.onabort = () => fail(new ApiError(`Upload stalled for ${UPLOAD_IDLE_TIMEOUT_MS}ms: ${url}`, 408))
+    xhr.onerror = () => fail(new TypeError(`Network error: ${url}`))
+    xhr.onload = () => {
+      clearTimeout(idleTimer)
+      let json: ApiResponse<T>
+      try {
+        json = JSON.parse(xhr.responseText) as ApiResponse<T>
+      } catch {
+        fail(new ApiError(`Upload failed (HTTP ${xhr.status}): ${url}`, xhr.status))
+        return
+      }
+      if (!json.success) {
+        fail(new ApiError(json.error, xhr.status))
+        return
+      }
+      uploads.finish(uploadId, 'done')
+      resolve(json.data)
+    }
+
+    xhr.open('POST', url)
+    armIdleTimer()
+    xhr.send(formData)
+  })
 }
 
 export const kanbanApi = {

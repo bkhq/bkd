@@ -851,6 +851,21 @@ Review follow-ups on #151, fixed on `release` before merge:
 - The issue list search shows a "Message matches" section below the title matches. Kanban board
   search stays title-only.
 
+## 2026-10-16 04:15 [progress]
+
+Lifted the upload cap and added a global upload progress indicator (20261016-0320-upload-limit-progress).
+
+- `apps/api/src/uploads.ts`: the 10 MB per-file cap is now `MAX_UPLOAD_SIZE` = 1 GB total per
+  request; `Bun.serve()` gets a matching `maxRequestBodySize` (Bun's default of 128 MB rejected
+  larger bodies with 413 before any handler ran). The client-side mirror in
+  `use-file-attachments.ts` checks the same total.
+- `postFormData()` now uses `XMLHttpRequest` for upload progress and aborts only after 60 s
+  without progress instead of a fixed 60 s total.
+- New `upload-store` + `UploadProgress` floating panel (bottom-right) covering issue create,
+  follow-up and file browser uploads.
+- [pitfall] Multipart bodies are still parsed with `formData()`, so an upload is held in memory in
+  full while the request is parsed.
+
 ## 2026-10-16 05:00 [progress]
 
 Completed `20261016-0448-background-task-as-subagent`: background Bash tasks no longer render as subagents.
@@ -859,3 +874,18 @@ Completed `20261016-0448-background-task-as-subagent`: background Bash tasks no 
   the chat rebuilder attached a subagent thread to those calls, so `ToolItems` drew them as Agent
   panels with the command output as the agent result.
 - `buildToolGroup()` now attaches a thread only to `Agent` / `Task` dispatches.
+
+## 2026-10-16 05:40 [progress]
+
+Multipart uploads are streamed to disk instead of buffered (20261016-0424-streaming-multipart-upload).
+
+- New `parseMultipartUpload()` / `receiveAttachments()` in `apps/api/src/uploads.ts` (dependency
+  `@fastify/busboy` ^3.2.3) replace `formData()` + `saveUploadedFile()` / `validateFiles()` in issue
+  create, follow-up and `/files/:root/upload`. File count and the 1 GB total are enforced while
+  streaming; any failure removes what was written. Over the size limit now returns 413.
+- `/files/:root/upload` writes `.bkd-upload-<ulid>` staging files in the target directory and
+  renames them into place after the conflict check.
+- 1000 MB upload against a real server: peak RSS +53 MB (was the full body).
+- [pitfall] Under Bun a client disconnect surfaces on `Readable.fromWeb(request.body)` only as
+  `close` — no `error`, no `end`. Waiting for either hangs the request and leaks a partial file.
+- [pitfall] busboy reduces file names to their basename unless `preservePath: true`.

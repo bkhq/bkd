@@ -182,7 +182,7 @@
     },
     "attach": "Attach files",
     "attachDragHint": "Drop files here",
-    "fileTooBig": "File \"{{name}}\" exceeds {{limit}}MB limit",
+    "fileTooBig": "Skipped \"{{name}}\": attachments exceed the {{limit}}MB total limit",
     "tooManyFiles": "Too many files (max {{max}})",
     "removeFile": "Remove file",
     "unknownType": "Unknown type",
@@ -835,5 +835,10 @@
     "browserInDrawer": "The file browser is open in the drawer.",
     "openHere": "Open here",
     "worktreeMissing": "This issue has no worktree yet, or it was cleaned up. Running the issue creates it; until then the file browser stays unavailable so the main checkout is not edited by mistake."
+  },
+  "upload": {
+    "done": "Uploaded",
+    "failed": "Upload failed",
+    "processing": "Processing..."
   }
 }

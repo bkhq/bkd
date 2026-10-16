@@ -22,6 +22,7 @@
     "lint": "eslint src test"
   },
   "dependencies": {
+    "@fastify/busboy": "^3.2.3",
     "@hono/swagger-ui": "^0.6.1",
     "@hono/zod-openapi": "^1.6.3",
     "@hono/zod-validator": "^0.9.1",

@@ -5,6 +5,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Toaster } from './components/ui/sonner'
+import { UploadProgress } from './components/UploadProgress'
 import { useSystemInfo } from './hooks/use-kanban'
 import { eventBus } from './lib/event-bus'
 import { useFileBrowserStore } from './stores/file-browser-store'
@@ -266,6 +267,7 @@ if (!rootElement.innerHTML) {
           <ProcessManagerDrawerMount />
           <NotesDrawerMount />
           <Toaster position="top-center" />
+          <UploadProgress />
           <EventBusManager />
           <ServerConfigLoader />
         </ErrorBoundary>

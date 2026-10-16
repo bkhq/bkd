@@ -168,4 +168,6 @@ Each task is a single line linking to its detail file. All detailed information 
 - [ ] [**20261013-2222-api-execution-test-timeout api-execution test times out in the full suite**](20261013-2222-api-execution-test-timeout.md) `P2`
 - [x] [**20261013-2219-webhook-local-targets Allow webhooks to target local addresses**](20261013-2219-webhook-local-targets.md) `P2`
 - [x] [**20261015-2352-issue-message-search Full-text search over issue messages**](20261015-2352-issue-message-search.md) `P2`
+- [x] [**20261016-0320-upload-limit-progress Lift the 10 MB upload cap and show global upload progress**](20261016-0320-upload-limit-progress.md) `P2`
+- [x] [**20261016-0424-streaming-multipart-upload Stream multipart uploads to disk instead of buffering**](20261016-0424-streaming-multipart-upload.md) `P1`
 - [x] [**20261016-0448-background-task-as-subagent Background Bash tasks render as subagents in the chat**](20261016-0448-background-task-as-subagent.md) `P2`

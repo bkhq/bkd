@@ -9,7 +9,7 @@ import { findProject } from '@/db/helpers'
 import { attachments } from '@/db/schema'
 import { emitIssueLogRemoved } from '@/events/issue-events'
 import type { SavedFile } from '@/uploads'
-import { saveUploadedFile, validateFiles } from '@/uploads'
+import { discardFiles, receiveAttachments, UploadError } from '@/uploads'
 import { dispatchFollowUp, getProjectOwnedIssue, normalizePrompt } from './_shared'
 
 // ---------- Private helpers ----------
@@ -33,7 +33,7 @@ async function parseFollowUpBody(c: {
   req: {
     header: (name: string) => string | undefined
     json: () => Promise<unknown>
-    formData: () => Promise<FormData>
+    raw: Request
   }
 }): Promise<
   | {
@@ -43,24 +43,31 @@ async function parseFollowUpBody(c: {
     permissionMode?: string
     busyAction?: string
     displayPrompt?: string
-    files: File[]
+    files: SavedFile[]
   } |
-  { ok: false, error: string }
+  { ok: false, status: 400 | 413 | 500, error: string }
 > {
   const contentType = c.req.header('content-type') ?? ''
   if (contentType.includes('multipart/form-data')) {
-    const fd = await c.req.formData().catch(() => {
-      throw new HTTPException(400, { message: 'Invalid multipart body' })
-    })
-    const raw = Object.fromEntries(['prompt', 'model', 'permissionMode', 'busyAction', 'displayPrompt']
-      .filter(key => fd.has(key))
-      .map(key => [key, fd.get(key)]))
-    const files = fd.getAll('files').filter((entry): entry is File => entry instanceof File)
+    let upload: Awaited<ReturnType<typeof receiveAttachments>>
+    try {
+      upload = await receiveAttachments(c.req.raw)
+    } catch (error) {
+      if (error instanceof UploadError) return { ok: false, status: error.status, error: error.message }
+      throw error
+    }
+    const keys = ['prompt', 'model', 'permissionMode', 'busyAction', 'displayPrompt']
+    const raw: Record<string, string> = {}
+    for (const [key, value] of upload.fields) {
+      if (keys.includes(key) && !(key in raw)) raw[key] = value
+    }
+    const { files } = upload
     // Attachment-only messages may have an empty prompt; all limits still apply.
     const schema = files.length > 0 ? AttachmentFollowUpSchema : FollowUpSchema
     const parsed = schema.safeParse(raw)
     if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues.map(i => i.message).join(', ') }
+      await discardFiles(files)
+      return { ok: false, status: 400, error: parsed.error.issues.map(i => i.message).join(', ') }
     }
     return { ok: true, ...parsed.data, files }
   }
@@ -73,6 +80,7 @@ async function parseFollowUpBody(c: {
   if (!parsed.success) {
     return {
       ok: false,
+      status: 400,
       error: parsed.error.issues.map(i => i.message).join(', '),
     }
   }
@@ -116,43 +124,37 @@ message.post('/:id/follow-up', async (c) => {
   }
 
   const issueId = c.req.param('id')!
-  const parsed = await parseFollowUpBody(c)
-  if (!parsed.ok) {
-    return c.json({ success: false as const, error: parsed.error }, 400)
+  // Checked before reading the body so a missing issue never writes uploads
+  if (!await getProjectOwnedIssue(project.id, issueId)) {
+    return c.json({ success: false as const, error: 'Issue not found' }, 404)
   }
 
-  const { files } = parsed
+  const parsed = await parseFollowUpBody(c)
+  if (!parsed.ok) {
+    return c.json({ success: false as const, error: parsed.error }, parsed.status)
+  }
+
+  const { files: savedFiles } = parsed
   const prompt = normalizePrompt(parsed.prompt)
-  if (!prompt && files.length === 0) {
+  if (!prompt && savedFiles.length === 0) {
     return c.json({ success: false as const, error: 'Prompt is required' }, 400)
   }
 
-  // Validate files
-  if (files.length > 0) {
-    const validation = validateFiles(files)
-    if (!validation.ok) {
-      return c.json({ success: false as const, error: validation.error }, 400)
-    }
-  }
-
+  // Re-read: the issue may have changed or been deleted while the body was uploading
   const issue = await getProjectOwnedIssue(project.id, issueId)
   if (!issue) {
+    await discardFiles(savedFiles)
     return c.json({ success: false as const, error: 'Issue not found' }, 404)
   }
 
   // Reject model changes while the session is actively running
   const isActive = issue.sessionStatus === 'running' || issue.sessionStatus === 'pending'
   if (isActive && parsed.model && parsed.model !== (issue.model ?? '')) {
+    await discardFiles(savedFiles)
     return c.json(
       { success: false as const, error: 'Cannot change model while session is running. Wait for completion or cancel first.' },
       409,
     )
-  }
-
-  // Save uploaded files and insert attachment records
-  let savedFiles: SavedFile[] = []
-  if (files.length > 0) {
-    savedFiles = await Promise.all(files.map(saveUploadedFile))
   }
 
   const attachmentsMeta =

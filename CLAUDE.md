@@ -122,6 +122,7 @@ GET            /api/issues/review
 ```
 
 Attachments are uploaded through the multipart form of issue create and follow-up; there is no separate upload route.
+Multipart bodies (attachments and `/api/files/:root/upload`) are streamed to disk by `parseMultipartUpload()` in `uploads.ts` (`@fastify/busboy`, 1 GB total per request) — never use `c.req.formData()` for uploads, it buffers the whole body in memory.
 
 The `/logs/filter/*` route accepts path-based key/value filter pairs (order-independent):
 - `types/<comma-separated>` — filter by entry type (`user-message`, `assistant-message`, `tool-use`, `system-message`, `thinking`)

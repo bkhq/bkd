@@ -181,7 +181,7 @@
     },
     "attach": "附加文件",
     "attachDragHint": "拖放文件到此处",
-    "fileTooBig": "文件 \"{{name}}\" 超过 {{limit}}MB 限制",
+    "fileTooBig": "已跳过 \"{{name}}\"：附件总大小超过 {{limit}}MB 限制",
     "tooManyFiles": "文件数量过多（最多 {{max}} 个）",
     "removeFile": "删除文件",
     "unknownType": "未知类型",
@@ -834,5 +834,10 @@
     "browserInDrawer": "文件管理器正在抽屉中打开。",
     "openHere": "在此处打开",
     "worktreeMissing": "此任务的 worktree 尚未创建或已被清理，运行任务时会自动创建。在此之前文件管理器不可用，以免误改主工作区。"
+  },
+  "upload": {
+    "done": "上传完成",
+    "failed": "上传失败",
+    "processing": "处理中..."
   }
 }

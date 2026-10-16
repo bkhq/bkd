@@ -14,7 +14,7 @@ import { getVirtualEngine } from '@/engines/virtual-engines'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import type { SavedFile } from '@/uploads'
-import { saveUploadedFile, validateFiles } from '@/uploads'
+import { discardFiles, receiveAttachments, UploadError } from '@/uploads'
 import { serializeTags } from '@/utils/tags'
 import { buildIssueUrl, dispatch as webhookDispatch } from '@/webhooks/dispatcher'
 import {
@@ -33,46 +33,27 @@ async function parseCreateBody(c: {
   req: {
     header: (name: string) => string | undefined
     json: () => Promise<unknown>
-    formData: () => Promise<FormData>
+    raw: Request
   }
 }): Promise<
-  | { ok: true, body: CreateBody, files: File[] }
-  | { ok: false, error: string }
+  | { ok: true, body: CreateBody, files: SavedFile[] }
+  | { ok: false, status: 400 | 413 | 500, error: string }
 > {
   const contentType = c.req.header('content-type') ?? ''
   if (contentType.includes('multipart/form-data')) {
-    const fd = await c.req.formData().catch(() => {
-      throw new HTTPException(400, { message: 'Invalid multipart body' })
-    })
-    const raw: Record<string, unknown> = {}
-    for (const [key, value] of fd.entries()) {
-      // Skip File entries (key === 'files'); only string scalars feed the body
-      if (typeof value !== 'string') continue
-      if (key === 'tags') {
-        try {
-          raw.tags = JSON.parse(value)
-        } catch {
-          raw.tags = value.split(',').map(s => s.trim()).filter(Boolean)
-        }
-      } else if (key === 'useWorktree' || key === 'keepAlive') {
-        // Strict: silently coercing typos like "tru" to false hides client bugs.
-        if (value !== 'true' && value !== 'false' && value !== '1' && value !== '0') {
-          return { ok: false, error: `${key} must be "true", "false", "1", or "0"` }
-        }
-        raw[key] = value === 'true' || value === '1'
-      } else {
-        raw[key] = value
-      }
+    let upload: Awaited<ReturnType<typeof receiveAttachments>>
+    try {
+      upload = await receiveAttachments(c.req.raw)
+    } catch (error) {
+      if (error instanceof UploadError) return { ok: false, status: error.status, error: error.message }
+      throw error
     }
-    const parsed = CreateIssueSchema.safeParse(raw)
-    if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues.map(i => i.message).join(', ') }
+    const result = buildMultipartCreateBody(upload.fields)
+    if (!result.ok) {
+      await discardFiles(upload.files)
+      return { ok: false, status: 400, error: result.error }
     }
-    const files: File[] = []
-    for (const entry of fd.getAll('files')) {
-      if (entry instanceof File) files.push(entry)
-    }
-    return { ok: true, body: parsed.data, files }
+    return { ok: true, body: result.body, files: upload.files }
   }
 
   // JSON path
@@ -81,9 +62,37 @@ async function parseCreateBody(c: {
   })
   const parsed = CreateIssueSchema.safeParse(raw)
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues.map(i => i.message).join(', ') }
+    return { ok: false, status: 400, error: parsed.error.issues.map(i => i.message).join(', ') }
   }
   return { ok: true, body: parsed.data, files: [] }
+}
+
+function buildMultipartCreateBody(
+  fields: Array<[string, string]>,
+): { ok: true, body: CreateBody } | { ok: false, error: string } {
+  const raw: Record<string, unknown> = {}
+  for (const [key, value] of fields) {
+    if (key === 'tags') {
+      try {
+        raw.tags = JSON.parse(value)
+      } catch {
+        raw.tags = value.split(',').map(s => s.trim()).filter(Boolean)
+      }
+    } else if (key === 'useWorktree' || key === 'keepAlive') {
+      // Strict: silently coercing typos like "tru" to false hides client bugs.
+      if (value !== 'true' && value !== 'false' && value !== '1' && value !== '0') {
+        return { ok: false, error: `${key} must be "true", "false", "1", or "0"` }
+      }
+      raw[key] = value === 'true' || value === '1'
+    } else {
+      raw[key] = value
+    }
+  }
+  const parsed = CreateIssueSchema.safeParse(raw)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues.map(i => i.message).join(', ') }
+  }
+  return { ok: true, body: parsed.data }
 }
 
 // ── Handler ──────────────────────────────────────────
@@ -100,16 +109,9 @@ create.post('/', async (c) => {
 
   const parsed = await parseCreateBody(c)
   if (!parsed.ok) {
-    return c.json({ success: false, error: parsed.error }, 400 as const)
+    return c.json({ success: false, error: parsed.error }, parsed.status)
   }
-  const { body, files } = parsed
-
-  if (files.length > 0) {
-    const validation = validateFiles(files)
-    if (!validation.ok) {
-      return c.json({ success: false, error: validation.error }, 400 as const)
-    }
-  }
+  const { body, files: savedFiles } = parsed
 
   // Resolve engine/model defaults when not explicitly provided
   const explicitEngine = !!body.engineType
@@ -138,6 +140,7 @@ create.post('/', async (c) => {
     if (explicitEngine && !virtual) {
       // An explicit, unrecognized engine id is a client error — do not silently
       // misroute to the fallback engine.
+      await discardFiles(savedFiles)
       return c.json({ success: false, error: `Unknown engine type: ${resolvedEngine}` }, 400 as const)
     }
     // A stale/removed project/global default → coerce to a supported engine.
@@ -167,24 +170,6 @@ create.post('/', async (c) => {
       if (savedModel && savedModel !== 'auto') {
         resolvedModel = savedModel
       }
-    }
-  }
-
-  // Save files to disk BEFORE opening the issue transaction so a disk failure
-  // surfaces as a clean 400 with no issue row created. The transaction inserts
-  // the issue and its attachment rows together; on rollback we unlink the
-  // disk files so the API response and persisted state stay in lockstep
-  // (no orphaned issue rows, no orphaned files driving client-side retries).
-  let savedFiles: SavedFile[] = []
-  if (files.length > 0) {
-    try {
-      savedFiles = await Promise.all(files.map(saveUploadedFile))
-    } catch (saveError) {
-      logger.warn(
-        { projectId: project.id, error: saveError },
-        'issue_create_attachment_save_failed',
-      )
-      return c.json({ success: false, error: 'Failed to save uploaded files' }, 400 as const)
     }
   }
 
