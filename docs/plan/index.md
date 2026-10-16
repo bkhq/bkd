@@ -74,3 +74,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261013-1950-engine-protocol-drift Fix Claude and Codex wire-protocol drift**](20261013-1950-engine-protocol-drift.md) `2026-10-13`
 - [x] [**20261013-2005-decision-capability-probe Add a decision-events capability probe and drop the bundled skill**](20261013-2005-decision-capability-probe.md) `2026-10-13`
 - [x] [**20261013-2159-decision-telegram-interactive Answer decision events from Telegram**](20261013-2159-decision-telegram-interactive.md) `2026-10-13`
+- [x] [**20261015-2352-issue-message-search Full-text search over issue messages**](20261015-2352-issue-message-search.md) `2026-10-15`

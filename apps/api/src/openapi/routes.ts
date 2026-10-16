@@ -38,6 +38,7 @@ import {
   IssueChangesResponseSchema,
   IssueLogsResponseSchema,
   IssueSchema,
+  IssueSearchHitSchema,
   IssueTurnsResponseSchema,
   ListDecisionEventsQuerySchema,
   LocalSessionSchema,
@@ -255,6 +256,26 @@ export const listIssues = createRoute({
   responses: {
     200: paginatedSuccessResponse(z.array(IssueSchema), 'Issue list'),
     400: errorResponse('Invalid cursor'),
+    404: errorResponse('Project not found'),
+  },
+})
+
+export const searchIssues = createRoute({
+  method: 'get',
+  path: '/search',
+  tags: ['Issues'],
+  summary: 'Full-text search over chat messages, one hit per issue',
+  operationId: 'searchIssues',
+  request: {
+    params: projectParam,
+    query: z.object({
+      q: z.string().trim().min(1).max(200),
+      limit: z.coerce.number().int().min(1).max(50).default(20),
+    }),
+  },
+  responses: {
+    200: successResponse(z.array(IssueSearchHitSchema), 'Matching issues, best first'),
+    400: errorResponse('Validation error'),
     404: errorResponse('Project not found'),
   },
 })

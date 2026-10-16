@@ -7,6 +7,7 @@ import { basename, join, resolve } from 'node:path'
 import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import * as z from 'zod'
 import { db } from '@/db'
+import { rebuildIssueLogsFts } from '@/db/issue-log-search'
 import {
   attachments,
   issueLogs,
@@ -271,7 +272,10 @@ async function cleanupLogs(): Promise<{ cleaned: number }> {
     await rm(join(ISSUE_LOG_DIR, id), { recursive: true }).catch(() => {})
   }
 
-  if (dbIds.length > 0) db.run(sql`VACUUM`)
+  if (dbIds.length > 0) {
+    db.run(sql`VACUUM`)
+    rebuildIssueLogsFts()
+  }
   logger.info({ cleaned: allIds.length, dbIds: dbIds.length, fileIds: fileIds.length }, 'cleanup_logs_done')
   return { cleaned: allIds.length }
 }
@@ -415,6 +419,7 @@ async function cleanupDeletedIssues(): Promise<{ cleaned: number }> {
 
   if (cleaned > 0) {
     db.run(sql`VACUUM`)
+    rebuildIssueLogsFts()
     logger.info({ cleaned }, 'cleanup_deleted_issues_done')
   }
   return { cleaned }

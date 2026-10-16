@@ -393,6 +393,16 @@ export interface IssueTurnsResponse {
   turns: IssueTurnSummary[]
 }
 
+/** One issue whose chat messages match a search query. */
+export interface IssueSearchHit {
+  issue: Issue
+  matchCount: number
+  /** Plain-text excerpt around the first match in the best message */
+  snippet: string
+  logId: string
+  turnIndex: number
+}
+
 export interface IssueChangedFile {
   path: string
   status: string

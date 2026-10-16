@@ -83,6 +83,8 @@ bun scripts/migrate-to-lode.ts --root /opt/bkd --apply --prune
 
 Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings` (key-value store for server settings), `decisionEvents`, `decisionChannelMessages`.
 
+Message search: `issues_logs_fts` (FTS5, `trigram` tokenizer, migration `0028`) indexes visible `user-message`/`assistant-message` rows, kept in sync by triggers on `issues_logs` and keyed by its implicit `rowid`. `VACUUM` may renumber those rowids, so every `VACUUM` must be followed by `rebuildIssueLogsFts()` (`db/issue-log-search.ts`). Queries under 3 characters fall back to `LIKE`.
+
 Statuses are hardcoded constants in `config.ts` (`todo`, `working`, `review`, `done`) — no DB table.
 
 Issue create resolves engine/model by precedence: explicit request value → per-project default (`projects.defaultEngine`/`defaultModel`) → global default (`appSettings`) → `claude-code` fallback. An engine with no registered executor is coerced to `claude-code`.
@@ -98,6 +100,7 @@ GET/POST       /api/projects
 GET/PATCH/DEL  /api/projects/:projectId
 GET/POST       /api/projects/:projectId/issues
 PATCH          /api/projects/:projectId/issues/bulk
+GET            /api/projects/:projectId/issues/search
 GET/PATCH/DEL  /api/projects/:projectId/issues/:id
 POST           /api/projects/:projectId/issues/:id/execute
 POST           /api/projects/:projectId/issues/:id/follow-up
@@ -128,7 +131,7 @@ The `/logs/filter/*` route accepts path-based key/value filter pairs (order-inde
 
 System routes: `/api/engines/*`, `/api/events` (SSE), `/api/decisions/events/*`, `/api/settings/*` (incl. `/api/settings/upgrade/*`), `/api/sessions/*`, `/api/terminal/*` (incl. `/api/terminal/ws/:id`), `/api/files/:root/*`, `/api/filesystem/dirs`, `/api/git/detect-remote`, `/api/processes/*`, `/api/projects/:projectId/worktrees/*`, `/api/cron/*`, `/api/notes/*`.
 
-Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`, `duplicate.ts`, `export.ts`, `import-session.ts`, `review.ts`. Shared schemas and helpers in `_shared.ts`.
+Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`, `duplicate.ts`, `export.ts`, `import-session.ts`, `review.ts`, `search.ts`. Shared schemas and helpers in `_shared.ts`.
 
 #### Engine System (`engines/`)
 

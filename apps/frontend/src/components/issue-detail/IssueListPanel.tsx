@@ -12,6 +12,7 @@ import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { IssueContextMenu, IssueRightClickMenu } from '@/components/issue-detail/IssueContextMenu'
+import { IssueMessageMatches } from '@/components/issue-detail/IssueMessageMatches'
 import { ProjectSettingsDialog } from '@/components/ProjectSettingsDialog'
 import { Button } from '@/components/ui/button'
 import { ResizeHandle } from '@/components/ui/resize-handle'
@@ -60,6 +61,7 @@ export function IssueListPanel({
     if (!searchTerm) return issues
     return issues.filter(issue => issue.title.toLowerCase().includes(searchTerm))
   }, [issues, searchTerm])
+  const filteredIds = useMemo(() => new Set(filtered.map(issue => issue.id)), [filtered])
 
   const grouped = useMemo(() => {
     if (!issues) return []
@@ -174,6 +176,12 @@ export function IssueListPanel({
             onActiveDeleted={() => navigate(`/projects/${projectId}/issues`)}
           />
         ))}
+        <IssueMessageMatches
+          projectId={projectId}
+          query={search.trim()}
+          excludeIds={filteredIds}
+          onNavigate={issueId => navigate(`/projects/${projectId}/issues/${issueId}`)}
+        />
       </div>
 
       {/* Resize handle */}

@@ -837,3 +837,16 @@ Review follow-ups on #151, fixed on `release` before merge:
 - Permanent cleanup skipped the worktree of a deleted issue whose process came alive mid-run, but
   its hard-delete transaction only re-checked `isDeleted`, so the row went and the worktree was
   orphaned. The transaction now also skips issues with a live process.
+
+## 2026-10-16 03:30 [feature]
+
+`20261015-2352-issue-message-search`: full-text search over chat messages.
+
+- Migration `0028` adds `issues_logs_fts` (FTS5, `trigram` tokenizer so CJK substrings match) over
+  visible user and agent messages, synced by triggers on `issues_logs` and backfilled once.
+- `GET /api/projects/:projectId/issues/search?q=&limit=` returns one hit per issue (best match,
+  match count, snippet). Queries under 3 characters use `LIKE`; input is always a literal phrase.
+- The index is keyed by `issues_logs.rowid`, which `VACUUM` may renumber; settings cleanup rebuilds
+  the index after each `VACUUM`.
+- The issue list search shows a "Message matches" section below the title matches. Kanban board
+  search stays title-only.

@@ -112,6 +112,7 @@
     "createSubIssue": "创建子任务",
     "noSubIssues": "暂无子任务",
     "emptyStatusHint": "暂无任务",
+    "messageMatches": "消息匹配",
     "emptyStatusDropHint": "可拖拽任务到这里",
     "editTitle": "点击编辑标题",
     "tokenUsage": "Token 用量",

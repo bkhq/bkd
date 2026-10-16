@@ -279,6 +279,14 @@ export const IssueTurnsResponseSchema = z.object({
   })),
 }).openapi('IssueTurnsResponse')
 
+export const IssueSearchHitSchema = z.object({
+  issue: IssueSchema,
+  matchCount: z.number().int(),
+  snippet: z.string(),
+  logId: z.string(),
+  turnIndex: z.number().int(),
+}).openapi('IssueSearchHit')
+
 export const IssueChangedFileSchema = z.object({
   path: z.string(),
   status: z.string(),

@@ -11,9 +11,12 @@ import importSession from './import-session'
 import logs from './logs'
 import message from './message'
 import query from './query'
+import search from './search'
 import update from './update'
 
 const issues = createOpenAPIRouter()
+// Before query: GET /search must not resolve as GET /:issueId.
+issues.route('/', search)
 issues.route('/', query)
 issues.route('/', create)
 issues.route('/', update)

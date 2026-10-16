@@ -112,6 +112,7 @@
     "createSubIssue": "Create Sub-issue",
     "noSubIssues": "No sub-issues",
     "emptyStatusHint": "No issues",
+    "messageMatches": "Message matches",
     "emptyStatusDropHint": "Drop issues here",
     "editTitle": "Click to edit title",
     "tokenUsage": "Token usage",
