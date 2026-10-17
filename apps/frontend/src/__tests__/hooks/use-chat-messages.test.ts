@@ -139,6 +139,38 @@ describe('rebuildMessages — subagent threads', () => {
 
     expect(firstToolGroup(messages).items[0]!.subagent).toBeUndefined()
   })
+
+  it('leaves a background Bash call without a thread despite its task events', () => {
+    const callId = 'toolu_bg_bash'
+    const messages = rebuildMessages([
+      entry({
+        entryType: 'tool-use',
+        messageId: 'm1',
+        content: 'bun t.ts',
+        metadata: { toolName: 'Bash', toolCallId: callId },
+        toolDetail: { kind: 'command-run', toolName: 'Bash', toolCallId: callId, isResult: false, raw: {} },
+      }),
+      entry({
+        entryType: 'system-message',
+        messageId: 'm2',
+        metadata: { subtype: 'task_started', taskId: 'b1', toolCallId: callId },
+      }),
+      entry({
+        entryType: 'system-message',
+        messageId: 'm3',
+        metadata: { subtype: 'task_notification', taskId: 'b1', toolCallId: callId, status: 'completed' },
+      }),
+      entry({
+        entryType: 'tool-use',
+        messageId: 'm4',
+        content: '{"peakRssMB":68}',
+        metadata: { toolName: 'Bash', toolCallId: callId, isResult: true },
+        toolDetail: { kind: 'other', toolName: 'Bash', toolCallId: callId, isResult: true, raw: {} },
+      }),
+    ])
+
+    expect(firstToolGroup(messages).items[0]!.subagent).toBeUndefined()
+  })
 })
 
 describe('rebuildMessages — failed tool results', () => {

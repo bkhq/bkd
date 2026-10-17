@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { IssueContextMenu, IssueRightClickMenu } from '@/components/issue-detail/IssueContextMenu'
 import { IssueDragProvider, SortableIssues, useIssueDropGroup } from '@/components/issue-drag/IssueDragContext'
+import { IssueMessageMatches } from '@/components/issue-detail/IssueMessageMatches'
 import { ProjectSettingsDialog } from '@/components/ProjectSettingsDialog'
 import { Button } from '@/components/ui/button'
 import { ResizeHandle } from '@/components/ui/resize-handle'
@@ -69,6 +70,10 @@ export function IssueListPanel({
       filtered[status.id] = (byStatus[status.id] ?? []).filter(issue => issue.title.toLowerCase().includes(searchTerm))
     return filtered
   }, [byStatus, searchTerm])
+  const filteredIds = useMemo(
+    () => new Set(Object.values(visibleByStatus).flat().map(issue => issue.id)),
+    [visibleByStatus],
+  )
 
   const toggleCollapse = (statusId: string) => {
     setCollapsed(prev => ({ ...prev, [statusId]: !prev[statusId] }))
@@ -177,6 +182,12 @@ export function IssueListPanel({
             />
           ))}
         </IssueDragProvider>
+        <IssueMessageMatches
+          projectId={projectId}
+          query={search.trim()}
+          excludeIds={filteredIds}
+          onNavigate={issueId => navigate(`/projects/${projectId}/issues/${issueId}`)}
+        />
       </div>
 
       {/* Resize handle */}

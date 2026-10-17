@@ -1,18 +1,18 @@
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+const DEFAULT_MAX_TOTAL_SIZE = 1024 * 1024 * 1024 // 1 GB
 const DEFAULT_MAX_FILES = 10
 
 /**
  * Shared file-attachment state + handlers used by ChatInput (follow-up) and
  * CreateIssueDialog. Keeps the picker/drag/paste/preview behaviour aligned.
  *
- * Limits mirror server-side `uploads.ts` constants. Errors auto-clear after 5s.
+ * Limits mirror server-side `uploads.ts` constants (total size across all files). Errors auto-clear after 5s.
  */
-export function useFileAttachments(opts: { maxFileSize?: number, maxFiles?: number } = {}) {
+export function useFileAttachments(opts: { maxTotalSize?: number, maxFiles?: number } = {}) {
   const { t } = useTranslation()
-  const maxFileSize = opts.maxFileSize ?? DEFAULT_MAX_FILE_SIZE
+  const maxTotalSize = opts.maxTotalSize ?? DEFAULT_MAX_TOTAL_SIZE
   const maxFiles = opts.maxFiles ?? DEFAULT_MAX_FILES
 
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
@@ -25,10 +25,11 @@ export function useFileAttachments(opts: { maxFileSize?: number, maxFiles?: numb
     (incoming: File[]) => {
       setAttachedFiles((prev) => {
         const combined = [...prev]
+        let totalSize = combined.reduce((sum, f) => sum + f.size, 0)
         for (const file of incoming) {
-          if (file.size > maxFileSize) {
+          if (totalSize + file.size > maxTotalSize) {
             setAttachError(
-              t('chat.fileTooBig', { name: file.name, limit: maxFileSize / 1024 / 1024 }),
+              t('chat.fileTooBig', { name: file.name, limit: maxTotalSize / 1024 / 1024 }),
             )
             setTimeout(setAttachError, 5000, null)
             continue
@@ -40,12 +41,13 @@ export function useFileAttachments(opts: { maxFileSize?: number, maxFiles?: numb
           }
           if (!combined.some(f => f.name === file.name && f.size === file.size)) {
             combined.push(file)
+            totalSize += file.size
           }
         }
         return combined
       })
     },
-    [t, maxFileSize, maxFiles],
+    [t, maxTotalSize, maxFiles],
   )
 
   const removeFile = useCallback((index: number) => {

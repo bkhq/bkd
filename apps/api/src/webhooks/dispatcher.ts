@@ -1,4 +1,4 @@
-import type { DecisionEvent, DecisionEventStatus, WebhookEventType } from '@bkd/shared'
+import type { DecisionEventStatus, MessageStatus, WebhookEventType } from '@bkd/shared'
 import { and, desc, eq, gte, inArray, notInArray } from 'drizzle-orm'
 import { db } from '@/db'
 import { getServerUrl } from '@/db/helpers'
@@ -9,11 +9,13 @@ import {
   webhookDeliveries,
   webhooks,
 } from '@/db/schema'
-import { findEvent, serializeEvent } from '@/decisions/service'
-import { renderNotification } from '@/decisions/telegram/render'
 import { appEvents } from '@/events'
 import { logger } from '@/logger'
+import { findMessage, serializeMessage } from '@/messages/service'
+import { renderNotification } from '@/messages/telegram/render'
+import { toDecisionEvent } from '@/messages/v1'
 import { validateWebhookUrl } from '@/utils/url-safety'
+import { VERSION } from '@/version'
 
 interface WebhookRow {
   id: string
@@ -270,6 +272,7 @@ async function deliverTelegram(
   webhook: WebhookRow,
   event: WebhookEventType,
   payload: Record<string, unknown>,
+  telegramText?: string,
 ): Promise<{
   statusCode: number | null
   response: string | null
@@ -285,9 +288,7 @@ async function deliverTelegram(
     }
   }
 
-  const text = event.startsWith('decision.')
-    ? renderNotification(payload as unknown as DecisionEvent, (payload.decisionsUrl as string | undefined) ?? null)
-    : formatTelegramMessage(event, payload)
+  const text = telegramText ?? formatTelegramMessage(event, payload)
   const apiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`
 
   const res = await fetch(apiUrl, {
@@ -309,6 +310,7 @@ export async function deliver(
   event: WebhookEventType,
   payload: Record<string, unknown>,
   dedupKey?: string,
+  telegramText?: string,
 ) {
   const start = Date.now()
   let result: {
@@ -320,7 +322,7 @@ export async function deliver(
   try {
     result =
       webhook.channel === 'telegram' ?
-          await deliverTelegram(webhook, event, payload) :
+          await deliverTelegram(webhook, event, payload, telegramText) :
           await deliverWebhook(webhook, event, payload)
   } catch (err) {
     result = {
@@ -351,12 +353,20 @@ export async function deliver(
 /** Dedup window — skip delivery if the same dedupKey was sent within this period. */
 const DEDUP_WINDOW_MS = 30_000
 
+interface DispatchOptions {
+  /** Telegram text to send instead of the generic event formatting. */
+  telegramText?: string
+  /** Leave interactive chats out; the Telegram poller posts these messages itself. */
+  skipInteractive?: boolean
+}
+
 /** `dedupWindowMs: null` skips a dedupKey that was ever delivered. */
 export async function dispatch(
   event: WebhookEventType,
   payload: Record<string, unknown>,
   dedupKey?: string,
   dedupWindowMs: number | null = DEDUP_WINDOW_MS,
+  options: DispatchOptions = {},
 ) {
   let rows: WebhookRow[]
   try {
@@ -379,8 +389,7 @@ export async function dispatch(
 
   // Filter to subscribed webhooks
   const subscribedRows = rows.filter((row) => {
-    // An interactive chat gets decision events from the decision bot instead
-    if (row.interactive && event.startsWith('decision.')) return false
+    if (row.interactive && options.skipInteractive) return false
     let subscribed: string[]
     try {
       subscribed = JSON.parse(row.events)
@@ -425,13 +434,13 @@ export async function dispatch(
     if (dedupSkipIds.has(row.id)) continue
 
     // Fire and forget — don't block the event bus
-    void deliver(row, event, payload, dedupKey).catch((err) => {
+    void deliver(row, event, payload, dedupKey, options.telegramText).catch((err) => {
       logger.warn({ err, webhookId: row.id, event }, 'webhook_deliver_error')
     })
   }
 }
 
-// ── Decision events ─────────────────────────────────────
+// ── Messages ────────────────────────────────────────────
 
 const DECISION_EVENT_TYPES: Record<DecisionEventStatus, WebhookEventType> = {
   open: 'decision.opened',
@@ -441,35 +450,76 @@ const DECISION_EVENT_TYPES: Record<DecisionEventStatus, WebhookEventType> = {
   closed: 'decision.closed',
 }
 
-/** Notify about the state a decision event is in now; each state is announced once per webhook. */
-export async function dispatchDecisionEvent(eventId: string) {
-  const row = await findEvent(eventId)
-  if (!row) return
-  const decisionEvent = await serializeEvent(row)
-  const eventType = DECISION_EVENT_TYPES[decisionEvent.status]
+// `read` is not announced.
+const NOTIFICATION_EVENT_TYPES: Partial<Record<MessageStatus, WebhookEventType>> = {
+  unread: 'message.sent',
+  open: 'message.sent',
+  replied: 'message.replied',
+  applied: 'message.applied',
+  withdrawn: 'message.withdrawn',
+  closed: 'message.closed',
+}
 
+async function issuePayload(issueId: string | null | undefined): Promise<Record<string, unknown> | null> {
+  if (!issueId) return null
+  const meta = await getIssueMetadata(issueId)
+  if (!meta) return { issueId }
+  return { ...buildMetadataPayload(meta), engineType: meta.engineType, model: meta.model }
+}
+
+/** Notify about the state a message is in now; each state is announced once per webhook. */
+export async function dispatchMessage(messageId: string) {
+  const row = await findMessage(messageId)
+  if (!row) return
+  const message = await serializeMessage(row)
+  const serverUrl = (await getServerUrl())?.replace(/\/+$/, '') ?? null
+  const timestamp = new Date().toISOString()
+
+  if (message.kind === 'decision') {
+    const eventType = DECISION_EVENT_TYPES[message.status as DecisionEventStatus]
+    const decisionsUrl = serverUrl ? `${serverUrl}/decisions` : null
+    const payload: Record<string, unknown> = { event: eventType, timestamp, ...toDecisionEvent(message, row) }
+    if (serverUrl) {
+      payload.decisionsUrl = decisionsUrl
+      payload.apiUrl = `${serverUrl}/api/decisions/events/${message.id}`
+    }
+    await dispatch(eventType, payload, `${eventType}:${message.id}`, null, {
+      telegramText: renderNotification(message, decisionsUrl),
+      skipInteractive: true,
+    })
+    return
+  }
+
+  const eventType = NOTIFICATION_EVENT_TYPES[message.status]
+  if (!eventType) return
+  const inboxUrl = serverUrl ? `${serverUrl}/messages` : null
+  const { links: _links, ...fields } = message
   const payload: Record<string, unknown> = {
     event: eventType,
-    timestamp: new Date().toISOString(),
-    ...decisionEvent,
+    timestamp,
+    message: fields,
+    source: await issuePayload(message.source?.issueId),
+    ref: await issuePayload(message.ref),
+    links: {
+      inboxUrl,
+      apiUrl: serverUrl ? `${serverUrl}/api/messages/items/${message.id}` : null,
+    },
+    server: { url: serverUrl, version: VERSION },
   }
-  const serverUrl = (await getServerUrl())?.replace(/\/+$/, '')
-  if (serverUrl) {
-    payload.decisionsUrl = `${serverUrl}/decisions`
-    payload.apiUrl = `${serverUrl}/api/decisions/events/${decisionEvent.id}`
-  }
-
-  await dispatch(eventType, payload, `${eventType}:${decisionEvent.id}`, null)
+  await dispatch(eventType, payload, `${eventType}:${message.id}`, null, {
+    telegramText: renderNotification(message, inboxUrl),
+    skipInteractive: message.expects === 'reply',
+  })
 }
 
 // ── Event listeners ─────────────────────────────────────
 
 export function initWebhookDispatcher() {
   appEvents.on(
-    'decision-event-updated',
+    'message-updated',
     (data) => {
-      void dispatchDecisionEvent(data.id).catch((err) => {
-        logger.warn({ err, eventId: data.id }, 'webhook_decision_event_failed')
+      void dispatchMessage(data.id).catch((err) => {
+        logger.warn({ err, messageId: data.id }, 'webhook_message_failed')
       })
     },
     { order: 200 },

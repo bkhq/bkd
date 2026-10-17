@@ -47,6 +47,11 @@ const EVENT_LABEL_KEYS: Record<WebhookEventType, string> = {
   'decision.applied': 'settings.webhooksEventDecisionApplied',
   'decision.withdrawn': 'settings.webhooksEventDecisionWithdrawn',
   'decision.closed': 'settings.webhooksEventDecisionClosed',
+  'message.sent': 'settings.webhooksEventMessageSent',
+  'message.replied': 'settings.webhooksEventMessageReplied',
+  'message.applied': 'settings.webhooksEventMessageApplied',
+  'message.withdrawn': 'settings.webhooksEventMessageWithdrawn',
+  'message.closed': 'settings.webhooksEventMessageClosed',
   'issue.status_changed': 'settings.webhooksEventStatusChanged',
 }
 
@@ -55,6 +60,7 @@ const GROUP_LABEL_KEYS: Record<string, string> = {
   status: 'settings.webhooksGroupStatus',
   session: 'settings.webhooksGroupSession',
   decision: 'settings.webhooksGroupDecision',
+  message: 'settings.webhooksGroupMessage',
 }
 
 export function WebhookSection({ open }: { open: boolean }) {

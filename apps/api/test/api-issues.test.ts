@@ -171,19 +171,18 @@ describe('POST /api/projects/:projectId/issues', () => {
     expect(rows.map(r => r.originalName).sort()).toEqual(['data.bin', 'note.txt'])
   })
 
-  test('rejects multipart with oversized file', async () => {
+  test('accepts multipart with a file over 10 MB', async () => {
     const { default: app } = await import('@/app')
     const fd = new FormData()
-    fd.append('title', 'Too Big')
+    fd.append('title', 'Large Upload')
     fd.append('statusId', 'todo')
-    // 11 MB > 10 MB limit
     fd.append('files', new File([new Uint8Array(11 * 1024 * 1024)], 'big.bin'))
 
     const res = await app.request(`http://localhost/api/projects/${projectId}/issues`, {
       method: 'POST',
       body: fd,
     })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(201)
   })
 
   test('rejects multipart with invalid boolean string', async () => {

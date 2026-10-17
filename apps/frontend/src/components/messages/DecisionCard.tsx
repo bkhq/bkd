@@ -1,48 +1,21 @@
-import type { DecisionEvent, DecisionEventIssueLink } from '@bkd/shared'
-import { AlertTriangle } from 'lucide-react'
+import type { Message } from '@bkd/shared'
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { formatDateTime } from '@/lib/format'
+import { Fact, IssueLink, NotDelivered } from './MessageParts'
 
-function IssueLink({ label, link }: { label: string, link: DecisionEventIssueLink | null }) {
-  if (!link) return null
-  return (
-    <span className="min-w-0 truncate">
-      {label}
-      {' '}
-      <Link
-        to={`/projects/${link.projectId}/issues/${link.issueId}`}
-        className="text-foreground underline-offset-2 hover:underline"
-      >
-        {`#${link.issueNumber} ${link.title}`}
-      </Link>
-    </span>
-  )
-}
-
-function Fact({ label, value }: { label: string, value: string | null }) {
-  if (!value) return null
-  return (
-    <div className="flex gap-2 text-sm">
-      <dt className="shrink-0 text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 whitespace-pre-wrap break-words">{value}</dd>
-    </div>
-  )
-}
-
-export function DecisionEventCard({
+export function DecisionCard({
   event,
   onDecide,
   onClose,
   onResend,
   pending = false,
 }: {
-  event: DecisionEvent
+  event: Message
   onDecide: (data: { optionId: string | null, instruction: string }) => void
   onClose: () => void
   onResend: () => void
@@ -66,7 +39,7 @@ export function DecisionEventCard({
       <CardContent className="space-y-3">
         <div className="flex items-start gap-2">
           <h2 className="min-w-0 flex-1 text-base font-semibold leading-snug break-words">
-            {event.question}
+            {event.title}
           </h2>
           <Badge variant={isOpen ? 'default' : 'secondary'} className="shrink-0">
             {t(`decisions.status.${event.status}`)}
@@ -75,16 +48,16 @@ export function DecisionEventCard({
 
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {event.links.projectName ? <span>{event.links.projectName}</span> : null}
-          <span>{event.campaignId}</span>
+          {event.campaignId ? <span>{event.campaignId}</span> : null}
           <span>{formatDateTime(event.createdAt)}</span>
           <IssueLink label={t('decisions.concerns')} link={event.links.ref} />
-          <IssueLink label={t('decisions.raisedBy')} link={event.links.notify} />
+          <IssueLink label={t('decisions.raisedBy')} link={event.links.source} />
         </div>
 
-        {event.context ?
+        {event.body ?
             (
               <p className="rounded-md bg-muted/50 px-3 py-2 text-sm whitespace-pre-wrap break-words">
-                {event.context}
+                {event.body}
               </p>
             ) :
           null}
@@ -171,15 +144,7 @@ export function DecisionEventCard({
         </dl>
 
         {event.status === 'decided' && !event.notifiedAt ?
-            (
-              <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                <span className="min-w-0 flex-1">{t('decisions.notDelivered')}</span>
-                <Button variant="outline" size="sm" disabled={pending} onClick={onResend}>
-                  {t('decisions.resend')}
-                </Button>
-              </div>
-            ) :
+            <NotDelivered message={t('decisions.notDelivered')} pending={pending} onResend={onResend} /> :
           null}
 
         {canClose ?

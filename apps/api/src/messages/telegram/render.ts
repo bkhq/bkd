@@ -1,4 +1,4 @@
-import type { DecisionEvent, DecisionEventOption } from '@bkd/shared'
+import type { DecisionEventOption, Message, MessageLevel } from '@bkd/shared'
 
 /** Telegram's limit on message text, counted after entities are parsed. */
 const TEXT_LIMIT = 4096
@@ -65,6 +65,13 @@ interface Limits {
   extras: boolean
 }
 
+const LEVEL_ICONS: Record<MessageLevel, string> = {
+  info: 'ℹ️',
+  success: '✅',
+  warning: '⚠️',
+  error: '❌',
+}
+
 // Tried in order until the message fits.
 const LIMIT_TIERS: Limits[] = [
   { question: 1000, context: 1500, label: 200, impact: 300, extras: true },
@@ -73,9 +80,13 @@ const LIMIT_TIERS: Limits[] = [
   { question: 600, context: 0, label: 60, impact: 0, extras: false },
 ]
 
-function outcomeLines(event: DecisionEvent): string[] {
+function outcomeLines(event: Message): string[] {
   const lines: string[] = []
-  const { decision } = event
+  const { decision, reply } = event
+  if (reply) {
+    lines.push(`💬 <b>Replied</b>: ${esc(clip(reply.text, 500))}`)
+    lines.push(`By ${esc(clip(reply.repliedBy, 100))}`)
+  }
   if (decision) {
     const option = event.options.find(o => o.id === decision.optionId)
     lines.push(`✅ <b>Decided</b>: ${option ? optionLine(option, 60) : 'answered in their own words'}`)
@@ -92,16 +103,19 @@ function outcomeLines(event: DecisionEvent): string[] {
   return lines
 }
 
-function renderText(event: DecisionEvent, decisionsUrl: string | null, limits: Limits, interactive: boolean): string {
-  const lines = [`❓ <b>${esc(clip(event.question, limits.question))}</b>`]
+function renderText(event: Message, inboxUrl: string | null, limits: Limits, interactive: boolean): string {
+  const icon = event.kind === 'decision' ? '❓' : LEVEL_ICONS[event.level]
+  const lines = [`${icon} <b>${esc(clip(event.title, limits.question))}</b>`]
 
   const about = [
     event.links.projectName && `Project: ${esc(clip(event.links.projectName, 80))}`,
     event.links.ref && `#${event.links.ref.issueNumber} ${esc(clip(event.links.ref.title, 80))}`,
+    event.kind === 'notification' && event.links.source
+    && `From #${event.links.source.issueNumber} ${esc(clip(event.links.source.title, 80))}`,
   ].filter(Boolean)
   if (about.length > 0) lines.push(about.join(' · '))
 
-  const context = clip(event.context, limits.context)
+  const context = clip(event.body, limits.context)
   if (context) lines.push('', esc(context))
 
   if (event.options.length > 0) lines.push('')
@@ -121,11 +135,18 @@ function renderText(event: DecisionEvent, decisionsUrl: string | null, limits: L
     if (extras.length > 0) lines.push('', ...extras)
   }
 
-  const tail = event.status === 'open'
-    ? (interactive ? ['Reply to this message to answer in your own words.'] : [])
-    : outcomeLines(event)
+  let tail = outcomeLines(event)
+  if (event.status === 'open') {
+    if (interactive) {
+      tail = [event.kind === 'decision'
+        ? 'Reply to this message to answer in your own words.'
+        : 'Reply to this message to answer.']
+    } else {
+      tail = event.kind === 'decision' ? [] : ['💬 Awaiting a reply in the inbox.']
+    }
+  }
   if (tail.length > 0) lines.push('', ...tail)
-  if (decisionsUrl) lines.push(`🔗 <a href="${esc(decisionsUrl)}">Open the inbox</a>`)
+  if (inboxUrl) lines.push(`🔗 <a href="${esc(inboxUrl)}">Open the inbox</a>`)
 
   return lines.join('\n')
 }
@@ -136,7 +157,7 @@ function chunk<T>(items: T[], size: number): T[][] {
   return rows
 }
 
-function renderKeyboard(event: DecisionEvent, pending?: Pending): InlineButton[][] {
+function renderKeyboard(event: Message, pending?: Pending): InlineButton[][] {
   if (event.status !== 'open') return []
   const back = { text: 'Back', callback_data: `b:${event.id}` }
 
@@ -160,28 +181,28 @@ function renderKeyboard(event: DecisionEvent, pending?: Pending): InlineButton[]
   return [...chunk(buttons, perRow), [{ text: 'Close', callback_data: `x:${event.id}` }]]
 }
 
-function fitText(event: DecisionEvent, decisionsUrl: string | null, interactive: boolean): string {
+function fitText(event: Message, inboxUrl: string | null, interactive: boolean): string {
   let text = ''
   for (const limits of LIMIT_TIERS) {
-    text = renderText(event, decisionsUrl, limits, interactive)
+    text = renderText(event, inboxUrl, limits, interactive)
     if (visibleLength(text) <= TEXT_LIMIT) break
   }
   return text
 }
 
-/** The event as a chat message that can be answered with its buttons or a reply. */
+/** The message as a chat message that can be answered with its buttons or a reply. */
 export function renderEvent(
-  event: DecisionEvent,
-  decisionsUrl: string | null,
+  event: Message,
+  inboxUrl: string | null,
   pending?: Pending,
 ): RenderedEvent {
   return {
-    text: fitText(event, decisionsUrl, true),
+    text: fitText(event, inboxUrl, true),
     reply_markup: { inline_keyboard: renderKeyboard(event, pending) },
   }
 }
 
-/** The event as a one-way notification. */
-export function renderNotification(event: DecisionEvent, decisionsUrl: string | null): string {
-  return fitText(event, decisionsUrl, false)
+/** The message as a one-way chat message. */
+export function renderNotification(event: Message, inboxUrl: string | null): string {
+  return fitText(event, inboxUrl, false)
 }

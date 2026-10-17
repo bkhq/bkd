@@ -76,3 +76,8 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261013-2159-decision-telegram-interactive Answer decision events from Telegram**](20261013-2159-decision-telegram-interactive.md) `2026-10-13`
 - [x] [**20261015-0201-issue-menu-and-list-drag Extend the issue menu, add list drag, tidy kanban column headers**](20261015-0201-issue-menu-and-list-drag.md) `2026-10-15`
 - [x] [**20261015-0315-dnd-kit-board-restyle Move issue drag to dnd-kit and restyle the kanban board after bks**](20261015-0315-dnd-kit-board-restyle.md) `2026-10-15`
+- [x] [**20261015-2352-issue-message-search Full-text search over issue messages**](20261015-2352-issue-message-search.md) `2026-10-15`
+- [x] [**20261016-0320-upload-limit-progress Lift the 10 MB upload cap and show global upload progress**](20261016-0320-upload-limit-progress.md) `2026-10-16`
+- [x] [**20261016-0424-streaming-multipart-upload Stream multipart uploads to disk instead of buffering**](20261016-0424-streaming-multipart-upload.md) `2026-10-16`
+- [x] [**20261016-0448-background-task-as-subagent Background Bash tasks render as subagents in the chat**](20261016-0448-background-task-as-subagent.md) `2026-10-16`
+- [x] [**20261016-1829-messages-system Upgrade decision events into a messages system**](20261016-1829-messages-system.md) `2026-10-16`

@@ -5,6 +5,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Toaster } from './components/ui/sonner'
+import { UploadProgress } from './components/UploadProgress'
 import { useSystemInfo } from './hooks/use-kanban'
 import { eventBus } from './lib/event-bus'
 import { useFileBrowserStore } from './stores/file-browser-store'
@@ -54,7 +55,7 @@ const IssueDetailPage = lazy(() => import('./pages/IssueDetailPage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const TerminalPage = lazy(() => import('./pages/TerminalPage'))
 const CronPage = lazy(() => import('./pages/CronPage'))
-const DecisionsPage = lazy(() => import('./pages/DecisionsPage'))
+const MessagesPage = lazy(() => import('./pages/MessagesPage'))
 const LocalSessionsPage = lazy(() => import('./pages/LocalSessionsPage'))
 const LazyTerminalDrawer = lazy(() =>
   import('./components/terminal/TerminalDrawer').then(m => ({
@@ -234,13 +235,14 @@ if (!rootElement.innerHTML) {
                   )}
                 />
                 <Route
-                  path="/decisions"
+                  path="/messages"
                   element={(
                     <ErrorBoundary>
-                      <DecisionsPage />
+                      <MessagesPage />
                     </ErrorBoundary>
                   )}
                 />
+                <Route path="/decisions" element={<Navigate to="/messages" replace />} />
                 <Route
                   path="/cron"
                   element={(
@@ -266,6 +268,7 @@ if (!rootElement.innerHTML) {
           <ProcessManagerDrawerMount />
           <NotesDrawerMount />
           <Toaster position="top-center" />
+          <UploadProgress />
           <EventBusManager />
           <ServerConfigLoader />
         </ErrorBoundary>

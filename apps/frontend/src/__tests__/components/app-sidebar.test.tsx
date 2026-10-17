@@ -8,14 +8,14 @@ const projects = [
   { id: 'p3', name: 'Gamma' },
 ]
 
-const mocks = vi.hoisted(() => ({ openDecisions: 0 }))
+const mocks = vi.hoisted(() => ({ waitingMessages: 0 }))
 
 const navigate = vi.fn()
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }))
 vi.mock('@/hooks/use-kanban', () => ({ useProjects: () => ({ data: projects }) }))
-vi.mock('@/hooks/use-decision-events', () => ({ useOpenDecisionCount: () => mocks.openDecisions }))
+vi.mock('@/hooks/use-messages', () => ({ useWaitingMessageCount: () => mocks.waitingMessages }))
 vi.mock('@/hooks/use-event-connection', () => ({ useEventConnection: () => true }))
 vi.mock('@/components/AppSettingsDialog', () => ({ AppSettingsDialog: () => null }))
 vi.mock('@/components/CreateProjectDialog', () => ({ CreateProjectDialog: () => null }))
@@ -29,7 +29,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
-  mocks.openDecisions = 0
+  mocks.waitingMessages = 0
   scrollIntoView.mockClear()
   navigate.mockClear()
 })
@@ -230,16 +230,16 @@ describe('appSidebar global pages', () => {
     expect(getByLabelText('sessions.title')).toBeInTheDocument()
   })
 
-  it('shows how many decisions are waiting on the decisions entry', () => {
-    mocks.openDecisions = 3
+  it('shows how many messages are waiting on the messages entry', () => {
+    mocks.waitingMessages = 3
     const { getByLabelText } = render(<AppSidebar activeProjectId="" />)
 
-    expect(getByLabelText('decisions.title')).toHaveTextContent('3')
+    expect(getByLabelText('messages.title')).toHaveTextContent('3')
   })
 
   it('shows no count when nothing is waiting', () => {
     const { getByLabelText } = render(<AppSidebar activeProjectId="" />)
 
-    expect(getByLabelText('decisions.title')).toHaveTextContent('')
+    expect(getByLabelText('messages.title')).toHaveTextContent('')
   })
 })

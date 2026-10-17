@@ -112,6 +112,7 @@
     "createSubIssue": "创建子任务",
     "noSubIssues": "暂无子任务",
     "emptyStatusHint": "暂无任务",
+    "messageMatches": "消息匹配",
     "emptyStatusDropHint": "可拖拽任务到这里",
     "editTitle": "点击编辑标题",
     "tokenUsage": "Token 用量",
@@ -180,7 +181,7 @@
     },
     "attach": "附加文件",
     "attachDragHint": "拖放文件到此处",
-    "fileTooBig": "文件 \"{{name}}\" 超过 {{limit}}MB 限制",
+    "fileTooBig": "已跳过 \"{{name}}\"：附件总大小超过 {{limit}}MB 限制",
     "tooManyFiles": "文件数量过多（最多 {{max}} 个）",
     "removeFile": "删除文件",
     "unknownType": "未知类型",
@@ -592,9 +593,15 @@
     "webhooksEventDecisionApplied": "已应用",
     "webhooksEventDecisionWithdrawn": "已撤回",
     "webhooksEventDecisionClosed": "已关闭",
-    "webhooksInteractive": "在此聊天中回答决策",
-    "webhooksInteractiveHint": "决策事件会带按钮发到这里，回复该消息即作为回答。聊天中的任何成员都可以做决定。该机器人只能由这一个 BKD 实例使用。",
-    "webhooksInteractiveBadge": "决策"
+    "webhooksInteractive": "在此聊天中回答消息",
+    "webhooksInteractiveHint": "决策和等待回复的消息会发到这里，按钮或回复该消息即作为回答。聊天中的任何成员都可以回答。该机器人只能由这一个 BKD 实例使用。",
+    "webhooksInteractiveBadge": "交互",
+    "webhooksGroupMessage": "消息",
+    "webhooksEventMessageSent": "已发送",
+    "webhooksEventMessageReplied": "已回复",
+    "webhooksEventMessageApplied": "已应用",
+    "webhooksEventMessageWithdrawn": "已撤回",
+    "webhooksEventMessageClosed": "已关闭"
   },
   "contextMenu": {
     "pinToTop": "置顶",
@@ -775,17 +782,6 @@
     "deleteConfirm": "定时任务“{{name}}”将从调度中移除，其执行日志会被保留。"
   },
   "decisions": {
-    "title": "决策",
-    "group": {
-      "waiting": "待决策",
-      "decided": "已决策",
-      "history": "历史"
-    },
-    "empty": {
-      "waiting": "没有等待你决策的事项",
-      "decided": "没有等待执行的决策",
-      "history": "暂无历史决策"
-    },
     "status": {
       "open": "待决策",
       "decided": "已决策",
@@ -810,11 +806,54 @@
     "close": "关闭",
     "resend": "重新发送",
     "notDelivered": "决策已记录，但尚未通知到代理。",
-    "closeConfirmTitle": "关闭这个决策？",
-    "closeConfirm": "事件将直接结束，不会通知代理。等待它的工作会保持阻塞，直到代理下次检查。",
     "closeReasonPlaceholder": "原因（可选）",
     "campaign": "Campaign",
     "allCampaigns": "全部 campaign"
+  },
+  "messages": {
+    "title": "消息",
+    "group": {
+      "waiting": "待处理",
+      "answered": "已回复",
+      "history": "历史"
+    },
+    "empty": {
+      "waiting": "没有等待你处理的消息",
+      "answered": "没有等待执行的回复",
+      "history": "暂无历史消息"
+    },
+    "status": {
+      "unread": "未读",
+      "read": "已读",
+      "open": "待回复",
+      "replied": "已回复",
+      "decided": "已决策",
+      "applied": "已执行",
+      "withdrawn": "已撤回",
+      "closed": "已关闭"
+    },
+    "kind": {
+      "label": "类型",
+      "all": "全部类型",
+      "decision": "决策",
+      "notification": "通知"
+    },
+    "level": {
+      "info": "信息",
+      "success": "成功",
+      "warning": "警告",
+      "error": "错误"
+    },
+    "from": "来自",
+    "reply": "回复",
+    "replyPlaceholder": "输入你的回复",
+    "repliedBy": "回复人",
+    "send": "发送回复",
+    "markRead": "标为已读",
+    "markAllRead": "全部标为已读",
+    "notDelivered": "回复已记录，但尚未通知到代理。",
+    "closeConfirmTitle": "关闭这条消息？",
+    "closeConfirm": "消息将直接结束，不会通知代理。等待它的工作会保持阻塞，直到代理下次检查。"
   },
   "workspace": {
     "files": "工作区文件",
@@ -839,5 +878,10 @@
     "browserInDrawer": "文件管理器正在抽屉中打开。",
     "openHere": "在此处打开",
     "worktreeMissing": "此任务的 worktree 尚未创建或已被清理，运行任务时会自动创建。在此之前文件管理器不可用，以免误改主工作区。"
+  },
+  "upload": {
+    "done": "上传完成",
+    "failed": "上传失败",
+    "processing": "处理中..."
   }
 }

@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { serveStatic, websocket } from 'hono/bun'
 import app from './app'
 import { runtimeConfig } from './runtime-config'
-import { startDecisionTelegram } from './decisions/telegram'
+import { startMessageTelegram } from './messages/telegram'
 import { issueEngine } from './engines/issue'
 import { migrateSlashCommandsKey, refreshSlashCommandsCache } from './engines/issue/queries'
 import {
@@ -20,6 +20,7 @@ import { acquirePidLock, releasePidLock } from './pid-lock'
 import { APP_DIR, ROOT_DIR } from './root'
 import { printStartupBanner } from './startup-banner'
 import { reportReady } from './upgrade/service'
+import { MAX_REQUEST_BODY_SIZE } from './uploads'
 import { initWebhookDispatcher, startDeliveryCleanup } from './webhooks/dispatcher'
 
 // ---------- Global error handlers ----------
@@ -88,8 +89,8 @@ initWebhookDispatcher()
 // Start periodic webhook delivery cleanup (keeps last 100 per webhook)
 const stopDeliveryCleanup = startDeliveryCleanup()
 
-// Post decision events to interactive Telegram chats and poll for answers
-const stopDecisionTelegram = startDecisionTelegram()
+// Post messages awaiting a reply to interactive Telegram chats and poll for answers
+const stopMessageTelegram = startMessageTelegram()
 
 const listenHost = runtimeConfig.HOST
 const listenPort = runtimeConfig.PORT
@@ -135,6 +136,7 @@ const http = Bun.serve({
   port: listenPort,
   hostname: listenHost,
   idleTimeout: 60,
+  maxRequestBodySize: MAX_REQUEST_BODY_SIZE,
   fetch: app.fetch,
   websocket,
 })
@@ -176,7 +178,7 @@ async function shutdown(signal: string) {
   stopPeriodicReconciliation()
   stopCron()
   stopDeliveryCleanup()
-  stopDecisionTelegram()
+  stopMessageTelegram()
 
   // Cancel all active engine processes before shutting down
   await issueEngine.cancelAll()

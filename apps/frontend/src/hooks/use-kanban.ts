@@ -22,6 +22,8 @@ export const queryKeys = {
     ['projects', projectId, 'issues', issueId] as const,
   issueChanges: (projectId: string, issueId: string) =>
     ['projects', projectId, 'issues', issueId, 'changes'] as const,
+  issueSearch: (projectId: string, q: string) =>
+    ['projects', projectId, 'issues', 'search', q] as const,
   issueTurns: (projectId: string, issueId: string) =>
     ['projects', projectId, 'issues', issueId, 'turns'] as const,
   issueFilePatch: (projectId: string, issueId: string, path: string) =>
@@ -250,6 +252,16 @@ export function useIssueChanges(projectId: string, issueId: string, enabled = tr
   }, [worktreeMissing, issueId, refetch])
 
   return query
+}
+
+/** Issues whose chat messages match `q`. */
+export function useIssueSearch(projectId: string, q: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.issueSearch(projectId, q),
+    queryFn: () => kanbanApi.searchIssues(projectId, q),
+    enabled: !!projectId && !!q && enabled,
+    staleTime: STALE_TIME.STANDARD,
+  })
 }
 
 /**

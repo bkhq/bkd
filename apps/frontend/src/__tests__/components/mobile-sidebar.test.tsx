@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import { useServerStore } from '@/stores/server-store'
 
-const mocks = vi.hoisted(() => ({ openDecisions: 0 }))
+const mocks = vi.hoisted(() => ({ waitingMessages: 0 }))
 
 const projects = [
   { id: 'p1', name: 'Alpha' },
@@ -13,7 +13,7 @@ const projects = [
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }))
 vi.mock('@/hooks/use-kanban', () => ({ useProjects: () => ({ data: projects }) }))
-vi.mock('@/hooks/use-decision-events', () => ({ useOpenDecisionCount: () => mocks.openDecisions }))
+vi.mock('@/hooks/use-messages', () => ({ useWaitingMessageCount: () => mocks.waitingMessages }))
 vi.mock('@/hooks/use-event-connection', () => ({ useEventConnection: () => true }))
 vi.mock('@/components/AppSettingsDialog', () => ({ AppSettingsDialog: () => null }))
 vi.mock('@/components/CreateProjectDialog', () => ({ CreateProjectDialog: () => null }))
@@ -29,7 +29,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
-  mocks.openDecisions = 0
+  mocks.waitingMessages = 0
 })
 
 describe('mobileSidebar', () => {
@@ -41,11 +41,11 @@ describe('mobileSidebar', () => {
     expect(screen.getByText('sessions.title')).toBeInTheDocument()
   })
 
-  it('shows how many decisions are waiting', () => {
-    mocks.openDecisions = 2
+  it('shows how many messages are waiting', () => {
+    mocks.waitingMessages = 2
     openSheet()
 
-    expect(screen.getByText('decisions.title').closest('button')).toHaveTextContent('2')
+    expect(screen.getByText('messages.title').closest('button')).toHaveTextContent('2')
   })
 
   it('falls back to the BKD brand when no server name is configured', () => {

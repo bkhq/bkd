@@ -14,7 +14,7 @@ export type ChangesSummaryData = ChangesSummary
 type IssueUpdatedListener = (data: { issueId: string, changes: Record<string, unknown> }) => void
 type ChangesSummaryListener = (data: ChangesSummaryData) => void
 type ContextUsageListener = (data: ContextUsageEvent) => void
-type DecisionEventListener = (data: SSEEventMap['decision-event-updated']) => void
+type MessageListener = (data: SSEEventMap['message-updated']) => void
 type IssueActivityListener = (issueId: string) => void
 type ConnectionListener = (connected: boolean) => void
 
@@ -33,7 +33,7 @@ class EventBus {
   private issueUpdatedListeners = new Set<IssueUpdatedListener>()
   private changesSummaryListeners = new Set<ChangesSummaryListener>()
   private contextUsageListeners = new Set<ContextUsageListener>()
-  private decisionEventListeners = new Set<DecisionEventListener>()
+  private messageListeners = new Set<MessageListener>()
   private issueActivityListeners = new Set<IssueActivityListener>()
   private connectionListeners = new Set<ConnectionListener>()
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -178,10 +178,10 @@ class EventBus {
       }
     })
 
-    es.addEventListener('decision-event-updated', (e) => {
+    es.addEventListener('message-updated', (e) => {
       try {
-        const data = JSON.parse(e.data) as SSEEventMap['decision-event-updated']
-        for (const cb of this.decisionEventListeners) {
+        const data = JSON.parse(e.data) as SSEEventMap['message-updated']
+        for (const cb of this.messageListeners) {
           try {
             cb(data)
           } catch {
@@ -287,10 +287,10 @@ class EventBus {
     }
   }
 
-  onDecisionEventUpdated(listener: DecisionEventListener): () => void {
-    this.decisionEventListeners.add(listener)
+  onMessageUpdated(listener: MessageListener): () => void {
+    this.messageListeners.add(listener)
     return () => {
-      this.decisionEventListeners.delete(listener)
+      this.messageListeners.delete(listener)
     }
   }
 

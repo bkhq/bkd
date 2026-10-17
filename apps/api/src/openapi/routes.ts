@@ -17,6 +17,7 @@ import {
   CreateCronJobSchema,
   CreateDecisionEventSchema,
   CreateIssueSchema,
+  CreateMessageSchema,
   CreateNoteSchema,
   CreateProjectSchema,
   CreateWebhookSchema,
@@ -38,9 +39,13 @@ import {
   IssueChangesResponseSchema,
   IssueLogsResponseSchema,
   IssueSchema,
+  IssueSearchHitSchema,
   IssueTurnsResponseSchema,
   ListDecisionEventsQuerySchema,
+  ListMessagesQuerySchema,
   LocalSessionSchema,
+  MarkMessagesReadSchema,
+  MessageSchema,
   NormalizedLogEntrySchema,
   NoteSchema,
   paginatedSuccessResponse,
@@ -48,10 +53,12 @@ import {
   ProcessCapacitySchema,
   ProcessInfoSchema,
   ProjectSchema,
+  ReplyMessageSchema,
   SortProjectSchema,
   successResponse,
   UpdateDecisionEventSchema,
   UpdateIssueSchema,
+  UpdateMessageSchema,
   UpdateNoteSchema,
   UpdateProjectSchema,
   UpdateWebhookSchema,
@@ -255,6 +262,26 @@ export const listIssues = createRoute({
   responses: {
     200: paginatedSuccessResponse(z.array(IssueSchema), 'Issue list'),
     400: errorResponse('Invalid cursor'),
+    404: errorResponse('Project not found'),
+  },
+})
+
+export const searchIssues = createRoute({
+  method: 'get',
+  path: '/search',
+  tags: ['Issues'],
+  summary: 'Full-text search over chat messages, one hit per issue',
+  operationId: 'searchIssues',
+  request: {
+    params: projectParam,
+    query: z.object({
+      q: z.string().trim().min(1).max(200),
+      limit: z.coerce.number().int().min(1).max(50).default(20),
+    }),
+  },
+  responses: {
+    200: successResponse(z.array(IssueSearchHitSchema), 'Matching issues, best first'),
+    400: errorResponse('Validation error'),
     404: errorResponse('Project not found'),
   },
 })
@@ -1164,6 +1191,172 @@ export const closeDecisionEvent = createRoute({
   operationId: 'closeDecisionEvent',
   request: { params: decisionEventParams, body: jsonBody(CloseDecisionEventSchema) },
   responses: { 200: successResponse(DecisionEventSchema, 'Closed event'), ...decisionEventErrors },
+})
+
+// ── Messages ───────────────────────────────────────────
+
+const messageParams = z.object({ messageId: z.string() })
+const messageErrors = {
+  400: errorResponse('Invalid request'),
+  404: errorResponse('Message not found'),
+  409: errorResponse('Not allowed for this message or in its current status'),
+  500: errorResponse('Internal error'),
+}
+
+export const getMessageCapability = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Messages'],
+  summary: 'Probe message support',
+  operationId: 'getMessageCapability',
+  responses: {
+    200: successResponse(z.object({
+      supported: z.literal(true),
+      contractVersion: z.number().int(),
+      kinds: z.array(z.enum(['decision', 'notification'])),
+    }), 'Messages are supported'),
+  },
+})
+
+export const listMessages = createRoute({
+  method: 'get',
+  path: '/items',
+  tags: ['Messages'],
+  summary: 'List messages',
+  operationId: 'listMessages',
+  request: { query: ListMessagesQuerySchema },
+  responses: {
+    200: successResponse(z.array(MessageSchema), 'Message list'),
+    400: errorResponse('Invalid request'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const createMessage = createRoute({
+  method: 'post',
+  path: '/items',
+  tags: ['Messages'],
+  summary: 'Send a decision or a notification',
+  operationId: 'createMessage',
+  request: { body: jsonBody(CreateMessageSchema) },
+  responses: {
+    201: successResponse(MessageSchema, 'Created message'),
+    400: errorResponse('Invalid request'),
+    429: errorResponse('Too many notifications from this issue'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const markMessagesRead = createRoute({
+  method: 'post',
+  path: '/items/read',
+  tags: ['Messages'],
+  summary: 'Mark unread notifications read, all of them when ids is omitted',
+  operationId: 'markMessagesRead',
+  request: { body: jsonBody(MarkMessagesReadSchema) },
+  responses: {
+    200: successResponse(z.object({ ids: z.array(z.string()) }), 'Messages marked read'),
+    400: errorResponse('Invalid request'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const getMessage = createRoute({
+  method: 'get',
+  path: '/items/{messageId}',
+  tags: ['Messages'],
+  summary: 'Get a message',
+  operationId: 'getMessage',
+  request: { params: messageParams },
+  responses: {
+    200: successResponse(MessageSchema, 'Message'),
+    404: errorResponse('Message not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const updateMessage = createRoute({
+  method: 'patch',
+  path: '/items/{messageId}',
+  tags: ['Messages'],
+  summary: 'Update the facts of a message awaiting a reply',
+  operationId: 'updateMessage',
+  request: { params: messageParams, body: jsonBody(UpdateMessageSchema) },
+  responses: { 200: successResponse(MessageSchema, 'Updated message'), ...messageErrors },
+})
+
+export const decideMessage = createRoute({
+  method: 'post',
+  path: '/items/{messageId}/decision',
+  tags: ['Messages'],
+  summary: 'Decide an open decision and wake its source issue',
+  operationId: 'decideMessage',
+  request: { params: messageParams, body: jsonBody(DecideDecisionEventSchema) },
+  responses: { 200: successResponse(MessageSchema, 'Decided message'), ...messageErrors },
+})
+
+export const replyMessage = createRoute({
+  method: 'post',
+  path: '/items/{messageId}/reply',
+  tags: ['Messages'],
+  summary: 'Reply to an open notification and wake its source issue',
+  operationId: 'replyMessage',
+  request: { params: messageParams, body: jsonBody(ReplyMessageSchema) },
+  responses: { 200: successResponse(MessageSchema, 'Replied message'), ...messageErrors },
+})
+
+export const notifyMessage = createRoute({
+  method: 'post',
+  path: '/items/{messageId}/notify',
+  tags: ['Messages'],
+  summary: 'Resend the wake follow-up of an answered message',
+  operationId: 'notifyMessage',
+  request: { params: messageParams },
+  responses: {
+    200: successResponse(MessageSchema, 'Notified message'),
+    ...messageErrors,
+    502: errorResponse('Follow-up could not be delivered'),
+  },
+})
+
+export const ackMessage = createRoute({
+  method: 'post',
+  path: '/items/{messageId}/ack',
+  tags: ['Messages'],
+  summary: 'Record what was done with an answer',
+  operationId: 'ackMessage',
+  request: { params: messageParams, body: jsonBody(AckDecisionEventSchema) },
+  responses: { 200: successResponse(MessageSchema, 'Applied message'), ...messageErrors },
+})
+
+export const withdrawMessage = createRoute({
+  method: 'post',
+  path: '/items/{messageId}/withdraw',
+  tags: ['Messages'],
+  summary: 'Withdraw an open message that is no longer needed',
+  operationId: 'withdrawMessage',
+  request: { params: messageParams, body: jsonBody(WithdrawDecisionEventSchema) },
+  responses: { 200: successResponse(MessageSchema, 'Withdrawn message'), ...messageErrors },
+})
+
+export const closeMessage = createRoute({
+  method: 'post',
+  path: '/items/{messageId}/close',
+  tags: ['Messages'],
+  summary: 'Close a message awaiting a reply without notifying anyone',
+  operationId: 'closeMessage',
+  request: { params: messageParams, body: jsonBody(CloseDecisionEventSchema) },
+  responses: { 200: successResponse(MessageSchema, 'Closed message'), ...messageErrors },
+})
+
+export const readMessage = createRoute({
+  method: 'post',
+  path: '/items/{messageId}/read',
+  tags: ['Messages'],
+  summary: 'Mark a notification read',
+  operationId: 'readMessage',
+  request: { params: messageParams },
+  responses: { 200: successResponse(MessageSchema, 'Read message'), ...messageErrors },
 })
 
 // ── Webhooks ───────────────────────────────────────────

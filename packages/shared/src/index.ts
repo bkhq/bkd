@@ -393,6 +393,16 @@ export interface IssueTurnsResponse {
   turns: IssueTurnSummary[]
 }
 
+/** One issue whose chat messages match a search query. */
+export interface IssueSearchHit {
+  issue: Issue
+  matchCount: number
+  /** Plain-text excerpt around the first match in the best message */
+  snippet: string
+  logId: string
+  turnIndex: number
+}
+
 export interface IssueChangedFile {
   path: string
   status: string
@@ -570,7 +580,7 @@ export interface SSEEventMap {
   'issue-updated': { issueId: string, changes: Record<string, unknown> }
   'changes-summary': ChangesSummary
   'context-usage': ContextUsageEvent
-  'decision-event-updated': { id: string, campaignId: string, status: DecisionEventStatus }
+  'message-updated': { id: string, kind: MessageKind, expects: MessageExpects, status: MessageStatus, campaignId: string | null }
   'heartbeat': { ts: string }
 }
 
@@ -595,7 +605,7 @@ export interface AppEventMap {
   'issue-updated': { issueId: string, changes: Record<string, unknown> }
   'changes-summary': ChangesSummary
   'context-usage': { issueId: string, contextTokens: number, contextWindow: number }
-  'decision-event-updated': SSEEventMap['decision-event-updated']
+  'message-updated': SSEEventMap['message-updated']
   'heartbeat': { ts: string }
 }
 
@@ -673,6 +683,11 @@ export type WebhookEventType =
   | 'decision.applied'
   | 'decision.withdrawn'
   | 'decision.closed'
+  | 'message.sent'
+  | 'message.replied'
+  | 'message.applied'
+  | 'message.withdrawn'
+  | 'message.closed'
   | 'issue.status_changed' // legacy — kept for backwards compat with existing DB records
 
 /** Event types grouped by category for UI display. */
@@ -693,6 +708,10 @@ export const WEBHOOK_EVENT_GROUPS: { category: string, events: WebhookEventType[
     category: 'decision',
     events: ['decision.opened', 'decision.decided', 'decision.applied', 'decision.withdrawn', 'decision.closed'],
   },
+  {
+    category: 'message',
+    events: ['message.sent', 'message.replied', 'message.applied', 'message.withdrawn', 'message.closed'],
+  },
 ]
 
 export const WEBHOOK_EVENT_TYPES: WebhookEventType[] = WEBHOOK_EVENT_GROUPS.flatMap(g => g.events)
@@ -708,7 +727,7 @@ export interface Webhook {
   secret: string | null
   events: WebhookEventType[]
   isActive: boolean
-  /** Telegram only: decision events are posted to the chat and can be answered there. */
+  /** Telegram only: messages awaiting a reply are posted to the chat and can be answered there. */
   interactive: boolean
   createdAt: string
   updatedAt: string
@@ -766,12 +785,7 @@ export interface DecisionEventDecision {
   decidedAt: string
 }
 
-export interface DecisionEventIssueLink {
-  issueId: string
-  projectId: string
-  issueNumber: number
-  title: string
-}
+export type DecisionEventIssueLink = MessageIssueLink
 
 export interface DecisionEvent {
   id: string
@@ -794,6 +808,73 @@ export interface DecisionEvent {
     projectName: string | null
     ref: DecisionEventIssueLink | null
     notify: DecisionEventIssueLink | null
+  }
+  createdAt: string
+  updatedAt: string
+}
+
+// ── Messages ────────────────────────────────────────────
+
+export type MessageKind = 'decision' | 'notification'
+
+/** `reply`: answering wakes the source issue with a follow-up. */
+export type MessageExpects = 'none' | 'reply'
+
+export type MessageLevel = 'info' | 'success' | 'warning' | 'error'
+
+export type MessageStatus
+  = | 'unread'
+    | 'read'
+    | 'open'
+    | 'decided'
+    | 'replied'
+    | 'applied'
+    | 'withdrawn'
+    | 'closed'
+
+export interface MessageSource {
+  projectId: string
+  issueId: string
+}
+
+export interface MessageReply {
+  text: string
+  repliedBy: string
+  repliedAt: string
+}
+
+export interface MessageIssueLink {
+  issueId: string
+  projectId: string
+  issueNumber: number
+  title: string
+}
+
+export interface Message {
+  id: string
+  kind: MessageKind
+  expects: MessageExpects
+  status: MessageStatus
+  level: MessageLevel
+  campaignId: string | null
+  source: MessageSource | null
+  ref: string | null
+  title: string
+  body: string
+  options: DecisionEventOption[]
+  recommendation: DecisionEventRecommendation | null
+  blocks: string | null
+  continues: string | null
+  decision: DecisionEventDecision | null
+  reply: MessageReply | null
+  outcome: string | null
+  withdrawReason: string | null
+  closeReason: string | null
+  notifiedAt: string | null
+  links: {
+    projectName: string | null
+    ref: MessageIssueLink | null
+    source: MessageIssueLink | null
   }
   createdAt: string
   updatedAt: string

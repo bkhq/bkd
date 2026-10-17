@@ -3,12 +3,12 @@ import { FileListingSchema, SavedFileSchema, SaveFileSchema, UploadedFilesSchema
 import { errorResponse, successResponse } from '@/openapi/schemas'
 import * as z from 'zod'
 import { createRoute } from '@hono/zod-openapi'
-import { readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
 import bs58 from 'bs58'
 import { getAppSetting } from '@/db/helpers'
 import { runCommand } from '@/engines/spawn'
-import { validateFiles } from '@/uploads'
+import { discardFiles, parseMultipartUpload, UploadError } from '@/uploads'
 import type { Context } from 'hono'
 import { createOpenAPIRouter } from '@/openapi/hono'
 
@@ -351,59 +351,66 @@ async function handleUpload(c: Context, relativePath: string) {
     return c.json({ success: false as const, error: 'Expected multipart/form-data' }, 400)
   }
 
-  let fd: FormData
-  try {
-    fd = await c.req.formData()
-  } catch {
-    return c.json({ success: false as const, error: 'Invalid multipart body' }, 400)
-  }
-
-  const files = fd.getAll('files').filter((entry): entry is File => entry instanceof File)
-  if (files.length === 0) {
-    return c.json({ success: false as const, error: 'No files provided' }, 400)
-  }
-
-  const validation = validateFiles(files)
-  if (!validation.ok) {
-    return c.json({ success: false as const, error: validation.error }, 400)
-  }
-
-  const invalid = files.find(file => !isValidUploadName(file.name))
-  if (invalid) {
-    return c.json({ success: false as const, error: `Invalid file name: ${invalid.name}` }, 400)
-  }
-
-  const overwriteRaw = fd.get('overwrite')
-  const overwrite = overwriteRaw === 'true' || overwriteRaw === '1'
-
   try {
     const targetStat = await stat(target)
     if (!targetStat.isDirectory()) {
       return c.json({ success: false as const, error: 'Path is not a directory' }, 400)
     }
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return c.json({ success: false as const, error: 'Path not found' }, 404)
+    }
+    return c.json({ success: false as const, error: 'Failed to upload' }, 500)
+  }
 
+  // Files stream into hidden staging names and are renamed into place once the whole
+  // body (including the `overwrite` field, which may follow the files) has been read.
+  let upload: Awaited<ReturnType<typeof parseMultipartUpload>>
+  try {
+    upload = await parseMultipartUpload(c.req.raw, { dir: target, storedName: id => `.bkd-upload-${id}` })
+  } catch (err: unknown) {
+    if (err instanceof UploadError) return c.json({ success: false as const, error: err.message }, err.status)
+    throw err
+  }
+  const { files: staged } = upload
+
+  const reject = async (error: string, status: 400 | 409) => {
+    await discardFiles(staged)
+    return c.json({ success: false as const, error }, status)
+  }
+
+  if (staged.length === 0) {
+    return reject('No files provided', 400)
+  }
+
+  const invalid = staged.find(file => !isValidUploadName(file.originalName))
+  if (invalid) {
+    return reject(`Invalid file name: ${invalid.originalName}`, 400)
+  }
+
+  const overwriteRaw = upload.fields.find(([key]) => key === 'overwrite')?.[1]
+  const overwrite = overwriteRaw === 'true' || overwriteRaw === '1'
+
+  try {
     if (!overwrite) {
       const existing: string[] = []
-      for (const file of files) {
-        if (await pathExists(resolve(target, file.name))) existing.push(file.name)
+      for (const file of staged) {
+        if (await pathExists(resolve(target, file.originalName))) existing.push(file.originalName)
       }
       if (existing.length > 0) {
-        return c.json({ success: false as const, error: `Already exists: ${existing.join(', ')}` }, 409)
+        return reject(`Already exists: ${existing.join(', ')}`, 409)
       }
     }
 
     const uploaded: Array<{ name: string, size: number }> = []
-    for (const file of files) {
-      await Bun.write(resolve(target, file.name), file)
-      uploaded.push({ name: file.name, size: file.size })
+    for (const file of staged) {
+      await rename(file.absolutePath, resolve(target, file.originalName))
+      uploaded.push({ name: file.originalName, size: file.size })
     }
 
     return c.json({ success: true as const, data: { uploaded } }, 201)
-  } catch (err: unknown) {
-    const code = (err as NodeJS.ErrnoException).code
-    if (code === 'ENOENT') {
-      return c.json({ success: false as const, error: 'Path not found' }, 404)
-    }
+  } catch {
+    await discardFiles(staged)
     return c.json({ success: false as const, error: 'Failed to upload' }, 500)
   }
 }

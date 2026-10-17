@@ -170,4 +170,10 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261015-0201-issue-menu-and-list-drag Extend the issue menu, add list drag, tidy kanban column headers**](20261015-0201-issue-menu-and-list-drag.md) `P2`
 - [x] [**20261015-0315-dnd-kit-board-restyle Move issue drag to dnd-kit and restyle the kanban board after bks**](20261015-0315-dnd-kit-board-restyle.md) `P2`
 - [x] [**20261015-0610-workspace-toggle-fixed Keep the workspace panel toggle in one place**](20261015-0610-workspace-toggle-fixed.md) `P2`
+- [x] [**20261015-2352-issue-message-search Full-text search over issue messages**](20261015-2352-issue-message-search.md) `P2`
 - [x] [**20261016-0230-turn-rail-paging Page the chat turn rail and keep the current turn visible**](20261016-0230-turn-rail-paging.md) `P2`
+- [x] [**20261016-0320-upload-limit-progress Lift the 10 MB upload cap and show global upload progress**](20261016-0320-upload-limit-progress.md) `P2`
+- [x] [**20261016-0424-streaming-multipart-upload Stream multipart uploads to disk instead of buffering**](20261016-0424-streaming-multipart-upload.md) `P1`
+- [x] [**20261016-0448-background-task-as-subagent Background Bash tasks render as subagents in the chat**](20261016-0448-background-task-as-subagent.md) `P2`
+- [x] [**20261016-1829-messages-system Upgrade decision events into a messages system**](20261016-1829-messages-system.md) `P2`
+- [x] [**20261017-0516-message-cleanup-terminal-only Keep answered messages out of the cleanup**](20261017-0516-message-cleanup-terminal-only.md) `P1`

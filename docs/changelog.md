@@ -946,3 +946,90 @@ The chat turn rail pages instead of hiding the current turn (task
 whose hidden scrollbar started at the top, so the highlighted (newest) turn was off-screen.
 Up/down buttons now page the rail and disable at each end, and when the turn in view
 changes off-screen the rail centers its tick.
+
+## 2026-10-16 03:30 [feature]
+
+`20261015-2352-issue-message-search`: full-text search over chat messages.
+
+- Migration `0028` adds `issues_logs_fts` (FTS5, `trigram` tokenizer so CJK substrings match) over
+  visible user and agent messages, synced by triggers on `issues_logs` and backfilled once.
+- `GET /api/projects/:projectId/issues/search?q=&limit=` returns one hit per issue (best match,
+  match count, snippet). Queries under 3 characters use `LIKE`; input is always a literal phrase.
+- The index is keyed by `issues_logs.rowid`, which `VACUUM` may renumber; settings cleanup rebuilds
+  the index after each `VACUUM`.
+- The issue list search shows a "Message matches" section below the title matches. Kanban board
+  search stays title-only.
+
+## 2026-10-16 04:15 [progress]
+
+Lifted the upload cap and added a global upload progress indicator (20261016-0320-upload-limit-progress).
+
+- `apps/api/src/uploads.ts`: the 10 MB per-file cap is now `MAX_UPLOAD_SIZE` = 1 GB total per
+  request; `Bun.serve()` gets a matching `maxRequestBodySize` (Bun's default of 128 MB rejected
+  larger bodies with 413 before any handler ran). The client-side mirror in
+  `use-file-attachments.ts` checks the same total.
+- `postFormData()` now uses `XMLHttpRequest` for upload progress and aborts only after 60 s
+  without progress instead of a fixed 60 s total.
+- New `upload-store` + `UploadProgress` floating panel (bottom-right) covering issue create,
+  follow-up and file browser uploads.
+- [pitfall] Multipart bodies are still parsed with `formData()`, so an upload is held in memory in
+  full while the request is parsed.
+
+## 2026-10-16 05:00 [progress]
+
+Completed `20261016-0448-background-task-as-subagent`: background Bash tasks no longer render as subagents.
+
+- The CLI emits `task_started` / `task_notification` for background Bash and Monitor calls as well;
+  the chat rebuilder attached a subagent thread to those calls, so `ToolItems` drew them as Agent
+  panels with the command output as the agent result.
+- `buildToolGroup()` now attaches a thread only to `Agent` / `Task` dispatches.
+
+## 2026-10-16 05:40 [progress]
+
+Multipart uploads are streamed to disk instead of buffered (20261016-0424-streaming-multipart-upload).
+
+- New `parseMultipartUpload()` / `receiveAttachments()` in `apps/api/src/uploads.ts` (dependency
+  `@fastify/busboy` ^3.2.3) replace `formData()` + `saveUploadedFile()` / `validateFiles()` in issue
+  create, follow-up and `/files/:root/upload`. File count and the 1 GB total are enforced while
+  streaming; any failure removes what was written. Over the size limit now returns 413.
+- `/files/:root/upload` writes `.bkd-upload-<ulid>` staging files in the target directory and
+  renames them into place after the conflict check.
+- 1000 MB upload against a real server: peak RSS +53 MB (was the full body).
+- [pitfall] Under Bun a client disconnect surfaces on `Readable.fromWeb(request.body)` only as
+  `close` — no `error`, no `end`. Waiting for either hangs the request and leaks a partial file.
+- [pitfall] busboy reduces file names to their basename unless `preservePath: true`.
+
+## 2026-10-17 04:50 [progress]
+
+Upgraded decision events into a messages system (20261016-1829-messages-system).
+
+- New `messages` table (`kind` = `decision` | `notification`, `expects` = `none` | `reply`, `level`) and
+  `message_channel_messages`; migrations `0029`–`0031` copy `decision_events` and
+  `decision_channel_messages` with ids preserved, rename the `decision-event-cleanup` cron job to
+  `message-cleanup`, and drop the old tables.
+- `decisions/` → `messages/` (service, Telegram, v1 projection). New `/api/messages` (contract v2):
+  send, list, read / read-all, reply, decide, notify, ack, withdraw, close. A reply to a notification
+  with `expects: reply` wakes the source issue with `[message-reply messageId=…]`; decisions keep
+  `[event-decision …]`. Notifications are limited to 30 a minute per source issue.
+- `/api/decisions/*` stays as the v1 contract, served in-process from the same table; the existing
+  v1 route tests pass unchanged.
+- SSE / bus event `decision-event-updated` → `message-updated`. New webhook events
+  `message.{sent,replied,applied,withdrawn,closed}` with a `{ message, source, ref, links, server }`
+  envelope; `decision.*` payloads are unchanged. Interactive Telegram chats also answer
+  reply-notifications.
+- Frontend: `/messages` inbox (decisions + notifications, kind filter, mark read / all read,
+  reply box); `/decisions` redirects there; the sidebar badge counts open and unread messages.
+- Deviation from the plan: the v2 decision create body uses the message field names
+  (`title` / `body` / `source`) instead of the v1 ones; the kind filter is a select, not a tab row;
+  webhook `links` carry `inboxUrl` / `apiUrl` (no per-message page).
+- [pitfall] The full API suite still hits the known `api-execution` timeout
+  (20261013-2222-api-execution-test-timeout); the file passes on its own.
+
+## 2026-10-17 05:20 [bugfix]
+
+`message-cleanup` no longer removes answered messages (20261017-0516-message-cleanup-terminal-only).
+
+- Only `applied`, `withdrawn` and `closed` messages are soft-deleted after a day. `decided` and
+  `replied` are kept however old: a sender that missed its wake used to lose the user's answer
+  after a day, on `/api/messages` and the v1 `/api/decisions` alike.
+- Reverses the "every non-open status" widening of 20261013-2212-decision-event-retention.

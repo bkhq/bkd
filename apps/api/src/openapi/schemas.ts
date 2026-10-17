@@ -279,6 +279,14 @@ export const IssueTurnsResponseSchema = z.object({
   })),
 }).openapi('IssueTurnsResponse')
 
+export const IssueSearchHitSchema = z.object({
+  issue: IssueSchema,
+  matchCount: z.number().int(),
+  snippet: z.string(),
+  logId: z.string(),
+  turnIndex: z.number().int(),
+}).openapi('IssueSearchHit')
+
 export const IssueChangedFileSchema = z.object({
   path: z.string(),
   status: z.string(),
@@ -629,6 +637,117 @@ export const ListDecisionEventsQuerySchema = z.object({
   ),
 })
 
+// ── Message schemas ────────────────────────────────────
+
+export const MESSAGE_STATUSES = ['unread', 'read', 'open', 'decided', 'replied', 'applied', 'withdrawn', 'closed'] as const
+export const MESSAGE_LEVELS = ['info', 'success', 'warning', 'error'] as const
+
+const MessageSourceSchema = z.object({
+  projectId: z.string().min(1).max(100),
+  issueId: z.string().min(1).max(100),
+})
+
+export const MessageSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['decision', 'notification']),
+  expects: z.enum(['none', 'reply']),
+  status: z.enum(MESSAGE_STATUSES),
+  level: z.enum(MESSAGE_LEVELS),
+  campaignId: z.string().nullable(),
+  source: z.object({ projectId: z.string(), issueId: z.string() }).nullable(),
+  ref: z.string().nullable(),
+  title: z.string(),
+  body: z.string(),
+  options: z.array(z.object({ id: z.string(), label: z.string(), impact: z.string() })),
+  recommendation: z.object({ optionId: z.string(), reason: z.string() }).nullable(),
+  blocks: z.string().nullable(),
+  continues: z.string().nullable(),
+  decision: z.object({
+    optionId: z.string().nullable(),
+    instruction: z.string(),
+    decidedBy: z.string(),
+    decidedAt: z.string(),
+  }).nullable(),
+  reply: z.object({ text: z.string(), repliedBy: z.string(), repliedAt: z.string() }).nullable(),
+  outcome: z.string().nullable(),
+  withdrawReason: z.string().nullable(),
+  closeReason: z.string().nullable(),
+  notifiedAt: z.string().nullable(),
+  links: z.object({
+    projectName: z.string().nullable(),
+    ref: DecisionEventIssueLinkSchema.nullable(),
+    source: DecisionEventIssueLinkSchema.nullable(),
+  }),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+}).openapi('Message')
+
+const messageFacts = {
+  ref: decisionEventFacts.ref,
+  title: z.string().trim().min(1, 'title is required').max(2000),
+  body: z.string().max(20_000),
+}
+
+export const CreateMessageSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('decision'),
+    campaignId: z.string().trim().min(1).max(200),
+    ...messageFacts,
+    body: messageFacts.body.optional().default(''),
+    options: decisionEventFacts.options.optional().default([]),
+    recommendation: decisionEventFacts.recommendation,
+    blocks: decisionEventFacts.blocks,
+    continues: decisionEventFacts.continues,
+    source: MessageSourceSchema,
+  }),
+  z.object({
+    kind: z.literal('notification'),
+    expects: z.enum(['none', 'reply']).optional().default('none'),
+    level: z.enum(MESSAGE_LEVELS).optional().default('info'),
+    campaignId: z.string().trim().min(1).max(200).nullable().optional(),
+    ...messageFacts,
+    body: messageFacts.body.optional().default(''),
+    source: MessageSourceSchema.nullable().optional().openapi({
+      description: 'The sending issue; required when expects is reply',
+    }),
+  }),
+]).openapi('CreateMessage')
+
+export const UpdateMessageSchema = z.object({
+  ref: messageFacts.ref,
+  title: messageFacts.title.optional(),
+  body: messageFacts.body.optional(),
+  level: z.enum(MESSAGE_LEVELS).optional().openapi({ description: 'Notifications only' }),
+  options: decisionEventFacts.options.optional().openapi({ description: 'Decisions only' }),
+  recommendation: decisionEventFacts.recommendation.openapi({ description: 'Decisions only' }),
+  blocks: decisionEventFacts.blocks,
+  continues: decisionEventFacts.continues,
+}).openapi('UpdateMessage')
+
+export const ReplyMessageSchema = z.object({
+  text: z.string().trim().min(1, 'text is required').max(20_000),
+  repliedBy: z.string().trim().min(1).max(200).optional().default('user'),
+}).openapi('ReplyMessage')
+
+export const MarkMessagesReadSchema = z.object({
+  ids: z.array(z.string().min(1).max(100)).max(500).optional(),
+}).openapi('MarkMessagesRead')
+
+function csvOf(values: readonly string[]) {
+  return z.string().max(200).optional().refine(
+    v => v === undefined || v.split(',').every(s => values.includes(s)),
+    `must be a comma-separated list of ${values.join(', ')}`,
+  )
+}
+
+export const ListMessagesQuerySchema = z.object({
+  kind: z.enum(['decision', 'notification']).optional(),
+  expects: z.enum(['none', 'reply']).optional(),
+  status: csvOf(MESSAGE_STATUSES),
+  campaignId: z.string().max(200).optional(),
+  issueId: z.string().max(100).optional().openapi({ description: 'Source issue' }),
+})
+
 // ── Worktree schemas ───────────────────────────────────
 
 export const WorktreeEntrySchema = z.object({
@@ -655,6 +774,11 @@ const webhookEventTypes = [
   'decision.applied',
   'decision.withdrawn',
   'decision.closed',
+  'message.sent',
+  'message.replied',
+  'message.applied',
+  'message.withdrawn',
+  'message.closed',
 ] as const
 
 export const WebhookSchema = z.object({
@@ -664,7 +788,7 @@ export const WebhookSchema = z.object({
   secret: z.string().nullable().openapi({ description: 'Masked in responses' }),
   events: z.array(z.string()),
   isActive: z.boolean(),
-  interactive: z.boolean().openapi({ description: 'Telegram only: answer decision events in the chat' }),
+  interactive: z.boolean().openapi({ description: 'Telegram only: answer messages awaiting a reply in the chat' }),
   createdAt: z.string(),
   updatedAt: z.string(),
 }).openapi('Webhook')

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { setAppSetting } from '@/db/helpers'
 import { cacheDel } from '@/cache'
@@ -14,6 +14,10 @@ import './setup'
 const tmpBase = resolve('/tmp', `bkd-upload-test-${process.pid}`)
 const workspaceDir = resolve(tmpBase, 'workspace')
 const outsideDir = resolve(tmpBase, 'outside')
+
+function stagingFiles(dir: string): string[] {
+  return readdirSync(dir).filter(name => name.startsWith('.bkd-upload-'))
+}
 
 interface UploadResult {
   success: boolean
@@ -81,6 +85,7 @@ describe('POST /api/files/:root/upload', () => {
     expect(json.error).toContain('exists.txt')
     expect(readFileSync(resolve(workspaceDir, 'exists.txt'), 'utf-8')).toBe('old')
     expect(existsSync(resolve(workspaceDir, 'fresh.txt'))).toBe(false)
+    expect(stagingFiles(workspaceDir)).toEqual([])
   })
 
   test('replaces an existing file when overwrite is set', async () => {
@@ -97,6 +102,7 @@ describe('POST /api/files/:root/upload', () => {
     }
     expect(existsSync(resolve(workspaceDir, 'escape.txt'))).toBe(false)
     expect(existsSync(resolve(workspaceDir, 'subdir', 'b.txt'))).toBe(false)
+    expect(stagingFiles(resolve(workspaceDir, 'subdir'))).toEqual([])
   })
 
   test('rejects a target path that is a file', async () => {
@@ -119,12 +125,24 @@ describe('POST /api/files/:root/upload', () => {
     expect(res.status).toBe(400)
   })
 
-  test('rejects an oversized file', async () => {
+  test('accepts a file over 10 MB', async () => {
     const { status } = await upload(workspaceDir, '', [
       new File([new Uint8Array(11 * 1024 * 1024)], 'big.bin'),
     ])
-    expect(status).toBe(400)
-    expect(existsSync(resolve(workspaceDir, 'big.bin'))).toBe(false)
+    expect(status).toBe(201)
+    expect(existsSync(resolve(workspaceDir, 'big.bin'))).toBe(true)
+    expect(stagingFiles(workspaceDir)).toEqual([])
+  })
+
+  test('rejects a malformed multipart body', async () => {
+    const res = await app.request(`http://localhost/api/files/${encodeRoot(workspaceDir)}/upload`, {
+      method: 'POST',
+      headers: { 'content-type': 'multipart/form-data; boundary=xyz' },
+      body: '--xyz\r\nContent-Disposition: form-data; name="files"; filename="cut.txt"\r\n\r\npartial',
+    })
+    expect(res.status).toBe(400)
+    expect(existsSync(resolve(workspaceDir, 'cut.txt'))).toBe(false)
+    expect(stagingFiles(workspaceDir)).toEqual([])
   })
 
   test('rejects a root outside the workspace', async () => {
