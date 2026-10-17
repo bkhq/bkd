@@ -1033,3 +1033,15 @@ Upgraded decision events into a messages system (20261016-1829-messages-system).
   `replied` are kept however old: a sender that missed its wake used to lose the user's answer
   after a day, on `/api/messages` and the v1 `/api/decisions` alike.
 - Reverses the "every non-open status" widening of 20261013-2212-decision-event-retention.
+
+## 2026-10-17 06:10 [progress]
+
+Merged `main` into `release` (message search, background-task subagents, streaming
+uploads, messages system). `IssueListPanel` keeps the dnd-kit list and shows main's
+message matches below it; `CLAUDE.md` lists the merged schema's tables and all five
+built-in jobs (`message-cleanup` replaces `decision-event-cleanup`).
+
+`api-messages.test.ts` "list > filters by ..." failed in the full local API suite on `main`
+too: it shares the campaign id `camp-list` with `api-decision-events.test.ts`, whose
+decisions now live in the same `messages` table. It uses its own campaign id; the full API
+suite passes (968 / 0).
