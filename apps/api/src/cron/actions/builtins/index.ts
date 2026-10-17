@@ -35,7 +35,7 @@ registerAction('issue-log-retention', {
 })
 
 registerAction('message-cleanup', {
-  description: 'Remove settled messages unchanged for 1 day and read notifications unchanged for 7 days',
+  description: 'Remove applied, withdrawn and closed messages unchanged for 1 day and read notifications unchanged for 7 days',
   category: 'builtin',
   defaultCron: '0 0 5 * * *', // daily at 5 AM
   handler: () => runMessageCleanup(),

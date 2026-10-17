@@ -1,4 +1,4 @@
-import { and, eq, lt, ne, or } from 'drizzle-orm'
+import { and, eq, inArray, lt, ne, or } from 'drizzle-orm'
 import { db } from '@/db'
 import { messages } from '@/db/schema'
 import { logger } from '@/logger'
@@ -8,9 +8,11 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const SETTLED_RETENTION_MS = DAY_MS
 const READ_RETENTION_MS = 7 * DAY_MS
 
+const TERMINAL_STATUSES = ['applied', 'withdrawn', 'closed']
+
 /**
- * Soft-delete settled messages awaiting no more answers (untouched for a day)
- * and read notifications (untouched for a week). Open and unread ones stay.
+ * Soft-delete settled messages (untouched for a day) and read notifications
+ * (untouched for a week). Open, answered and unread ones stay.
  */
 export async function runMessageCleanup(): Promise<string> {
   const now = Date.now()
@@ -24,7 +26,7 @@ export async function runMessageCleanup(): Promise<string> {
         or(
           and(
             eq(messages.expects, 'reply'),
-            ne(messages.status, 'open'),
+            inArray(messages.status, TERMINAL_STATUSES),
             lt(messages.updatedAt, new Date(now - SETTLED_RETENTION_MS)),
           ),
           and(

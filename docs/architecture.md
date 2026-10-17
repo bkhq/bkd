@@ -248,7 +248,7 @@ A message is something an agent sends the user. `kind` is `decision` (one questi
 - `messages/telegram/` is a second answering surface. A Telegram notification channel with `webhooks.interactive` set gets each open message awaiting a reply — decisions with option buttons, notifications with a close button; `index.ts` listens to `message-updated` to post and redraw, and runs one `getUpdates` long-poll loop per bot token for button presses and replies. Answers call `decideMessage()` / `replyMessage()` in `messages/service.ts`, the same path as the REST routes. `message_channel_messages` maps a message to the chat message that carries it. Updates from any chat other than the configured one are dropped.
 - v1 alias: `routes/decisions.ts` serves `/api/decisions/*` from the same table restricted to `kind = 'decision'`, projected to the v1 shape by `messages/v1.ts`. It is in-process, not an HTTP redirect.
 - Migration `0029`–`0031` copied `decision_events` / `decision_channel_messages` into the new tables with ids preserved, renamed the `decision-event-cleanup` cron job, and dropped the old tables.
-- Retention: the `message-cleanup` cron action soft-deletes messages awaiting a reply that are no longer `open` and untouched for a day, and read notifications untouched for seven days. Open and unread messages are never removed.
+- Retention: the `message-cleanup` cron action soft-deletes messages in a terminal state (`applied`, `withdrawn`, `closed`) untouched for a day, and read notifications untouched for seven days. Open, answered (`decided` / `replied`) and unread messages are never removed, so an answer the sender has not acted on stays readable.
 
 ### Event System (`events/`)
 

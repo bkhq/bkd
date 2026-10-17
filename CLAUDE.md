@@ -216,7 +216,7 @@ Routes: `GET /api/messages` (capability probe, `{ supported, contractVersion: 2,
 
 - `upload-cleanup` (every 1h) — deletes files in `data/uploads/` older than 7 days
 - `worktree-cleanup` (every 30 min) — removes worktrees for `done` issues older than 1 day; gated by `worktree:autoCleanup` setting
-- `message-cleanup` (daily at 05:00) — soft-deletes messages awaiting a reply that are no longer `open` and unchanged for 1 day, and read notifications unchanged for 7 days
+- `message-cleanup` (daily at 05:00) — soft-deletes messages in a terminal state (`applied` / `withdrawn` / `closed`) unchanged for 1 day, and read notifications unchanged for 7 days; `open`, `decided` and `replied` are never removed
 
 #### Upgrade (`upgrade/`)
 

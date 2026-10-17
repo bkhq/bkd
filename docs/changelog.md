@@ -915,3 +915,12 @@ Upgraded decision events into a messages system (20261016-1829-messages-system).
   webhook `links` carry `inboxUrl` / `apiUrl` (no per-message page).
 - [pitfall] The full API suite still hits the known `api-execution` timeout
   (20261013-2222-api-execution-test-timeout); the file passes on its own.
+
+## 2026-10-17 05:20 [bugfix]
+
+`message-cleanup` no longer removes answered messages (20261017-0516-message-cleanup-terminal-only).
+
+- Only `applied`, `withdrawn` and `closed` messages are soft-deleted after a day. `decided` and
+  `replied` are kept however old: a sender that missed its wake used to lose the user's answer
+  after a day, on `/api/messages` and the v1 `/api/decisions` alike.
+- Reverses the "every non-open status" widening of 20261013-2212-decision-event-retention.

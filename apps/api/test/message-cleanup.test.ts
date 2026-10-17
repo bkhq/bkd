@@ -78,9 +78,9 @@ beforeAll(async () => {
 })
 
 describe('message cleanup', () => {
-  test('removes every non-open event untouched for a day', async () => {
+  test('removes every terminal event untouched for a day', async () => {
     const ids = await Promise.all(
-      ['decided', 'applied', 'withdrawn', 'closed'].map(status => seed(status, 25)),
+      ['applied', 'withdrawn', 'closed'].map(status => seed(status, 25)),
     )
 
     await runMessageCleanup()
@@ -99,8 +99,17 @@ describe('message cleanup', () => {
     expect(await isDeleted(id)).toBe(false)
   })
 
+  test('keeps a decided event however old, so a missed wake does not lose the answer', async () => {
+    const id = await seed('decided', 24 * 30)
+
+    await runMessageCleanup()
+
+    expect(await isDeleted(id)).toBe(false)
+    expect((await get(`${BASE}/${id}`)).status).toBe(200)
+  })
+
   test('keeps events touched within the last day', async () => {
-    const id = await seed('decided', 23)
+    const id = await seed('applied', 23)
 
     await runMessageCleanup()
 
@@ -120,16 +129,19 @@ describe('message cleanup', () => {
     expect(seen).toContain(id)
   })
 
-  test('removes settled reply notifications after a day, keeps open ones', async () => {
+  test('removes settled reply notifications after a day, keeps open and replied ones', async () => {
     const settled = await createNotification('reply')
     await age(settled, 'applied', 25)
     const open = await createNotification('reply')
     await age(open, 'open', 24 * 30)
+    const replied = await createNotification('reply')
+    await age(replied, 'replied', 24 * 30)
 
     await runMessageCleanup()
 
     expect(await isDeleted(settled)).toBe(true)
     expect(await isDeleted(open)).toBe(false)
+    expect(await isDeleted(replied)).toBe(false)
   })
 
   test('removes read notifications after a week, keeps unread ones', async () => {
