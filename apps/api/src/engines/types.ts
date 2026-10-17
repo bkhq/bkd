@@ -222,6 +222,8 @@ export interface ExecutorConfig {
 export interface ExecutionEnv {
   vars: Record<string, string>
   workingDir: string
+  /** Extra client CLI arguments from worktree admission (claude-code and codex only). */
+  extraArgs?: string[]
   projectId?: string
   sessionId?: string
   issueId?: string

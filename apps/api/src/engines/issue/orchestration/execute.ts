@@ -12,7 +12,7 @@ import { persistUserMessage } from '@/engines/issue/user-message'
 import { getPermissionOptions, resolveExecEnvVars } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
-import { ensureWorktree } from '@/engines/issue/utils/worktree'
+import { ensureAdmittedWorktree } from '@/engines/issue/utils/worktree'
 import { resolveExecutionModel } from '@/engines/model-resolver'
 import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
@@ -87,10 +87,15 @@ export async function executeIssue(
     const normalizer = createLogNormalizer(executor)
     let spawned: SpawnedProcess | undefined
     let finalExternalSessionId: string
+    let launchVars = envVars ?? {}
+    let extraArgs: string[] | undefined
     try {
       if (issue.useWorktree) {
-        worktreePath = await ensureWorktree(baseDir, issue.projectId, issueId)
+        const admitted = await ensureAdmittedWorktree(baseDir, issue.projectId, issueId, opts.engineType, executionId)
+        worktreePath = admitted.worktreePath
         workingDir = worktreePath
+        launchVars = { ...launchVars, ...admitted.launch.env }
+        extraArgs = admitted.launch.args
       }
       ctx.pm.assertCapacity()
       spawned = await executor.spawn(
@@ -102,10 +107,11 @@ export async function executeIssue(
           externalSessionId,
         },
         {
-          vars: envVars ?? {},
+          vars: launchVars,
           workingDir,
           projectId: issue.projectId,
           issueId,
+          extraArgs,
         },
       )
 

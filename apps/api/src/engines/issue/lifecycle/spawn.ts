@@ -19,7 +19,7 @@ import {
 } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
-import { ensureWorktree } from '@/engines/issue/utils/worktree'
+import { ensureAdmittedWorktree } from '@/engines/issue/utils/worktree'
 import { resolveExecutionModel } from '@/engines/model-resolver'
 import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
@@ -56,6 +56,7 @@ export async function spawnWithSessionFallback(
     permissionMode: PermissionPolicy
     projectId: string
     envVars?: Record<string, string>
+    extraArgs?: string[]
     systemPrompt?: string
   },
 ): Promise<SpawnedProcess> {
@@ -64,6 +65,7 @@ export async function spawnWithSessionFallback(
     workingDir: opts.workingDir,
     projectId: opts.projectId,
     issueId,
+    extraArgs: opts.extraArgs,
   }
   try {
     return await executor.spawnFollowUp(
@@ -125,6 +127,7 @@ export async function spawnFresh(
     permissionMode: PermissionPolicy
     projectId: string
     envVars?: Record<string, string>
+    extraArgs?: string[]
   },
 ): Promise<SpawnedProcess> {
   const externalSessionId = crypto.randomUUID()
@@ -141,6 +144,7 @@ export async function spawnFresh(
       workingDir: opts.workingDir,
       projectId: opts.projectId,
       issueId,
+      extraArgs: opts.extraArgs,
     },
   )
   const finalSessionId = spawned.externalSessionId ?? externalSessionId
@@ -169,19 +173,23 @@ export async function spawnRetry(
 
   const baseDir = await resolveWorkingDir(issue.projectId)
 
-  // Resolve worktree if the issue uses one
+  const executionId = crypto.randomUUID()
+
+  // Resolve (and admit) the worktree if the issue uses one
   let workingDir = baseDir
   let worktreePath: string | undefined
+  let launch: { args: string[], env: Record<string, string> } | undefined
   if (issue.useWorktree) {
-    worktreePath = await ensureWorktree(baseDir, issue.projectId, issueId)
+    const admitted = await ensureAdmittedWorktree(baseDir, issue.projectId, issueId, engineType, executionId)
+    worktreePath = admitted.worktreePath
     workingDir = worktreePath
+    launch = admitted.launch
   }
 
   const permOptions = getPermissionOptions(
     engineType,
     issue.sessionFields.permissionMode ?? undefined,
   )
-  const executionId = crypto.randomUUID()
   const projCtx = await getProjectExecContext(issue.projectId)
   const envVars = await resolveExecEnvVars(issue.engineProfileId, projCtx.envVars)
 
@@ -191,7 +199,8 @@ export async function spawnRetry(
     model: await resolveExecutionModel(engineType, issue.sessionFields.model, issue.engineProfileId),
     permissionMode: permOptions.permissionMode,
     projectId: issue.projectId,
-    envVars,
+    envVars: launch ? { ...envVars, ...launch.env } : envVars,
+    extraArgs: launch?.args,
     systemPrompt: projCtx.systemPrompt,
   }
   ctx.pm.assertCapacity()
@@ -298,9 +307,14 @@ export async function spawnFollowUpProcess(
   const normalizer = createLogNormalizer(executor)
   let spawned: SpawnedProcess | undefined
   try {
+    let launchVars = envVars
+    let extraArgs: string[] | undefined
     if (issue.useWorktree) {
-      worktreePath = await ensureWorktree(baseDir, issue.projectId, issueId)
+      const admitted = await ensureAdmittedWorktree(baseDir, issue.projectId, issueId, engineType, executionId)
+      worktreePath = admitted.worktreePath
       workingDir = worktreePath
+      launchVars = { ...launchVars, ...admitted.launch.env }
+      extraArgs = admitted.launch.args
     }
     ctx.pm.assertCapacity()
     const baseSpawnOpts = {
@@ -309,7 +323,8 @@ export async function spawnFollowUpProcess(
       model: effectiveModel,
       permissionMode: permOptions.permissionMode,
       projectId: issue.projectId,
-      envVars,
+      envVars: launchVars,
+      extraArgs,
       systemPrompt: projCtx.systemPrompt,
     }
     spawned = issue.sessionFields.externalSessionId

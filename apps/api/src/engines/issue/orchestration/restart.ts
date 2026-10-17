@@ -18,7 +18,7 @@ import {
   resolveWorkingDir,
 } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
-import { ensureWorktree } from '@/engines/issue/utils/worktree'
+import { ensureAdmittedWorktree } from '@/engines/issue/utils/worktree'
 import { resolveExecutionModel } from '@/engines/model-resolver'
 import type { SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
@@ -77,9 +77,14 @@ export async function restartIssue(
     const turnIndex = getNextTurnIndex(issueId)
     let spawned: SpawnedProcess | undefined
     try {
+      let launchVars = envVars
+      let extraArgs: string[] | undefined
       if (issue.useWorktree) {
-        worktreePath = await ensureWorktree(baseDir, issue.projectId, issueId)
+        const admitted = await ensureAdmittedWorktree(baseDir, issue.projectId, issueId, engineType, executionId)
+        worktreePath = admitted.worktreePath
         workingDir = worktreePath
+        launchVars = { ...launchVars, ...admitted.launch.env }
+        extraArgs = admitted.launch.args
       }
       const spawnOpts = {
         workingDir,
@@ -87,7 +92,8 @@ export async function restartIssue(
         model: effectiveModel,
         permissionMode: permOptions.permissionMode,
         projectId: issue.projectId,
-        envVars,
+        envVars: launchVars,
+        extraArgs,
       }
       ctx.pm.assertCapacity()
       spawned = issue.sessionFields.externalSessionId ?
@@ -100,10 +106,11 @@ export async function restartIssue(
               permissionMode: spawnOpts.permissionMode,
             },
             {
-              vars: envVars ?? {},
+              vars: launchVars ?? {},
               workingDir,
               projectId: issue.projectId,
               issueId,
+              extraArgs,
             },
           ) :
           await spawnFresh(executor, issueId, spawnOpts)

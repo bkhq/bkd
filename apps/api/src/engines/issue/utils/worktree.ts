@@ -1,11 +1,14 @@
 import { existsSync } from 'node:fs'
 import { mkdir, rm } from 'node:fs/promises'
-import { join, resolve, sep } from 'node:path'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { WORKTREE_DIR } from '@/engines/issue/constants'
 import { runCommand } from '@/engines/spawn'
+import type { EngineType } from '@/engines/types'
 import { logger } from '@/logger'
 import { ROOT_DIR } from '@/root'
 import { isGitRepoFresh } from '@/utils/git'
+import type { WorktreeLaunch } from './worktree-admission'
+import { cleanupWorktreeAdmission, prepareWorktreeAdmission } from './worktree-admission'
 
 /** Resolve WORKTREE_DIR — absolute paths used as-is, relative resolved from ROOT_DIR */
 export const WORKTREE_BASE = WORKTREE_DIR.startsWith('/') ?
@@ -22,6 +25,15 @@ const WORKTREE_SAFE_ROOT = WORKTREE_BASE
  */
 export function resolveWorktreePath(projectId: string, issueId: string): string {
   return join(WORKTREE_BASE, projectId, issueId)
+}
+
+/** Inverse of resolveWorktreePath; null for paths outside `<WORKTREE_BASE>/<projectId>/<issueId>`. */
+export function parseWorktreePath(worktreeDir: string): { projectId: string, issueId: string } | null {
+  const rel = relative(WORKTREE_BASE, resolve(worktreeDir))
+  if (!rel || rel.startsWith('..') || isAbsolute(rel)) return null
+  const parts = rel.split(sep)
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null
+  return { projectId: parts[0], issueId: parts[1] }
 }
 
 /**
@@ -99,8 +111,36 @@ export async function ensureWorktree(
   return createWorktree(baseDir, projectId, issueId)
 }
 
+/**
+ * Ensure the issue's worktree, then pass the opt-in pre-spawn admission
+ * (`WORKTREE_ADMISSION_COMMAND`). Throws when admission refuses, so the caller
+ * aborts the spawn. `attemptId` identifies this spawn attempt.
+ */
+export async function ensureAdmittedWorktree(
+  baseDir: string,
+  projectId: string,
+  issueId: string,
+  engineType: EngineType,
+  attemptId: string,
+): Promise<{ worktreePath: string, launch: WorktreeLaunch }> {
+  const worktreePath = await ensureWorktree(baseDir, projectId, issueId)
+  const launch = await prepareWorktreeAdmission({
+    projectId,
+    issueId,
+    worktreeDir: worktreePath,
+    engineType,
+    attemptId,
+  })
+  return { worktreePath, launch }
+}
+
 export async function removeWorktree(baseDir: string, worktreeDir: string): Promise<void> {
   const resolved = resolve(worktreeDir)
+  // Release any admission lease while the checkout still exists (no-op unless configured)
+  const ids = parseWorktreePath(resolved)
+  if (ids) {
+    await cleanupWorktreeAdmission({ ...ids, worktreeDir: resolved, reason: 'worktree_removed' })
+  }
   try {
     const { code } = await runCommand(
       ['git', 'worktree', 'remove', '--force', resolved],

@@ -66,6 +66,12 @@ LOG_LEVEL = "info"
 # BKD_DATA_DIR = "/opt/bkd/data"
 # DB_PATH      = "/opt/bkd/data/db/bkd.db"
 # WORKTREE_DIR = "worktrees"
+# Opt-in pre-spawn admission for worktree issues (claude-code / codex): BKD runs
+# `<cmd> prepare --project --task --cwd --client --attempt` after creating the
+# worktree and spawns only on exit 0, adding the reply's launch args/env;
+# `<cmd> cleanup` runs when the worktree is removed. Unset = disabled.
+# WORKTREE_ADMISSION_COMMAND    = "mcp-manager worktree"
+# WORKTREE_ADMISSION_TIMEOUT_MS = "60000"
 
 [supervise]
 # BKD reports ready once it can serve; lode commits the version only then.
