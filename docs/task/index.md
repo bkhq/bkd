@@ -126,14 +126,14 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [x] [**20260922-1703-mobile-desktop-ui-parity Align mobile and desktop UI and finish the BKD rename**](20260922-1703-mobile-desktop-ui-parity.md) `P1`
 
-- [ ] [**20260922-1712-api-execution-suite-order-flake Auto-execute test times out in the full API suite**](20260922-1712-api-execution-suite-order-flake.md) `P2`
+- [x] [**20260922-1712-api-execution-suite-order-flake Auto-execute test times out in the full API suite**](20260922-1712-api-execution-suite-order-flake.md) `P2`
 - [x] [**20260923-1133-grok-engine Add Grok Build CLI as an engine**](20260923-1133-grok-engine.md) `P1`
 - [x] [**20260924-0914-cursor-engine Add Cursor CLI as an engine**](20260924-0914-cursor-engine.md) `P1`
 - [x] [**20260929-1043-mobile-agent-message-selection Make agent messages selectable on touch devices**](20260929-1043-mobile-agent-message-selection.md) `P2`
 - [x] [**20261001-1538-sidebar-project-flyout Show the full project list on sidebar hover**](20261001-1538-sidebar-project-flyout.md) `P2`
 - [x] [**20261001-1313-reconciler-start-race Keep the stale-working reconciler away from executions that are starting**](20261001-1313-reconciler-start-race.md) `P1`
 - [x] [**20261002-1007-engine-process-leak Kill engine processes that fail registration or the Codex handshake**](20261002-1007-engine-process-leak.md) `P0`
-- [ ] [**20261002-1046-api-execution-concurrency-flake Fix order-dependent concurrency failure in api-execution tests**](20261002-1046-api-execution-concurrency-flake.md) `P2`
+- [x] [**20261002-1046-api-execution-concurrency-flake Fix order-dependent concurrency failure in api-execution tests**](20261002-1046-api-execution-concurrency-flake.md) `P2`
 - [x] [**20261002-1111-worktree-reuse Keep worktree issues out of the main checkout**](20261002-1111-worktree-reuse.md) `P1`
 - [x] [**20261002-1111-persist-permission-mode Persist the issue permission mode**](20261002-1111-persist-permission-mode.md) `P1`
 - [x] [**20261002-1223-sidebar-flyout-active-anchor Anchor the sidebar flyout to the active project only**](20261002-1223-sidebar-flyout-active-anchor.md) `P2`
@@ -153,7 +153,7 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261013-0155-agent-message-card-style Style agent messages as a card matching user messages**](20261013-0155-agent-message-card-style.md) `P2`
 - [x] [**20261013-0244-worktree-cleanup-on-delete Clean up worktrees of deleted issues and stop cleanup stats from timing out**](20261013-0244-worktree-cleanup-on-delete.md) `P1`
 - [x] [**20261013-0538-files-upload-test-poisons-suite Stop api-files-upload.test.ts from breaking every later API test**](20261013-0538-files-upload-test-poisons-suite.md) `P1`
-- [ ] [**20261013-0538-spawn-leak-tests-order-dependent Fix engine-spawn-leak concurrency tests that time out in the full suite**](20261013-0538-spawn-leak-tests-order-dependent.md) `P2`
+- [x] [**20261013-0538-spawn-leak-tests-order-dependent Fix engine-spawn-leak concurrency tests that time out in the full suite**](20261013-0538-spawn-leak-tests-order-dependent.md) `P2`
 - [ ] [**20261013-0538-bkd-log-rotation Rotate data/logs/bkd.log and keep data/ out of ESLint**](20261013-0538-bkd-log-rotation.md) `P1`
 - [x] [**20261013-0540-chat-turn-navigator Add a turn navigator rail with hover previews to the chat area**](20261013-0540-chat-turn-navigator.md) `P2`
 - [x] [**20261013-0553-turn-navigator-full-history Show every turn in the chat turn navigator, including unloaded history**](20261013-0553-turn-navigator-full-history.md) `P2`
@@ -165,9 +165,13 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261013-2005-decision-capability-probe Add a decision-events capability probe and drop the bundled skill**](20261013-2005-decision-capability-probe.md) `P2`
 - [x] [**20261013-2159-decision-telegram-interactive Answer decision events from Telegram**](20261013-2159-decision-telegram-interactive.md) `P2`
 - [x] [**20261013-2212-decision-event-retention Delete decided decision events after one day**](20261013-2212-decision-event-retention.md) `P2`
-- [ ] [**20261013-2222-api-execution-test-timeout api-execution test times out in the full suite**](20261013-2222-api-execution-test-timeout.md) `P2`
+- [x] [**20261013-2222-api-execution-test-timeout api-execution test times out in the full suite**](20261013-2222-api-execution-test-timeout.md) `P2`
 - [x] [**20261013-2219-webhook-local-targets Allow webhooks to target local addresses**](20261013-2219-webhook-local-targets.md) `P2`
+- [x] [**20261015-0201-issue-menu-and-list-drag Extend the issue menu, add list drag, tidy kanban column headers**](20261015-0201-issue-menu-and-list-drag.md) `P2`
+- [x] [**20261015-0315-dnd-kit-board-restyle Move issue drag to dnd-kit and restyle the kanban board after bks**](20261015-0315-dnd-kit-board-restyle.md) `P2`
+- [x] [**20261015-0610-workspace-toggle-fixed Keep the workspace panel toggle in one place**](20261015-0610-workspace-toggle-fixed.md) `P2`
 - [x] [**20261015-2352-issue-message-search Full-text search over issue messages**](20261015-2352-issue-message-search.md) `P2`
+- [x] [**20261016-0230-turn-rail-paging Page the chat turn rail and keep the current turn visible**](20261016-0230-turn-rail-paging.md) `P2`
 - [x] [**20261016-0320-upload-limit-progress Lift the 10 MB upload cap and show global upload progress**](20261016-0320-upload-limit-progress.md) `P2`
 - [x] [**20261016-0424-streaming-multipart-upload Stream multipart uploads to disk instead of buffering**](20261016-0424-streaming-multipart-upload.md) `P1`
 - [x] [**20261016-0448-background-task-as-subagent Background Bash tasks render as subagents in the chat**](20261016-0448-background-task-as-subagent.md) `P2`

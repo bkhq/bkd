@@ -1,4 +1,4 @@
-import { FileDiff, FolderOpen, Maximize2, Minimize2, PanelRight, PanelRightClose, Plus, X } from 'lucide-react'
+import { FileDiff, FolderOpen, Maximize2, Minimize2, PanelRightClose, Plus, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -208,7 +208,8 @@ export function WorkspacePanel({
                       label={isMaximized ? t('workspace.restorePanel') : t('workspace.maximizePanel')}
                       onClick={toggleMaximized}
                     />
-                    <SidePanelButton icon={PanelRight} label={t('workspace.hidePanel')} onClick={hide} />
+                    {/* Room for the chat area's toggle, which floats over this corner */}
+                    <span aria-hidden className="w-7 shrink-0" />
                   </>
                 )}
           </div>

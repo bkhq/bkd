@@ -15,11 +15,11 @@ cp .env.example .env
 # Start the nsl proxy daemon once (enables http://bkd.localhost routing)
 bunx nsl start
 
-# Start dev server (API on 3010, Vite on 3000, both fronted by nsl)
+# Start dev servers (API + Vite, both fronted by nsl, which assigns their ports)
 bun run dev
 ```
 
-Open `http://bkd.localhost` — nsl routes `/api/*` to the backend (3010) and everything else to Vite (3000). This is the only dev entry point; Vite no longer proxies `/api/*`, so `localhost:3000` will not reach the API.
+Open `http://bkd.localhost` — nsl routes `/api/*` to the backend and everything else to Vite (`nsl list` shows the assigned ports). This is the only dev entry point; Vite has no `/api/*` proxy, so the Vite port alone will not reach the API.
 
 ## Scripts
 
@@ -27,8 +27,8 @@ Open `http://bkd.localhost` — nsl routes `/api/*` to the backend (3010) and ev
 # Development (each `dev` script is wrapped in `nsl run` to register
 # the server at http://bkd.localhost; see Quick Start above)
 bun run dev              # API + frontend in parallel
-bun run dev:api          # API only (port 3010, route bkd.localhost/api)
-bun run dev:frontend     # Frontend only (port 3000, route bkd.localhost/)
+bun run dev:api          # API only (route bkd.localhost/api)
+bun run dev:frontend     # Frontend only (route bkd.localhost/)
 
 # Code Quality
 bun run lint             # ESLint check (linting + formatting, all workspaces)
@@ -54,14 +54,9 @@ bun run db:reset         # Delete SQLite DB files
 bun run build            # Build frontend (Vite -> apps/frontend/dist/)
 bun run start            # Production server (port 3000)
 
-# Compile to Binary
-bun run compile                      # Full mode (~105 MB, embeds everything)
-bun run compile:launcher             # Launcher mode (~90 MB, loads from data/app/)
-bun scripts/compile.ts --target bun-linux-x64 --outfile bkd-linux-x64
-
-# Create App Package
-bun run package                      # Build + bundle -> .tar.gz (~1 MB)
-bun scripts/package.ts --version 0.0.6 --skip-frontend
+# Release artifact (the only distributable; lode installs and runs it, see docs/deployment.md)
+bun run package                      # Build frontend + bundle server -> bkd-server.tar.gz (~2 MB)
+bun scripts/package.ts --version 0.0.7 --outfile bkd-server.tar.gz --skip-frontend
 ```
 
 ## Tech Stack
@@ -71,9 +66,9 @@ bun scripts/package.ts --version 0.0.6 --skip-frontend
 | Runtime  | [Bun](https://bun.sh)                                                           |
 | Backend  | [Hono](https://hono.dev)                                                        |
 | Database | SQLite + [Drizzle ORM](https://orm.drizzle.team)                                |
-| Frontend | React 19 + [Vite](https://vite.dev) 7                                           |
+| Frontend | React 19 + [Vite](https://vite.dev) 8                                           |
 | Styling  | [Tailwind CSS](https://tailwindcss.com) v4 + [shadcn/ui](https://ui.shadcn.com) |
-| DnD      | [@dnd-kit/react](https://dndkit.com)                                            |
+| DnD      | [@dnd-kit/core + sortable](https://dndkit.com) (issues), pragmatic-drag-and-drop (projects) |
 | Terminal | [xterm.js](https://xtermjs.org)                                                 |
 | i18n     | [i18next](https://www.i18next.com)                                              |
 | Linting  | [@antfu/eslint-config](https://github.com/antfu/eslint-config) (ESLint + stylistic) |
@@ -92,8 +87,9 @@ bkd/
 │   │   │   ├── engines/          ← AI engine executors + process management
 │   │   │   ├── routes/           ← API routes
 │   │   │   ├── events/           ← SSE event system
-│   │   │   ├── jobs/             ← Background jobs (upload cleanup, worktree cleanup)
-│   │   │   └── upgrade/          ← Self-upgrade system (check, download, apply)
+│   │   │   ├── cron/             ← Cron scheduler + actions (built-in cleanup jobs)
+│   │   │   ├── decisions/        ← Decision events (+ Telegram channel)
+│   │   │   └── upgrade/          ← lode integration (state.json, readiness)
 │   │   ├── drizzle/              ← Database migrations
 │   │   └── test/                 ← Backend tests (bun:test)
 │   └── frontend/                 ← @bkd/frontend
@@ -109,8 +105,9 @@ bkd/
 │   ├── tsconfig/                 ← Shared tsconfig presets
 │   └── shared/                   ← @bkd/shared (shared TypeScript types)
 ├── scripts/
-│   ├── compile.ts                ← Binary compiler
-│   └── package.ts                ← App packager
+│   ├── package.ts                ← Release packager (bkd-server.tar.gz)
+│   ├── migrate-to-lode.ts        ← Move a pre-lode (launcher) install onto lode
+│   └── gen-openapi.ts            ← OpenAPI spec generator
 ├── docs/                         ← Documentation
 └── package.json                  ← Monorepo root (Bun Workspaces)
 ```
@@ -123,12 +120,12 @@ bkd/
 - **Router**: Hono mounted at `/api` via `apps/api/src/app.ts`
 - **Database**: SQLite via `bun:sqlite` + Drizzle ORM
   - Schema: `apps/api/src/db/schema.ts`
-  - All tables share `commonFields` (ULID `id`, `createdAt`, `updatedAt`, `isDeleted`)
+  - All tables share `commonFields` (`createdAt`, `updatedAt`, `isDeleted` soft delete)
   - Projects and issues use `shortId()` (nanoid 8-char), logs use `id()` (ULID)
   - Migrations in `apps/api/drizzle/`, auto-applied on startup
 - **Logging**: pino (`apps/api/src/logger.ts`)
 - **Caching**: In-process LRU+TTL Map-based cache (`cache.ts`, max 500 entries)
-- **Static serving**: Three modes — embedded (compiled binary), `APP_DIR/public/` (package mode), `apps/frontend/dist/` (dev)
+- **Static serving**: `APP_DIR/public/` when running from a package, `apps/frontend/dist/` otherwise
 
 #### Middleware
 
@@ -136,11 +133,11 @@ bkd/
 - Compression: `hono/compress` (skipped for SSE routes: paths ending in `/stream` or `/api/events`)
 - HTTP logging: pino-based request logging
 - Global error handler: `{ success: false, error }` envelope
-- Input validation: `@hono/zod-validator` with Zod schemas
+- Validation and REST contract: `@hono/zod-openapi` with shared Zod schemas (OpenAPI at `/api/docs/openapi.json`, Swagger UI at `/api/docs`); multipart handlers validate the same schemas explicitly
 
 #### Data Layer
 
-- Tables: `projects`, `issues`, `issueLogs`, `issueLogsToolsCall`, `attachments`, `appSettings`
+- Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings`, `notes`, `webhooks`, `webhookDeliveries`, `decisionEvents`, `decisionChannelMessages`, `cronJobs`, `cronJobLogs`
 - Statuses are hardcoded in `config.ts` (`todo`, `working`, `review`, `done`)
 - API responses: `{ success: true, data: T } | { success: false, error: string }`
 - Settings (server name, URL, max concurrency, webhooks, etc.) stored in `appSettings` key-value table
@@ -159,35 +156,48 @@ POST           /api/projects/:projectId/issues/:id/execute
 POST           /api/projects/:projectId/issues/:id/follow-up
 POST           /api/projects/:projectId/issues/:id/restart
 POST           /api/projects/:projectId/issues/:id/cancel
-POST           /api/projects/:projectId/issues/:id/messages
+POST           /api/projects/:projectId/issues/:id/terminate
+POST           /api/projects/:projectId/issues/:id/clear-session
+GET/DEL        /api/projects/:projectId/issues/:id/pending
 GET            /api/projects/:projectId/issues/:id/logs
 GET            /api/projects/:projectId/issues/:id/logs/filter/*
-GET/POST       /api/projects/:projectId/issues/:id/attachments
+GET            /api/projects/:projectId/issues/:id/attachments/:attachmentId
 GET            /api/projects/:projectId/issues/:id/changes
+GET            /api/projects/:projectId/issues/:id/changes/file
+POST           /api/projects/:projectId/issues/:id/duplicate
+GET            /api/projects/:projectId/issues/:id/export
 GET            /api/projects/:projectId/issues/:id/slash-commands
+POST           /api/projects/:projectId/issues/import-session
+GET            /api/issues/review
 ```
+
+Attachments are uploaded through the multipart form of issue create and follow-up; there is no separate upload route.
 
 System routes:
 
 ```
-GET/POST       /api/engines/*           ← Engine availability, models
-GET            /api/events              ← SSE event stream
-GET/PATCH      /api/settings/*          ← App settings, webhooks, upgrade
-GET            /api/terminal/ws         ← WebSocket terminal
-GET/POST       /api/files/*             ← File browser
-GET            /api/filesystem/*        ← Directory listing
-GET            /api/git/*               ← Git status, diff
-GET            /api/processes/*         ← Active engine processes
-GET/POST/DEL   /api/worktrees/*         ← Git worktree management
+GET/POST       /api/engines/*                         ← Engine availability, models
+GET            /api/events                            ← SSE event stream
+*              /api/decisions/*                       ← Decision events
+GET/PATCH      /api/settings/*                        ← App settings, webhooks, upgrade (lode)
+*              /api/sessions/*                        ← Local engine sessions
+*              /api/terminal/*                        ← Terminal (WebSocket at /api/terminal/ws/:id)
+*              /api/files/:root/*                     ← File browser
+GET            /api/filesystem/dirs                   ← Directory listing
+*              /api/git/detect-remote                 ← Git remote detection
+GET/POST       /api/processes/*                       ← Active engine processes
+*              /api/projects/:projectId/worktrees/*   ← Git worktree management
+*              /api/cron/*                            ← Cron jobs
+*              /api/notes/*                           ← Notes
 ```
 
 #### Engine System
 
 The engine layer is the most complex part of the backend:
 
-- **`types.ts`** — Central types: `EngineType` (`claude-code` | `codex`), `EngineExecutor` interface
-- **`executors/`** — One per engine (`claude/`, `codex/`), each implementing `EngineExecutor`
-  - Claude Code: `stream-json` protocol (process exits after each turn)
+- **`types.ts`** — Central types: `EngineType` (`claude-code` | `codex` | `grok` | `cursor`), `EngineExecutor` interface
+- **`executors/`** — One per engine (`claude/`, `codex/`, `grok/`, `cursor/`), each implementing `EngineExecutor`
+  - Claude Code, Grok, Cursor: `stream-json` protocol (process exits after each turn)
   - Codex: `json-rpc` protocol (subprocess stays alive between turns)
 - **`process-manager.ts`** — Process lifecycle, concurrency limits, auto-cleanup
 - **`issue/`** — Issue-scoped orchestration (bridge between routes and executors)
@@ -196,23 +206,25 @@ The engine layer is the most complex part of the backend:
 
 #### Background Jobs
 
-- **upload-cleanup** (every 1h) — Deletes files in `data/uploads/` older than 7 days
-- **worktree-cleanup** (every 30 min) — Removes worktrees for `done` issues older than 1 day; gated by `worktree:autoCleanup` setting
+Built-in cron actions in `cron/actions/builtins/`, scheduled through the cron system:
 
-#### Self-Upgrade System
+- **upload-cleanup** (hourly) — Deletes files in `data/uploads/` older than 7 days
+- **worktree-cleanup** (every 30 min, also on startup) — Removes worktrees of `done` issues older than 1 day and of deleted issues; gated by the `worktree:autoCleanup` setting
+- **log-cleanup** (daily 03:00) — Trims cron job logs to the last 1000 per job
+- **issue-log-retention** (daily 04:00) — Deletes issue logs of `done` issues older than `log:retentionDays` (default 30)
+- **decision-event-cleanup** (daily 05:00) — Soft-deletes decision events no longer `open` and unchanged for 1 day
 
-- Polls GitHub Releases every 1h for new versions
-- Downloads to `data/updates/` with SHA-256 checksum verification
-- Two modes: binary (direct replacement) and package (`.tar.gz` extraction to `data/app/v{version}/`)
-- One-click apply from the Settings UI
+#### Upgrades (lode)
+
+BKD does not update itself. It runs under the [lode](https://github.com/bkhq/lode) supervisor, which fetches `bkd-server.tar.gz` from GitHub Releases, verifies it, installs it under `<dir>/versions/<version>/`, restarts BKD and rolls back on failure. `upgrade/service.ts` only reads lode's `state.json` and writes the request fields the app owns. See `docs/deployment.md`.
 
 ### Frontend
 
-- **Framework**: React 19 + Vite 7 + TypeScript
+- **Framework**: React 19 + Vite 8 + TypeScript
 - **Styling**: Tailwind CSS v4 + shadcn/ui
 - **Routing**: react-router-dom v7 (all pages lazy-loaded)
 - **Data fetching**: TanStack React Query v5 (`staleTime: 30s`, `retry: 1`)
-- **State**: Zustand for UI-only state (drag state, panel open/close, view mode)
+- **State**: Zustand for UI-only state (panel open/close, view mode, terminal, file browser, process manager)
 - **Syntax highlighting**: Shiki (slim bundle via custom Vite plugin)
 - **Path alias**: `@/*` maps to `apps/frontend/src/*`
 - **Dev URL routing**: `nsl run` wraps the dev servers; access the app at `http://bkd.localhost` (canonical and only path — Vite no longer has a `/api/*` proxy)
@@ -225,10 +237,14 @@ The engine layer is the most complex part of the backend:
 /projects/:projectId                 → KanbanPage (board view)
 /projects/:projectId/issues          → IssueDetailPage (list + chat)
 /projects/:projectId/issues/:issueId → IssueDetailPage (specific issue)
+/review[/:projectId/:issueId]        → ReviewPage (global review queue)
 /terminal                            → TerminalPage
+/cron                                → CronPage
+/decisions                           → DecisionsPage (global decision inbox)
+/sessions                            → SessionsPage (local engine sessions)
 ```
 
-Three global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`.
+Four global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`.
 
 #### Real-Time Data Flow
 
@@ -249,12 +265,12 @@ Server (IssueEngine) → SSE /api/events → EventBus singleton (lib/event-bus.t
   - Node.js imports must use `node:` prefix
 - Frontend tests: vitest + @testing-library/react
 - Backend tests: `bun test` with `bun:test`, preload sets `DB_PATH` to temp DB
-- Each workspace has its own `.env` — Bun auto-loads from CWD
+- Dev env lives in one root `.env` (copy from `.env.example`): `bun run dev` loads it via `bun --env-file=.env`, `dev:api` via `bun --env-file=../../.env`, and Vite reads it through `loadEnv(mode, <repo root>)`. `apps/api/.env` still serves production `start` and drizzle (CWD auto-load)
 - IDs: ULID for logs/attachments/tool calls, nanoid 8-char for projects/issues
 - Shared types in `packages/shared/src/index.ts`
 - API client in `apps/frontend/src/lib/kanban-api.ts`
 - All user-facing strings need i18n keys in both `en.json` and `zh.json`
-- All API routes need Zod schemas via `@hono/zod-validator`
+- REST routes must use shared Zod schemas and OpenAPI metadata (`@hono/zod-openapi`); multipart handlers must validate the same schemas explicitly
 - All route handlers must verify project existence and cross-project ownership
 - Dependency versions managed via Catalogs in root `package.json`
 - Component styling: `cn()` utility (`clsx` + `tailwind-merge`) + `class-variance-authority`
@@ -281,16 +297,16 @@ Server (IssueEngine) → SSE /api/events → EventBus singleton (lib/event-bus.t
 
 Server name, server URL, webhooks, max concurrent sessions, and other runtime settings are managed in the Settings UI and persisted in the `appSettings` database table. Environment variables `SERVER_NAME` and `SERVER_URL` are used as initial seed values only.
 
-### Frontend (`apps/frontend/.env`)
+### Frontend (root `.env`)
 
-`vite.config.ts` reads these via `loadEnv(mode, import.meta.dirname)` (Vite-standard `.env` resolution: `.env`, `.env.local`, `.env.[mode]`, `.env.[mode].local`, then matching `process.env` entries).
+`vite.config.ts` reads these via `loadEnv(mode, <repo root>)` (Vite-standard `.env` resolution in the repository root: `.env`, `.env.local`, `.env.[mode]`, `.env.[mode].local`, then matching `process.env` entries). Under `bun run dev`, nsl passes Vite its own `--port`, so `VITE_DEV_PORT` only applies when Vite runs without nsl.
 
 | Variable        | Description     | Default   |
 | --------------- | --------------- | --------- |
 | `VITE_DEV_PORT` | Dev server port | `3000`    |
 | `VITE_DEV_HOST` | Dev server host | `0.0.0.0` |
 
-> Dev routing goes through nsl at `http://bkd.localhost`. Vite no longer proxies `/api/*` — access the app via `bkd.localhost`. nsl is dev-only — production builds serve everything from a single Bun process.
+> Dev routing goes through nsl at `http://bkd.localhost`. Vite has no `/api/*` proxy — access the app via `bkd.localhost`. nsl is dev-only — production builds serve everything from a single Bun process.
 
 ## Adding a New API Endpoint (end-to-end)
 

@@ -238,13 +238,14 @@ describe('list', () => {
   test('filters by kind, expects, status, campaign and source issue', async () => {
     const sender = await createIssue('List Sender')
     const source = { projectId, issueId: sender }
-    const plain = await send({ source, campaignId: 'camp-list' })
-    const asked = await ask({ source, campaignId: 'camp-list' })
+    // Its own campaign: api-decision-events.test.ts writes 'camp-list' decisions to the same messages table
+    const plain = await send({ source, campaignId: 'camp-messages-list' })
+    const asked = await ask({ source, campaignId: 'camp-messages-list' })
 
     const bySender = expectSuccess(await get<Message[]>(`${BASE}?issueId=${sender}`))
     expect(bySender.map(m => m.id).sort()).toEqual([plain.id, asked.id].sort())
 
-    const replies = expectSuccess(await get<Message[]>(`${BASE}?campaignId=camp-list&expects=reply`))
+    const replies = expectSuccess(await get<Message[]>(`${BASE}?campaignId=camp-messages-list&expects=reply`))
     expect(replies.map(m => m.id)).toEqual([asked.id])
 
     const unread = expectSuccess(await get<Message[]>(`${BASE}?issueId=${sender}&status=unread,read`))

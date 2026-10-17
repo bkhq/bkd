@@ -838,6 +838,115 @@ Review follow-ups on #151, fixed on `release` before merge:
   its hard-delete transaction only re-checked `isDeleted`, so the row went and the worktree was
   orphaned. The transaction now also skips issues with a live process.
 
+## 2026-10-15 02:40 [progress]
+
+Extended the issue menu, added list-view drag-and-drop, tidied kanban column headers
+(task/plan `20261015-0201-issue-menu-and-list-drag`).
+
+- Issue menu (right-click and "..."): status submenu, open in new tab, copy link on every
+  surface (`showCopyLink` removed), copy issue number.
+- List view: rows drag between status groups and reorder within a group; the list now
+  orders by `sortOrder` like the board. Ordering/drop math lives in `lib/issue-order.ts`,
+  shared with `board-store`; kanban drops now resolve the target by id, so they land
+  correctly while a search filter is active.
+- Kanban column headers show the count as `(n)`; only Todo and Working offer "+".
+
+## 2026-10-15 03:05 [progress]
+
+List-view drag now shows a custom preview card (status dot, pin, title, `#n`) next to the
+pointer instead of the browser's row snapshot; the source row fades to a placeholder
+(follow-up to `20261015-0201-issue-menu-and-list-drag`).
+
+## 2026-10-15 03:55 [progress]
+
+Moved issue drag on the kanban board and in the list panel from pragmatic-drag-and-drop to
+dnd-kit, after the bks board (task/plan `20261015-0315-dnd-kit-board-restyle`).
+
+- A lifted copy follows the pointer while the source stays dimmed in place; the own group
+  slides open a gap, another group shows a dashed slot the dragged item's height, and the
+  target group gets a ring. Replaces the native custom drag preview added earlier today.
+- Shared drag layer in `components/issue-drag/`; `stores/board-store.ts` removed.
+- Kanban restyled: fixed-width columns, bks card surface (ring, lifted overlay), dashed
+  empty-column placeholder, right-click menu on cards. Card content keeps its original
+  layout (`#n` + "..." on top, title, tags), per user feedback; the column body gets 1px of
+  top padding so the scroll container does not clip the first card's ring.
+- Added `@dnd-kit/core@^6.3.1`, `@dnd-kit/sortable@^10.0.0`, `@dnd-kit/utilities@^3.2.2`;
+  pragmatic-drag-and-drop remains for HomePage project ordering.
+
+## 2026-10-15 04:15 [progress]
+
+Kanban header now uses the list panel's background (`bg-secondary`, `border-border/60`)
+instead of `bg-card`, so both views share the same top bar color.
+
+## 2026-10-15 04:25 [progress]
+
+Kanban columns fill the board width again (`flex-1`, `min-w-[260px]` on desktop,
+`min-w-[85vw]` on mobile) instead of the fixed `w-72`, which left large gaps on wide
+screens.
+
+## 2026-10-15 04:50 [progress]
+
+Local review fixes for `20261015-0315-dnd-kit-board-restyle`:
+
+- `CLAUDE.md`, `AGENTS.md`, `docs/architecture.md` no longer describe the deleted
+  `board-store.ts`; the drag entries name dnd-kit (`components/issue-drag/`) and keep
+  pragmatic-drag-and-drop only for HomePage project ordering.
+- `computeDragUpdates` returns only the updates; the optimistic grouping it also built was
+  read only by the removed `board-store`.
+- The drag-end decision moved into the pure `planDropUpdates` (`issue-drag/drop.ts`), with
+  tests for the slot index, a stale slot in another column, and a search-filtered column.
+
+## 2026-10-15 05:40 [BUG-P1]
+
+API tests launched the real `claude` CLI (task `20261013-0538-spawn-leak-tests-order-dependent`).
+
+- `test/preload.ts` mocked only the codex executor. Tests that move an issue to `working`
+  without an engine ran on the default `claude-code` and spawned the real CLI in the
+  repository root; the startup probe also ran `claude --version`, `claude auth status` and
+  `claude -p -- /` discovery. Since at least 2026-10-13, 42 test-started sessions with
+  replies (some ran read-only Bash) and 30 discovery sessions were written to the user's
+  Claude session history. The leftover processes held process-manager slots, which timed
+  out `engine-spawn-leak` and `api-execution` in the full suite. CI has no `claude` binary,
+  so it stayed green.
+- The preload now wraps `spawnNode` / `runCommand` and throws for engine CLIs, so every
+  executor, the probe and discovery fail like a missing binary. Pinned by
+  `test/no-real-engine-cli.test.ts`.
+- Full API suite: 917 pass / 0 fail (was 907 / 6), twice in a row. Also closes
+  `20260922-1712`, `20261002-1046`, `20261013-2222`.
+
+## 2026-10-15 06:20 [progress]
+
+The workspace panel toggle no longer jumps (task `20261015-0610-workspace-toggle-fixed`).
+On desktop `ChatArea` renders one toggle pinned to the top-right corner above the panel,
+for both states; the inline panel's tab bar keeps an empty slot for it instead of its own
+hide button, and the chat header keeps one only while the panel is closed. Mobile is
+unchanged (header show button, fullscreen panel hide button).
+
+## 2026-10-15 06:50 [progress]
+
+Docs brought in line with the code.
+
+- `docs/development.md`: Vite 8 (was 7); drag & drop is dnd-kit core + sortable; removed
+  the deleted `compile` / `compile:launcher` scripts and `scripts/compile.ts`; the
+  self-upgrade section now describes lode; dev ports are assigned by nsl (not 3010/3000);
+  background jobs are built-in cron actions (five, not two); four engines; complete route,
+  table and page lists; four drawers; root `.env` for dev and for Vite; `@hono/zod-openapi`
+  instead of `@hono/zod-validator`.
+- `CLAUDE.md` / `AGENTS.md`: background jobs live in `cron/actions/builtins/` (no `jobs/`
+  directory) and include `log-cleanup` and `issue-log-retention`; full table list; dev
+  ports come from nsl; static serving covers package mode.
+- `docs/architecture.md`: 28 migrations (0000–0027).
+- `apps/frontend/README.md`: replaced the TanStack Start template text with a short,
+  accurate pointer.
+
+## 2026-10-16 02:45 [progress]
+
+The chat turn rail pages instead of hiding the current turn (task
+`20261016-0230-turn-rail-paging`). Beyond ~40 turns the ticks overflowed a scroll area
+whose hidden scrollbar started at the top, so the highlighted (newest) turn was off-screen.
+Up/down buttons now page the rail and disable at each end, and when the turn in view
+changes off-screen the rail centers its tick.
+
 ## 2026-10-16 03:30 [feature]
 
 `20261015-2352-issue-message-search`: full-text search over chat messages.
@@ -924,3 +1033,15 @@ Upgraded decision events into a messages system (20261016-1829-messages-system).
   `replied` are kept however old: a sender that missed its wake used to lose the user's answer
   after a day, on `/api/messages` and the v1 `/api/decisions` alike.
 - Reverses the "every non-open status" widening of 20261013-2212-decision-event-retention.
+
+## 2026-10-17 06:10 [progress]
+
+Merged `main` into `release` (message search, background-task subagents, streaming
+uploads, messages system). `IssueListPanel` keeps the dnd-kit list and shows main's
+message matches below it; `CLAUDE.md` lists the merged schema's tables and all five
+built-in jobs (`message-cleanup` replaces `decision-event-cleanup`).
+
+`api-messages.test.ts` "list > filters by ..." failed in the full local API suite on `main`
+too: it shares the campaign id `camp-list` with `api-decision-events.test.ts`, whose
+decisions now live in the same `messages` table. It uses its own campaign id; the full API
+suite passes (968 / 0).

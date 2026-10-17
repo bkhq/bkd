@@ -254,6 +254,8 @@
     "scrollToTop": "Scroll to top",
     "turnNavigator": "Conversation turns",
     "jumpToTurn": "Jump to turn {{n}}",
+    "earlierTurns": "Earlier turns",
+    "laterTurns": "Later turns",
     "loadHistoryTitle": "Load earlier history?",
     "loadHistoryDescription": "Jumping to this turn loads about {{count}} earlier log entries. Long histories can slow down the chat.",
     "loadHistoryConfirm": "Load and jump",
@@ -614,7 +616,11 @@
     "renameTitle": "Rename issue",
     "newTitle": "New title",
     "save": "Save",
-    "moreActions": "More actions"
+    "moreActions": "More actions",
+    "status": "Status",
+    "openInNewTab": "Open in new tab",
+    "copyNumber": "Copy issue number",
+    "numberCopied": "Issue number copied"
   },
   "error": {
     "title": "Something went wrong",

@@ -19,8 +19,8 @@ Workspaces:
 # Access via http://bkd.localhost — nsl proxy routes /api/* → API, rest → Vite.
 # This is the only dev entry point: Vite no longer has a /api/* proxy.
 bun run dev                  # API + Vite in parallel
-bun run dev:api              # API server only (port 3010, registered at bkd.localhost/api)
-bun run dev:frontend         # Vite dev server only (port 3000, registered at bkd.localhost)
+bun run dev:api              # API server only (registered at bkd.localhost/api; nsl assigns the port)
+bun run dev:frontend         # Vite dev server only (registered at bkd.localhost; nsl assigns the port)
 
 # All workspaces
 bun install                  # single install for all workspaces
@@ -107,7 +107,7 @@ bkd/
   - Migrations live in `drizzle/` and run automatically on startup
   - Config: `drizzle.config.ts`
 - **Logging**: pino (`apps/api/src/logger.ts`)
-- **Static serving**: In production, `apps/api/src/server-main.ts` serves `apps/frontend/dist/` with SPA fallback
+- **Static serving**: `apps/api/src/server-main.ts` serves `APP_DIR/public/` when running from a package and `apps/frontend/dist/` otherwise, with SPA fallback
 
 #### Security & Middleware (`apps/api/src/app.ts`)
 
@@ -147,7 +147,7 @@ JSON CRUD responses use the envelope `{ success: true, data: T } | { success: fa
 - **Styling**: Tailwind CSS v4 via `@tailwindcss/vite` plugin
 - **Routing**: react-router-dom v7
 - **Data fetching**: TanStack React Query v5
-- **Drag & drop**: @atlaskit/pragmatic-drag-and-drop for kanban board
+- **Drag & drop**: @dnd-kit/core + @dnd-kit/sortable for issue drag on the kanban board and list panel (`components/issue-drag/`); @atlaskit/pragmatic-drag-and-drop only for HomePage project ordering
 - **Dialogs**: shadcn/ui primitives backed by `@base-ui/react`
 - **Icons**: lucide-react
 - **i18n**: i18next + react-i18next, Chinese (zh, default) and English (en). Translations in `apps/frontend/src/i18n/{en,zh}.json`. Language persisted to localStorage (`i18n-lang`).
@@ -160,7 +160,6 @@ Two state systems, each with a distinct role:
 
 - **TanStack React Query** — Server state (projects, issues). All hooks in `apps/frontend/src/hooks/use-kanban.ts`. Query keys use a `queryKeys` factory with hierarchical keys (e.g. `['projects', projectId, 'issues']`). All hooks have `enabled` guards. `useBulkUpdateIssues` uses optimistic updates. QueryClient defaults: `staleTime: 30s`, `retry: 1`. Statuses are hardcoded constants in `apps/frontend/src/lib/statuses.ts` — not fetched from server.
 - **Zustand stores** — Local UI state only:
-  - `board-store.ts` — Drag-and-drop state (`groupedItems`, `isDragging`). Syncs from server data but pauses sync while dragging. Uses explicit `resetDragging()` tied to mutation `onSettled`.
   - `panel-store.ts` — Side panel and create dialog open/close state.
   - `view-mode-store.ts` — Kanban/list view toggle, persisted to localStorage (`kanban-view-mode`).
 
@@ -204,7 +203,7 @@ Components use the shadcn/ui pattern: `cn()` utility (`apps/frontend/src/lib/uti
 
 ### Dev Workflow
 
-- `bun run dev` starts both API (port 3010) and Vite (port 3000) via `bun --filter`. Each server is wrapped in `nsl run`, registering routes at `http://bkd.localhost/api` and `http://bkd.localhost/`. The nsl proxy daemon must be running (`bunx nsl start` once); the npm package `@dotns/nsl` is installed at the repo root, so `bun install` is the only setup step.
+- `bun run dev` starts both API and Vite via `bun --filter`. Each server is wrapped in `nsl run`, which assigns its port (`nsl list` shows them), registering routes at `http://bkd.localhost/api` and `http://bkd.localhost/`. The nsl proxy daemon must be running (`bunx nsl start` once); the npm package `@dotns/nsl` is installed at the repo root, so `bun install` is the only setup step.
 - `http://bkd.localhost` is the only dev entry — Vite has no `/api/*` proxy.
 - `bun run dev:api` / `bun run dev:frontend` can be run individually in separate terminals if needed
 - Production: `bun run build` then `bun run start` — the Bun server handles both API and static file serving on port 3000

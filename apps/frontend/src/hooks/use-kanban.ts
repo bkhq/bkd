@@ -3,7 +3,6 @@ import { useEffect } from 'react'
 import { eventBus } from '@/lib/event-bus'
 import { kanbanApi } from '@/lib/kanban-api'
 import { STALE_TIME } from '@/lib/query-config'
-import { useBoardStore } from '@/stores/board-store'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { DeleteLocalSessionsRequest, ExecuteIssueRequest, ImportSessionRequest, Issue, VirtualEngine, WebhookEventType } from '@/types/kanban'
 
@@ -369,7 +368,6 @@ export function useBulkUpdateIssues(projectId: string) {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.issues(projectId) })
-      useBoardStore.getState().resetDragging()
     },
   })
 }

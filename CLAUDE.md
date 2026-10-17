@@ -20,8 +20,8 @@ Structured as a **Bun Workspaces monorepo**:
 # Access via http://bkd.localhost — nsl proxy routes /api/* → API, rest → Vite.
 # This is the only dev entry point: Vite no longer has a /api/* proxy.
 bun run dev                  # API + Vite in parallel
-bun run dev:api              # API server only (port 3010, registered at bkd.localhost/api)
-bun run dev:frontend         # Vite dev server only (port 3000, registered at bkd.localhost)
+bun run dev:api              # API server only (registered at bkd.localhost/api; nsl assigns the port)
+bun run dev:frontend         # Vite dev server only (registered at bkd.localhost; nsl assigns the port)
 
 # All workspaces
 bun install                  # single install for all workspaces
@@ -81,7 +81,7 @@ bun scripts/migrate-to-lode.ts --root /opt/bkd --apply --prune
 
 #### Data Layer
 
-Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings` (key-value store for server settings), `messages`, `messageChannelMessages`.
+Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings` (key-value store for server settings), `notes`, `messages`, `messageChannelMessages`, `webhooks`, `webhookDeliveries`, `cronJobs`, `cronJobLogs`.
 
 Message search: `issues_logs_fts` (FTS5, `trigram` tokenizer, migration `0028`) indexes visible `user-message`/`assistant-message` rows, kept in sync by triggers on `issues_logs` and keyed by its implicit `rowid`. `VACUUM` may renumber those rowids, so every `VACUUM` must be followed by `rebuildIssueLogsFts()` (`db/issue-log-search.ts`). Queries under 3 characters fall back to `LIKE`.
 
@@ -212,10 +212,14 @@ Agent-authored messages to the user, in one `messages` table with a `kind`: `dec
 
 Routes: `GET /api/messages` (capability probe, `{ supported, contractVersion: 2, kinds }`), `GET/POST /api/messages/items`, `POST /api/messages/items/read`, `GET/PATCH /api/messages/items/:id`, `POST /api/messages/items/:id/{decision,reply,notify,ack,withdraw,close,read}`; v1: `GET /api/decisions`, `GET/POST /api/decisions/events`, `GET/PATCH /api/decisions/events/:id`, `POST /api/decisions/events/:id/{decision,notify,ack,withdraw,close}`.
 
-#### Background Jobs (`jobs/`)
+#### Background Jobs (built-in cron actions, `cron/actions/builtins/`)
 
-- `upload-cleanup` (every 1h) — deletes files in `data/uploads/` older than 7 days
-- `worktree-cleanup` (every 30 min) — removes worktrees for `done` issues older than 1 day; gated by `worktree:autoCleanup` setting
+Registered as `builtin` actions and scheduled through the cron system (see Cron System):
+
+- `upload-cleanup` (hourly) — deletes files in `data/uploads/` older than 7 days
+- `worktree-cleanup` (every 30 min, also on startup) — removes worktrees of `done` issues older than 1 day and of deleted issues; gated by the `worktree:autoCleanup` setting
+- `log-cleanup` (daily at 03:00) — trims cron job logs to the last 1000 per job
+- `issue-log-retention` (daily at 04:00) — deletes issue logs of `done` issues older than `log:retentionDays` (default 30)
 - `message-cleanup` (daily at 05:00) — soft-deletes messages in a terminal state (`applied` / `withdrawn` / `closed`) unchanged for 1 day, and read notifications unchanged for 7 days; `open`, `decided` and `replied` are never removed
 
 #### Upgrade (`upgrade/`)
@@ -236,7 +240,7 @@ Deployment, migration from the old launcher, and the `lode.toml` reference: `doc
 - **Styling**: Tailwind CSS v4 via `@tailwindcss/vite` + shadcn/ui components
 - **Routing**: react-router-dom v7 (all pages lazy-loaded)
 - **Data fetching**: TanStack React Query v5 (`staleTime: 30s`, `retry: 1`)
-- **Drag & drop**: @atlaskit/pragmatic-drag-and-drop for kanban board
+- **Drag & drop**: @dnd-kit/core + @dnd-kit/sortable for issue drag on the kanban board and list panel (`components/issue-drag/`); @atlaskit/pragmatic-drag-and-drop only for HomePage project ordering
 - **Syntax highlighting**: Shiki (slim bundle via custom Vite plugin)
 - **i18n**: i18next + react-i18next, Chinese (zh, default) and English (en). Translations in `src/i18n/{en,zh}.json`
 - **Path alias**: `@/*` maps to `src/*`
@@ -262,7 +266,6 @@ Four global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDraw
 
 - **TanStack React Query** — All server state. Hooks in `hooks/use-kanban.ts`. Query keys use `queryKeys` factory.
 - **Zustand stores** — Local UI state only:
-  - `board-store.ts` — Drag-and-drop grouped items by status. `isDragging` flag pauses server sync.
   - `panel-store.ts` — Side panel and create dialog open/close.
   - `view-mode-store.ts` — Kanban/list toggle (persisted in localStorage).
   - `terminal-store.ts` / `terminal-session-store.ts` — Terminal drawer state + xterm.js session.
