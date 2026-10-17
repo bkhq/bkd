@@ -1,9 +1,10 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
-import { runDecisionEventCleanup } from '@/cron/actions/builtins/decision-event-cleanup'
+import { runMessageCleanup } from '@/cron/actions/builtins/message-cleanup'
 import { db } from '@/db'
-import { decisionEvents } from '@/db/schema'
+import { messages } from '@/db/schema'
 import { appEvents } from '@/events'
+import { resetSendLimits } from '@/messages/service'
 import { createTestProject, expectSuccess, get, post } from './helpers'
 import './setup'
 
@@ -25,21 +26,41 @@ async function createEvent(): Promise<string> {
   return event.id
 }
 
+async function createNotification(expects: 'none' | 'reply'): Promise<string> {
+  resetSendLimits()
+  const message = expectSuccess(
+    await post<{ id: string }>('/api/messages/items', {
+      kind: 'notification',
+      expects,
+      title: 'Deploy finished',
+      source: { projectId, issueId },
+    }),
+  )
+  return message.id
+}
+
+async function age(id: string, status: string, ageHours: number): Promise<void> {
+  await db
+    .update(messages)
+    .set({ status, updatedAt: new Date(Date.now() - ageHours * HOUR) })
+    .where(eq(messages.id, id))
+}
+
 /** Create an event in `status`, last touched `ageHours` ago. */
 async function seed(status: string, ageHours: number): Promise<string> {
   const id = await createEvent()
   await db
-    .update(decisionEvents)
+    .update(messages)
     .set({ status, updatedAt: new Date(Date.now() - ageHours * HOUR) })
-    .where(eq(decisionEvents.id, id))
+    .where(eq(messages.id, id))
   return id
 }
 
 async function isDeleted(id: string): Promise<boolean> {
   const [row] = await db
-    .select({ isDeleted: decisionEvents.isDeleted })
-    .from(decisionEvents)
-    .where(eq(decisionEvents.id, id))
+    .select({ isDeleted: messages.isDeleted })
+    .from(messages)
+    .where(eq(messages.id, id))
   return row!.isDeleted === 1
 }
 
@@ -56,13 +77,13 @@ beforeAll(async () => {
   issueId = issue.id
 })
 
-describe('decision event cleanup', () => {
+describe('message cleanup', () => {
   test('removes every non-open event untouched for a day', async () => {
     const ids = await Promise.all(
       ['decided', 'applied', 'withdrawn', 'closed'].map(status => seed(status, 25)),
     )
 
-    await runDecisionEventCleanup()
+    await runMessageCleanup()
 
     for (const id of ids) {
       expect(await isDeleted(id)).toBe(true)
@@ -73,7 +94,7 @@ describe('decision event cleanup', () => {
   test('keeps open events however old', async () => {
     const id = await seed('open', 24 * 30)
 
-    await runDecisionEventCleanup()
+    await runMessageCleanup()
 
     expect(await isDeleted(id)).toBe(false)
   })
@@ -81,7 +102,7 @@ describe('decision event cleanup', () => {
   test('keeps events touched within the last day', async () => {
     const id = await seed('decided', 23)
 
-    await runDecisionEventCleanup()
+    await runMessageCleanup()
 
     expect(await isDeleted(id)).toBe(false)
   })
@@ -89,13 +110,40 @@ describe('decision event cleanup', () => {
   test('signals each removed event', async () => {
     const id = await seed('closed', 25)
     const seen: string[] = []
-    const unsubscribe = appEvents.on('decision-event-updated', (data) => {
+    const unsubscribe = appEvents.on('message-updated', (data) => {
       seen.push(data.id)
     })
 
-    await runDecisionEventCleanup()
+    await runMessageCleanup()
     unsubscribe()
 
     expect(seen).toContain(id)
+  })
+
+  test('removes settled reply notifications after a day, keeps open ones', async () => {
+    const settled = await createNotification('reply')
+    await age(settled, 'applied', 25)
+    const open = await createNotification('reply')
+    await age(open, 'open', 24 * 30)
+
+    await runMessageCleanup()
+
+    expect(await isDeleted(settled)).toBe(true)
+    expect(await isDeleted(open)).toBe(false)
+  })
+
+  test('removes read notifications after a week, keeps unread ones', async () => {
+    const oldRead = await createNotification('none')
+    await age(oldRead, 'read', 24 * 8)
+    const recentRead = await createNotification('none')
+    await age(recentRead, 'read', 24 * 6)
+    const oldUnread = await createNotification('none')
+    await age(oldUnread, 'unread', 24 * 30)
+
+    await runMessageCleanup()
+
+    expect(await isDeleted(oldRead)).toBe(true)
+    expect(await isDeleted(recentRead)).toBe(false)
+    expect(await isDeleted(oldUnread)).toBe(false)
   })
 })

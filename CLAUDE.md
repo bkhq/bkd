@@ -81,7 +81,7 @@ bun scripts/migrate-to-lode.ts --root /opt/bkd --apply --prune
 
 #### Data Layer
 
-Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings` (key-value store for server settings), `decisionEvents`, `decisionChannelMessages`.
+Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings` (key-value store for server settings), `messages`, `messageChannelMessages`.
 
 Message search: `issues_logs_fts` (FTS5, `trigram` tokenizer, migration `0028`) indexes visible `user-message`/`assistant-message` rows, kept in sync by triggers on `issues_logs` and keyed by its implicit `rowid`. `VACUUM` may renumber those rowids, so every `VACUUM` must be followed by `rebuildIssueLogsFts()` (`db/issue-log-search.ts`). Queries under 3 characters fall back to `LIKE`.
 
@@ -130,7 +130,7 @@ The `/logs/filter/*` route accepts path-based key/value filter pairs (order-inde
 - Example: `/logs/filter/types/user-message,assistant-message/turn/last3`
 - Pagination via query params: `cursor`, `before`, `limit`
 
-System routes: `/api/engines/*`, `/api/events` (SSE), `/api/decisions/events/*`, `/api/settings/*` (incl. `/api/settings/upgrade/*`), `/api/sessions/*`, `/api/terminal/*` (incl. `/api/terminal/ws/:id`), `/api/files/:root/*`, `/api/filesystem/dirs`, `/api/git/detect-remote`, `/api/processes/*`, `/api/projects/:projectId/worktrees/*`, `/api/cron/*`, `/api/notes/*`.
+System routes: `/api/engines/*`, `/api/events` (SSE), `/api/messages/*`, `/api/decisions/*` (v1), `/api/settings/*` (incl. `/api/settings/upgrade/*`), `/api/sessions/*`, `/api/terminal/*` (incl. `/api/terminal/ws/:id`), `/api/files/:root/*`, `/api/filesystem/dirs`, `/api/git/detect-remote`, `/api/processes/*`, `/api/projects/:projectId/worktrees/*`, `/api/cron/*`, `/api/notes/*`.
 
 Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`, `duplicate.ts`, `export.ts`, `import-session.ts`, `review.ts`, `search.ts`. Shared schemas and helpers in `_shared.ts`.
 
@@ -186,7 +186,7 @@ Route handler → IssueEngine.executeIssue() → acquires per-issue lock
 
 Global SSE endpoint (`GET /api/events`) via Hono `streamSSE`:
 
-- Event types: `log`, `state`, `done`, `issue-updated`, `changes-summary`, `decision-event-updated`, `heartbeat` (15s)
+- Event types: `log`, `state`, `done`, `issue-updated`, `changes-summary`, `message-updated`, `heartbeat` (15s)
 - Subscribes to `IssueEngine` callbacks + `onIssueUpdated` + `onChangesSummary`
 - `changes-summary.ts`: runs `git status/diff` after each issue settles, pushes stats via SSE
 
@@ -196,25 +196,27 @@ Scheduled task execution with cron expressions (powered by `baker` scheduler). D
 
 Routes: `GET/POST /api/cron`, `DELETE /api/cron/:jobId`, `POST /api/cron/:jobId/{trigger,pause,resume}`, `GET /api/cron/:jobId/logs`, `GET /api/cron/actions`.
 
-#### Decision Events (`decisions/`)
+#### Messages (`messages/`)
 
-One question a coordinating agent needs the user to answer, per the `bkd` skill's `decision-events.md` contract. BKD is the platform only — it never creates an event. Mounted at `/api/decisions` (so `BKD_EVENT_URL=$BKD_URL/api/decisions`) because `GET /api/events` is the SSE stream.
+Agent-authored messages to the user, in one `messages` table with a `kind`: `decision` (one question with options, the `bkd` skill's decision contract) and `notification` (a headline + Markdown body with a `level` of `info/success/warning/error`). BKD is the platform only — it never creates a message. `expects` is `reply` for every decision and optional for a notification; a notification with `expects: none` is one-way.
 
-- States: `open → decided → applied`, `open → withdrawn`, `open | decided → closed`; wrong-state transitions return 409.
-- Deciding sends `[event-decision eventId=… campaignId=…]` to the `notify` issue via `dispatchFollowUp()` (`routes/issues/_shared.ts`, shared with the follow-up route). A failed delivery leaves the event `decided`; `POST …/notify` resends.
-- Closing is the user's way to end an event without answering; it sends no follow-up.
-- Every write emits `decision-event-updated` (bus + SSE).
-- `webhooks/dispatcher.ts` sends each state once per channel as `decision.{opened,decided,applied,withdrawn,closed}`; interactive Telegram channels are skipped there.
+- States: decision `open → decided → applied`; reply-notification `open → replied → applied`; both `open → withdrawn` and `open | answered → closed`; plain notification `unread → read`. Wrong-kind or wrong-state actions return 409.
+- Answering (decide / reply) wakes the `source` issue via `dispatchFollowUp()` (`routes/issues/_shared.ts`, shared with the follow-up route) with a signal only: `[event-decision eventId=… campaignId=…]` for decisions (kept for v1 agents), `[message-reply messageId=…[ campaignId=…]]` for notifications. The issue re-reads the message, then `ack`s. A failed wake leaves it answered; `POST …/notify` resends.
+- Closing is the user's way to end a message without answering; it sends no follow-up.
+- Notifications are rate-limited to 30 a minute per source issue (429), in memory.
+- Every write emits `message-updated` (bus + SSE).
+- `webhooks/dispatcher.ts` announces each state once per channel: decisions as `decision.{opened,decided,applied,withdrawn,closed}` with the v1 payload, notifications as `message.{sent,replied,applied,withdrawn,closed}` with a `{ message, source, ref, links, server }` envelope (`read` is not announced). There is no per-message channel targeting; receivers route on the metadata. Interactive Telegram channels are skipped for messages awaiting a reply.
 - Webhook URLs may target loopback and private networks; `utils/url-safety.ts` still blocks link-local (cloud metadata) and reserved ranges, at save time and at delivery.
-- `decisions/telegram/`: a Telegram channel with `webhooks.interactive` posts open events with option buttons and long-polls `getUpdates` for presses and replies (no inbound route). Answers go through `decideEvent()` in `decisions/service.ts`, shared with the REST route; `decisionChannelMessages` maps event → chat message. One poller per bot token — the bot must not be consumed elsewhere.
+- `messages/telegram/`: a Telegram channel with `webhooks.interactive` posts every open message awaiting a reply (decisions with option buttons, notifications with a close button) and long-polls `getUpdates` for presses and replies (no inbound route). Answers go through `decideMessage()` / `replyMessage()` in `messages/service.ts`, shared with the REST routes; `messageChannelMessages` maps message → chat message. One poller per bot token — the bot must not be consumed elsewhere.
+- `/api/decisions/*` is the v1 contract kept for existing agents: the same store restricted to `kind = 'decision'`, v1 field names (`question/context/notify`), `contractVersion: 1`. It forwards in-process — never an HTTP redirect, agents call it with plain `curl`.
 
-Routes: `GET /api/decisions` (capability probe, `{ supported, contractVersion }`), `GET/POST /api/decisions/events`, `GET/PATCH /api/decisions/events/:id`, `POST /api/decisions/events/:id/{decision,notify,ack,withdraw,close}`.
+Routes: `GET /api/messages` (capability probe, `{ supported, contractVersion: 2, kinds }`), `GET/POST /api/messages/items`, `POST /api/messages/items/read`, `GET/PATCH /api/messages/items/:id`, `POST /api/messages/items/:id/{decision,reply,notify,ack,withdraw,close,read}`; v1: `GET /api/decisions`, `GET/POST /api/decisions/events`, `GET/PATCH /api/decisions/events/:id`, `POST /api/decisions/events/:id/{decision,notify,ack,withdraw,close}`.
 
 #### Background Jobs (`jobs/`)
 
 - `upload-cleanup` (every 1h) — deletes files in `data/uploads/` older than 7 days
 - `worktree-cleanup` (every 30 min) — removes worktrees for `done` issues older than 1 day; gated by `worktree:autoCleanup` setting
-- `decision-event-cleanup` (daily at 05:00) — soft-deletes decision events that are no longer `open` and unchanged for 1 day
+- `message-cleanup` (daily at 05:00) — soft-deletes messages awaiting a reply that are no longer `open` and unchanged for 1 day, and read notifications unchanged for 7 days
 
 #### Upgrade (`upgrade/`)
 
@@ -250,7 +252,7 @@ Deployment, migration from the old launcher, and the `lode.toml` reference: `doc
 /review[/:projectId/:issueId]        → ReviewPage (global review queue)
 /terminal                            → TerminalPage
 /cron                                → CronPage
-/decisions                           → DecisionsPage (global decision inbox)
+/messages                            → MessagesPage (global inbox: decisions + notifications; /decisions redirects here)
 /sessions                            → SessionsPage (local engine sessions)
 ```
 

@@ -1,7 +1,8 @@
-import type { DecisionEvent } from '@bkd/shared'
+import type { DecisionEvent, Message } from '@bkd/shared'
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
-import { handleUpdate, syncEvent } from '@/decisions/telegram'
-import { parseCallback, renderEvent } from '@/decisions/telegram/render'
+import { resetSendLimits } from '@/messages/service'
+import { handleUpdate, syncEvent } from '@/messages/telegram'
+import { parseCallback, renderEvent, renderNotification } from '@/messages/telegram/render'
 import { createTestProject, expectError, expectSuccess, get, patch, post } from './helpers'
 import './setup'
 
@@ -140,11 +141,15 @@ beforeEach(() => {
 describe('render', () => {
   const event = {
     id: 'ev123456',
+    kind: 'decision',
+    expects: 'reply',
     status: 'open',
+    level: 'info',
     campaignId: 'c',
+    source: { projectId: 'p', issueId: 'i' },
     ref: null,
-    question: 'Ship <now> & here?',
-    context: 'x'.repeat(30_000),
+    title: 'Ship <now> & here?',
+    body: 'x'.repeat(30_000),
     options: [
       { id: 'A', label: 'Yes', impact: 'fast' },
       { id: 'B', label: 'No', impact: '' },
@@ -152,16 +157,16 @@ describe('render', () => {
     recommendation: { optionId: 'B', reason: 'safer' },
     blocks: null,
     continues: null,
-    notify: { type: 'bkd-follow-up', projectId: 'p', issueId: 'i' },
     decision: null,
+    reply: null,
     outcome: null,
     withdrawReason: null,
     closeReason: null,
     notifiedAt: null,
-    links: { projectName: 'Demo', ref: null, notify: null },
+    links: { projectName: 'Demo', ref: null, source: null },
     createdAt: '2026-10-13T10:00:00.000Z',
     updatedAt: '2026-10-13T10:00:00.000Z',
-  } as DecisionEvent
+  } as Message
 
   test('escapes HTML and stays inside the Telegram length limit', () => {
     const { text } = renderEvent(event, null)
@@ -192,11 +197,39 @@ describe('render', () => {
       ...event,
       status: 'decided',
       decision: { optionId: 'A', instruction: 'go', decidedBy: 'telegram:roy', decidedAt: event.createdAt },
-    } as DecisionEvent
+    } as Message
     const { text, reply_markup } = renderEvent(decided, null)
     expect(reply_markup.inline_keyboard).toEqual([])
     expect(text).toContain('telegram:roy')
     expect(text).toContain('Yes')
+  })
+
+  const notification = {
+    ...event,
+    kind: 'notification',
+    level: 'warning',
+    title: 'CI is red on main',
+    body: 'lint failed',
+    options: [],
+    recommendation: null,
+  } as Message
+
+  test('a notification awaiting a reply gets only a close button', () => {
+    const { text, reply_markup } = renderEvent(notification, null)
+    expect(text).toStartWith('⚠️ <b>CI is red on main</b>')
+    expect(text).toContain('Reply to this message to answer.')
+    expect(reply_markup.inline_keyboard.flat().map(b => b.text)).toEqual(['Close'])
+  })
+
+  test('a replied notification shows the reply', () => {
+    const replied = {
+      ...notification,
+      status: 'replied',
+      reply: { text: 'rerun it', repliedBy: 'telegram:roy', repliedAt: event.createdAt },
+    } as Message
+    const text = renderNotification(replied, 'http://bkd.localhost/messages')
+    expect(text).toContain('Replied</b>: rerun it')
+    expect(text).toContain('href="http://bkd.localhost/messages"')
   })
 
   test('rejects malformed callback data', () => {
@@ -371,5 +404,53 @@ describe('answer with a reply', () => {
     expect((await fetchEvent(event.id)).decision?.instruction).toBe('')
     expect(callsOf('sendMessage')).toHaveLength(1)
     expect(lastCall('sendMessage').body.reply_to_message_id).toBeDefined()
+  })
+})
+
+describe('notifications', () => {
+  async function sendNotification(expects: 'none' | 'reply') {
+    resetSendLimits()
+    const message = expectSuccess(
+      await post<Message>('/api/messages/items', {
+        kind: 'notification',
+        expects,
+        title: 'Deploy to staging?',
+        source: { projectId, issueId: coordinatorId },
+      }),
+    )
+    await syncEvent(message.id)
+    return { message, messageId: nextMessageId - 1 }
+  }
+
+  test('posts a notification awaiting a reply, not a plain one', async () => {
+    await sendNotification('none')
+    expect(callsOf('sendMessage')).toHaveLength(0)
+    await sendNotification('reply')
+    expect(callsOf('sendMessage')).toHaveLength(1)
+    expect(lastCall('sendMessage').body.text).toContain('Deploy to staging?')
+  })
+
+  test('a reply to the chat message is recorded and wakes the source issue', async () => {
+    const coordinator = await createIssue('Notification Coordinator')
+    resetSendLimits()
+    const message = expectSuccess(
+      await post<Message>('/api/messages/items', {
+        kind: 'notification',
+        expects: 'reply',
+        title: 'Which region?',
+        source: { projectId, issueId: coordinator },
+      }),
+    )
+    await syncEvent(message.id)
+    await reply('eu-west-1', nextMessageId - 1)
+
+    const replied = expectSuccess(await get<Message>(`/api/messages/items/${message.id}`))
+    expect(replied.status).toBe('replied')
+    expect(replied.reply).toMatchObject({ text: 'eu-west-1', repliedBy: 'telegram:roy' })
+    expect(lastCall('sendMessage').body.text).toBe('✅ Reply recorded.')
+    const pending = expectSuccess(
+      await get<{ content: string }[]>(`/api/projects/${projectId}/issues/${coordinator}/pending`),
+    )
+    expect(pending.map(p => p.content).join('\n')).toContain(`[message-reply messageId=${message.id}]`)
   })
 })

@@ -118,21 +118,26 @@ export const notes = sqliteTable('notes', {
   ...commonFields,
 })
 
-export const decisionEvents = sqliteTable(
-  'decision_events',
+// Agent-authored messages: decisions (answered with options) and notifications
+export const messages = sqliteTable(
+  'messages',
   {
     id: shortId(),
-    status: text('status').notNull().default('open'),
-    campaignId: text('campaign_id').notNull(),
-    ref: text('ref'), // issue id the decision concerns
-    question: text('question').notNull(),
-    context: text('context').notNull().default(''),
+    kind: text('kind').notNull(), // 'decision' | 'notification'
+    expects: text('expects').notNull().default('none'), // 'none' | 'reply'
+    status: text('status').notNull(),
+    level: text('level').notNull().default('info'),
+    campaignId: text('campaign_id'),
+    source: text('source'), // JSON: MessageSource — the issue that sent it and is woken by a reply
+    ref: text('ref'), // issue id the message concerns
+    title: text('title').notNull(),
+    body: text('body').notNull().default(''),
     options: text('options').notNull().default('[]'), // JSON: DecisionEventOption[]
     recommendation: text('recommendation'), // JSON: DecisionEventRecommendation
     blocks: text('blocks'),
     continues: text('continues'),
-    notify: text('notify').notNull(), // JSON: DecisionEventNotify
     decision: text('decision'), // JSON: DecisionEventDecision
+    reply: text('reply'), // JSON: MessageReply
     outcome: text('outcome'),
     withdrawReason: text('withdraw_reason'),
     closeReason: text('close_reason'),
@@ -140,11 +145,14 @@ export const decisionEvents = sqliteTable(
     ...commonFields,
   },
   table => [
-    index('decision_events_status_idx').on(table.status),
-    index('decision_events_campaign_id_idx').on(table.campaignId),
+    index('messages_kind_status_idx').on(table.kind, table.status),
+    index('messages_campaign_id_idx').on(table.campaignId),
+    check('messages_kind_check', sql`${table.kind} IN ('decision','notification')`),
+    check('messages_expects_check', sql`${table.expects} IN ('none','reply')`),
+    check('messages_level_check', sql`${table.level} IN ('info','success','warning','error')`),
     check(
-      'decision_events_status_check',
-      sql`${table.status} IN ('open','decided','applied','withdrawn','closed')`,
+      'messages_status_check',
+      sql`${table.status} IN ('unread','read','open','decided','replied','applied','withdrawn','closed')`,
     ),
   ],
 )
@@ -214,24 +222,24 @@ export const webhooks = sqliteTable('webhooks', {
   ...commonFields,
 })
 
-// The chat message that carries a decision event on an interactive channel
-export const decisionChannelMessages = sqliteTable(
-  'decision_channel_messages',
+// The chat message that carries a message on an interactive channel
+export const messageChannelMessages = sqliteTable(
+  'message_channel_messages',
   {
     id: id(),
     webhookId: text('webhook_id')
       .notNull()
       .references(() => webhooks.id),
-    eventId: text('event_id')
+    messageId: text('message_id')
       .notNull()
-      .references(() => decisionEvents.id),
+      .references(() => messages.id),
     chatId: text('chat_id').notNull(),
-    messageId: integer('message_id').notNull(),
+    chatMessageId: integer('chat_message_id').notNull(),
     ...commonFields,
   },
   table => [
-    uniqueIndex('decision_channel_messages_webhook_event_idx').on(table.webhookId, table.eventId),
-    index('decision_channel_messages_chat_message_idx').on(table.chatId, table.messageId),
+    uniqueIndex('message_channel_messages_webhook_message_idx').on(table.webhookId, table.messageId),
+    index('message_channel_messages_chat_message_idx').on(table.chatId, table.chatMessageId),
   ],
 )
 

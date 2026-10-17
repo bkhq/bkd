@@ -889,3 +889,29 @@ Multipart uploads are streamed to disk instead of buffered (20261016-0424-stream
 - [pitfall] Under Bun a client disconnect surfaces on `Readable.fromWeb(request.body)` only as
   `close` — no `error`, no `end`. Waiting for either hangs the request and leaks a partial file.
 - [pitfall] busboy reduces file names to their basename unless `preservePath: true`.
+
+## 2026-10-17 04:50 [progress]
+
+Upgraded decision events into a messages system (20261016-1829-messages-system).
+
+- New `messages` table (`kind` = `decision` | `notification`, `expects` = `none` | `reply`, `level`) and
+  `message_channel_messages`; migrations `0029`–`0031` copy `decision_events` and
+  `decision_channel_messages` with ids preserved, rename the `decision-event-cleanup` cron job to
+  `message-cleanup`, and drop the old tables.
+- `decisions/` → `messages/` (service, Telegram, v1 projection). New `/api/messages` (contract v2):
+  send, list, read / read-all, reply, decide, notify, ack, withdraw, close. A reply to a notification
+  with `expects: reply` wakes the source issue with `[message-reply messageId=…]`; decisions keep
+  `[event-decision …]`. Notifications are limited to 30 a minute per source issue.
+- `/api/decisions/*` stays as the v1 contract, served in-process from the same table; the existing
+  v1 route tests pass unchanged.
+- SSE / bus event `decision-event-updated` → `message-updated`. New webhook events
+  `message.{sent,replied,applied,withdrawn,closed}` with a `{ message, source, ref, links, server }`
+  envelope; `decision.*` payloads are unchanged. Interactive Telegram chats also answer
+  reply-notifications.
+- Frontend: `/messages` inbox (decisions + notifications, kind filter, mark read / all read,
+  reply box); `/decisions` redirects there; the sidebar badge counts open and unread messages.
+- Deviation from the plan: the v2 decision create body uses the message field names
+  (`title` / `body` / `source`) instead of the v1 ones; the kind filter is a select, not a tab row;
+  webhook `links` carry `inboxUrl` / `apiUrl` (no per-message page).
+- [pitfall] The full API suite still hits the known `api-execution` timeout
+  (20261013-2222-api-execution-test-timeout); the file passes on its own.

@@ -4,7 +4,6 @@ import type {
   CategorizedCommands,
   ClaudeUsage,
   CodexUsage,
-  DecisionEvent,
   DeleteLocalSessionsRequest,
   DeleteLocalSessionsResult,
   EngineDiscoveryResult,
@@ -24,6 +23,7 @@ import type {
   IssueTurnsResponse,
   LocalSessionListResponse,
   LocalSessionPreview,
+  Message,
   Note,
   PermissionMode,
   ProbeResult,
@@ -664,14 +664,20 @@ export const kanbanApi = {
     get<WebhookDelivery[]>(`/api/settings/webhooks/${id}/deliveries`),
   testWebhook: (id: string) => post<{ sent: boolean }>(`/api/settings/webhooks/${id}/test`, {}),
 
-  // Decision events
-  getDecisionEvents: () => get<DecisionEvent[]>('/api/decisions/events'),
-  decideDecisionEvent: (id: string, data: { optionId?: string | null, instruction?: string }) =>
-    post<DecisionEvent>(`/api/decisions/events/${id}/decision`, data),
-  closeDecisionEvent: (id: string, reason?: string) =>
-    post<DecisionEvent>(`/api/decisions/events/${id}/close`, { reason }),
-  notifyDecisionEvent: (id: string) =>
-    post<DecisionEvent>(`/api/decisions/events/${id}/notify`, {}),
+  // Messages
+  getMessages: () => get<Message[]>('/api/messages/items'),
+  decideMessage: (id: string, data: { optionId?: string | null, instruction?: string }) =>
+    post<Message>(`/api/messages/items/${id}/decision`, data),
+  replyMessage: (id: string, text: string) =>
+    post<Message>(`/api/messages/items/${id}/reply`, { text }),
+  closeMessage: (id: string, reason?: string) =>
+    post<Message>(`/api/messages/items/${id}/close`, { reason }),
+  notifyMessage: (id: string) =>
+    post<Message>(`/api/messages/items/${id}/notify`, {}),
+  readMessage: (id: string) =>
+    post<Message>(`/api/messages/items/${id}/read`, {}),
+  readAllMessages: () =>
+    post<{ ids: string[] }>('/api/messages/items/read', {}),
 
   // Notes
   getNotes: () => get<Note[]>('/api/notes'),

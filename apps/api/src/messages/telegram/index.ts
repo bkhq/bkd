@@ -1,11 +1,11 @@
-import type { DecisionEvent } from '@bkd/shared'
+import type { Message } from '@bkd/shared'
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { getServerUrl } from '@/db/helpers'
-import { decisionChannelMessages, webhooks } from '@/db/schema'
-import { decideEvent, findEvent, serializeEvent, transition } from '@/decisions/service'
+import { messageChannelMessages, webhooks } from '@/db/schema'
 import { appEvents } from '@/events'
 import { logger } from '@/logger'
+import { decideMessage, findMessage, replyMessage, serializeMessage, transition } from '@/messages/service'
 import type { TelegramUpdate, TelegramUser } from './client'
 import * as tg from './client'
 import type { Pending } from './render'
@@ -30,29 +30,30 @@ async function loadChannels(): Promise<Channel[]> {
   return rows.flatMap(r => (r.token ? [{ id: r.id, token: r.token, chatId: r.chatId.trim() }] : []))
 }
 
-async function decisionsUrl(): Promise<string | null> {
+async function inboxUrl(): Promise<string | null> {
   const serverUrl = await getServerUrl()
-  return serverUrl ? `${serverUrl.replace(/\/+$/, '')}/decisions` : null
+  return serverUrl ? `${serverUrl.replace(/\/+$/, '')}/messages` : null
 }
 
-async function loadEvent(eventId: string): Promise<DecisionEvent | null> {
-  const row = await findEvent(eventId)
-  return row ? serializeEvent(row) : null
+/** A message the chat can answer: a decision or a notification awaiting a reply. */
+async function loadEvent(eventId: string): Promise<Message | null> {
+  const row = await findMessage(eventId)
+  return row && row.expects === 'reply' ? serializeMessage(row) : null
 }
 
-async function draw(channel: Channel, event: DecisionEvent, messageId: number, pending?: Pending) {
+async function draw(channel: Channel, event: Message, messageId: number, pending?: Pending) {
   const res = await tg.editMessageText(channel.token, {
     chat_id: channel.chatId,
     message_id: messageId,
-    ...renderEvent(event, await decisionsUrl(), pending),
+    ...renderEvent(event, await inboxUrl(), pending),
   })
   // Redrawing an unchanged message is a 400 from Telegram, not a failure.
   if (!res.ok && !res.description?.includes('not modified')) {
-    logger.warn({ eventId: event.id, status: res.status, description: res.description }, 'decision_telegram_edit_failed')
+    logger.warn({ eventId: event.id, status: res.status, description: res.description }, 'message_telegram_edit_failed')
   }
 }
 
-/** Bring every interactive chat in line with the event: post it while open, redraw it afterwards. */
+/** Bring every interactive chat in line with the message: post it while open, redraw it afterwards. */
 export async function syncEvent(eventId: string): Promise<void> {
   const channels = await loadChannels()
   if (channels.length === 0) return
@@ -62,32 +63,32 @@ export async function syncEvent(eventId: string): Promise<void> {
   for (const channel of channels) {
     try {
       const [message] = await db
-        .select({ messageId: decisionChannelMessages.messageId })
-        .from(decisionChannelMessages)
+        .select({ chatMessageId: messageChannelMessages.chatMessageId })
+        .from(messageChannelMessages)
         .where(and(
-          eq(decisionChannelMessages.webhookId, channel.id),
-          eq(decisionChannelMessages.eventId, eventId),
+          eq(messageChannelMessages.webhookId, channel.id),
+          eq(messageChannelMessages.messageId, eventId),
         ))
       if (message) {
-        await draw(channel, event, message.messageId)
+        await draw(channel, event, message.chatMessageId)
       } else if (event.status === 'open') {
         const sent = await tg.sendMessage(channel.token, {
           chat_id: channel.chatId,
-          ...renderEvent(event, await decisionsUrl()),
+          ...renderEvent(event, await inboxUrl()),
         })
         if (!sent.ok || !sent.result) {
-          logger.warn({ eventId, status: sent.status, description: sent.description }, 'decision_telegram_send_failed')
+          logger.warn({ eventId, status: sent.status, description: sent.description }, 'message_telegram_send_failed')
           continue
         }
-        await db.insert(decisionChannelMessages).values({
+        await db.insert(messageChannelMessages).values({
           webhookId: channel.id,
-          eventId,
+          messageId: eventId,
           chatId: channel.chatId,
-          messageId: sent.result.message_id,
+          chatMessageId: sent.result.message_id,
         })
       }
     } catch (err) {
-      logger.warn({ eventId, webhookId: channel.id, error: redact(err, channel.token) }, 'decision_telegram_sync_failed')
+      logger.warn({ eventId, webhookId: channel.id, error: redact(err, channel.token) }, 'message_telegram_sync_failed')
     }
   }
 }
@@ -100,20 +101,20 @@ function decidedBy(user: TelegramUser | undefined): string {
   return `telegram:${user?.username ?? user?.id ?? 'unknown'}`
 }
 
-/** The event a chat message carries, or null when the message is not one of ours. */
+/** The message a chat message carries, or null when it is not one of ours. */
 async function eventIdOfMessage(channel: Channel, messageId: number): Promise<string | null> {
   const [row] = await db
-    .select({ eventId: decisionChannelMessages.eventId })
-    .from(decisionChannelMessages)
+    .select({ messageId: messageChannelMessages.messageId })
+    .from(messageChannelMessages)
     .where(and(
-      eq(decisionChannelMessages.webhookId, channel.id),
-      eq(decisionChannelMessages.chatId, channel.chatId),
-      eq(decisionChannelMessages.messageId, messageId),
+      eq(messageChannelMessages.webhookId, channel.id),
+      eq(messageChannelMessages.chatId, channel.chatId),
+      eq(messageChannelMessages.chatMessageId, messageId),
     ))
-  return row?.eventId ?? null
+  return row?.messageId ?? null
 }
 
-const NOT_WOKEN = 'Decided, but the agent could not be woken. Resend from the inbox.'
+const NOT_WOKEN = 'Answered, but the agent could not be woken. Resend from the inbox.'
 
 async function handleCallback(channels: Channel[], query: NonNullable<TelegramUpdate['callback_query']>) {
   const { message } = query
@@ -128,11 +129,11 @@ async function handleCallback(channels: Channel[], query: NonNullable<TelegramUp
   }
   const event = await loadEvent(callback.eventId)
   if (!event) {
-    await answer('This event no longer exists.')
+    await answer('This message no longer exists.')
     return
   }
   if (event.status !== 'open') {
-    await answer(`This event is already ${event.status}.`)
+    await answer(`This message is already ${event.status}.`)
     await draw(channel, event, message.message_id)
     return
   }
@@ -151,7 +152,7 @@ async function handleCallback(channels: Channel[], query: NonNullable<TelegramUp
   if (callback.action === 'confirm-close') {
     const by = decidedBy(query.from)
     const result = await transition(event.id, ['open'], { status: 'closed', closeReason: `Closed by ${by}` })
-    await answer('row' in result ? 'Closed.' : `This event is already ${result.blockedBy ?? 'gone'}.`)
+    await answer('row' in result ? 'Closed.' : `This message is already ${result.blockedBy ?? 'gone'}.`)
     return
   }
 
@@ -167,13 +168,13 @@ async function handleCallback(channels: Channel[], query: NonNullable<TelegramUp
     return
   }
 
-  const result = await decideEvent(event.id, {
+  const result = await decideMessage(event.id, {
     optionId: option.id,
     instruction: '',
     decidedBy: decidedBy(query.from),
   })
   if (!result.ok) {
-    await answer(result.reason === 'conflict' ? `This event is already ${result.status}.` : 'This decision could not be recorded.')
+    await answer(result.reason === 'conflict' ? `This message is already ${result.status}.` : 'This decision could not be recorded.')
     await syncEvent(event.id)
   } else if (result.notified) {
     await answer(`Decided: ${option.id}`)
@@ -189,14 +190,14 @@ async function handleReply(channels: Channel[], message: NonNullable<TelegramUpd
   if (!channel) return
   const eventId = await eventIdOfMessage(channel, message.reply_to_message.message_id)
   if (!eventId) return
+  const event = await findMessage(eventId)
 
-  const result = await decideEvent(eventId, {
-    optionId: null,
-    instruction,
-    decidedBy: decidedBy(message.from),
-  })
-  let text = '✅ Decision recorded.'
-  if (!result.ok) text = result.reason === 'conflict' ? `This event is already ${result.status}.` : 'This event no longer exists.'
+  const by = decidedBy(message.from)
+  const result = event?.kind === 'notification'
+    ? await replyMessage(eventId, { text: instruction, repliedBy: by })
+    : await decideMessage(eventId, { optionId: null, instruction, decidedBy: by })
+  let text = event?.kind === 'notification' ? '✅ Reply recorded.' : '✅ Decision recorded.'
+  if (!result.ok) text = result.reason === 'conflict' ? `This message is already ${result.status}.` : 'This message no longer exists.'
   else if (!result.notified) text = `⚠️ ${NOT_WOKEN}`
   await tg.sendMessage(channel.token, {
     chat_id: channel.chatId,
@@ -236,20 +237,20 @@ async function poll(token: string, signal: AbortSignal): Promise<void> {
       const res = await tg.getUpdates(token, offset, signal)
       if (!res.ok) {
         backoff = res.status === 409 ? CONFLICT_BACKOFF_MS : Math.min(backoff * 2 || 1000, MAX_BACKOFF_MS)
-        logger.warn({ status: res.status, description: res.description, backoff }, 'decision_telegram_poll_rejected')
+        logger.warn({ status: res.status, description: res.description, backoff }, 'message_telegram_poll_rejected')
       } else {
         backoff = 0
         for (const update of res.result ?? []) {
           offset = update.update_id + 1
           await handleUpdate(token, update).catch((err) => {
-            logger.warn({ error: redact(err, token) }, 'decision_telegram_update_failed')
+            logger.warn({ error: redact(err, token) }, 'message_telegram_update_failed')
           })
         }
       }
     } catch (err) {
       if (signal.aborted) break
       backoff = Math.min(backoff * 2 || 1000, MAX_BACKOFF_MS)
-      logger.warn({ error: redact(err, token), backoff }, 'decision_telegram_poll_failed')
+      logger.warn({ error: redact(err, token), backoff }, 'message_telegram_poll_failed')
     }
     if (backoff > 0) await sleep(backoff, signal)
   }
@@ -259,7 +260,7 @@ let started = false
 const pollers = new Map<string, AbortController>()
 
 /** Match the running pollers to the configured interactive channels: one per bot token. */
-export async function reloadDecisionTelegram(): Promise<void> {
+export async function reloadMessageTelegram(): Promise<void> {
   if (!started) return
   const tokens = new Set((await loadChannels()).map(c => c.token))
   for (const [token, controller] of pollers) {
@@ -275,22 +276,23 @@ export async function reloadDecisionTelegram(): Promise<void> {
   }
 }
 
-/** Subscribe to decision events and start polling. Returns the stop function. */
-export function startDecisionTelegram(): () => void {
+/** Subscribe to messages awaiting a reply and start polling. Returns the stop function. */
+export function startMessageTelegram(): () => void {
   started = true
   let queue = Promise.resolve()
   const unsubscribe = appEvents.on(
-    'decision-event-updated',
+    'message-updated',
     (data) => {
-      // One at a time, so two quick updates cannot both post the event.
+      if (data.expects !== 'reply') return
+      // One at a time, so two quick updates cannot both post the message.
       queue = queue.then(() => syncEvent(data.id)).catch((err) => {
-        logger.warn({ err, eventId: data.id }, 'decision_telegram_sync_error')
+        logger.warn({ err, eventId: data.id }, 'message_telegram_sync_error')
       })
     },
     { order: 200 },
   )
-  void reloadDecisionTelegram().catch((err) => {
-    logger.warn({ err }, 'decision_telegram_start_failed')
+  void reloadMessageTelegram().catch((err) => {
+    logger.warn({ err }, 'message_telegram_start_failed')
   })
 
   return () => {

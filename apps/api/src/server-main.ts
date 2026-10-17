@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { serveStatic, websocket } from 'hono/bun'
 import app from './app'
 import { runtimeConfig } from './runtime-config'
-import { startDecisionTelegram } from './decisions/telegram'
+import { startMessageTelegram } from './messages/telegram'
 import { issueEngine } from './engines/issue'
 import { migrateSlashCommandsKey, refreshSlashCommandsCache } from './engines/issue/queries'
 import {
@@ -89,8 +89,8 @@ initWebhookDispatcher()
 // Start periodic webhook delivery cleanup (keeps last 100 per webhook)
 const stopDeliveryCleanup = startDeliveryCleanup()
 
-// Post decision events to interactive Telegram chats and poll for answers
-const stopDecisionTelegram = startDecisionTelegram()
+// Post messages awaiting a reply to interactive Telegram chats and poll for answers
+const stopMessageTelegram = startMessageTelegram()
 
 const listenHost = runtimeConfig.HOST
 const listenPort = runtimeConfig.PORT
@@ -178,7 +178,7 @@ async function shutdown(signal: string) {
   stopPeriodicReconciliation()
   stopCron()
   stopDeliveryCleanup()
-  stopDecisionTelegram()
+  stopMessageTelegram()
 
   // Cancel all active engine processes before shutting down
   await issueEngine.cancelAll()

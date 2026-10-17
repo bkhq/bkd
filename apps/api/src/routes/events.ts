@@ -97,9 +97,9 @@ events.get('/', async (c) => {
         writeEvent('context-usage', data)
       })
 
-      // Decision events raised, decided or settled
-      const unsubDecisionEvent = appEvents.on('decision-event-updated', (data) => {
-        writeEvent('decision-event-updated', data)
+      // Messages sent, answered or settled
+      const unsubMessage = appEvents.on('message-updated', (data) => {
+        writeEvent('message-updated', data)
       })
 
       // Heartbeat every 15s — keeps connection alive and detects client disconnect
@@ -121,7 +121,7 @@ events.get('/', async (c) => {
         unsubIssueUpdated()
         unsubChangesSummary()
         unsubContextUsage()
-        unsubDecisionEvent()
+        unsubMessage()
         logger.debug('global_sse_closed')
       }
     })

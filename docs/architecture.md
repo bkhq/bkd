@@ -58,7 +58,8 @@ SQLite via `bun:sqlite` + Drizzle ORM. WAL mode, foreign keys, 64 MB cache, 256 
 | `attachments` | `id` (ULID), `issueId`, `logId`, `originalName`, `storedName`, `mimeType`, `size` | File uploads |
 | `appSettings` | `key` (PK), `value` | Key-value store for server config |
 | `notes` | `id` (ULID), `title`, `content`, `isPinned` | User notes |
-| `decisionEvents` | `id`, `status`, `campaignId`, `ref`, `question`, `options`, `notify`, `decision` | Decision events raised by coordinating agents |
+| `messages` | `id`, `kind`, `expects`, `status`, `level`, `campaignId`, `source`, `ref`, `title`, `body`, `options`, `decision`, `reply` | Decisions and notifications sent by agents |
+| `messageChannelMessages` | `id` (ULID), `webhookId`, `messageId`, `chatId`, `chatMessageId` | Telegram chat message carrying a message |
 | `webhooks` | `id` (ULID), `channel`, `url`, `secret`, `events`, `isActive` | Webhook endpoints |
 | `webhookDeliveries` | `id`, `webhookId`, `dedupKey`, `statusCode`, `success`, `duration` | Delivery audit trail |
 | `cronJobs` | `id`, `name`, `cron`, `taskType`, `taskConfig`, `enabled` | Scheduled jobs |
@@ -121,7 +122,8 @@ Hardcoded constants — no DB table:
 | `/api/sessions/*` | GET, POST | `sessions.ts` | Local engine sessions (list, preview, bulk delete) |
 | `/api/cron/*` | GET, POST, DELETE | `cron.ts` | Cron job management |
 | `/api/notes/*` | GET, POST, PATCH, DELETE | `notes.ts` | Notes CRUD |
-| `/api/decisions[/events/*]` | GET, POST, PATCH | `decisions.ts` | Capability probe; decision events: raise, decide, ack, withdraw, close |
+| `/api/messages[/items/*]` | GET, POST, PATCH | `messages.ts` | Capability probe; messages: send, decide, reply, read, notify, ack, withdraw, close |
+| `/api/decisions[/events/*]` | GET, POST, PATCH | `decisions.ts` | v1 decision-event contract over the messages store |
 
 ### Engine System (`engines/`)
 
@@ -226,25 +228,27 @@ Three-tier caching: memory (10 min) → DB (`appSettings`) → live probe (15s t
 
 Powered by `cronbake` scheduler:
 
-- **Built-in jobs**: `upload-cleanup` (hourly), `log-cleanup`, `worktree-cleanup` (30 min), `issue-log-retention`, `decision-event-cleanup` (daily)
+- **Built-in jobs**: `upload-cleanup` (hourly), `log-cleanup`, `worktree-cleanup` (30 min), `issue-log-retention`, `message-cleanup` (daily)
 - **Issue jobs**: `issue-execute`, `issue-follow-up`, `issue-close`, `issue-check-status`
 - Tables: `cronJobs` + `cronJobLogs`
 - Jobs are addressed by ID only; a job auto-pauses after 3 consecutive failures
 
-### Decision Events (`decisions/`)
+### Messages (`messages/`)
 
-A decision event is one question a coordinating agent needs the user to answer. BKD is the platform only: it stores events, shows them, and wakes the raiser — it never creates one itself.
+A message is something an agent sends the user. `kind` is `decision` (one question with options) or `notification` (headline, Markdown body, `level`). BKD is the platform only: it stores messages, shows them, delivers them, and wakes the sender — it never creates one itself.
 
-- Contract: `skills/bkd/references/decision-events.md` in `zzci/skills`. A coordinator sets `BKD_EVENT_URL=$BKD_URL/api/decisions` and calls `/events/...` as written there. The mount point avoids `GET /api/events`, which is the SSE stream.
-- `GET /api/decisions` is the capability probe: `{ supported: true, contractVersion: 1 }`. A server without decision events answers 404.
-- States: `open → decided → applied`, `open → withdrawn`, and `open | decided → closed`. A transition from any other state returns 409.
-- `decision` (user): an option, a free-form instruction, or both. BKD then sends `[event-decision eventId=… campaignId=…]` to the `notify` issue through `dispatchFollowUp()` — the same routing the follow-up route uses. The message is a wake signal; the raiser re-reads the event. A failed delivery leaves the event `decided` with `notifiedAt` empty, and `POST /events/:id/notify` resends it.
-- `close` (user) ends an event without answering it and sends no follow-up. It is an extension of the skill contract.
-- `ack` and `withdraw` belong to the raiser.
-- Every write emits `decision-event-updated` on the event bus and over SSE.
-- `webhooks/dispatcher.ts` turns `decision-event-updated` into the `decision.*` notification events (one delivery per state and channel, payload = the serialized event plus `decisionsUrl` / `apiUrl`); interactive Telegram channels are skipped there.
-- `decisions/telegram/` is a second answering surface. A Telegram notification channel with `webhooks.interactive` set gets each open event as a message with option buttons; `index.ts` listens to `decision-event-updated` to post and redraw, and runs one `getUpdates` long-poll loop per bot token for button presses and replies. Answers call `decideEvent()` in `decisions/service.ts`, the same path as the REST route. `decision_channel_messages` maps an event to the chat message that carries it. Updates from any chat other than the configured one are dropped.
-- Retention: the `decision-event-cleanup` cron action soft-deletes every non-open event whose `updatedAt` is more than one day old. Open events are never removed.
+- Contract: `skills/bkd/references/decisions.md` in `zzci/skills` (v1, decisions only) and its v2 successor. `GET /api/messages` is the v2 probe: `{ supported: true, contractVersion: 2, kinds: ['decision', 'notification'] }`. `GET /api/decisions` keeps answering the v1 probe `{ supported: true, contractVersion: 1 }`.
+- `expects`: `reply` for every decision; a notification picks `none` (one-way, `unread → read`) or `reply` (needs a `source` issue, `open → replied → applied`).
+- States for messages awaiting a reply: `open → decided | replied → applied`, `open → withdrawn`, and `open | answered → closed`. A transition from any other state, or an action for the other kind, returns 409.
+- Answering: `decision` (an option, an instruction, or both) or `reply` (free text). BKD then follows up the `source` issue through `dispatchFollowUp()` — the same routing the follow-up route uses — with `[event-decision eventId=… campaignId=…]` for decisions and `[message-reply messageId=…]` for notifications. The message is a wake signal; the sender re-reads the message. A failed delivery leaves `notifiedAt` empty, and `POST /items/:id/notify` resends it.
+- `close` (user) ends a message without answering it and sends no follow-up. `ack` and `withdraw` belong to the sender.
+- Notifications are limited to 30 a minute per source issue (in-memory window, 429 above it).
+- Every write emits `message-updated` on the event bus and over SSE.
+- `webhooks/dispatcher.ts` turns `message-updated` into notification events, one delivery per state and channel. Decisions keep the `decision.*` events and the v1 payload (serialized event plus `decisionsUrl` / `apiUrl`). Notifications use `message.{sent,replied,applied,withdrawn,closed}` (`read` is silent) with `{ event, timestamp, message, source, ref, links: { inboxUrl, apiUrl }, server: { url, version } }`, where `source` / `ref` carry the issue number, title, project, engine, model and issue URL. Messages are never targeted at a channel; every subscribed channel receives them. Interactive Telegram channels are skipped for messages awaiting a reply.
+- `messages/telegram/` is a second answering surface. A Telegram notification channel with `webhooks.interactive` set gets each open message awaiting a reply — decisions with option buttons, notifications with a close button; `index.ts` listens to `message-updated` to post and redraw, and runs one `getUpdates` long-poll loop per bot token for button presses and replies. Answers call `decideMessage()` / `replyMessage()` in `messages/service.ts`, the same path as the REST routes. `message_channel_messages` maps a message to the chat message that carries it. Updates from any chat other than the configured one are dropped.
+- v1 alias: `routes/decisions.ts` serves `/api/decisions/*` from the same table restricted to `kind = 'decision'`, projected to the v1 shape by `messages/v1.ts`. It is in-process, not an HTTP redirect.
+- Migration `0029`–`0031` copied `decision_events` / `decision_channel_messages` into the new tables with ids preserved, renamed the `decision-event-cleanup` cron job, and dropped the old tables.
+- Retention: the `message-cleanup` cron action soft-deletes messages awaiting a reply that are no longer `open` and untouched for a day, and read notifications untouched for seven days. Open and unread messages are never removed.
 
 ### Event System (`events/`)
 
@@ -252,8 +256,8 @@ A decision event is one question a coordinating agent needs the user to answer. 
 
 **Single-user assumption:** `/api/events` is intentionally implemented as one global event stream with client-side filtering. This is an explicit tradeoff under the current single-user deployment model, where all visible issue activity belongs to the same trusted operator. It should not be interpreted as a multi-user authorization boundary.
 
-- Event types: `log`, `log-updated`, `log-removed`, `state`, `done`, `issue-updated`, `changes-summary`, `decision-event-updated`, `heartbeat` (15s)
-- Subscribes to: `IssueEngine.onLog`, `.onStateChange`, `.onIssueSettled`, `onIssueUpdated`, `onChangesSummary`, and the `decision-event-updated` bus event
+- Event types: `log`, `log-updated`, `log-removed`, `state`, `done`, `issue-updated`, `changes-summary`, `message-updated`, `heartbeat` (15s)
+- Subscribes to: `IssueEngine.onLog`, `.onStateChange`, `.onIssueSettled`, `onIssueUpdated`, `onChangesSummary`, and the `message-updated` bus event
 
 **`changes-summary.ts`**: runs `git status/diff` after each issue settles; pushes file change stats via SSE.
 
@@ -302,7 +306,7 @@ See `docs/deployment.md`.
 | `/review[/:projectId/:issueId]` | `ReviewPage` | Review queue |
 | `/terminal` | `TerminalPage` | Full-page terminal |
 | `/cron` | `CronPage` | Cron job management |
-| `/decisions` | `DecisionsPage` | Global decision inbox |
+| `/messages` | `MessagesPage` | Global inbox for decisions and notifications (`/decisions` redirects here) |
 | `/sessions` | `SessionsPage` | Local engine sessions |
 
 Four global drawers (lazy-mounted): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`.

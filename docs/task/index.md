@@ -171,3 +171,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261016-0320-upload-limit-progress Lift the 10 MB upload cap and show global upload progress**](20261016-0320-upload-limit-progress.md) `P2`
 - [x] [**20261016-0424-streaming-multipart-upload Stream multipart uploads to disk instead of buffering**](20261016-0424-streaming-multipart-upload.md) `P1`
 - [x] [**20261016-0448-background-task-as-subagent Background Bash tasks render as subagents in the chat**](20261016-0448-background-task-as-subagent.md) `P2`
+- [x] [**20261016-1829-messages-system Upgrade decision events into a messages system**](20261016-1829-messages-system.md) `P2`

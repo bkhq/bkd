@@ -2,7 +2,7 @@ import type { NotificationChannel, WebhookEventType } from '@bkd/shared'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { webhookDeliveries, webhooks } from '@/db/schema'
-import { reloadDecisionTelegram } from '@/decisions/telegram'
+import { reloadMessageTelegram } from '@/messages/telegram'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 import { validateWebhookUrlForStorage } from '@/utils/url-safety'
@@ -93,7 +93,7 @@ webhooksRoute.openapi(R.createWebhook, async (c) => {
       interactive,
     })
     .returning()
-  await reloadDecisionTelegram()
+  await reloadMessageTelegram()
 
   return c.json({ success: true, data: serializeWebhook(row!) }, 201 as const)
 })
@@ -159,7 +159,7 @@ webhooksRoute.openapi(R.updateWebhook, async (c) => {
   }
 
   const [updated] = await db.update(webhooks).set(updates).where(eq(webhooks.id, webhookId)).returning()
-  await reloadDecisionTelegram()
+  await reloadMessageTelegram()
 
   return c.json({ success: true, data: serializeWebhook(updated!) }, 200 as const)
 })
@@ -177,7 +177,7 @@ webhooksRoute.openapi(R.deleteWebhook, async (c) => {
   }
 
   await db.update(webhooks).set({ isDeleted: 1 }).where(eq(webhooks.id, webhookId))
-  await reloadDecisionTelegram()
+  await reloadMessageTelegram()
 
   return c.json({ success: true, data: { id: webhookId } }, 200 as const)
 })

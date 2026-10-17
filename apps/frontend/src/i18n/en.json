@@ -592,9 +592,15 @@
     "webhooksEventDecisionApplied": "Applied",
     "webhooksEventDecisionWithdrawn": "Withdrawn",
     "webhooksEventDecisionClosed": "Closed",
-    "webhooksInteractive": "Answer decisions in this chat",
-    "webhooksInteractiveHint": "Decision events are posted here with buttons, and a reply to the message counts as the answer. Anyone in the chat can decide. The bot must be used by this BKD instance only.",
-    "webhooksInteractiveBadge": "Decisions"
+    "webhooksInteractive": "Answer messages in this chat",
+    "webhooksInteractiveHint": "Decisions and messages awaiting a reply are posted here; a button or a reply to the message counts as the answer. Anyone in the chat can answer. The bot must be used by this BKD instance only.",
+    "webhooksInteractiveBadge": "Interactive",
+    "webhooksGroupMessage": "Message",
+    "webhooksEventMessageSent": "Sent",
+    "webhooksEventMessageReplied": "Replied",
+    "webhooksEventMessageApplied": "Applied",
+    "webhooksEventMessageWithdrawn": "Withdrawn",
+    "webhooksEventMessageClosed": "Closed"
   },
   "contextMenu": {
     "pinToTop": "Pin to top",
@@ -771,17 +777,6 @@
     "deleteConfirm": "The cron job \"{{name}}\" will be removed from the schedule. Its execution logs will be kept."
   },
   "decisions": {
-    "title": "Decisions",
-    "group": {
-      "waiting": "Waiting",
-      "decided": "Decided",
-      "history": "History"
-    },
-    "empty": {
-      "waiting": "Nothing is waiting on you",
-      "decided": "No decisions awaiting action",
-      "history": "No past decisions"
-    },
     "status": {
       "open": "Waiting",
       "decided": "Decided",
@@ -806,11 +801,54 @@
     "close": "Close",
     "resend": "Resend",
     "notDelivered": "The decision is recorded, but the agent has not been notified.",
-    "closeConfirmTitle": "Close this decision?",
-    "closeConfirm": "The event ends without notifying the agent. Work waiting on it stays blocked until the agent checks again.",
     "closeReasonPlaceholder": "Reason (optional)",
     "campaign": "Campaign",
     "allCampaigns": "All campaigns"
+  },
+  "messages": {
+    "title": "Messages",
+    "group": {
+      "waiting": "Waiting",
+      "answered": "Answered",
+      "history": "History"
+    },
+    "empty": {
+      "waiting": "Nothing is waiting on you",
+      "answered": "No answers awaiting action",
+      "history": "No past messages"
+    },
+    "status": {
+      "unread": "Unread",
+      "read": "Read",
+      "open": "Waiting",
+      "replied": "Replied",
+      "decided": "Decided",
+      "applied": "Applied",
+      "withdrawn": "Withdrawn",
+      "closed": "Closed"
+    },
+    "kind": {
+      "label": "Kind",
+      "all": "All kinds",
+      "decision": "Decisions",
+      "notification": "Notifications"
+    },
+    "level": {
+      "info": "Info",
+      "success": "Success",
+      "warning": "Warning",
+      "error": "Error"
+    },
+    "from": "From",
+    "reply": "Reply",
+    "replyPlaceholder": "Write your reply",
+    "repliedBy": "Replied by",
+    "send": "Send reply",
+    "markRead": "Mark read",
+    "markAllRead": "Mark all read",
+    "notDelivered": "The reply is recorded, but the agent has not been notified.",
+    "closeConfirmTitle": "Close this message?",
+    "closeConfirm": "It ends without notifying the agent. Work waiting on it stays blocked until the agent checks again."
   },
   "workspace": {
     "files": "Files",

@@ -12,6 +12,7 @@ import { apiRoutes, engineRoutes, eventRoutes, settingsRoutes } from './routes'
 import cronRoute from './routes/cron'
 import sessionsRoute from './routes/sessions'
 import decisionsRoutes from './routes/decisions'
+import messagesRoutes from './routes/messages'
 import notesRoutes from './routes/notes'
 import terminalRoute from './routes/terminal'
 import { VERSION } from './version'
@@ -100,7 +101,8 @@ app.doc31('/api/docs/openapi.json', {
     { name: 'Processes', description: 'Active engine process management' },
     { name: 'Worktrees', description: 'Git worktree management per project' },
     { name: 'Notes', description: 'Scratch notes' },
-    { name: 'Decisions', description: 'Decision events raised by coordinating agents and decided by the user' },
+    { name: 'Messages', description: 'Decisions and notifications sent by agents to the user' },
+    { name: 'Decisions', description: 'v1 decision-event contract, served from messages of kind decision' },
     { name: 'Settings', description: 'Application settings and configuration' },
     { name: 'Webhooks', description: 'Webhook notification management' },
   ],
@@ -113,6 +115,7 @@ app.route('/api/engines', engineRoutes)
 app.route('/api/events', eventRoutes)
 app.route('/api/settings', settingsRoutes)
 app.route('/api/notes', notesRoutes)
+app.route('/api/messages', messagesRoutes)
 app.route('/api/decisions', decisionsRoutes)
 app.route('/api/cron', cronRoute)
 app.route('/api/sessions', sessionsRoute)
