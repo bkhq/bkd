@@ -3,8 +3,13 @@ export interface CommandPreview {
   isTruncated: boolean
 }
 
+/** The command on one line, for summaries that truncate by width in CSS. */
+export function compactCommand(command: string): string {
+  return command.replace(/\s+/g, ' ').trim()
+}
+
 export function getCommandPreview(command: string, maxChars = 90): CommandPreview {
-  const compact = command.replace(/\s+/g, ' ').trim()
+  const compact = compactCommand(command)
   if (!compact) {
     return { summary: '', isTruncated: false }
   }

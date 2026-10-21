@@ -1045,3 +1045,11 @@ built-in jobs (`message-cleanup` replaces `decision-event-cleanup`).
 too: it shares the campaign id `camp-list` with `api-decision-events.test.ts`, whose
 decisions now live in the same `messages` table. It uses its own campaign id; the full API
 suite passes (968 / 0).
+
+## 2026-10-21 09:30 [progress]
+
+Command summaries in tool groups no longer stop at a fixed 80/90 characters plus " ....."
+(task `20261021-0915-command-summary-width`). `CommandToolItem` and the grouped command
+title in `LogEntry` render the whole command on one line and let CSS truncate it at the
+row width, with the full command as the hover title (`compactCommand()` in
+`lib/command-preview.ts`).

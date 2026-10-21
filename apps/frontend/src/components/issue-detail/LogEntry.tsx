@@ -30,7 +30,7 @@ import type { PreviewItem } from '@/components/FilePreviewModal'
 import { FilePreviewModal } from '@/components/FilePreviewModal'
 import { MarkdownRenderer } from '@/components/files/MarkdownRenderer'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { getCommandPreview } from '@/lib/command-preview'
+import { compactCommand, getCommandPreview } from '@/lib/command-preview'
 import { formatDuration, formatFileSize } from '@/lib/format'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import { cn } from 'cn'
@@ -500,7 +500,7 @@ export function LogEntry({
         const isCommandTitle = entry.toolAction?.kind === 'command-run'
         const commandSummary =
           entry.toolAction?.kind === 'command-run' ?
-            getCommandPreview(entry.toolAction.command, 90).summary :
+              compactCommand(entry.toolAction.command) :
             ''
         return (
           <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
@@ -513,7 +513,7 @@ export function LogEntry({
                       :
                       {' '}
                     </span>
-                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">
+                    <code title={commandSummary} className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">
                       {commandSummary}
                     </code>
                   </div>
