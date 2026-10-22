@@ -30,8 +30,8 @@ function loadFullWidth(): boolean {
 }
 
 function loadRenderMarkdown(): boolean {
-  if (typeof window === 'undefined') return false
-  return localStorage.getItem(RENDER_MARKDOWN_KEY) === 'true'
+  if (typeof window === 'undefined') return true
+  return localStorage.getItem(RENDER_MARKDOWN_KEY) !== 'false'
 }
 
 export const useViewModeStore = create<ViewModeStore>((set, get) => ({
