@@ -1,129 +1,98 @@
-import { attachClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge/attach-closest-edge'
-import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge/extract-closest-edge'
-import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/types'
-import { combine } from '@atlaskit/pragmatic-drag-and-drop/utils/combine'
-import {
-  draggable,
-  dropTargetForElements,
-} from '@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter'
+import { cn } from 'cn'
 import { Pin } from 'lucide-react'
-import { memo, useEffect, useRef, useState } from 'react'
-import { IssueContextMenu, IssueContextMenuButton } from '@/components/issue-detail/IssueContextMenu'
+import { memo } from 'react'
+import { IssueContextMenu, IssueContextMenuButton, IssueRightClickMenu } from '@/components/issue-detail/IssueContextMenu'
 import type { Issue } from '@/types/kanban'
 
 export const KanbanCard = memo(({
   issue,
-  index,
-  columnStatusId,
   projectId,
   isSelected,
   onCardClick,
 }: {
   issue: Issue
-  index: number
-  columnStatusId: string
   projectId: string
   isSelected?: boolean
   onCardClick?: (issue: Issue) => void
 }) => {
-  const cardRef = useRef<HTMLDivElement>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [closestEdge, setClosestEdge] = useState<Edge | null>(null)
-
-  useEffect(() => {
-    const el = cardRef.current
-    if (!el) return
-    return combine(
-      draggable({
-        element: el,
-        getInitialData: () => ({
-          type: 'card',
-          cardId: issue.id,
-          columnId: columnStatusId,
-          index,
-        }),
-        onDragStart: () => setIsDragging(true),
-        onDrop: () => setIsDragging(false),
-      }),
-      dropTargetForElements({
-        element: el,
-        canDrop: ({ source }) => source.data.type === 'card' && source.data.cardId !== issue.id,
-        getData: ({ input, element }) =>
-          attachClosestEdge(
-            { type: 'card', cardId: issue.id, columnId: columnStatusId, index },
-            { input, element, allowedEdges: ['top', 'bottom'] },
-          ),
-        onDrag: ({ self }) => setClosestEdge(extractClosestEdge(self.data)),
-        onDragEnter: ({ self }) => setClosestEdge(extractClosestEdge(self.data)),
-        onDragLeave: () => setClosestEdge(null),
-        onDrop: () => setClosestEdge(null),
-      }),
-    )
-  }, [issue.id, columnStatusId, index])
-
   return (
-    <div ref={cardRef} className="relative">
-      {/* Top drop indicator */}
-      {closestEdge === 'top' && (
-        <div className="absolute -top-[3px] left-1 right-1 h-[2px] rounded-full bg-primary z-10" />
-      )}
-
+    <div
+      role="button"
+      tabIndex={0}
+      // Menus and dialogs are portaled but still bubble here through the React tree.
+      onClick={(e) => {
+        if (e.currentTarget.contains(e.target as Node)) onCardClick?.(issue)
+      }}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onCardClick?.(issue)
+        }
+      }}
+      className="group relative cursor-grab outline-none active:cursor-grabbing"
+    >
+      {/* Right-click area: the whole card but the "..." button, which must stay outside the context menu. */}
+      <IssueRightClickMenu issue={issue} projectId={projectId} showPin className="block">
+        <KanbanCardSurface issue={issue} isSelected={isSelected} />
+      </IssueRightClickMenu>
       <div
-        onClick={() => onCardClick?.(issue)}
-        className={`group rounded-lg border bg-card px-3 py-2.5 cursor-pointer hover:shadow-sm animate-card-enter ${
-          isDragging
-            ? 'opacity-50 scale-105 shadow-xl rotate-1 ring-2 ring-primary/30 transition-none'
-            : 'transition-all'
-        } ${
-          isSelected
-            ? 'border-primary/50 shadow-sm ring-1 ring-primary/20'
-            : 'border-transparent hover:border-border'
-        }`}
-        style={{ animationDelay: `${index * 40}ms` }}
+        className="absolute right-2.5 top-2.5 opacity-0 transition-opacity group-hover:opacity-100 has-data-popup-open:opacity-100"
+        onClick={e => e.stopPropagation()}
+        onPointerDown={e => e.stopPropagation()}
       >
-        {/* Issue number + actions */}
-        <div className="flex items-center mb-1">
-          <span className="text-[11px] font-medium text-muted-foreground font-mono">
-            {issue.isPinned && <Pin className="inline size-2.5 mr-0.5 -mt-0.5 text-primary" />}
-            #
-            {issue.issueNumber}
-          </span>
-          <div
-            className="ml-auto opacity-0 group-hover:opacity-100 has-data-popup-open:opacity-100 transition-opacity"
-            onClick={e => e.stopPropagation()}
-            onPointerDown={e => e.stopPropagation()}
-          >
-            <IssueContextMenu issue={issue} projectId={projectId} showPin>
-              <IssueContextMenuButton />
-            </IssueContextMenu>
-          </div>
-        </div>
-
-        {/* Title */}
-        <p className="text-sm font-medium leading-snug text-foreground">{issue.title}</p>
-
-        {/* Tags */}
-        {issue.tags && issue.tags.length > 0
-          ? (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {issue.tags.map(t => (
-                  <span
-                    key={t}
-                    className="inline-flex items-center rounded-full border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            )
-          : null}
-
+        <IssueContextMenu issue={issue} projectId={projectId} showPin>
+          <IssueContextMenuButton />
+        </IssueContextMenu>
       </div>
-
-      {/* Bottom drop indicator */}
-      {closestEdge === 'bottom' && (
-        <div className="absolute -bottom-[3px] left-1 right-1 h-[2px] rounded-full bg-primary z-10" />
-      )}
     </div>
   )
 })
+
+/** The card's look, shared by the card in its column and the lifted copy that follows the pointer. */
+export function KanbanCardSurface({ issue, isSelected = false, isOverlay = false }: {
+  issue: Issue
+  isSelected?: boolean
+  isOverlay?: boolean
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-md bg-background px-3 py-2.5 ring-1 transition-shadow',
+        isOverlay
+          ? 'shadow-lg shadow-foreground/10 ring-foreground/20'
+          : isSelected
+            ? 'ring-primary/50'
+            : 'ring-border/60 hover:ring-foreground/20',
+      )}
+    >
+      {/* Issue number; the "..." button is laid over the right end of this row by KanbanCard. */}
+      <div className="mb-1 flex h-[18px] items-center">
+        <span className="font-mono text-[11px] font-medium text-muted-foreground">
+          {issue.isPinned && <Pin className="mr-0.5 -mt-0.5 inline size-2.5 text-primary" />}
+          #
+          {issue.issueNumber}
+        </span>
+      </div>
+
+      {/* Title */}
+      <p className="text-sm font-medium leading-snug text-foreground">{issue.title}</p>
+
+      {/* Tags */}
+      {issue.tags && issue.tags.length > 0
+        ? (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {issue.tags.map(tag => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center rounded-full border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )
+        : null}
+    </div>
+  )
+}

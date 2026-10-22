@@ -1,8 +1,8 @@
 # 20260922-1712-api-execution-suite-order-flake Auto-execute test times out in the full API suite
 
-- **status**: pending
+- **status**: completed
 - **priority**: P2
-- **owner**: (unassigned)
+- **owner**: main/issue-menu-20261015
 - **createdAt**: 2026-09-22 17:12
 
 ## Description
@@ -34,3 +34,9 @@ Fixing the order-dependent auto-execute test timeout
 ## Notes
 
 - Found while verifying 20260922-1703-mobile-desktop-ui-parity.
+
+## Resolution
+
+Same root cause as `20261013-0538-spawn-leak-tests-order-dependent`: real engine CLIs spawned by earlier test files held the shared process manager's slots. Fixed there; the full API suite passes (917 / 0, twice).
+
+- complete: Resolved by 20261013-0538

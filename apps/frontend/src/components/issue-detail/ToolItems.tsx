@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getCommandPreview } from '@/lib/command-preview'
+import { compactCommand, getCommandPreview } from '@/lib/command-preview'
 import {
   CodeBlock,
   detectCodeLanguage,
@@ -252,7 +252,9 @@ export function CommandToolItem({ item }: { item: ToolGroupItem }) {
   const { t } = useTranslation()
   const fullCommand
     = item.action.toolAction?.kind === 'command-run' ? item.action.toolAction.command : ''
+  // Only decides whether the expanded body repeats the full command
   const preview = getCommandPreview(fullCommand, 80)
+  const oneLine = compactCommand(fullCommand)
   const description = getCommandDescription(item)
   const hasError = isItemError(item)
 
@@ -262,8 +264,8 @@ export function CommandToolItem({ item }: { item: ToolGroupItem }) {
       summary={(
         <div className="flex items-center gap-2 min-w-0">
           <ToolLabel label="Bash" icon={Terminal} />
-          <code className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono truncate">
-            {preview.summary}
+          <code title={oneLine} className="min-w-0 rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono truncate">
+            {oneLine}
           </code>
           {description
             ? (

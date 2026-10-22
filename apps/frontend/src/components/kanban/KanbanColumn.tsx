@@ -1,10 +1,7 @@
-import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter'
+import { cn } from 'cn'
 import { Plus } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
+import { SortableIssues, useIssueDropGroup } from '@/components/issue-drag/IssueDragContext'
 import { tStatus } from '@/lib/i18n-utils'
 import type { StatusDefinition } from '@/lib/statuses'
 import { usePanelStore } from '@/stores/panel-store'
@@ -26,67 +23,66 @@ export function KanbanColumn({
 }) {
   const { t } = useTranslation()
   const openCreateDialog = usePanelStore(s => s.openCreateDialog)
-  const columnRef = useRef<HTMLDivElement>(null)
-  const [isDropTarget, setIsDropTarget] = useState(false)
-
-  useEffect(() => {
-    const el = columnRef.current
-    if (!el) return
-    return dropTargetForElements({
-      element: el,
-      canDrop: ({ source }) => source.data.type === 'card',
-      getData: () => ({ type: 'column', columnId: status.id }),
-      onDragEnter: () => setIsDropTarget(true),
-      onDragLeave: () => setIsDropTarget(false),
-      onDrop: () => setIsDropTarget(false),
-    })
-  }, [status.id])
+  const { setNodeRef, isTarget, slot } = useIssueDropGroup(status.id)
+  // New work starts as todo or working; nobody creates an issue already in review or done.
+  const canCreate = status.id === 'todo' || status.id === 'working'
+  const label = tStatus(t, status.name)
 
   return (
-    <div
-      className={`flex h-full min-w-[85vw] md:min-w-[260px] flex-1 flex-col rounded-lg border snap-center md:snap-align-none transition-colors duration-200 ${
-        isDropTarget ? 'ring-2 ring-primary/30 bg-primary/[0.04] border-primary/20' : 'bg-muted/40'
-      }`}
+    <section
+      aria-label={label}
+      className={cn(
+        'flex h-full min-w-[85vw] flex-1 flex-col rounded-lg bg-secondary/40 ring-1 ring-transparent transition-shadow snap-center md:min-w-[260px] md:snap-align-none',
+        isTarget && 'ring-foreground/20',
+      )}
     >
-      {/* Column header */}
-      <div className="flex items-center gap-2 px-3 py-2.5">
-        <span
-          className="h-2.5 w-2.5 rounded-full shrink-0"
-          style={{ backgroundColor: status.color }}
-        />
-        <span className="text-sm font-medium text-foreground">{tStatus(t, status.name)}</span>
-        <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-[10px] font-medium">
+      <header className="flex h-10 items-center gap-2 px-3">
+        <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: status.color }} />
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          (
           {issues.length}
-        </Badge>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="ml-auto h-6 w-6 text-muted-foreground"
-          onClick={() => openCreateDialog(status.id)}
-          aria-label={t('kanban.createIssueIn', { name: status.name })}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
-      </div>
+          )
+        </span>
+        {canCreate
+          ? (
+              <button
+                type="button"
+                onClick={() => openCreateDialog(status.id)}
+                aria-label={t('kanban.createIssueIn', { name: label })}
+                title={t('kanban.createIssueIn', { name: label })}
+                className="ml-auto inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              >
+                <Plus className="size-3.5" />
+              </button>
+            )
+          : null}
+      </header>
 
-      <Separator />
-
-      {/* Cards */}
-      <div ref={columnRef} className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-1.5">
-        {issues.map((issue, index) => (
-          <KanbanCard
-            key={issue.id}
-            issue={issue}
-            index={index}
-            columnStatusId={status.id}
-            projectId={projectId}
-            isSelected={selectedIssueId === issue.id}
-            onCardClick={onCardClick}
-          />
-        ))}
-        {/* Spacer extends the droppable zone to the bottom of the column */}
-        <div className="min-h-[40px] flex-grow" />
+      <div ref={setNodeRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pt-px pb-2">
+        <SortableIssues status={status.id} items={issues}>
+          {issue => (
+            <KanbanCard
+              issue={issue}
+              projectId={projectId}
+              isSelected={selectedIssueId === issue.id}
+              onCardClick={onCardClick}
+            />
+          )}
+        </SortableIssues>
+        {issues.length === 0 && slot === null
+          ? (
+              <div
+                className={cn(
+                  'flex flex-1 items-center justify-center rounded-md border border-dashed px-3 py-6 text-center text-xs text-muted-foreground transition-colors',
+                  isTarget ? 'border-foreground/40 bg-background/60' : 'border-border/60',
+                )}
+              >
+                {t('issue.emptyStatusHint')}
+              </div>
+            )
+          : null}
       </div>
-    </div>
+    </section>
   )
 }

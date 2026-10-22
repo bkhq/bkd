@@ -91,3 +91,28 @@ describe('toolGroupMessage subagent rendering', () => {
     useViewModeStore.setState({ renderMarkdown: false })
   })
 })
+
+describe('command tool summary', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en')
+  })
+
+  it('shows the whole command on one line and leaves the cut to the row width', () => {
+    const command = `git checkout -q -b feat/queue && sed -i 's/draft/active/' docs/plan/index.md && ${'echo step && '.repeat(10)}true`
+    const action: NormalizedLogEntry = {
+      entryType: 'tool-use',
+      content: command,
+      messageId: 'm2',
+      metadata: { toolName: 'Bash', toolCallId: 'toolu_2' },
+      toolAction: { kind: 'command-run', command },
+      toolDetail: { kind: 'command-run', toolName: 'Bash', toolCallId: 'toolu_2', isResult: false, raw: {} },
+    } as NormalizedLogEntry
+    render(<ToolGroupMessage message={{ type: 'tool-group', id: 'tg-2', items: [{ action, result: null }], stats: { 'command-run': 1 }, count: 1, hiddenCount: 0 }} />)
+
+    // No fixed character cut: CSS truncates at whatever width the row has
+    const summary = screen.getByText(command)
+    expect(summary.textContent).not.toContain('.....')
+    expect(summary).toHaveClass('truncate', 'min-w-0')
+    expect(summary).toHaveAttribute('title', command)
+  })
+})

@@ -1,6 +1,7 @@
 import type { ChatTurn } from './turn-navigator'
 import { cn } from 'cn'
-import { useRef, useState } from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   AlertDialog,
@@ -38,6 +39,49 @@ export function TurnNavigator({
   const [preview, setPreview] = useState<{ turn: ChatTurn, top: number } | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [confirmTurn, setConfirmTurn] = useState<ChatTurn | null>(null)
+  const railRef = useRef<HTMLDivElement>(null)
+  // Ticks that do not fit stay in a scrolling rail; the buttons page through it.
+  const [paging, setPaging] = useState({ overflow: false, canUp: false, canDown: false })
+
+  const syncPaging = useCallback(() => {
+    const rail = railRef.current
+    if (!rail) return
+    const overflow = rail.scrollHeight > rail.clientHeight + 1
+    const canUp = overflow && rail.scrollTop > 0
+    const canDown = overflow && rail.scrollTop + rail.clientHeight < rail.scrollHeight - 1
+    setPaging(p => (p.overflow === overflow && p.canUp === canUp && p.canDown === canDown ? p : { overflow, canUp, canDown }))
+  }, [])
+
+  useLayoutEffect(() => {
+    syncPaging()
+    const rail = railRef.current
+    if (!rail || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(syncPaging)
+    observer.observe(rail)
+    return () => observer.disconnect()
+  }, [syncPaging, turns.length])
+
+  // When the turn in view changes and its tick is outside the rail, center it,
+  // so the highlight never sits in the hidden part. Paging leaves it alone.
+  useEffect(() => {
+    const rail = railRef.current
+    const tick = rail?.querySelector<HTMLElement>('[aria-current="true"]')
+    if (!rail || !tick) return
+    const top = tick.offsetTop
+    const bottom = top + tick.offsetHeight
+    if (top >= rail.scrollTop && bottom <= rail.scrollTop + rail.clientHeight) return
+    const max = Math.max(0, rail.scrollHeight - rail.clientHeight)
+    rail.scrollTop = Math.min(max, Math.max(0, top + tick.offsetHeight / 2 - rail.clientHeight / 2))
+    syncPaging()
+  }, [activeIndex, syncPaging])
+
+  const page = (direction: 1 | -1) => {
+    const rail = railRef.current
+    if (!rail) return
+    const max = Math.max(0, rail.scrollHeight - rail.clientHeight)
+    rail.scrollTop = Math.min(max, Math.max(0, rail.scrollTop + direction * rail.clientHeight * 0.8))
+    syncPaging()
+  }
 
   if (turns.length < 2) return null
 
@@ -65,33 +109,46 @@ export function TurnNavigator({
       aria-label={t('session.turnNavigator')}
       className="pointer-events-none absolute inset-y-[20%] right-1.5 z-10 hidden items-center md:flex"
     >
-      <div className="pointer-events-auto flex max-h-full flex-col items-end overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {turns.map((turn, i) => {
-          const active = turn.index === activeIndex
-          return (
-            <button
-              key={turn.messageId}
-              type="button"
-              aria-label={t('session.jumpToTurn', { n: i + 1 })}
-              aria-current={active ? 'true' : undefined}
-              aria-busy={loadingId === turn.messageId || undefined}
-              onClick={() => requestJump(turn)}
-              onMouseEnter={e => showPreview(turn, e.currentTarget)}
-              onMouseLeave={() => setPreview(null)}
-              onFocus={e => showPreview(turn, e.currentTarget)}
-              onBlur={() => setPreview(null)}
-              className="group flex shrink-0 items-center justify-end py-[3px] pl-2"
-            >
-              <span
-                className={cn(
-                  'h-[2px] w-2.5 rounded-full transition-[width] duration-150 group-hover:w-4',
-                  active ? 'bg-foreground' : 'bg-muted-foreground/40 group-hover:bg-foreground/70',
-                  loadingId === turn.messageId && 'animate-pulse',
-                )}
-              />
-            </button>
-          )
-        })}
+      <div className="pointer-events-auto flex max-h-full flex-col items-end">
+        {paging.overflow
+          ? <RailPageButton direction="up" disabled={!paging.canUp} label={t('session.earlierTurns')} onClick={() => page(-1)} />
+          : null}
+        <div
+          ref={railRef}
+          data-testid="turn-rail"
+          onScroll={syncPaging}
+          className="relative flex min-h-0 flex-col items-end overflow-y-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {turns.map((turn, i) => {
+            const active = turn.index === activeIndex
+            return (
+              <button
+                key={turn.messageId}
+                type="button"
+                aria-label={t('session.jumpToTurn', { n: i + 1 })}
+                aria-current={active ? 'true' : undefined}
+                aria-busy={loadingId === turn.messageId || undefined}
+                onClick={() => requestJump(turn)}
+                onMouseEnter={e => showPreview(turn, e.currentTarget)}
+                onMouseLeave={() => setPreview(null)}
+                onFocus={e => showPreview(turn, e.currentTarget)}
+                onBlur={() => setPreview(null)}
+                className="group flex shrink-0 items-center justify-end py-[3px] pl-2"
+              >
+                <span
+                  className={cn(
+                    'h-[2px] w-2.5 rounded-full transition-[width] duration-150 group-hover:w-4',
+                    active ? 'bg-foreground' : 'bg-muted-foreground/40 group-hover:bg-foreground/70',
+                    loadingId === turn.messageId && 'animate-pulse',
+                  )}
+                />
+              </button>
+            )
+          })}
+        </div>
+        {paging.overflow
+          ? <RailPageButton direction="down" disabled={!paging.canDown} label={t('session.laterTurns')} onClick={() => page(1)} />
+          : null}
       </div>
       {preview ?
           (
@@ -132,5 +189,27 @@ export function TurnNavigator({
         </AlertDialogContent>
       </AlertDialog>
     </nav>
+  )
+}
+
+/** Pages the turn rail up or down; disabled at that end. */
+function RailPageButton({ direction, disabled, label, onClick }: {
+  direction: 'up' | 'down'
+  disabled: boolean
+  label: string
+  onClick: () => void
+}) {
+  const Icon = direction === 'up' ? ChevronUp : ChevronDown
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex h-5 w-4 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+    >
+      <Icon className="size-3.5" />
+    </button>
   )
 }
