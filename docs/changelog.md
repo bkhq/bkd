@@ -1053,3 +1053,13 @@ Command summaries in tool groups no longer stop at a fixed 80/90 characters plus
 title in `LogEntry` render the whole command on one line and let CSS truncate it at the
 row width, with the full command as the hover title (`compactCommand()` in
 `lib/command-preview.ts`).
+
+## 2026-10-22 06:10 [progress]
+
+Skills page, part B of `20261022-0307-skills-management`: `/skills` lists agent skills from
+disk (`~/.agents/skills` with the `skills` CLI lock, `~/.claude/skills`, and the selected
+project's `.agents/skills` / `.claude/skills`) with source and agents, opens their files in
+the editor, and creates, edits, copies and deletes (to `data/trash/skills/`) local skills.
+CLI-installed skills are read-only. New `skills/service.ts` + `routes/skills.ts`
+(`/api/skills/*`). Logged task `20261022-0600-patch-diff-options-flake` for a recurring
+frontend test flake.

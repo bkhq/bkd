@@ -522,6 +522,72 @@ export const UpdateNoteSchema = z.object({
   isPinned: z.boolean().optional(),
 }).openapi('UpdateNote')
 
+// ── Skill schemas ──────────────────────────────────────
+
+export const SkillLocationSchema = z.enum(['global-agents', 'global-claude', 'project-agents', 'project-claude']).openapi('SkillLocation')
+
+export const SkillInfoSchema = z.object({
+  location: SkillLocationSchema,
+  scope: z.enum(['global', 'project']),
+  name: z.string(),
+  description: z.string(),
+  path: z.string(),
+  managed: z.boolean(),
+  source: z.string().nullable(),
+  sourceUrl: z.string().nullable(),
+  updatedAt: z.string().nullable(),
+  agents: z.array(z.enum(['claude-code', 'codex'])),
+}).openapi('SkillInfo')
+
+export const SkillListSchema = z.object({
+  skills: z.array(SkillInfoSchema),
+}).openapi('SkillList')
+
+export const SkillFileEntrySchema = z.object({
+  path: z.string(),
+  type: z.enum(['file', 'dir']),
+  size: z.number().int(),
+}).openapi('SkillFileEntry')
+
+export const SkillFileSchema = z.object({
+  path: z.string(),
+  content: z.string(),
+  binary: z.boolean(),
+}).openapi('SkillFile')
+
+const skillName = z.string().min(1).max(64)
+
+export const SkillParamsSchema = z.object({
+  location: SkillLocationSchema,
+  name: skillName,
+})
+
+export const SkillProjectQuerySchema = z.object({
+  projectId: z.string().min(1).max(100).optional(),
+})
+
+export const SkillFileQuerySchema = SkillProjectQuerySchema.extend({
+  path: z.string().min(1).max(1000),
+})
+
+export const SaveSkillFileSchema = z.object({
+  path: z.string().min(1).max(1000),
+  content: z.string().max(1024 * 1024),
+  projectId: z.string().min(1).max(100).optional(),
+}).openapi('SaveSkillFile')
+
+export const CreateSkillSchema = z.object({
+  scope: z.enum(['global', 'project']),
+  name: skillName,
+  description: z.string().min(1).max(1024),
+  projectId: z.string().min(1).max(100).optional(),
+}).openapi('CreateSkill')
+
+export const CopySkillSchema = z.object({
+  name: skillName,
+  projectId: z.string().min(1).max(100).optional(),
+}).openapi('CopySkill')
+
 // ── Decision event schemas ─────────────────────────────
 
 export const DECISION_EVENT_STATUSES = ['open', 'decided', 'applied', 'withdrawn', 'closed'] as const

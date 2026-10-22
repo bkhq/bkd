@@ -29,6 +29,10 @@ import type {
   ProbeResult,
   Project,
   ProjectProcessesResponse,
+  SkillFile,
+  SkillFileEntry,
+  SkillInfo,
+  SkillLocation,
   UpgradeStatus,
   VirtualEngine,
   Webhook,
@@ -680,6 +684,22 @@ export const kanbanApi = {
     post<{ ids: string[] }>('/api/messages/items/read', {}),
 
   // Notes
+  // Skills
+  getSkills: (projectId?: string) =>
+    get<{ skills: SkillInfo[] }>(`/api/skills${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  getSkillFiles: (location: SkillLocation, name: string, projectId?: string) =>
+    get<SkillFileEntry[]>(`/api/skills/${location}/${encodeURIComponent(name)}/files${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  getSkillFile: (location: SkillLocation, name: string, path: string, projectId?: string) =>
+    get<SkillFile>(`/api/skills/${location}/${encodeURIComponent(name)}/file?${new URLSearchParams({ path, ...(projectId ? { projectId } : {}) })}`),
+  saveSkillFile: (location: SkillLocation, name: string, data: { path: string, content: string, projectId?: string }) =>
+    put<SkillFile>(`/api/skills/${location}/${encodeURIComponent(name)}/file`, data),
+  createSkill: (data: { scope: 'global' | 'project', name: string, description: string, projectId?: string }) =>
+    post<SkillInfo>('/api/skills', data),
+  copySkill: (location: SkillLocation, name: string, data: { name: string, projectId?: string }) =>
+    post<SkillInfo>(`/api/skills/${location}/${encodeURIComponent(name)}/copy`, data),
+  deleteSkill: (location: SkillLocation, name: string, projectId?: string) =>
+    del<{ name: string }>(`/api/skills/${location}/${encodeURIComponent(name)}${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+
   getNotes: () => get<Note[]>('/api/notes'),
   createNote: (data: { title?: string, content?: string }) => post<Note>('/api/notes', data),
   updateNote: (id: string, data: { title?: string, content?: string, isPinned?: boolean }) =>

@@ -122,6 +122,7 @@ Hardcoded constants — no DB table:
 | `/api/sessions/*` | GET, POST | `sessions.ts` | Local engine sessions (list, preview, bulk delete) |
 | `/api/cron/*` | GET, POST, DELETE | `cron.ts` | Cron job management |
 | `/api/notes/*` | GET, POST, PATCH, DELETE | `notes.ts` | Notes CRUD |
+| `/api/skills[/*]` | GET, POST, PUT, DELETE | `skills.ts` | Agent skills on disk (`.agents/skills`, `.claude/skills`, per project): list, files, create, copy, delete; managed (CLI-installed) skills are read-only |
 | `/api/messages[/items/*]` | GET, POST, PATCH | `messages.ts` | Capability probe; messages: send, decide, reply, read, notify, ack, withdraw, close |
 | `/api/decisions[/events/*]` | GET, POST, PATCH | `decisions.ts` | v1 decision-event contract over the messages store |
 
@@ -307,6 +308,7 @@ See `docs/deployment.md`.
 | `/terminal` | `TerminalPage` | Full-page terminal |
 | `/cron` | `CronPage` | Cron job management |
 | `/messages` | `MessagesPage` | Global inbox for decisions and notifications (`/decisions` redirects here) |
+| `/skills` | `SkillsPage` | Agent skills: browse, edit, create, copy |
 | `/sessions` | `SessionsPage` | Local engine sessions |
 
 Four global drawers (lazy-mounted): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`.

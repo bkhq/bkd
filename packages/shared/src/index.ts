@@ -756,6 +756,39 @@ export interface Note {
   updatedAt: string
 }
 
+// ── Skills ──────────────────────────────────────────────
+
+/** Where a skill directory lives: the shared `.agents/skills` store or a real dir in `.claude/skills`. */
+export type SkillLocation = 'global-agents' | 'global-claude' | 'project-agents' | 'project-claude'
+export type SkillAgent = 'claude-code' | 'codex'
+
+export interface SkillInfo {
+  location: SkillLocation
+  scope: 'global' | 'project'
+  name: string
+  description: string
+  path: string
+  /** Installed by the `skills` CLI (tracked in its lock); read-only because updates overwrite it. */
+  managed: boolean
+  source: string | null
+  sourceUrl: string | null
+  updatedAt: string | null
+  /** Agents that read this skill. */
+  agents: SkillAgent[]
+}
+
+export interface SkillFileEntry {
+  path: string
+  type: 'file' | 'dir'
+  size: number
+}
+
+export interface SkillFile {
+  path: string
+  content: string
+  binary: boolean
+}
+
 // ── Decision events ─────────────────────────────────────
 
 export type DecisionEventStatus = 'open' | 'decided' | 'applied' | 'withdrawn' | 'closed'

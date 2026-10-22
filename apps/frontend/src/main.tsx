@@ -55,6 +55,7 @@ const IssueDetailPage = lazy(() => import('./pages/IssueDetailPage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const TerminalPage = lazy(() => import('./pages/TerminalPage'))
 const CronPage = lazy(() => import('./pages/CronPage'))
+const SkillsPage = lazy(() => import('./pages/SkillsPage'))
 const MessagesPage = lazy(() => import('./pages/MessagesPage'))
 const LocalSessionsPage = lazy(() => import('./pages/LocalSessionsPage'))
 const LazyTerminalDrawer = lazy(() =>
@@ -248,6 +249,14 @@ if (!rootElement.innerHTML) {
                   element={(
                     <ErrorBoundary>
                       <CronPage />
+                    </ErrorBoundary>
+                  )}
+                />
+                <Route
+                  path="/skills"
+                  element={(
+                    <ErrorBoundary>
+                      <SkillsPage />
                     </ErrorBoundary>
                   )}
                 />

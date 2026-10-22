@@ -130,7 +130,7 @@ The `/logs/filter/*` route accepts path-based key/value filter pairs (order-inde
 - Example: `/logs/filter/types/user-message,assistant-message/turn/last3`
 - Pagination via query params: `cursor`, `before`, `limit`
 
-System routes: `/api/engines/*`, `/api/events` (SSE), `/api/messages/*`, `/api/decisions/*` (v1), `/api/settings/*` (incl. `/api/settings/upgrade/*`), `/api/sessions/*`, `/api/terminal/*` (incl. `/api/terminal/ws/:id`), `/api/files/:root/*`, `/api/filesystem/dirs`, `/api/git/detect-remote`, `/api/processes/*`, `/api/projects/:projectId/worktrees/*`, `/api/cron/*`, `/api/notes/*`.
+System routes: `/api/engines/*`, `/api/events` (SSE), `/api/messages/*`, `/api/decisions/*` (v1), `/api/settings/*` (incl. `/api/settings/upgrade/*`), `/api/sessions/*`, `/api/terminal/*` (incl. `/api/terminal/ws/:id`), `/api/files/:root/*`, `/api/filesystem/dirs`, `/api/git/detect-remote`, `/api/processes/*`, `/api/projects/:projectId/worktrees/*`, `/api/cron/*`, `/api/notes/*`, `/api/skills/*`.
 
 Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`, `duplicate.ts`, `export.ts`, `import-session.ts`, `review.ts`, `search.ts`. Shared schemas and helpers in `_shared.ts`.
 
@@ -212,6 +212,16 @@ Agent-authored messages to the user, in one `messages` table with a `kind`: `dec
 
 Routes: `GET /api/messages` (capability probe, `{ supported, contractVersion: 2, kinds }`), `GET/POST /api/messages/items`, `POST /api/messages/items/read`, `GET/PATCH /api/messages/items/:id`, `POST /api/messages/items/:id/{decision,reply,notify,ack,withdraw,close,read}`; v1: `GET /api/decisions`, `GET/POST /api/decisions/events`, `GET/PATCH /api/decisions/events/:id`, `POST /api/decisions/events/:id/{decision,notify,ack,withdraw,close}`.
 
+#### Skills (`skills/`)
+
+Agent skills are read and written on disk in the layout of the `skills` CLI (vercel-labs/skills); BKD never calls an engine CLI for them. Roots come from `HOME` at call time (plus a project's directory): the shared store `.agents/skills/<name>/` (read by Codex; entries tracked in `.agents/.skill-lock.json` are *managed*) and `.claude/skills/` (read by Claude Code: symlinks into the store plus real skill dirs). A skill is a directory with `SKILL.md`; name and description come from its frontmatter. Identity is `location` (`global-agents` / `global-claude` / `project-agents` / `project-claude`) + name.
+
+- Managed skills are read-only (409): `skills update` would overwrite local edits; "copy" makes a local skill under a new name.
+- New and copied skills go to `.agents/skills/` with a relative symlink in `.claude/skills/`, so both engines see them. Delete moves a local skill to `data/trash/skills/` and drops its link.
+- Paths are realpath-checked inside the skill directory; names match `^[a-z0-9][\w.-]{0,63}$`. These roots are an allowlist of their own and do not relax the file browser's workspace check (SEC-007).
+
+Routes: `GET /api/skills?projectId=`, `POST /api/skills`, `GET /api/skills/:location/:name/files`, `GET|PUT /api/skills/:location/:name/file`, `POST /api/skills/:location/:name/copy`, `DELETE /api/skills/:location/:name`.
+
 #### Background Jobs (built-in cron actions, `cron/actions/builtins/`)
 
 Registered as `builtin` actions and scheduled through the cron system (see Cron System):
@@ -257,6 +267,7 @@ Deployment, migration from the old launcher, and the `lode.toml` reference: `doc
 /terminal                            → TerminalPage
 /cron                                → CronPage
 /messages                            → MessagesPage (global inbox: decisions + notifications; /decisions redirects here)
+/skills                              → SkillsPage (agent skills: browse, edit, create, copy)
 /sessions                            → SessionsPage (local engine sessions)
 ```
 
