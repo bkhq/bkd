@@ -96,12 +96,22 @@ export interface LockEntry {
   updatedAt?: string
 }
 
-export async function readLock(lockFile: string): Promise<Record<string, LockEntry>> {
+/**
+ * Entries of a lock file: `{}` when there is none, `null` when one exists but
+ * cannot be read or parsed, so callers can fail closed.
+ */
+export async function readLock(lockFile: string): Promise<Record<string, LockEntry> | null> {
+  let text: string
   try {
-    const parsed = JSON.parse(await readFile(lockFile, 'utf8')) as { skills?: Record<string, LockEntry> }
+    text = await readFile(lockFile, 'utf8')
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === 'ENOENT' ? {} : null
+  }
+  try {
+    const parsed = JSON.parse(text) as { skills?: Record<string, LockEntry> }
     return parsed.skills ?? {}
   } catch {
-    return {}
+    return null
   }
 }
 
@@ -152,7 +162,7 @@ async function scan(roots: Roots, scope: 'global' | 'project'): Promise<SkillInf
     const dir = join(roots.agents, entry.name)
     const meta = await readDescription(dir)
     if (!meta) continue
-    const locked = lock[entry.name]
+    const locked = lock?.[entry.name]
     const agents: SkillAgent[] = ['codex']
     if (linked.has(entry.name)) agents.unshift('claude-code')
     skills.push({
@@ -161,7 +171,8 @@ async function scan(roots: Roots, scope: 'global' | 'project'): Promise<SkillInf
       name: entry.name,
       description: meta.description ?? '',
       path: dir,
-      managed: !!locked,
+      // An unreadable lock may still own any of these: keep them all read-only
+      managed: lock === null || !!locked,
       source: locked?.source ?? null,
       sourceUrl: locked?.sourceUrl ?? null,
       sourcePath: locked?.skillPath ? (dirname(locked.skillPath) === '.' ? '' : dirname(locked.skillPath)) : null,
@@ -344,8 +355,8 @@ export async function deleteSkill(skill: SkillInfo): Promise<void> {
     await rm(skill.path, { recursive: true, force: true })
   }
   if (skill.location.endsWith('agents')) {
-    // <base>/.agents/skills/<name> -> <base>/.claude/skills
-    const claudeDir = join(dirname(dirname(dirname(skill.path))), '.claude/skills')
+    // The link lives in the Claude dir that creation used (CLAUDE_CONFIG_DIR for global skills)
+    const claudeDir = skill.scope === 'global' ? globalRoots().claude : projectRoots(dirname(dirname(dirname(skill.path)))).claude
     const link = join(claudeDir, skill.name)
     const target = await readlink(link).catch(() => null)
     if (target && resolve(claudeDir, target) === skill.path) await rm(link, { force: true })

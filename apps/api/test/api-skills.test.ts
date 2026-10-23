@@ -193,3 +193,41 @@ describe('roots resolved like the skills CLI', () => {
     }
   })
 })
+
+describe('unreadable lock', () => {
+  test('keeps every store skill read-only when the lock exists but cannot be parsed', async () => {
+    // A broken lock must not turn CLI-installed skills into editable local ones
+    const state = mkdtempSync(join(tmpdir(), 'bkd-skills-badlock-'))
+    mkdirSync(join(state, 'skills'), { recursive: true })
+    writeFileSync(join(state, 'skills/.skill-lock.json'), '{ not json')
+    process.env.XDG_STATE_HOME = state
+    try {
+      const data = expectSuccess(await get<{ skills: Skill[] }>('/api/skills'))
+      const store = data.skills.filter(s => s.location === 'global-agents')
+      expect(store.length).toBeGreaterThan(0)
+      expect(store.every(s => s.managed)).toBe(true)
+      expectError(await put('/api/skills/global-agents/local-notes/file', { path: 'SKILL.md', content: 'x' }), 409)
+      expectError(await del('/api/skills/global-agents/local-notes'), 409)
+    } finally {
+      delete process.env.XDG_STATE_HOME
+      rmSync(state, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('CLAUDE_CONFIG_DIR', () => {
+  test('deleting a global skill removes its link from the configured Claude dir', async () => {
+    const claudeConfig = mkdtempSync(join(tmpdir(), 'bkd-skills-claude-del-'))
+    process.env.CLAUDE_CONFIG_DIR = claudeConfig
+    try {
+      expectSuccess(await post('/api/skills', { scope: 'global', name: 'linked-elsewhere', description: 'x' }))
+      expect(lstatSync(join(claudeConfig, 'skills/linked-elsewhere')).isSymbolicLink()).toBe(true)
+      expectSuccess(await del('/api/skills/global-agents/linked-elsewhere'))
+      expect(existsSync(join(claudeConfig, 'skills/linked-elsewhere'))).toBe(false)
+      expect(() => lstatSync(join(claudeConfig, 'skills/linked-elsewhere'))).toThrow()
+    } finally {
+      delete process.env.CLAUDE_CONFIG_DIR
+      rmSync(claudeConfig, { recursive: true, force: true })
+    }
+  })
+})

@@ -67,8 +67,8 @@ function folderHashes(source: string, ref?: string): Promise<Map<string, string>
 export async function checkSkillUpdates(projectDir?: string | null): Promise<SkillUpdateStatus[]> {
   const skills = (await listSkills(projectDir)).filter(s => s.managed)
   const locks = {
-    global: await readLock(globalRoots().lockFile),
-    project: projectDir && !(await isHomeDir(projectDir)) ? await readLock(projectRoots(projectDir).lockFile) : {},
+    global: await readLock(globalRoots().lockFile) ?? {},
+    project: projectDir && !(await isHomeDir(projectDir)) ? await readLock(projectRoots(projectDir).lockFile) ?? {} : {},
   }
   return Promise.all(skills.map(async (skill): Promise<SkillUpdateStatus> => {
     const entry = locks[skill.scope][skill.name]
