@@ -402,11 +402,17 @@ export async function copySkill(skill: SkillInfo, newName: string, projectDir?: 
   await assertProjectScope(skill.scope, projectDir)
   const location: SkillLocation = skill.scope === 'global' ? 'global-agents' : 'project-agents'
   const { roots } = rootsFor(location, projectDir)
+  const source = await realpath(skill.path)
+  // The copy rewrites SKILL.md; a link to a file elsewhere would be rewritten in place
+  const sourceMd = await realpath(join(source, 'SKILL.md')).catch(() => null)
+  if (!sourceMd || !sourceMd.startsWith(source + sep)) throw new SkillError('SKILL.md links outside the skill', 400)
   await placeNewSkill(roots, newName, async (dir) => {
     // Inner symlinks stay links: following them would copy files from outside the skill
-    await cp(await realpath(skill.path), dir, { recursive: true, verbatimSymlinks: true })
+    await cp(source, dir, { recursive: true, verbatimSymlinks: true })
     const skillMd = join(dir, 'SKILL.md')
-    const text = await readFile(skillMd, 'utf8')
+    const text = await readFile(sourceMd, 'utf8')
+    // Replace a linked SKILL.md with a real file, so the rewrite stays in the copy
+    await rm(skillMd, { force: true })
     await writeFile(skillMd, text.replace(/^(---\r?\n[\s\S]*?)^name:.*$/m, `$1name: ${newName}`), 'utf8')
   })
   return getSkill(location, newName, projectDir)

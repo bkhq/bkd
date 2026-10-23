@@ -388,3 +388,20 @@ describe('lock keys the CLI sanitized into folder names', () => {
     }
   })
 })
+
+describe('copy with a linked SKILL.md', () => {
+  test('refuses a SKILL.md that links outside the skill, leaving the target untouched', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'bkd-skills-md-outside-'))
+    writeFileSync(join(outside, 'SKILL.md'), '---\nname: victim\ndescription: d\n---\n')
+    mkdirSync(join(home, '.agents/skills/linked-md'), { recursive: true })
+    symlinkSync(join(outside, 'SKILL.md'), join(home, '.agents/skills/linked-md/SKILL.md'))
+    try {
+      expectError(await post('/api/skills/global-agents/linked-md/copy', { name: 'linked-md-copy' }), 400)
+      expect(readFileSync(join(outside, 'SKILL.md'), 'utf8')).toContain('name: victim')
+      expect(existsSync(join(home, '.agents/skills/linked-md-copy'))).toBe(false)
+    } finally {
+      rmSync(join(home, '.agents/skills/linked-md'), { recursive: true, force: true })
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+})
