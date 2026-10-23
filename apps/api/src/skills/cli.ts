@@ -235,10 +235,11 @@ async function run(input: StartOperationInput, running: Running): Promise<void> 
         op.status = 'failed'
         op.error = failed.map(r => `${r.name ?? '?'}: ${r.error ?? 'failed'}`).join('; ')
       } else {
-        op.status = 'succeeded'
+        // Result first: a poll that sees 'succeeded' must also see the skills
         if (input.op === 'preview') {
           op.result = { skills: await describe(results, previewHome!) }
         }
+        op.status = 'succeeded'
       }
     } else {
       op.status = 'succeeded'
