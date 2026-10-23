@@ -16,6 +16,8 @@ const SOURCE_RE = /^[\w.-]+\/[\w.-]+$/
 export interface GithubTree {
   /** Root tree hash */
   sha: string
+  /** Set by GitHub when a large repository's recursive listing is partial */
+  truncated?: boolean
   tree: { path: string, type: string, sha: string }[]
 }
 /** `ref` is the branch or tag recorded at install time; absent means the default branch. */
@@ -34,7 +36,7 @@ const githubFetcher: GithubTreeFetcher = async (source, ref) => {
 }
 
 let fetcher: GithubTreeFetcher = githubFetcher
-const cache = new Map<string, { at: number, tree: Promise<Map<string, string> | null> }>()
+const cache = new Map<string, { at: number, tree: Promise<FolderHashes | null> }>()
 
 /** Tests replace GitHub; `null` restores it. */
 export function setGithubTreeFetcher(next: GithubTreeFetcher | null): void {
@@ -46,8 +48,15 @@ export function resetSkillUpdateCache(): void {
   cache.clear()
 }
 
-/** Folder path → tree hash ('' is the repository root), or null when the repo cannot be read. */
-function folderHashes(source: string, ref?: string): Promise<Map<string, string> | null> {
+interface FolderHashes {
+  /** Folder path → tree hash ('' is the repository root) */
+  hashes: Map<string, string>
+  /** A folder missing from a truncated listing may still exist */
+  truncated: boolean
+}
+
+/** Folder hashes of a repository at a ref, or null when it cannot be read. */
+function folderHashes(source: string, ref?: string): Promise<FolderHashes | null> {
   const key = `${source}#${ref ?? ''}`
   const hit = cache.get(key)
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.tree
@@ -57,7 +66,7 @@ function folderHashes(source: string, ref?: string): Promise<Map<string, string>
       for (const e of t.tree) {
         if (e.type === 'tree') map.set(e.path, e.sha)
       }
-      return map
+      return { hashes: map, truncated: !!t.truncated }
     })
     .catch(() => null)
   cache.set(key, { at: Date.now(), tree })
@@ -76,11 +85,11 @@ export async function checkSkillUpdates(projectDir?: string | null): Promise<Ski
     if (!entry?.source || !SOURCE_RE.test(entry.source) || (entry.sourceType && entry.sourceType !== 'github') || !entry.skillPath || !entry.skillFolderHash) {
       return { ...base, status: 'unknown' }
     }
-    const hashes = await folderHashes(entry.source, entry.ref || undefined)
-    if (!hashes) return { ...base, status: 'unknown' }
+    const repo = await folderHashes(entry.source, entry.ref || undefined)
+    if (!repo) return { ...base, status: 'unknown' }
     const folder = dirname(entry.skillPath) === '.' ? '' : dirname(entry.skillPath)
-    const remote = hashes.get(folder)
-    if (!remote) return { ...base, status: 'removed' }
+    const remote = repo.hashes.get(folder)
+    if (!remote) return { ...base, status: repo.truncated ? 'unknown' : 'removed' }
     return { ...base, status: remote === entry.skillFolderHash ? 'latest' : 'update' }
   }))
 }

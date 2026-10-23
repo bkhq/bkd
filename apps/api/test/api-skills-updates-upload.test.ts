@@ -19,7 +19,7 @@ interface UploadResult { created: { name: string, location: string }[], conflict
 let home: string
 const originalHome = process.env.HOME
 let fetches: string[] = []
-let trees: Record<string, { sha: string, tree: { path: string, type: string, sha: string }[] } | null> = {}
+let trees: Record<string, { sha: string, truncated?: boolean, tree: { path: string, type: string, sha: string }[] } | null> = {}
 
 const fakeFetcher: GithubTreeFetcher = async (source, ref) => {
   const key = ref ? `${source}@${ref}` : source
@@ -86,6 +86,21 @@ describe('GET /api/skills/updates', () => {
     const byName = Object.fromEntries(data.updates.map(u => [u.name, u.status]))
     expect(byName).toEqual({ fresh: 'latest', stale: 'update', gone: 'removed', other: 'unknown', pinned: 'latest' })
     expect(fetches.sort()).toEqual(['a/repo', 'a/repo@v1', 'b/missing'])
+  })
+
+  test('does not call a skill removed when GitHub truncated the tree', async () => {
+    // A large repo's recursive tree can come back partial: a missing folder proves nothing
+    trees = {
+      'a/repo': { sha: 'root', truncated: true, tree: [{ path: 'skills/fresh', type: 'tree', sha: 'h-fresh' }] },
+      'a/repo@v1': { sha: 'root-v1', tree: [] },
+      'b/missing': null,
+    }
+    const data = expectSuccess(await get<{ updates: UpdateStatus[] }>('/api/skills/updates'))
+    const byName = Object.fromEntries(data.updates.map(u => [u.name, u.status]))
+    expect(byName.fresh).toBe('latest')
+    expect(byName.gone).toBe('unknown')
+    // An untruncated tree still reports a missing folder as removed
+    expect(byName.pinned).toBe('removed')
   })
 
   test('caches GitHub answers between requests', async () => {
