@@ -1,8 +1,6 @@
 import type { Message, MessageKind, MessageStatus } from '@bkd/shared'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
-import { AppLogo } from '@/components/AppLogo'
 import { AppSidebar } from '@/components/kanban/AppSidebar'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import { DecisionCard } from '@/components/messages/DecisionCard'
@@ -20,7 +18,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
@@ -105,9 +103,6 @@ export default function MessagesPage() {
         <section className="mx-auto max-w-3xl px-4 py-4 md:px-6 md:py-8">
           <div className="mb-4 flex items-center gap-2.5 md:mb-6">
             {isMobile ? <MobileSidebar activeProjectId="" /> : null}
-            <Link to="/" aria-label={t('sidebar.home')}>
-              <AppLogo className="h-8 w-8" />
-            </Link>
             <h1 className="text-lg font-semibold tracking-tight md:text-xl">
               {t('messages.title')}
             </h1>
@@ -136,22 +131,26 @@ export default function MessagesPage() {
                 value={kind}
                 onValueChange={value => setKind((value ?? ALL) as MessageKind | typeof ALL)}
               >
-                <SelectTrigger className="w-[150px]" aria-label={t('messages.kind.label')}>
+                <SelectTrigger size="sm" className="w-[150px]" aria-label={t('messages.kind.label')}>
                   <SelectValue>{(value: string | null) => t(`messages.kind.${value ?? ALL}`)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {[ALL, ...KINDS].map(k => <SelectItem key={k} value={k}>{t(`messages.kind.${k}`)}</SelectItem>)}
+                  <SelectGroup>
+                    {[ALL, ...KINDS].map(k => <SelectItem key={k} value={k}>{t(`messages.kind.${k}`)}</SelectItem>)}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               {campaigns.length > 1 ?
                   (
                     <Select value={campaign} onValueChange={value => setCampaign(value ?? ALL)}>
-                      <SelectTrigger className="w-[180px]" aria-label={t('decisions.campaign')}>
+                      <SelectTrigger size="sm" className="w-[180px]" aria-label={t('decisions.campaign')}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={ALL}>{t('decisions.allCampaigns')}</SelectItem>
-                        {campaigns.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        <SelectGroup>
+                          <SelectItem value={ALL}>{t('decisions.allCampaigns')}</SelectItem>
+                          {campaigns.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                   ) :
