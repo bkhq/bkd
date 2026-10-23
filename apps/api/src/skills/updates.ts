@@ -1,7 +1,7 @@
 import { dirname } from 'node:path'
 import process from 'node:process'
 import type { SkillLocation, SkillUpdateStatus } from '@bkd/shared'
-import { globalRoots, isHomeDir, listSkills, projectRoots, readLock } from './service'
+import { findLockEntry, globalRoots, isHomeDir, listSkills, projectRoots, readLock } from './service'
 
 /*
  * Whether an installed skill has a newer version: the lock records the git
@@ -81,7 +81,7 @@ export async function checkSkillUpdates(
     project: projectDir && !(await isHomeDir(projectDir)) ? await readLock(projectRoots(projectDir).lockFile) ?? {} : {},
   }
   return Promise.all(skills.map(async (skill): Promise<SkillUpdateStatus> => {
-    const entry = locks[skill.scope][skill.name]
+    const entry = findLockEntry(locks[skill.scope], skill.name)?.[1]
     const base = { location: skill.location, name: skill.name }
     if (!entry?.source || !SOURCE_RE.test(entry.source) || (entry.sourceType && entry.sourceType !== 'github') || !entry.skillPath || !entry.skillFolderHash) {
       return { ...base, status: 'unknown' }

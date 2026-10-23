@@ -112,6 +112,21 @@ describe('GET /api/skills/updates', () => {
     expect(data.updates.find(u => u.name === 'other')?.status).toBe('latest')
   })
 
+  test('finds the lock entry of a folder whose lock key the CLI sanitized', async () => {
+    const state = mkdtempSync(join(tmpdir(), 'bkd-skills-upd-cased-'))
+    mkdirSync(join(state, 'skills'), { recursive: true })
+    writeFileSync(join(state, 'skills/.skill-lock.json'), JSON.stringify({ version: 3, skills: { Stale: { source: 'a/repo', sourceType: 'github', skillPath: 'skills/stale/SKILL.md', skillFolderHash: 'h-old' } } }))
+    process.env.XDG_STATE_HOME = state
+    trees = { 'a/repo': { sha: 'root', tree: [{ path: 'skills/stale', type: 'tree', sha: 'h-new' }] } }
+    try {
+      const data = expectSuccess(await get<{ updates: UpdateStatus[] }>('/api/skills/updates?location=global-agents&name=stale'))
+      expect(data.updates).toEqual([{ location: 'global-agents', name: 'stale', status: 'update' }])
+    } finally {
+      delete process.env.XDG_STATE_HOME
+      rmSync(state, { recursive: true, force: true })
+    }
+  })
+
   test('checks one skill when asked, reading only its source', async () => {
     trees = { 'a/repo': { sha: 'root', tree: [{ path: 'skills/stale', type: 'tree', sha: 'h-new' }] } }
     const data = expectSuccess(await get<{ updates: UpdateStatus[] }>('/api/skills/updates?location=global-agents&name=stale'))

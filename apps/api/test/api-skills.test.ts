@@ -370,3 +370,21 @@ describe('create validation', () => {
     }
   })
 })
+
+describe('lock keys the CLI sanitized into folder names', () => {
+  test('a skill installed as "Local Notes" in local-notes/ is managed, with its source', async () => {
+    // skills@1.7.4 names the folder sanitizeName(name) but keys the lock by the original name
+    const state = mkdtempSync(join(tmpdir(), 'bkd-skills-cased-'))
+    mkdirSync(join(state, 'skills'), { recursive: true })
+    writeFileSync(join(state, 'skills/.skill-lock.json'), JSON.stringify({ version: 3, skills: { 'Local Notes': { source: 'me/notes' } } }))
+    process.env.XDG_STATE_HOME = state
+    try {
+      const data = expectSuccess(await get<{ skills: Skill[] }>('/api/skills'))
+      expect(data.skills.find(s => s.name === 'local-notes')).toMatchObject({ managed: true, source: 'me/notes' })
+      expectError(await put('/api/skills/global-agents/local-notes/file', { path: 'SKILL.md', content: 'x' }), 409)
+    } finally {
+      delete process.env.XDG_STATE_HOME
+      rmSync(state, { recursive: true, force: true })
+    }
+  })
+})

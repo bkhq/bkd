@@ -115,6 +115,23 @@ export async function readLock(lockFile: string): Promise<Record<string, LockEnt
   }
 }
 
+/** The folder name skills@1.7.4 gives a skill (its `sanitizeName`). */
+export function cliFolderName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9._]+/g, '-').replace(/^[.-]+|[.-]+$/g, '').substring(0, 255) || 'unnamed-skill'
+}
+
+/**
+ * The lock entry of a skill folder, with its key. The CLI keys the lock by the
+ * skill's own name but names the folder after its sanitized form, so `My Skill`
+ * lives in `my-skill/`.
+ */
+export function findLockEntry(lock: Record<string, LockEntry> | null | undefined, folder: string): [string, LockEntry] | undefined {
+  if (!lock) return undefined
+  if (lock[folder]) return [folder, lock[folder]]
+  const sanitized = cliFolderName(folder)
+  return Object.entries(lock).find(([key]) => cliFolderName(key) === sanitized)
+}
+
 async function readEntries(dir: string): Promise<Dirent[]> {
   try {
     return await readdir(dir, { withFileTypes: true })
@@ -181,7 +198,7 @@ async function scan(roots: Roots, scope: 'global' | 'project', confine?: string)
     if (confine && !(await resolvesInside(dir, confine))) continue
     const meta = await readDescription(dir)
     if (!meta) continue
-    const locked = lock?.[entry.name]
+    const locked = findLockEntry(lock, entry.name)?.[1]
     const agents: SkillAgent[] = ['codex']
     if (linked.has(entry.name)) agents.unshift('claude-code')
     skills.push({

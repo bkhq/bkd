@@ -6,7 +6,7 @@ import type { SkillAgent, SkillsOperation, SkillsOperationKind } from '@bkd/shar
 import { resolveCommand, spawnNode } from '@/engines/spawn'
 import { logger } from '@/logger'
 import { ulid } from 'ulid'
-import { assertProjectScope, assertSkillName, listSkills, parseFrontmatter, SkillError } from './service'
+import { assertProjectScope, assertSkillName, findLockEntry, globalRoots, listSkills, parseFrontmatter, projectRoots, readLock, SkillError } from './service'
 
 /*
  * Install, update and uninstall go through the `skills` CLI (vercel-labs/skills),
@@ -212,15 +212,22 @@ async function run(input: StartOperationInput, running: Running): Promise<void> 
       case 'add':
         args = ['add', input.source!, '-s', ...input.skills!, '-a', ...(input.agents?.length ? input.agents : ['claude-code', 'codex']), ...scopeFlag(input.scope), '-y', '--json']
         break
-      case 'update':
-        args = ['update', ...(input.names ?? []), input.scope === 'global' ? '-g' : '-p', '-y']
+      case 'update': {
+        // The CLI matches update names against lock keys, which may differ from folder names
+        const lock = await readLock(input.scope === 'global' ? globalRoots().lockFile : projectRoots(input.projectDir!).lockFile)
+        const names = (input.names ?? []).map(name => findLockEntry(lock, name)?.[0] ?? name)
+        args = ['update', ...names, input.scope === 'global' ? '-g' : '-p', '-y']
         break
+      }
       case 'remove':
         args = ['remove', ...input.names!, ...scopeFlag(input.scope), '-y']
         break
     }
 
-    const { exitCode, stdout } = await runner(args, { cwd: runCwd, env, onLine, signal: abort.signal })
+    // Cancelled while preparing: the abort already fired, so a runner started now would never see it
+    const { exitCode, stdout } = abort.signal.aborted
+      ? { exitCode: 1, stdout: '' }
+      : await runner(args, { cwd: runCwd, env, onLine, signal: abort.signal })
     if (running.cancelled) {
       op.status = 'cancelled'
     } else if (abort.signal.aborted) {

@@ -221,3 +221,22 @@ describe('project lock linked outside the project', () => {
     rmSync(outside, { recursive: true, force: true })
   })
 })
+
+describe('update by folder name', () => {
+  test('passes the lock key to the CLI, which matches update names against it', async () => {
+    const state = mkdtempSync(join(tmpdir(), 'bkd-skills-ops-cased-'))
+    mkdirSync(join(state, 'skills'), { recursive: true })
+    writeFileSync(join(state, 'skills/.skill-lock.json'), JSON.stringify({ version: 3, skills: { 'My Tools': { source: 'zzci/skills' } } }))
+    writeSkill(join(home, '.agents/skills'), 'my-tools', 'Tools')
+    process.env.XDG_STATE_HOME = state
+    try {
+      const started = expectSuccess(await post<Operation>('/api/skills/operations', { op: 'update', names: ['my-tools'], scope: 'global' }))
+      await finished(started.id)
+      expect(calls[0]!.args).toEqual(['update', 'My Tools', '-g', '-y'])
+    } finally {
+      delete process.env.XDG_STATE_HOME
+      rmSync(join(home, '.agents/skills/my-tools'), { recursive: true, force: true })
+      rmSync(state, { recursive: true, force: true })
+    }
+  })
+})
