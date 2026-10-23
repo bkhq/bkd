@@ -85,7 +85,7 @@ export function IssueListPanel({
       style={width ? { width: `${width}px` } : undefined}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-2.5 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] bg-secondary/50">
+      <div data-slot="list-header" className="flex items-center justify-between px-2.5 py-2.5 border-b border-border/60 shrink-0 min-h-[49px] bg-secondary/50">
         <div className="flex items-center gap-1.5 min-w-0">
           {mobileNav}
           <span className="text-sm font-semibold truncate tracking-tight">{projectName}</span>
@@ -207,6 +207,43 @@ export function IssueListPanel({
   )
 }
 
+/**
+ * Sticky, collapsible group bar of an issue list (status groups here, project
+ * groups in the review queue). Opaque base so rows cannot show through.
+ */
+export function ListGroupHeader({ color, label, count, collapsed, onToggle, action }: {
+  color: string
+  label: string
+  count: number
+  collapsed: boolean
+  onToggle: () => void
+  action?: React.ReactNode
+}) {
+  return (
+    <div
+      className="group/head sticky top-0 z-10 flex h-8 items-center gap-1.5 border-b border-border/20 bg-secondary px-2.5 text-xs"
+      style={{ backgroundImage: `linear-gradient(${color}14, ${color}14)` }}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={!collapsed}
+        className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-0.5 text-left transition-colors hover:text-foreground"
+      >
+        <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-muted-foreground/70 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
+        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+        <span className="truncate font-semibold tracking-tight text-foreground/85">{label}</span>
+        <span className="shrink-0 tabular-nums text-muted-foreground/60">
+          (
+          {count}
+          )
+        </span>
+      </button>
+      {action}
+    </div>
+  )
+}
+
 export function StatusGroup({
   status,
   issues,
@@ -234,43 +271,26 @@ export function StatusGroup({
 
   return (
     <div ref={setNodeRef} className={cn('ring-1 ring-inset ring-transparent transition-shadow', isTarget && 'ring-foreground/20')}>
-      {/* Group bar: opaque base so rows cannot show through while sticky */}
-      <div
-        className="group/head sticky top-0 z-10 flex h-8 items-center gap-1.5 border-b border-border/20 bg-secondary px-2.5 text-xs"
-        style={{ backgroundImage: `linear-gradient(${status.color}14, ${status.color}14)` }}
-      >
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={!isCollapsed}
-          className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-0.5 text-left transition-colors hover:text-foreground"
-        >
-          <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-muted-foreground/70 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
-          <span
-            className="h-2 w-2 shrink-0 rounded-full"
-            style={{ backgroundColor: status.color }}
-          />
-          <span className="truncate font-semibold tracking-tight text-foreground/85">
-            {tStatus(t, status.name)}
-          </span>
-          <span className="shrink-0 tabular-nums text-muted-foreground/60">
-            (
-            {issues.length}
+      <ListGroupHeader
+        color={status.color}
+        label={tStatus(t, status.name)}
+        count={issues.length}
+        collapsed={isCollapsed}
+        onToggle={onToggle}
+        action={canCreate
+          ? (
+              <button
+                type="button"
+                onClick={() => openCreateDialog(status.id)}
+                aria-label={t('kanban.createIssueIn', { name: tStatus(t, status.name) })}
+                title={t('kanban.createIssueIn', { name: tStatus(t, status.name) })}
+                className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-background/60 hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
             )
-          </span>
-        </button>
-        {canCreate ? (
-          <button
-            type="button"
-            onClick={() => openCreateDialog(status.id)}
-            aria-label={t('kanban.createIssueIn', { name: tStatus(t, status.name) })}
-            title={t('kanban.createIssueIn', { name: tStatus(t, status.name) })}
-            className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-background/60 hover:text-foreground"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        ) : null}
-      </div>
+          : null}
+      />
 
       {!isCollapsed ? (
         <div>
