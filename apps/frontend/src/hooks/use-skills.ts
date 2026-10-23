@@ -105,11 +105,10 @@ export function useCancelSkillsOperation() {
 }
 
 /** Update status of installed skills (GitHub is asked at most every 10 min by the server). */
-export function useSkillUpdates(projectId?: string) {
-  return useQuery({
-    queryKey: ['skills', 'updates', projectId ?? ''],
-    queryFn: () => kanbanApi.getSkillUpdates(projectId),
-    staleTime: 5 * 60 * 1000,
+/** Asks GitHub whether a skill has a newer version; only ever on the user's request. */
+export function useCheckSkillUpdates() {
+  return useMutation({
+    mutationFn: (q: { projectId?: string, location?: SkillLocation, name?: string }) => kanbanApi.getSkillUpdates(q),
   })
 }
 

@@ -1,5 +1,6 @@
 import { cn } from 'cn'
 import { Upload } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -210,6 +211,50 @@ export function InstallSkillDialog({ open, onOpenChange, projectId }: {
         </SheetFooter>
       </SheetContent>
     </Sheet>
+  )
+}
+
+/**
+ * Picks which installed skills to update; nothing runs until the user confirms.
+ * Skills known to have an update come pre-selected.
+ */
+export function UpdateSkillsDialog({ open, onOpenChange, skills, preselected, renderStatus, onConfirm }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  skills: SkillInfo[]
+  preselected: string[]
+  renderStatus: (skill: SkillInfo) => ReactNode
+  onConfirm: (names: string[]) => void
+}) {
+  const { t } = useTranslation()
+  const [picked, setPicked] = useState(preselected)
+  const toggle = (name: string) => setPicked(list => (list.includes(name) ? list.filter(n => n !== name) : [...list, name]))
+  // In list order, whatever order they were ticked in
+  const names = skills.map(s => s.name).filter(name => picked.includes(name))
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t('skills.updateTitle')}</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">{t('skills.updatePick')}</p>
+        <div className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2">
+          {skills.map(s => (
+            <label key={s.name} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-accent/50">
+              <input type="checkbox" checked={picked.includes(s.name)} onChange={() => toggle(s.name)} aria-label={s.name} />
+              <span className="min-w-0 flex-1 truncate" title={s.name}>{s.name}</span>
+              {renderStatus(s)}
+            </label>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+          <Button type="button" disabled={!names.length} onClick={() => onConfirm(names)}>
+            {t('skills.updateRun', { count: names.length })}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

@@ -59,8 +59,9 @@ skillsRoutes.openapi(R.listSkillsRoute, async (c) => {
 // GET /api/skills/updates
 skillsRoutes.openapi(R.skillUpdatesRoute, async (c) => {
   try {
-    const { projectId } = c.req.valid('query')
-    const updates = await checkSkillUpdates(await projectDir(projectId, false))
+    const { projectId, location, name } = c.req.valid('query')
+    const only = location && name ? { location, name } : undefined
+    const updates = await checkSkillUpdates(await projectDir(projectId, false), only)
     return c.json({ success: true as const, data: { updates } }, 200 as const)
   } catch (err) {
     return fail(c, err, 'check_updates') as never

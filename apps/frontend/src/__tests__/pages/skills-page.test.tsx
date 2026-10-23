@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   operations: {} as Record<string, unknown>,
   updates: [] as { location: string, name: string, status: string }[],
   upload: vi.fn(),
+  check: vi.fn(),
   isMobile: false,
 }))
 
@@ -54,7 +55,7 @@ vi.mock('@/hooks/use-skills', () => ({
   useStartSkillsOperation: () => ({ mutate: mocks.start, isPending: false, error: null, reset: vi.fn() }),
   useSkillsOperation: (id?: string) => ({ data: id ? mocks.operations[id] : undefined }),
   useCancelSkillsOperation: () => ({ mutate: vi.fn() }),
-  useSkillUpdates: () => ({ data: { updates: mocks.updates } }),
+  useCheckSkillUpdates: () => ({ mutate: mocks.check, isPending: false }),
   useUploadSkills: () => ({ mutate: mocks.upload, isPending: false, error: null, reset: vi.fn(), data: undefined }),
   useSkillFiles: () => ({ data: mocks.files }),
   useSkillFile: () => ({ data: { path: 'SKILL.md', content: '---\nname: x\n---\nbody', binary: false } }),
@@ -80,6 +81,12 @@ async function pickProject(name: string) {
   fireEvent.pointerUp(option)
   fireEvent.mouseUp(option)
   fireEvent.click(option)
+}
+
+/** A check answers with the statuses in `mocks.updates` for the skill asked about. */
+function answerChecks() {
+  mocks.check.mockImplementation((q: { name?: string }, opts: { onSuccess: (d: { updates: typeof mocks.updates }) => void }) =>
+    opts.onSuccess({ updates: mocks.updates.filter(u => !q.name || u.name === q.name) }))
 }
 
 function renderPage() {
@@ -388,9 +395,12 @@ describe('skills page CLI operations', () => {
   it('keeps the update dialog open while the update runs', () => {
     mocks.start.mockImplementation((_input: unknown, opts: { onSuccess: (o: { id: string }) => void }) => opts.onSuccess({ id: 'u1' }))
     mocks.operations.u1 = op('u1', { op: 'update', status: 'running' })
+    answerChecks()
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /pma/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Check for updates' }))
     fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Update selected (1)' }))
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).queryByRole('button', { name: 'Close' })).toBeNull()
     fireEvent.keyDown(dialog, { key: 'Escape' })
@@ -411,9 +421,12 @@ describe('skills page CLI operations', () => {
   it('shows the CLI output of a running operation', () => {
     mocks.start.mockImplementation((_input: unknown, opts: { onSuccess: (o: { id: string }) => void }) => opts.onSuccess({ id: 'u1' }))
     mocks.operations.u1 = op('u1', { op: 'update', output: ['Updating pma…'] })
+    answerChecks()
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /pma/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Check for updates' }))
     fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Update selected (1)' }))
     expect(mocks.start).toHaveBeenCalledWith({ op: 'update', names: ['pma'], scope: 'global' }, expect.anything())
     expect(screen.getByText('Updating pma…')).toBeInTheDocument()
   })
@@ -450,43 +463,91 @@ describe('skills page CLI operations', () => {
   })
 })
 
-describe('skills page update status', () => {
+describe('skills page update checks', () => {
   beforeEach(async () => {
     mocks.start.mockReset()
+    mocks.check.mockReset()
     mocks.cliAvailable = true
     mocks.skills = [
       skill({ name: 'fresh', managed: true, source: 'a/repo' }),
       skill({ name: 'stale', managed: true, source: 'a/repo' }),
       skill({ name: 'gone', managed: true, source: 'a/repo' }),
+      skill({ name: 'mine' }),
     ]
     mocks.updates = [
       { location: 'global-agents', name: 'fresh', status: 'latest' },
       { location: 'global-agents', name: 'stale', status: 'update' },
       { location: 'global-agents', name: 'gone', status: 'removed' },
     ]
+    answerChecks()
     await i18n.changeLanguage('en')
   })
 
-  it('marks skills with an update or a removed source, and counts updates', () => {
+  it('checks nothing until asked', () => {
     renderPage()
-    expect(within(screen.getByRole('button', { name: /^stale/ })).getByText('Update available')).toBeInTheDocument()
-    expect(within(screen.getByRole('button', { name: /^gone/ })).getByText('Removed from source')).toBeInTheDocument()
-    expect(within(screen.getByRole('button', { name: /^fresh/ })).queryByText('Update available')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Update all (1)' })).toBeEnabled()
+    expect(mocks.check).not.toHaveBeenCalled()
+    expect(screen.queryByText('Update available')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Update all' })).toBeEnabled()
   })
 
-  it('offers Update only when there is one', () => {
+  it('checks one installed skill on request and offers Update only when there is one', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /^fresh/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Check for updates' }))
+    expect(mocks.check).toHaveBeenLastCalledWith({ location: 'global-agents', name: 'fresh' }, expect.anything())
+    expect(screen.getByText('Up to date')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Update' })).toBeNull()
+
     fireEvent.click(screen.getByRole('button', { name: /^stale/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Check for updates' }))
+    expect(within(screen.getByRole('button', { name: /^stale/ })).getByText('Update available')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Update' })).toBeInTheDocument()
   })
 
-  it('disables Update all when everything is current', () => {
-    mocks.updates = mocks.updates.map(u => ({ ...u, status: 'latest' }))
+  it('offers no check for a local skill', () => {
     renderPage()
-    expect(screen.getByRole('button', { name: 'Update all (0)' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /^mine/ }))
+    expect(screen.queryByRole('button', { name: 'Check for updates' })).toBeNull()
+  })
+
+  it('confirms which skills to update before running the CLI', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /^stale/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Check for updates' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+    expect(mocks.start).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('dialog')
+    // The skill with a known update comes pre-selected; the others do not
+    expect(within(dialog).getByRole('checkbox', { name: /stale/ })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: /fresh/ })).not.toBeChecked()
+    expect(within(dialog).queryByRole('checkbox', { name: /mine/ })).toBeNull()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Update selected (1)' }))
+    expect(mocks.start).toHaveBeenCalledWith({ op: 'update', names: ['stale'], scope: 'global' }, expect.anything())
+  })
+
+  it('lets Update all pick from every installed global skill, nothing pre-selected without a check', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Update all' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getAllByRole('checkbox').map(c => (c as HTMLInputElement).checked)).toEqual([false, false, false])
+    expect(within(dialog).getByRole('button', { name: 'Update selected (0)' })).toBeDisabled()
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /fresh/ }))
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /gone/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Update selected (2)' }))
+    expect(mocks.start).toHaveBeenCalledWith({ op: 'update', names: ['fresh', 'gone'], scope: 'global' }, expect.anything())
+  })
+
+  it('offers Update directly for a project skill, which cannot be checked, after confirming', async () => {
+    mocks.skills = [skill({ name: 'deploy', location: 'project-agents', scope: 'project', managed: true, source: 'a/repo' })]
+    renderPage()
+    await pickProject('Proj')
+    fireEvent.click(screen.getByRole('button', { name: /deploy/ }))
+    expect(screen.queryByRole('button', { name: 'Check for updates' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('checkbox', { name: /deploy/ })).toBeChecked()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Update selected (1)' }))
+    expect(mocks.start).toHaveBeenCalledWith({ op: 'update', names: ['deploy'], scope: 'project', projectId: 'p1' }, expect.anything())
   })
 })
 

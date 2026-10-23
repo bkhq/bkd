@@ -710,8 +710,11 @@ export const kanbanApi = {
     names?: string[]
     agents?: ('claude-code' | 'codex')[]
   }) => post<SkillsOperation>('/api/skills/operations', data),
-  getSkillUpdates: (projectId?: string) =>
-    get<{ updates: SkillUpdateStatus[] }>(`/api/skills/updates${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  /** Without `location` and `name`, every installed skill is checked. */
+  getSkillUpdates: (q: { projectId?: string, location?: SkillLocation, name?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => !!e[1])).toString()
+    return get<{ updates: SkillUpdateStatus[] }>(`/api/skills/updates${qs ? `?${qs}` : ''}`)
+  },
   uploadSkills: (file: File, scope: 'global' | 'project', projectId?: string) => {
     const fd = new FormData()
     fd.append('scope', scope)

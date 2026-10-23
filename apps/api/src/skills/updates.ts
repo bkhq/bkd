@@ -1,16 +1,16 @@
 import { dirname } from 'node:path'
 import process from 'node:process'
-import type { SkillUpdateStatus } from '@bkd/shared'
+import type { SkillLocation, SkillUpdateStatus } from '@bkd/shared'
 import { globalRoots, isHomeDir, listSkills, projectRoots, readLock } from './service'
 
 /*
  * Whether an installed skill has a newer version: the lock records the git
  * tree hash of the skill folder at install time (`skillFolderHash`); GitHub's
  * tree API gives the current one. This is the comparison `skills update`
- * makes, done read-only and once per source repository and ref, cached.
+ * makes, done read-only and once per source repository and ref in a check.
+ * Checks run only when the user asks, so nothing is cached between them.
  */
 
-const CACHE_MS = 10 * 60 * 1000
 const SOURCE_RE = /^[\w.-]+\/[\w.-]+$/
 
 export interface GithubTree {
@@ -36,16 +36,10 @@ const githubFetcher: GithubTreeFetcher = async (source, ref) => {
 }
 
 let fetcher: GithubTreeFetcher = githubFetcher
-const cache = new Map<string, { at: number, tree: Promise<FolderHashes | null> }>()
 
 /** Tests replace GitHub; `null` restores it. */
 export function setGithubTreeFetcher(next: GithubTreeFetcher | null): void {
   fetcher = next ?? githubFetcher
-  cache.clear()
-}
-
-export function resetSkillUpdateCache(): void {
-  cache.clear()
 }
 
 interface FolderHashes {
@@ -57,10 +51,7 @@ interface FolderHashes {
 
 /** Folder hashes of a repository at a ref, or null when it cannot be read. */
 function folderHashes(source: string, ref?: string): Promise<FolderHashes | null> {
-  const key = `${source}#${ref ?? ''}`
-  const hit = cache.get(key)
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.tree
-  const tree = fetcher(source, ref)
+  return fetcher(source, ref)
     .then((t) => {
       const map = new Map<string, string>([['', t.sha]])
       for (const e of t.tree) {
@@ -69,12 +60,22 @@ function folderHashes(source: string, ref?: string): Promise<FolderHashes | null
       return { hashes: map, truncated: !!t.truncated }
     })
     .catch(() => null)
-  cache.set(key, { at: Date.now(), tree })
-  return tree
 }
 
-export async function checkSkillUpdates(projectDir?: string | null): Promise<SkillUpdateStatus[]> {
-  const skills = (await listSkills(projectDir)).filter(s => s.managed)
+/** Update status of installed skills, or of the one named by `only`. */
+export async function checkSkillUpdates(
+  projectDir?: string | null,
+  only?: { location: SkillLocation, name: string },
+): Promise<SkillUpdateStatus[]> {
+  const skills = (await listSkills(projectDir))
+    .filter(s => s.managed && (!only || (s.location === only.location && s.name === only.name)))
+  // One request per source repository and ref within this check
+  const repos = new Map<string, Promise<FolderHashes | null>>()
+  const repoAt = (source: string, ref?: string) => {
+    const key = `${source}#${ref ?? ''}`
+    if (!repos.has(key)) repos.set(key, folderHashes(source, ref))
+    return repos.get(key)!
+  }
   const locks = {
     global: await readLock(globalRoots().lockFile) ?? {},
     project: projectDir && !(await isHomeDir(projectDir)) ? await readLock(projectRoots(projectDir).lockFile) ?? {} : {},
@@ -85,7 +86,7 @@ export async function checkSkillUpdates(projectDir?: string | null): Promise<Ski
     if (!entry?.source || !SOURCE_RE.test(entry.source) || (entry.sourceType && entry.sourceType !== 'github') || !entry.skillPath || !entry.skillFolderHash) {
       return { ...base, status: 'unknown' }
     }
-    const repo = await folderHashes(entry.source, entry.ref || undefined)
+    const repo = await repoAt(entry.source, entry.ref || undefined)
     if (!repo) return { ...base, status: 'unknown' }
     const folder = dirname(entry.skillPath) === '.' ? '' : dirname(entry.skillPath)
     const remote = repo.hashes.get(folder)

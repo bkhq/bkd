@@ -7,7 +7,7 @@ import { FileEditor } from '@/components/files/FileEditor'
 import { TreePane } from '@/components/files/TreePane'
 import { TreeRow } from '@/components/files/TreeRow'
 import { AppSidebar } from '@/components/kanban/AppSidebar'
-import { InstallSkillDialog, OperationDialog, UninstallSkillDialog, UploadSkillDialog } from '@/components/skills/SkillOperations'
+import { InstallSkillDialog, OperationDialog, UninstallSkillDialog, UpdateSkillsDialog, UploadSkillDialog } from '@/components/skills/SkillOperations'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import {
   AlertDialog,
@@ -29,6 +29,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useProjects } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
+  useCheckSkillUpdates,
   useCopySkill,
   useCreateSkill,
   useDeleteSkill,
@@ -36,7 +37,6 @@ import {
   useSkillFile,
   useSkillFiles,
   useSkills,
-  useSkillUpdates,
   useStartSkillsOperation,
 } from '@/hooks/use-skills'
 import type { PathTreeNode } from '@/lib/path-tree'
@@ -65,6 +65,11 @@ function githubFolderHref(sourceUrl: string | null, sourcePath: string | null, s
   return `${repo.replace(/\/+$/, '')}/tree/${encodeURIComponent(sourceRef ?? 'HEAD')}/${sourcePath.split('/').map(encodeURIComponent).join('/')}`
 }
 
+/** Update status can be read for installed global skills from a GitHub `owner/repo` source. */
+function isCheckable(skill: SkillInfo): boolean {
+  return skill.managed && skill.scope === 'global' && /^[\w.-]+\/[\w.-]+$/.test(skill.source ?? '')
+}
+
 function skillKey(skill: Pick<SkillInfo, 'location' | 'name'>): string {
   return `${skill.location}/${skill.name}`
 }
@@ -77,16 +82,24 @@ export default function SkillsPage() {
   const { data, isLoading } = useSkills(projectId || undefined)
   const [query, setQuery] = useState('')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
-  const [dialog, setDialog] = useState<'create' | 'copy' | 'delete' | 'install' | 'upload' | 'uninstall' | 'operation' | null>(null)
+  const [dialog, setDialog] = useState<'create' | 'copy' | 'delete' | 'install' | 'upload' | 'uninstall' | 'update' | 'operation' | null>(null)
   const startOperation = useStartSkillsOperation()
   const [operation, setOperation] = useState<{ id: string, title: string }>()
   const cliAvailable = data?.cliAvailable ?? false
-  const { data: updatesData } = useSkillUpdates(projectId || undefined)
-  const updateStatus = useMemo(
-    () => new Map((updatesData?.updates ?? []).map(u => [`${u.location}/${u.name}`, u.status])),
-    [updatesData],
+  // Update status is only known for skills the user asked to check
+  const checkUpdates = useCheckSkillUpdates()
+  const [checked, setChecked] = useState<Record<string, SkillUpdateStatus['status']>>({})
+  const updateStatus = useMemo(() => new Map(Object.entries(checked)), [checked])
+  const checkOne = (skill: SkillInfo) => checkUpdates.mutate(
+    { location: skill.location, name: skill.name },
+    { onSuccess: ({ updates }) => setChecked(prev => ({ ...prev, ...Object.fromEntries(updates.map(u => [`${u.location}/${u.name}`, u.status])) })) },
   )
-  const globalUpdates = (updatesData?.updates ?? []).filter(u => u.status === 'update' && u.location.startsWith('global')).length
+  // The update dialog lists one scope's installed skills; the user ticks which to update
+  const [updatePick, setUpdatePick] = useState<{ scope: 'global' | 'project', preselected: string[] }>()
+  const openUpdate = (scope: 'global' | 'project', preselected: string[]) => {
+    setUpdatePick({ scope, preselected })
+    setDialog('update')
+  }
   const runUpdate = (names: string[], scope: 'global' | 'project', title: string) => {
     startOperation.mutate(
       { op: 'update', ...(names.length ? { names } : {}), scope, ...(scope === 'project' ? { projectId } : {}) },
@@ -148,12 +161,12 @@ export default function SkillsPage() {
             <Button
               size="sm"
               variant="outline"
-              disabled={!cliAvailable || globalUpdates === 0}
+              disabled={!cliAvailable || !skills.some(s => s.managed && s.scope === 'global')}
               title={cliAvailable ? undefined : t('skills.cliUnavailable')}
-              onClick={() => runUpdate([], 'global', t('skills.updateAll'))}
+              onClick={() => openUpdate('global', skills.filter(s => s.scope === 'global' && updateStatus.get(skillKey(s)) === 'update').map(s => s.name))}
             >
               <RefreshCw className="h-4 w-4" />
-              {`${t('skills.updateAll')} (${globalUpdates})`}
+              {t('skills.updateAll')}
             </Button>
             <Button size="sm" variant="outline" onClick={() => setDialog('upload')}>
               <Upload className="h-4 w-4" />
@@ -255,7 +268,9 @@ export default function SkillsPage() {
                           updateStatus={updateStatus.get(skillKey(selected))}
                           onCopy={() => setDialog('copy')}
                           onDelete={() => setDialog('delete')}
-                          onUpdate={() => runUpdate([selected.name], selected.scope, `${t('skills.update')} ${selected.name}`)}
+                          checking={checkUpdates.isPending}
+                          onCheck={isCheckable(selected) ? () => checkOne(selected) : undefined}
+                          onUpdate={() => openUpdate(selected.scope, [selected.name])}
                           onUninstall={() => setDialog('uninstall')}
                           onBack={isMobile ? clearSelection : undefined}
                         />
@@ -282,6 +297,25 @@ export default function SkillsPage() {
         projectId={projectId || undefined}
         onUploaded={skill => setSelectedKey(skillKey(skill))}
       />
+      {updatePick
+        ? (
+            <UpdateSkillsDialog
+              // Remount per opening, so the ticks start from this opening's pre-selection
+              key={`${updatePick.scope}:${updatePick.preselected.join(',')}`}
+              open={dialog === 'update'}
+              onOpenChange={open => setDialog(open ? 'update' : null)}
+              skills={skills.filter(s => s.managed && s.scope === updatePick.scope)}
+              preselected={updatePick.preselected}
+              renderStatus={s => <UpdateBadge status={updateStatus.get(skillKey(s))} />}
+              onConfirm={(names) => {
+                // Their status is stale once updated
+                const stale = new Set(skills.filter(s => s.scope === updatePick.scope && names.includes(s.name)).map(skillKey))
+                setChecked(prev => Object.fromEntries(Object.entries(prev).filter(([key]) => !stale.has(key))))
+                runUpdate(names, updatePick.scope, names.length === 1 ? `${t('skills.update')} ${names[0]}` : t('skills.updateTitle'))
+              }}
+            />
+          )
+        : null}
       <OperationDialog
         open={dialog === 'operation'}
         onOpenChange={open => setDialog(open ? 'operation' : null)}
@@ -362,11 +396,14 @@ function UpdateBadge({ status }: { status?: SkillUpdateStatus['status'] }) {
   return null
 }
 
-function SkillDetail({ skill, projectId, cliAvailable, updateStatus, onCopy, onDelete, onUpdate, onUninstall, onBack }: {
+function SkillDetail({ skill, projectId, cliAvailable, updateStatus, checking, onCheck, onCopy, onDelete, onUpdate, onUninstall, onBack }: {
   skill: SkillInfo
   projectId?: string
   cliAvailable: boolean
   updateStatus?: SkillUpdateStatus['status']
+  checking: boolean
+  /** Installed global skills with a GitHub source only: ask GitHub for a newer version. */
+  onCheck?: () => void
   onCopy: () => void
   onDelete: () => void
   onUpdate: () => void
@@ -451,7 +488,20 @@ function SkillDetail({ skill, projectId, cliAvailable, updateStatus, onCopy, onD
           {skill.managed
             ? (
                 <>
-                  {updateStatus === 'update'
+                  {onCheck
+                    ? (
+                        <>
+                          {updateStatus === 'latest' ? <span className="text-xs text-muted-foreground">{t('skills.upToDate')}</span> : null}
+                          {updateStatus === 'unknown' ? <span className="text-xs text-muted-foreground">{t('skills.checkFailed')}</span> : null}
+                          <Button size="sm" variant="outline" disabled={checking} onClick={onCheck}>
+                            <RefreshCw className={cn('h-3.5 w-3.5', checking && 'animate-spin')} />
+                            {checking ? t('skills.checking') : t('skills.checkUpdate')}
+                          </Button>
+                        </>
+                      )
+                    : null}
+                  {/* A project skill cannot be checked: the CLI decides when it updates */}
+                  {updateStatus === 'update' || skill.scope === 'project'
                     ? (
                         <Button size="sm" variant="outline" disabled={!cliAvailable} title={cliAvailable ? undefined : t('skills.cliUnavailable')} onClick={onUpdate}>
                           <RefreshCw className="h-3.5 w-3.5" />

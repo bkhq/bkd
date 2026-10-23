@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { strToU8, zipSync } from 'fflate'
 import app from '@/app'
 import type { GithubTreeFetcher } from '@/skills/updates'
-import { resetSkillUpdateCache, setGithubTreeFetcher } from '@/skills/updates'
+import { setGithubTreeFetcher } from '@/skills/updates'
 import { expectSuccess, get } from './helpers'
 /**
  * Update status of installed skills (GitHub tree hashes vs the lock file, with a
@@ -63,7 +63,6 @@ beforeAll(() => {
 
 afterEach(() => {
   fetches = []
-  resetSkillUpdateCache()
 })
 
 afterAll(() => {
@@ -103,14 +102,21 @@ describe('GET /api/skills/updates', () => {
     expect(byName.pinned).toBe('removed')
   })
 
-  test('caches GitHub answers between requests', async () => {
+  test('asks GitHub again on every check: checks are user-triggered and must be current', async () => {
     trees = { 'a/repo': { sha: 'root', tree: [] }, 'a/repo@v1': { sha: 'root-v1', tree: [] }, 'b/missing': { sha: 'h-x', tree: [] } }
     await get('/api/skills/updates')
     await get('/api/skills/updates')
-    expect(fetches.length).toBe(3)
+    expect(fetches.length).toBe(6)
     // A root-level skill compares against the repository root tree
     const data = expectSuccess(await get<{ updates: UpdateStatus[] }>('/api/skills/updates'))
     expect(data.updates.find(u => u.name === 'other')?.status).toBe('latest')
+  })
+
+  test('checks one skill when asked, reading only its source', async () => {
+    trees = { 'a/repo': { sha: 'root', tree: [{ path: 'skills/stale', type: 'tree', sha: 'h-new' }] } }
+    const data = expectSuccess(await get<{ updates: UpdateStatus[] }>('/api/skills/updates?location=global-agents&name=stale'))
+    expect(data.updates).toEqual([{ location: 'global-agents', name: 'stale', status: 'update' }])
+    expect(fetches).toEqual(['a/repo'])
   })
 })
 

@@ -570,6 +570,12 @@ export const SkillProjectQuerySchema = z.object({
   projectId: z.string().min(1).max(100).optional(),
 })
 
+/** Without `location` and `name`, every installed skill is checked. */
+export const SkillUpdatesQuerySchema = SkillProjectQuerySchema.extend({
+  location: SkillLocationSchema.optional(),
+  name: skillName.optional(),
+})
+
 export const SkillFileQuerySchema = SkillProjectQuerySchema.extend({
   path: z.string().min(1).max(1000),
 })
