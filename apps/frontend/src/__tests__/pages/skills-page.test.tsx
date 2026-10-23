@@ -328,6 +328,27 @@ describe('skills page CLI operations', () => {
     await i18n.changeLanguage('en')
   })
 
+  it('closes the uninstall dialog for good once the uninstall succeeds', () => {
+    mocks.skills = [
+      skill({ name: 'pma', managed: true, source: 'zzci/skills' }),
+      skill({ name: 'other', managed: true, source: 'zzci/skills' }),
+    ]
+    mocks.start.mockImplementation((_input, opts) => opts.onSuccess({ id: 'u1' }))
+    const { rerender } = renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /pma/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Uninstall' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Uninstall' }))
+
+    mocks.operations.u1 = op('u1', { op: 'remove', status: 'succeeded' })
+    mocks.skills = [skill({ name: 'other', managed: true, source: 'zzci/skills' })]
+    rerender(<MemoryRouter><SkillsPage /></MemoryRouter>)
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+
+    // Selecting another skill must not bring the dialog back
+    fireEvent.click(screen.getByRole('button', { name: /other/ }))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+  })
+
   it('previews a repository, then installs the chosen skills', () => {
     mocks.start.mockImplementation((input: { op: string }, opts: { onSuccess: (o: { id: string }) => void }) => opts.onSuccess({ id: input.op === 'preview' ? 'p1' : 'a1' }))
     const { rerender } = renderPage()

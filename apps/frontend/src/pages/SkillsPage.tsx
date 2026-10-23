@@ -109,6 +109,11 @@ export default function SkillsPage() {
   ]
   const selected = skills.find(s => skillKey(s) === selectedKey) ?? null
   const clearSelection = useCallback(() => setSelectedKey(null), [])
+  // The uninstalled skill is gone: close its dialog too, or it reopens on the next selection
+  const closeUninstalled = useCallback(() => {
+    setDialog(null)
+    setSelectedKey(null)
+  }, [])
   // A small screen shows the list or the open skill, not both
   const showList = !isMobile || !selected
   const showDetail = !isMobile || !!selected
@@ -218,7 +223,11 @@ export default function SkillsPage() {
                                       skill={skill}
                                       active={skillKey(skill) === selectedKey}
                                       updateStatus={updateStatus.get(skillKey(skill))}
-                                      onSelect={() => setSelectedKey(skillKey(skill))}
+                                      onSelect={() => {
+                                        // A dialog belongs to the skill it was opened for
+                                        setDialog(null)
+                                        setSelectedKey(skillKey(skill))
+                                      }}
                                     />
                                   ))}
                                 </div>
@@ -307,7 +316,7 @@ export default function SkillsPage() {
                 onOpenChange={open => setDialog(open ? 'uninstall' : null)}
                 skill={selected}
                 projectId={projectId || undefined}
-                onDone={clearSelection}
+                onDone={closeUninstalled}
               />
             </>
           )
