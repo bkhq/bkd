@@ -95,9 +95,10 @@ export default function SkillsPage() {
     { onSuccess: ({ updates }) => setChecked(prev => ({ ...prev, ...Object.fromEntries(updates.map(u => [`${u.location}/${u.name}`, u.status])) })) },
   )
   // The update dialog lists one scope's installed skills; the user ticks which to update
-  const [updatePick, setUpdatePick] = useState<{ scope: 'global' | 'project', preselected: string[] }>()
+  // `opening` counts openings, so every opening remounts the dialog with fresh ticks
+  const [updatePick, setUpdatePick] = useState<{ scope: 'global' | 'project', preselected: string[], opening: number }>()
   const openUpdate = (scope: 'global' | 'project', preselected: string[]) => {
-    setUpdatePick({ scope, preselected })
+    setUpdatePick(prev => ({ scope, preselected, opening: (prev?.opening ?? 0) + 1 }))
     setDialog('update')
   }
   const runUpdate = (names: string[], scope: 'global' | 'project', title: string) => {
@@ -301,7 +302,7 @@ export default function SkillsPage() {
         ? (
             <UpdateSkillsDialog
               // Remount per opening, so the ticks start from this opening's pre-selection
-              key={`${updatePick.scope}:${updatePick.preselected.join(',')}`}
+              key={updatePick.opening}
               open={dialog === 'update'}
               onOpenChange={open => setDialog(open ? 'update' : null)}
               skills={skills.filter(s => s.managed && s.scope === updatePick.scope)}

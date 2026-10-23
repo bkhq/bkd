@@ -537,6 +537,15 @@ describe('skills page update checks', () => {
     expect(mocks.start).toHaveBeenCalledWith({ op: 'update', names: ['fresh', 'gone'], scope: 'global' }, expect.anything())
   })
 
+  it('starts each opening of the update dialog from its pre-selection, not from a cancelled pick', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Update all' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('checkbox', { name: /fresh/ }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Update all' }))
+    expect(within(screen.getByRole('dialog')).getByRole('checkbox', { name: /fresh/ })).not.toBeChecked()
+  })
+
   it('offers Update directly for a project skill, which cannot be checked, after confirming', async () => {
     mocks.skills = [skill({ name: 'deploy', location: 'project-agents', scope: 'project', managed: true, source: 'a/repo' })]
     renderPage()
