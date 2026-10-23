@@ -152,7 +152,14 @@ async function claudeLinks(roots: Roots): Promise<Set<string>> {
   return linked
 }
 
-async function scan(roots: Roots, scope: 'global' | 'project'): Promise<SkillInfo[]> {
+/** Whether `dir` resolves inside `root` (both realpath'd), so a symlink cannot lead elsewhere. */
+async function resolvesInside(dir: string, root: string): Promise<boolean> {
+  const [real, base] = await Promise.all([realpath(dir).catch(() => null), realpath(root).catch(() => resolve(root))])
+  return !!real && real.startsWith(base + sep)
+}
+
+/** `confine`: a project directory every skill must resolve inside; a checkout may link anywhere. */
+async function scan(roots: Roots, scope: 'global' | 'project', confine?: string): Promise<SkillInfo[]> {
   const lock = await readLock(roots.lockFile)
   const linked = await claudeLinks(roots)
   const skills: SkillInfo[] = []
@@ -160,6 +167,7 @@ async function scan(roots: Roots, scope: 'global' | 'project'): Promise<SkillInf
   for (const entry of await readEntries(roots.agents)) {
     if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
     const dir = join(roots.agents, entry.name)
+    if (confine && !(await resolvesInside(dir, confine))) continue
     const meta = await readDescription(dir)
     if (!meta) continue
     const locked = lock?.[entry.name]
@@ -217,7 +225,7 @@ export async function isHomeDir(dir: string): Promise<boolean> {
 export async function listSkills(projectDir?: string | null): Promise<SkillInfo[]> {
   const global = await scan(globalRoots(), 'global')
   if (!projectDir || await isHomeDir(projectDir)) return global
-  return [...global, ...await scan(projectRoots(projectDir), 'project')]
+  return [...global, ...await scan(projectRoots(projectDir), 'project', projectDir)]
 }
 
 export async function assertProjectScope(scope: 'global' | 'project', projectDir?: string | null): Promise<void> {

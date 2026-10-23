@@ -231,3 +231,24 @@ describe('CLAUDE_CONFIG_DIR', () => {
     }
   })
 })
+
+describe('project store symlinks', () => {
+  test('ignores a project skill that links outside the project', async () => {
+    // A checkout could link .agents/skills/<name> to any directory with a SKILL.md
+    const outside = mkdtempSync(join(tmpdir(), 'bkd-skills-outside-'))
+    writeSkill(outside, 'escape', 'Outside the project')
+    symlinkSync(join(outside, 'escape'), join(projectDir, '.agents/skills/escape'))
+    try {
+      const data = expectSuccess(await get<{ skills: Skill[] }>(`/api/skills?projectId=${projectId}`))
+      expect(data.skills.find(s => s.name === 'escape')).toBeUndefined()
+      // Links inside the project (.claude/skills -> ../../.agents/skills) still count
+      expect(data.skills.find(s => s.name === 'proj-new')?.agents.sort()).toEqual(['claude-code', 'codex'])
+      expectError(await get(`/api/skills/project-agents/escape/file?path=SKILL.md&projectId=${projectId}`), 404)
+      expectError(await put('/api/skills/project-agents/escape/file', { path: 'SKILL.md', content: 'x', projectId }), 404)
+      expect(readFileSync(join(outside, 'escape/SKILL.md'), 'utf8')).toContain('Outside the project')
+    } finally {
+      rmSync(join(projectDir, '.agents/skills/escape'), { force: true })
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+})
