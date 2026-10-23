@@ -1,5 +1,5 @@
 import { render, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { ShikiPatchDiff } from '@/components/issue-detail/CodeRenderers'
 
 /**
@@ -31,6 +31,15 @@ const PATCH = [
 ].join('\n')
 
 describe('shikiPatchDiff', () => {
+  // The component parses the patch with the real @pierre/diffs, imported lazily on
+  // first render. Cold-loading that library takes 300-500 ms (more on a busy
+  // machine) and would otherwise fall inside findByTestId's 1 s window, on top of
+  // React's 300 ms Suspense reveal throttle. Load it here so the test measures the
+  // render, not module loading.
+  beforeAll(async () => {
+    await import('@pierre/diffs')
+  })
+
   it('does not ask a partial diff to expand unchanged lines', async () => {
     const { findByTestId } = render(<ShikiPatchDiff patch={PATCH} filePath="src/a.ts" />)
     await findByTestId('file-diff')
