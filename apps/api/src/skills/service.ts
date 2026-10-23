@@ -141,8 +141,19 @@ async function readDescription(dir: string): Promise<{ name?: string, descriptio
 }
 
 /** Names in `.claude/skills` that are symlinks resolving into the agents store. */
+/** `.claude/skills` linked wholesale to `.agents/skills`: one store seen by both engines. */
+async function claudeIsAgentsStore(roots: Roots): Promise<boolean> {
+  const [claude, agents] = await Promise.all([realpath(roots.claude).catch(() => null), realpath(roots.agents).catch(() => null)])
+  return !!claude && claude === agents
+}
+
 async function claudeLinks(roots: Roots): Promise<Set<string>> {
   const linked = new Set<string>()
+  if (await claudeIsAgentsStore(roots)) {
+    // Claude Code reads the whole store
+    for (const entry of await readEntries(roots.agents)) linked.add(entry.name)
+    return linked
+  }
   const agentsReal = await realpath(roots.agents).catch(() => roots.agents)
   for (const entry of await readEntries(roots.claude)) {
     if (!entry.isSymbolicLink()) continue
@@ -190,9 +201,12 @@ async function scan(roots: Roots, scope: 'global' | 'project', confine?: string)
   }
 
   // Real directories in .claude/skills are Claude Code only; symlinks were counted above.
-  for (const entry of await readEntries(roots.claude)) {
+  // A Claude dir that is the agents store would list every store skill again, editable.
+  const claudeEntries = await claudeIsAgentsStore(roots) ? [] : await readEntries(roots.claude)
+  for (const entry of claudeEntries) {
     if (!entry.isDirectory()) continue
     const dir = join(roots.claude, entry.name)
+    if (confine && !(await resolvesInside(dir, confine))) continue
     const meta = await readDescription(dir)
     if (!meta) continue
     skills.push({
@@ -318,9 +332,18 @@ export async function placeNewSkill(roots: Roots, name: string, fill: (dir: stri
   const link = join(roots.claude, name)
   if (await exists(dir) || await exists(link)) throw new SkillError('A skill with this name already exists', 409)
   await mkdir(roots.agents, { recursive: true })
-  await fill(dir)
-  await mkdir(roots.claude, { recursive: true })
-  await symlink(relative(roots.claude, dir), link)
+  try {
+    await fill(dir)
+    // When .claude/skills is the agents store, Claude Code already sees the new directory
+    if (!(await claudeIsAgentsStore(roots))) {
+      await mkdir(roots.claude, { recursive: true })
+      await symlink(relative(roots.claude, dir), link)
+    }
+  } catch (err) {
+    // A half-made skill would be listed and block the name on every retry
+    await rm(dir, { recursive: true, force: true })
+    throw err
+  }
 }
 
 export async function createSkill(scope: 'global' | 'project', name: string, description: string, projectDir?: string | null): Promise<SkillInfo> {
@@ -342,7 +365,8 @@ export async function copySkill(skill: SkillInfo, newName: string, projectDir?: 
   const location: SkillLocation = skill.scope === 'global' ? 'global-agents' : 'project-agents'
   const { roots } = rootsFor(location, projectDir)
   await placeNewSkill(roots, newName, async (dir) => {
-    await cp(await realpath(skill.path), dir, { recursive: true, dereference: true })
+    // Inner symlinks stay links: following them would copy files from outside the skill
+    await cp(await realpath(skill.path), dir, { recursive: true, verbatimSymlinks: true })
     const skillMd = join(dir, 'SKILL.md')
     const text = await readFile(skillMd, 'utf8')
     await writeFile(skillMd, text.replace(/^(---\r?\n[\s\S]*?)^name:.*$/m, `$1name: ${newName}`), 'utf8')

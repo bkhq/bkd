@@ -252,3 +252,76 @@ describe('project store symlinks', () => {
     }
   })
 })
+
+describe('symlinked Claude stores', () => {
+  test('a Claude dir linked to the agents store adds no editable aliases and still accepts new skills', async () => {
+    // Some setups link ~/.claude/skills to ~/.agents/skills wholesale
+    const claudeConfig = mkdtempSync(join(tmpdir(), 'bkd-skills-claude-alias-'))
+    symlinkSync(join(home, '.agents/skills'), join(claudeConfig, 'skills'))
+    process.env.CLAUDE_CONFIG_DIR = claudeConfig
+    try {
+      const data = expectSuccess(await get<{ skills: Skill[] }>('/api/skills'))
+      expect(data.skills.filter(s => s.location === 'global-claude')).toEqual([])
+      const pma = data.skills.find(s => s.name === 'pma')!
+      expect(pma).toMatchObject({ location: 'global-agents', managed: true })
+      expect(pma.agents.sort()).toEqual(['claude-code', 'codex'])
+      expectSuccess(await post('/api/skills', { scope: 'global', name: 'via-alias', description: 'x' }))
+      expect(lstatSync(join(home, '.agents/skills/via-alias')).isDirectory()).toBe(true)
+    } finally {
+      delete process.env.CLAUDE_CONFIG_DIR
+      rmSync(join(home, '.agents/skills/via-alias'), { recursive: true, force: true })
+      rmSync(claudeConfig, { recursive: true, force: true })
+    }
+  })
+
+  test('ignores project Claude skills reached through a link outside the project', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'bkd-skills-claude-outside-'))
+    writeSkill(outside, 'external', 'Outside the project')
+    const project = mkdtempSync(join(tmpdir(), 'bkd-skills-claude-proj-'))
+    mkdirSync(join(project, '.claude'), { recursive: true })
+    symlinkSync(outside, join(project, '.claude/skills'))
+    const created = expectSuccess(await post<{ id: string }>('/api/projects', { name: 'Linked Claude', directory: project }))
+    try {
+      const data = expectSuccess(await get<{ skills: Skill[] }>(`/api/skills?projectId=${created.id}`))
+      expect(data.skills.find(s => s.name === 'external')).toBeUndefined()
+      expectError(await put('/api/skills/project-claude/external/file', { path: 'SKILL.md', content: 'x', projectId: created.id }), 404)
+    } finally {
+      rmSync(project, { recursive: true, force: true })
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('copy and create edge cases', () => {
+  test('copying keeps an inner symlink a link instead of pulling in what it points to', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'bkd-skills-secret-'))
+    writeFileSync(join(outside, 'secret.txt'), 'host file')
+    writeSkill(join(home, '.agents/skills'), 'has-link', 'Links out')
+    symlinkSync(join(outside, 'secret.txt'), join(home, '.agents/skills/has-link/secret.txt'))
+    try {
+      expectSuccess(await post('/api/skills/global-agents/has-link/copy', { name: 'has-link-copy' }))
+      expect(lstatSync(join(home, '.agents/skills/has-link-copy/secret.txt')).isSymbolicLink()).toBe(true)
+      expectError(await get('/api/skills/global-agents/has-link-copy/file?path=secret.txt'), 400)
+    } finally {
+      for (const n of ['has-link', 'has-link-copy']) rmSync(join(home, '.agents/skills', n), { recursive: true, force: true })
+      rmSync(join(home, '.claude/skills/has-link-copy'), { force: true })
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  test('a failed create leaves nothing behind, so the name can be used again', async () => {
+    // The Claude dir path is a file: linking fails after the skill directory was written
+    const claudeConfig = mkdtempSync(join(tmpdir(), 'bkd-skills-claude-file-'))
+    writeFileSync(join(claudeConfig, 'skills'), 'not a directory')
+    process.env.CLAUDE_CONFIG_DIR = claudeConfig
+    try {
+      const res = await post('/api/skills', { scope: 'global', name: 'half-made', description: 'x' })
+      expect(res.status).toBeGreaterThanOrEqual(400)
+      expect(existsSync(join(home, '.agents/skills/half-made'))).toBe(false)
+    } finally {
+      delete process.env.CLAUDE_CONFIG_DIR
+      rmSync(join(home, '.agents/skills/half-made'), { recursive: true, force: true })
+      rmSync(claudeConfig, { recursive: true, force: true })
+    }
+  })
+})
