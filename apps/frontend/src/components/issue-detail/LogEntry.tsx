@@ -29,7 +29,7 @@ import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import type { PreviewItem } from '@/components/FilePreviewModal'
 import { FilePreviewModal } from '@/components/FilePreviewModal'
-import { compactCommand, getCommandPreview } from '@/lib/command-preview'
+import { compactCommand } from '@/lib/command-preview'
 import { formatDuration, formatFileSize } from '@/lib/format'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import { cn } from 'cn'
@@ -97,8 +97,8 @@ function getToolLabel(
       if (toolName === 'Write') return `${t('session.tool.fileWrite')}: ${action.path}`
       return `${t('session.tool.fileEdit')}: ${action.path}`
     case 'command-run': {
-      const summary = getCommandPreview(action.command, 90).summary
-      return `${t('session.tool.commandRun')}: ${summary}`
+      // Whole command on one line: the row's CSS truncation cuts it at the row width
+      return `${t('session.tool.commandRun')}: ${compactCommand(action.command)}`
     }
     case 'search':
       return `${t('session.tool.search')}: ${action.query}`
@@ -607,12 +607,13 @@ export function LogEntry({
     }
 
     case 'thinking': {
-      const preview = entry.content.length > 80 ? `${entry.content.slice(0, 80)}…` : entry.content
+      // One line, cut by CSS at the row width rather than at a fixed length
+      const preview = entry.content.replace(/\s+/g, ' ').trim()
       return (
         <div className="my-0.5 animate-message-enter">
           <details className="rounded-lg border border-violet-300/20 bg-violet-500/[0.04] dark:border-violet-500/15 overflow-hidden transition-all duration-200 open:bg-violet-500/[0.06]">
             <summary className="cursor-pointer list-none px-3 py-1.5 text-xs text-violet-500/70 dark:text-violet-400/70 hover:bg-violet-500/[0.06] transition-colors">
-              <span className="italic">
+              <span className="block truncate italic">
                 Thinking:
                 {preview}
               </span>

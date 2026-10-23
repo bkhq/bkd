@@ -279,7 +279,8 @@ function NoteListItem({
 }) {
   const { t } = useTranslation()
   const title = note.title || t('notes.untitled')
-  const preview = note.content.slice(0, 80).replace(/\n/g, ' ')
+  // Cut by CSS at the row width; the bound only keeps a huge note out of the DOM
+  const preview = note.content.slice(0, 500).replace(/\s+/g, ' ').trim()
 
   const lastEdited = useMemo(() => {
     const date = new Date(note.updatedAt)
