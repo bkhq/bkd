@@ -63,17 +63,27 @@ export function TurnNavigator({
 
   // When the turn in view changes and its tick is outside the rail, center it,
   // so the highlight never sits in the hidden part. Paging leaves it alone.
+  // Turn count is a dependency too: the rail only mounts once there are two
+  // turns, and new turns can push the current tick out of view.
+  const positionedRef = useRef(false)
   useEffect(() => {
     const rail = railRef.current
     const tick = rail?.querySelector<HTMLElement>('[aria-current="true"]')
     if (!rail || !tick) return
     const top = tick.offsetTop
     const bottom = top + tick.offsetHeight
-    if (top >= rail.scrollTop && bottom <= rail.scrollTop + rail.clientHeight) return
+    if (top >= rail.scrollTop && bottom <= rail.scrollTop + rail.clientHeight) {
+      positionedRef.current = true
+      return
+    }
     const max = Math.max(0, rail.scrollHeight - rail.clientHeight)
+    // The first positioning jumps; later follows keep the smooth scroll
+    if (!positionedRef.current) rail.style.scrollBehavior = 'auto'
     rail.scrollTop = Math.min(max, Math.max(0, top + tick.offsetHeight / 2 - rail.clientHeight / 2))
+    rail.style.scrollBehavior = ''
+    positionedRef.current = true
     syncPaging()
-  }, [activeIndex, syncPaging])
+  }, [activeIndex, turns.length, syncPaging])
 
   const page = (direction: 1 | -1) => {
     const rail = railRef.current
@@ -107,9 +117,9 @@ export function TurnNavigator({
     <nav
       ref={rootRef}
       aria-label={t('session.turnNavigator')}
-      className="pointer-events-none absolute inset-y-[20%] right-1.5 z-10 hidden items-center md:flex"
+      className="pointer-events-none absolute inset-y-[20%] right-4 z-10 hidden items-center md:flex"
     >
-      <div className="pointer-events-auto flex max-h-full flex-col items-end">
+      <div className="pointer-events-auto flex max-h-full flex-col items-end gap-1">
         {paging.overflow
           ? <RailPageButton direction="up" disabled={!paging.canUp} label={t('session.earlierTurns')} onClick={() => page(-1)} />
           : null}
@@ -192,7 +202,10 @@ export function TurnNavigator({
   )
 }
 
-/** Pages the turn rail up or down; disabled at that end. */
+/**
+ * Pages the turn rail up or down; disabled at that end. A 24px hit area,
+ * pulled 7px right so its center matches the tick lines (10px wide, right-aligned).
+ */
 function RailPageButton({ direction, disabled, label, onClick }: {
   direction: 'up' | 'down'
   disabled: boolean
@@ -207,7 +220,7 @@ function RailPageButton({ direction, disabled, label, onClick }: {
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-5 w-4 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+      className="-mr-[7px] flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
     >
       <Icon className="size-3.5" />
     </button>

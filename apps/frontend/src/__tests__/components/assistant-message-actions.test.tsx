@@ -10,10 +10,6 @@ import { useViewModeStore } from '@/stores/view-mode-store'
 
 const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
 
-vi.mock('@/components/files/MarkdownRenderer', () => ({
-  MarkdownRenderer: ({ content }: { content: string }) => <div data-testid="preview">{content}</div>,
-}))
-
 const entry: NormalizedLogEntry = {
   entryType: 'assistant-message',
   messageId: 'm1',
@@ -37,19 +33,33 @@ describe('assistant message actions', () => {
     Object.assign(navigator, { clipboard: { writeText } })
   })
 
-  it('offers view, copy text and copy Markdown', () => {
+  it('offers view source, copy text and copy Markdown on a rendered message', () => {
     renderEntry()
     expect(screen.getByRole('button', { name: 'Copy text' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Copy Markdown' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'View as Markdown' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'View source' })).toBeInTheDocument()
   })
 
-  it('opens the rendered message in a dialog', async () => {
+  it('toggles this message between rendered Markdown and its source in place', () => {
     renderEntry()
+    const body = screen.getByTestId('assistant-message-body')
+    expect(body).toHaveTextContent('Some bold text')
+    fireEvent.click(screen.getByRole('button', { name: 'View source' }))
     expect(screen.queryByRole('dialog')).toBeNull()
+    expect(body).toHaveTextContent('Some **bold** text')
+    // In source view the text is the source, so only copy Markdown remains
+    expect(screen.queryByRole('button', { name: 'Copy text' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'View as Markdown' }))
-    expect(await screen.findByTestId('preview')).toHaveTextContent('Some **bold** text')
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(body).toHaveTextContent('Some bold text')
+  })
+
+  it('starts in source view when the setting turns rendering off, and can render one message', () => {
+    useViewModeStore.setState({ renderMarkdown: false })
+    renderEntry()
+    const body = screen.getByTestId('assistant-message-body')
+    expect(body).toHaveTextContent('Some **bold** text')
+    fireEvent.click(screen.getByRole('button', { name: 'View as Markdown' }))
+    expect(body).toHaveTextContent('Some bold text')
   })
 
   it('uses the user message card shape with its own colour', () => {

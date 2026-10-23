@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Circle,
   Clock,
+  Code,
   Copy,
   Eye,
   FileEdit,
@@ -28,8 +29,6 @@ import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import type { PreviewItem } from '@/components/FilePreviewModal'
 import { FilePreviewModal } from '@/components/FilePreviewModal'
-import { MarkdownRenderer } from '@/components/files/MarkdownRenderer'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { compactCommand, getCommandPreview } from '@/lib/command-preview'
 import { formatDuration, formatFileSize } from '@/lib/format'
 import { useViewModeStore } from '@/stores/view-mode-store'
@@ -657,10 +656,11 @@ function AssistantMessage({
 }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState<'text' | 'markdown' | null>(null)
-  const [viewOpen, setViewOpen] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
-  // In source view the rendered text is the Markdown itself, so one copy action suffices.
-  const renderMarkdown = useViewModeStore(s => s.renderMarkdown)
+  // Each message can flip between rendered Markdown and its source; until it does, it follows the setting.
+  const renderSetting = useViewModeStore(s => s.renderMarkdown)
+  const [renderOverride, setRenderOverride] = useState<boolean | null>(null)
+  const renderMarkdown = renderOverride ?? renderSetting
 
   const copy = (kind: 'text' | 'markdown') => {
     const body = bodyRef.current
@@ -683,16 +683,8 @@ function AssistantMessage({
   return (
     <div className="group py-2 animate-message-enter">
       <div ref={bodyRef} data-testid="assistant-message-body" className="min-w-0 rounded-lg border border-border border-l-[3px] border-l-primary/60 bg-muted/30 px-3 py-2.5">
-        <MarkdownContent content={content} className="text-[14px] leading-[1.75]" isStreaming={isStreaming} />
+        <MarkdownContent content={content} className="text-[14px] leading-[1.75]" isStreaming={isStreaming} render={renderMarkdown} />
       </div>
-      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="w-[90vw] max-w-[90vw] sm:max-w-[90vw] max-h-[90vh] flex flex-col">
-          <DialogTitle className="sr-only">{t('session.viewMessage')}</DialogTitle>
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <MarkdownRenderer content={content} />
-          </div>
-        </DialogContent>
-      </Dialog>
       <div className="flex items-center gap-2 mt-1">
         {timestamp ?
             (
@@ -712,13 +704,14 @@ function AssistantMessage({
         <span className="ml-auto flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
           <button
             type="button"
-            onClick={() => setViewOpen(true)}
+            onClick={() => setRenderOverride(!renderMarkdown)}
             className="rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50 transition-colors duration-150"
-            aria-label={t('session.viewMessage')}
-            title={t('session.viewMessage')}
+            aria-label={renderMarkdown ? t('session.viewSource') : t('session.viewMessage')}
+            title={renderMarkdown ? t('session.viewSource') : t('session.viewMessage')}
           >
-            <Eye className="h-3.5 w-3.5" />
+            {renderMarkdown ? <Code className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
           </button>
+          {/* In source view the text is the Markdown itself, so one copy action suffices */}
           {renderMarkdown ? copyButton('text', t('session.copyText'), Copy) : null}
           {copyButton('markdown', t('session.copyMarkdown'), SquareM)}
         </span>
