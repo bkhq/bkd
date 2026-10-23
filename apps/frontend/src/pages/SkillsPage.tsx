@@ -238,7 +238,8 @@ export default function SkillsPage() {
                   {selected
                     ? (
                         <SkillDetail
-                          key={skillKey(selected)}
+                          // Same-named project skills of two projects are different files: never share drafts
+                          key={selected.scope === 'project' ? `${projectId}:${skillKey(selected)}` : skillKey(selected)}
                           skill={selected}
                           projectId={projectId || undefined}
                           cliAvailable={cliAvailable}

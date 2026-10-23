@@ -46,7 +46,7 @@ vi.mock('@/components/files/MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => <div data-testid="md-preview">{content}</div>,
 }))
 vi.mock('@/hooks/use-kanban', () => ({
-  useProjects: () => ({ data: [{ id: 'p1', name: 'Proj', directory: '/w/proj' }] }),
+  useProjects: () => ({ data: [{ id: 'p1', name: 'Proj', directory: '/w/proj' }, { id: 'p2', name: 'Other', directory: '/w/other' }] }),
 }))
 vi.mock('@/hooks/use-skills', () => ({
   useSkills: () => ({ data: { skills: mocks.skills, cliAvailable: mocks.cliAvailable }, isLoading: false }),
@@ -68,6 +68,18 @@ vi.mock('@/hooks/use-theme', () => ({ useTheme: () => ({ resolved: 'light' }) })
 afterEach(() => {
   mocks.isMobile = false
 })
+
+/** The select only commits on a full pointer sequence, not a bare click. */
+async function pickProject(name: string) {
+  fireEvent.click(screen.getByLabelText('Project skills'))
+  const listbox = await screen.findByRole('listbox')
+  const option = within(listbox).getByText(name).closest('[role="option"]')!
+  fireEvent.pointerDown(option)
+  fireEvent.mouseDown(option)
+  fireEvent.pointerUp(option)
+  fireEvent.mouseUp(option)
+  fireEvent.click(option)
+}
 
 function renderPage() {
   return render(
@@ -150,6 +162,19 @@ describe('skills page', () => {
     fireEvent.click(screen.getByRole('button', { name: /local-notes/ }))
     expect(screen.getByRole('button', { name: /claude-only/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Back to list' })).toBeNull()
+  })
+
+  it('does not carry an unsaved edit into the same-named skill of another project', async () => {
+    mocks.skills = [skill({ name: 'deploy', location: 'project-agents', scope: 'project' })]
+    renderPage()
+    await pickProject('Proj')
+    fireEvent.click(screen.getByRole('button', { name: /deploy/ }))
+    fireEvent.change(await screen.findByLabelText('editor'), { target: { value: 'draft for Proj' } })
+    expect(screen.getByText('Modified')).toBeInTheDocument()
+
+    await pickProject('Other')
+    expect(screen.getByLabelText('editor')).not.toHaveValue('draft for Proj')
+    expect(screen.queryByText('Modified')).toBeNull()
   })
 
   it('creates a skill', () => {
