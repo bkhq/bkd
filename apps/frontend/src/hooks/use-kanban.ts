@@ -378,6 +378,8 @@ export function useDeleteIssue(projectId: string) {
     mutationFn: (issueId: string) => kanbanApi.deleteIssue(projectId, issueId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.issues(projectId) })
+      // The delete route emits no issue-updated event, and the review queue may list the issue
+      queryClient.invalidateQueries({ queryKey: queryKeys.reviewIssues() })
     },
   })
 }
