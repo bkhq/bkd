@@ -6,7 +6,7 @@ import type { SkillAgent, SkillsOperation, SkillsOperationKind } from '@bkd/shar
 import { resolveCommand, spawnNode } from '@/engines/spawn'
 import { logger } from '@/logger'
 import { ulid } from 'ulid'
-import { assertSkillName, listSkills, parseFrontmatter, SkillError } from './service'
+import { assertProjectScope, assertSkillName, listSkills, parseFrontmatter, SkillError } from './service'
 
 /*
  * Install, update and uninstall go through the `skills` CLI (vercel-labs/skills),
@@ -133,6 +133,8 @@ function scopeFlag(scope: 'global' | 'project'): string[] {
 
 async function validate(input: StartOperationInput): Promise<void> {
   if (input.scope === 'project' && !input.projectDir) throw new SkillError('Project has no directory', 400)
+  // A project rooted at HOME would install into the global store under a project lock
+  await assertProjectScope(input.scope, input.projectDir)
   if (input.op === 'preview' || input.op === 'add') {
     if (!input.source || !SOURCE_RE.test(input.source)) throw new SkillError('Source must be owner/repo or a https://github.com/ URL', 400)
   }

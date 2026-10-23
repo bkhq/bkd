@@ -189,3 +189,16 @@ describe('validation and concurrency', () => {
     expect(typeof data.cliAvailable).toBe('boolean')
   })
 })
+
+describe('project whose directory is HOME', () => {
+  test('refuses project-scoped CLI operations: its store is the global one', async () => {
+    const project = expectSuccess(await post<{ id: string }>('/api/projects', { name: 'Home Ops', directory: home }))
+    for (const body of [
+      { op: 'add', source: 'zzci/skills', skills: ['alpha'], scope: 'project', projectId: project.id },
+      { op: 'update', scope: 'project', projectId: project.id },
+    ]) {
+      expectError(await post('/api/skills/operations', body), 400)
+    }
+    expect(calls).toEqual([])
+  })
+})
