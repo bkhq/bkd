@@ -21,9 +21,10 @@ const originalHome = process.env.HOME
 let fetches: string[] = []
 let trees: Record<string, { sha: string, tree: { path: string, type: string, sha: string }[] } | null> = {}
 
-const fakeFetcher: GithubTreeFetcher = async (source) => {
-  fetches.push(source)
-  const tree = trees[source]
+const fakeFetcher: GithubTreeFetcher = async (source, ref) => {
+  const key = ref ? `${source}@${ref}` : source
+  fetches.push(key)
+  const tree = trees[key]
   if (!tree) throw new Error('not found')
   return tree
 }
@@ -44,7 +45,7 @@ beforeAll(() => {
   home = mkdtempSync(join(tmpdir(), 'bkd-skills-upd-home-'))
   process.env.HOME = home
   const store = join(home, '.agents/skills')
-  for (const n of ['fresh', 'stale', 'gone', 'other']) writeSkill(store, n)
+  for (const n of ['fresh', 'stale', 'gone', 'other', 'pinned']) writeSkill(store, n)
   writeSkill(store, 'local-only')
   writeFileSync(join(home, '.agents/.skill-lock.json'), JSON.stringify({
     version: 3,
@@ -53,6 +54,8 @@ beforeAll(() => {
       stale: { source: 'a/repo', sourceType: 'github', skillPath: 'skills/stale/SKILL.md', skillFolderHash: 'h-old' },
       gone: { source: 'a/repo', sourceType: 'github', skillPath: 'skills/gone/SKILL.md', skillFolderHash: 'h-gone' },
       other: { source: 'b/missing', sourceType: 'github', skillPath: 'SKILL.md', skillFolderHash: 'h-x' },
+      // Installed from a tag: compared with that ref, not the default branch
+      pinned: { source: 'a/repo', sourceType: 'github', ref: 'v1', skillPath: 'skills/pinned/SKILL.md', skillFolderHash: 'h-pin' },
     },
   }))
   setGithubTreeFetcher(fakeFetcher)
@@ -76,19 +79,20 @@ describe('GET /api/skills/updates', () => {
         { path: 'skills/fresh', type: 'tree', sha: 'h-fresh' },
         { path: 'skills/stale', type: 'tree', sha: 'h-new' },
       ] },
+      'a/repo@v1': { sha: 'root-v1', tree: [{ path: 'skills/pinned', type: 'tree', sha: 'h-pin' }] },
       'b/missing': null,
     }
     const data = expectSuccess(await get<{ updates: UpdateStatus[] }>('/api/skills/updates'))
     const byName = Object.fromEntries(data.updates.map(u => [u.name, u.status]))
-    expect(byName).toEqual({ fresh: 'latest', stale: 'update', gone: 'removed', other: 'unknown' })
-    expect(fetches.sort()).toEqual(['a/repo', 'b/missing'])
+    expect(byName).toEqual({ fresh: 'latest', stale: 'update', gone: 'removed', other: 'unknown', pinned: 'latest' })
+    expect(fetches.sort()).toEqual(['a/repo', 'a/repo@v1', 'b/missing'])
   })
 
   test('caches GitHub answers between requests', async () => {
-    trees = { 'a/repo': { sha: 'root', tree: [] }, 'b/missing': { sha: 'h-x', tree: [] } }
+    trees = { 'a/repo': { sha: 'root', tree: [] }, 'a/repo@v1': { sha: 'root-v1', tree: [] }, 'b/missing': { sha: 'h-x', tree: [] } }
     await get('/api/skills/updates')
     await get('/api/skills/updates')
-    expect(fetches.length).toBe(2)
+    expect(fetches.length).toBe(3)
     // A root-level skill compares against the repository root tree
     const data = expectSuccess(await get<{ updates: UpdateStatus[] }>('/api/skills/updates'))
     expect(data.updates.find(u => u.name === 'other')?.status).toBe('latest')

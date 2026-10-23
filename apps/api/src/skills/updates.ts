@@ -7,7 +7,7 @@ import { globalRoots, isHomeDir, listSkills, projectRoots, readLock } from './se
  * Whether an installed skill has a newer version: the lock records the git
  * tree hash of the skill folder at install time (`skillFolderHash`); GitHub's
  * tree API gives the current one. This is the comparison `skills update`
- * makes, done read-only and once per source repository, cached.
+ * makes, done read-only and once per source repository and ref, cached.
  */
 
 const CACHE_MS = 10 * 60 * 1000
@@ -18,13 +18,14 @@ export interface GithubTree {
   sha: string
   tree: { path: string, type: string, sha: string }[]
 }
-export type GithubTreeFetcher = (source: string) => Promise<GithubTree>
+/** `ref` is the branch or tag recorded at install time; absent means the default branch. */
+export type GithubTreeFetcher = (source: string, ref?: string) => Promise<GithubTree>
 
-const githubFetcher: GithubTreeFetcher = async (source) => {
+const githubFetcher: GithubTreeFetcher = async (source, ref) => {
   const headers: Record<string, string> = { 'Accept': 'application/vnd.github+json', 'User-Agent': 'bkd' }
   const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN
   if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(`https://api.github.com/repos/${source}/git/trees/HEAD?recursive=1`, {
+  const res = await fetch(`https://api.github.com/repos/${source}/git/trees/${encodeURIComponent(ref ?? 'HEAD')}?recursive=1`, {
     headers,
     signal: AbortSignal.timeout(15_000),
   })
@@ -46,10 +47,11 @@ export function resetSkillUpdateCache(): void {
 }
 
 /** Folder path → tree hash ('' is the repository root), or null when the repo cannot be read. */
-function folderHashes(source: string): Promise<Map<string, string> | null> {
-  const hit = cache.get(source)
+function folderHashes(source: string, ref?: string): Promise<Map<string, string> | null> {
+  const key = `${source}#${ref ?? ''}`
+  const hit = cache.get(key)
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.tree
-  const tree = fetcher(source)
+  const tree = fetcher(source, ref)
     .then((t) => {
       const map = new Map<string, string>([['', t.sha]])
       for (const e of t.tree) {
@@ -58,7 +60,7 @@ function folderHashes(source: string): Promise<Map<string, string> | null> {
       return map
     })
     .catch(() => null)
-  cache.set(source, { at: Date.now(), tree })
+  cache.set(key, { at: Date.now(), tree })
   return tree
 }
 
@@ -74,7 +76,7 @@ export async function checkSkillUpdates(projectDir?: string | null): Promise<Ski
     if (!entry?.source || !SOURCE_RE.test(entry.source) || (entry.sourceType && entry.sourceType !== 'github') || !entry.skillPath || !entry.skillFolderHash) {
       return { ...base, status: 'unknown' }
     }
-    const hashes = await folderHashes(entry.source)
+    const hashes = await folderHashes(entry.source, entry.ref || undefined)
     if (!hashes) return { ...base, status: 'unknown' }
     const folder = dirname(entry.skillPath) === '.' ? '' : dirname(entry.skillPath)
     const remote = hashes.get(folder)
