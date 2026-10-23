@@ -75,4 +75,11 @@ describe('chat blocks', () => {
       expect(button).toHaveClass('text-muted-foreground/30', 'group-hover:text-muted-foreground/60')
     }
   })
+
+  it('gives an assistant reply no side padding: without an outline or tint its text lines up with the rest', () => {
+    const { container } = render(<MemoryRouter><LogEntry entry={ENTRIES[3]![1]} /></MemoryRouter>)
+    expect(container.querySelector('[data-slot="chat-block"]')!.className).not.toMatch(/\bpx-/)
+    const user = render(<MemoryRouter><LogEntry entry={ENTRIES[0]![1]} /></MemoryRouter>)
+    expect(user.container.querySelector('[data-slot="chat-block"]')).toHaveClass('px-3')
+  })
 })

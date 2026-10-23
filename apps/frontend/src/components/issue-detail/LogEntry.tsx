@@ -679,7 +679,8 @@ function AssistantMessage({
 
   return (
     <div data-slot="chat-block-row" className={cn('group animate-message-enter', CHAT_BLOCK_ROW)}>
-      <div ref={bodyRef} data-slot="chat-block" data-testid="assistant-message-body" className={cn('min-w-0', chatBlock({ tone: 'assistant' }), CHAT_BLOCK_BODY)}>
+      {/* No side padding: with no outline or tint, the reply lines up with the footer and tool rows */}
+      <div ref={bodyRef} data-slot="chat-block" data-testid="assistant-message-body" className={cn('min-w-0 py-2', chatBlock({ tone: 'assistant' }))}>
         <MarkdownContent content={content} className="text-[14px] leading-[1.75]" isStreaming={isStreaming} render={renderMarkdown} />
       </div>
       <div className="flex items-center gap-2 mt-1">
