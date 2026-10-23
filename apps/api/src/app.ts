@@ -68,6 +68,7 @@ app.use('/api/*', async (c, next) => {
     const mediaType = c.req.header('content-type')?.split(';')[0]?.trim().toLowerCase()
     const acceptsMultipart = /^\/api\/projects\/[^/]+\/issues(?:\/[^/]+\/follow-up)?\/?$/.test(c.req.path)
       || /^\/api\/files\/[^/]+\/upload(?:\/|$)/.test(c.req.path)
+      || c.req.path === '/api/skills/upload'
     if (mediaType !== 'application/json' && !(acceptsMultipart && mediaType === 'multipart/form-data')) {
       return c.json({ success: false, error: 'Unsupported media type' }, 415)
     }

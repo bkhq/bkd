@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { kanbanApi } from '@/lib/kanban-api'
 import type { SkillLocation } from '@/types/kanban'
 
@@ -7,6 +8,7 @@ export const skillsKeys = {
   list: (projectId?: string) => ['skills', 'list', projectId ?? ''] as const,
   files: (location: SkillLocation, name: string, projectId?: string) => ['skills', 'files', location, name, projectId ?? ''] as const,
   file: (location: SkillLocation, name: string, path: string, projectId?: string) => ['skills', 'file', location, name, path, projectId ?? ''] as const,
+  operation: (id: string) => ['skills', 'operation', id] as const,
 }
 
 export function useSkills(projectId?: string) {
@@ -70,5 +72,52 @@ export function useDeleteSkill() {
     mutationFn: ({ location, name, projectId }: { location: SkillLocation, name: string, projectId?: string }) =>
       kanbanApi.deleteSkill(location, name, projectId),
     onSuccess: () => qc.invalidateQueries({ queryKey: skillsKeys.all }),
+  })
+}
+
+export function useStartSkillsOperation() {
+  return useMutation({ mutationFn: kanbanApi.startSkillsOperation })
+}
+
+/** Polls a CLI operation while it runs; skill lists refresh once it ends. */
+export function useSkillsOperation(id: string | undefined) {
+  const qc = useQueryClient()
+  const query = useQuery({
+    queryKey: skillsKeys.operation(id ?? ''),
+    queryFn: () => kanbanApi.getSkillsOperation(id!),
+    enabled: !!id,
+    refetchInterval: q => (q.state.data?.status === 'running' ? 1000 : false),
+  })
+  const status = query.data?.status
+  useEffect(() => {
+    if (status && status !== 'running') {
+      void qc.invalidateQueries({ queryKey: ['skills', 'list'] })
+      void qc.invalidateQueries({ queryKey: ['skills', 'updates'] })
+      void qc.invalidateQueries({ queryKey: ['skills', 'files'] })
+      void qc.invalidateQueries({ queryKey: ['skills', 'file'] })
+    }
+  }, [status, qc])
+  return query
+}
+
+export function useCancelSkillsOperation() {
+  return useMutation({ mutationFn: kanbanApi.cancelSkillsOperation })
+}
+
+/** Update status of installed skills (GitHub is asked at most every 10 min by the server). */
+export function useSkillUpdates(projectId?: string) {
+  return useQuery({
+    queryKey: ['skills', 'updates', projectId ?? ''],
+    queryFn: () => kanbanApi.getSkillUpdates(projectId),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useUploadSkills() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ file, scope, projectId }: { file: File, scope: 'global' | 'project', projectId?: string }) =>
+      kanbanApi.uploadSkills(file, scope, projectId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['skills', 'list'] }),
   })
 }

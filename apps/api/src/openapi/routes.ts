@@ -64,7 +64,13 @@ import {
   SkillListSchema,
   SkillParamsSchema,
   SkillProjectQuerySchema,
+  SkillsOperationParamsSchema,
+  SkillsOperationSchema,
+  SkillUpdateStatusSchema,
+  SkillUploadFieldsSchema,
+  SkillUploadResultSchema,
   SortProjectSchema,
+  StartSkillsOperationSchema,
   successResponse,
   UpdateDecisionEventSchema,
   UpdateIssueSchema,
@@ -1083,6 +1089,83 @@ export const listSkillsRoute = createRoute({
     200: successResponse(SkillListSchema, 'Skills'),
     404: errorResponse('Project not found'),
     500: errorResponse('Internal error'),
+  },
+})
+
+export const skillUpdatesRoute = createRoute({
+  method: 'get',
+  path: '/updates',
+  tags: ['Skills'],
+  summary: 'Whether installed skills have a newer version on GitHub (cached 10 min)',
+  operationId: 'skillUpdates',
+  request: { query: SkillProjectQuerySchema },
+  responses: {
+    200: successResponse(z.object({ updates: z.array(SkillUpdateStatusSchema) }), 'Update status per installed skill'),
+    404: errorResponse('Project not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+// Multipart: the handler streams the body with parseMultipartUpload() and
+// validates the fields with SkillUploadFieldsSchema; this definition documents it.
+export const uploadSkillsRoute = createRoute({
+  method: 'post',
+  path: '/upload',
+  tags: ['Skills'],
+  summary: 'Upload skills as a SKILL.md (.md) or an archive (.zip / .skill)',
+  operationId: 'uploadSkills',
+  request: {
+    body: { required: true, content: {
+      'multipart/form-data': { schema: SkillUploadFieldsSchema.extend({ files: z.string().openapi({ type: 'string', format: 'binary' }) }) },
+    } },
+  },
+  responses: {
+    200: successResponse(SkillUploadResultSchema, 'Created skills and name clashes'),
+    400: errorResponse('Invalid file or archive'),
+    404: errorResponse('Project not found'),
+    413: errorResponse('Upload too large'),
+  },
+})
+
+export const startSkillsOperationRoute = createRoute({
+  method: 'post',
+  path: '/operations',
+  tags: ['Skills'],
+  summary: 'Start a skills CLI operation (preview a repo, install, update, uninstall)',
+  operationId: 'startSkillsOperation',
+  request: { body: { required: true, content: { 'application/json': { schema: StartSkillsOperationSchema } } } },
+  responses: {
+    202: successResponse(SkillsOperationSchema, 'Operation started'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Project not found'),
+    409: errorResponse('Another operation is running'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const getSkillsOperationRoute = createRoute({
+  method: 'get',
+  path: '/operations/{id}',
+  tags: ['Skills'],
+  summary: 'Get a skills CLI operation with its output',
+  operationId: 'getSkillsOperation',
+  request: { params: SkillsOperationParamsSchema },
+  responses: {
+    200: successResponse(SkillsOperationSchema, 'Operation'),
+    404: errorResponse('Operation not found'),
+  },
+})
+
+export const cancelSkillsOperationRoute = createRoute({
+  method: 'post',
+  path: '/operations/{id}/cancel',
+  tags: ['Skills'],
+  summary: 'Cancel the running skills CLI operation',
+  operationId: 'cancelSkillsOperation',
+  request: { params: SkillsOperationParamsSchema },
+  responses: {
+    200: successResponse(z.object({ id: z.string() }), 'Cancel requested'),
+    404: errorResponse('No such running operation'),
   },
 })
 

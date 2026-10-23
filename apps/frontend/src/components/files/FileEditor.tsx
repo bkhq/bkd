@@ -25,6 +25,7 @@ export function FileEditor({
   onSave,
   wrap,
   preview,
+  readOnly = false,
 }: {
   file: FileContent
   root?: string | null
@@ -34,6 +35,8 @@ export function FileEditor({
   wrap: boolean
   /** Show rendered Markdown instead of the editor. */
   preview: boolean
+  /** Not editable for a reason other than truncation (e.g. an installed skill). */
+  readOnly?: boolean
 }) {
   const { t } = useTranslation()
 
@@ -69,7 +72,7 @@ export function FileEditor({
             onChange={onChange}
             onSave={onSave}
             wrap={wrap}
-            readOnly={file.isTruncated}
+            readOnly={readOnly || file.isTruncated}
           />
         </Suspense>
       </div>

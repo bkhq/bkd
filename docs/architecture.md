@@ -122,7 +122,7 @@ Hardcoded constants — no DB table:
 | `/api/sessions/*` | GET, POST | `sessions.ts` | Local engine sessions (list, preview, bulk delete) |
 | `/api/cron/*` | GET, POST, DELETE | `cron.ts` | Cron job management |
 | `/api/notes/*` | GET, POST, PATCH, DELETE | `notes.ts` | Notes CRUD |
-| `/api/skills[/*]` | GET, POST, PUT, DELETE | `skills.ts` | Agent skills on disk (`.agents/skills`, `.claude/skills`, per project): list, files, create, copy, delete; managed (CLI-installed) skills are read-only |
+| `/api/skills[/*]` | GET, POST, PUT, DELETE | `skills.ts` | Agent skills on disk (`.agents/skills`, `.claude/skills`, per project): list, files, create, copy, delete; managed (CLI-installed) skills are read-only; `operations` runs the `skills` CLI to preview a repo, install, update and uninstall; `updates` compares lock hashes with GitHub; `upload` takes .md / .zip / .skill |
 | `/api/messages[/items/*]` | GET, POST, PATCH | `messages.ts` | Capability probe; messages: send, decide, reply, read, notify, ack, withdraw, close |
 | `/api/decisions[/events/*]` | GET, POST, PATCH | `decisions.ts` | v1 decision-event contract over the messages store |
 

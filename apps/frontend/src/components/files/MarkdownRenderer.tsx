@@ -72,6 +72,16 @@ function safeDecode(value: string): string {
 
 const { raw, sanitize, harden } = defaultRehypePlugins
 
+/**
+ * Leading YAML frontmatter (SKILL.md, docs with metadata) as a fenced yaml
+ * block: as plain Markdown its closing `---` turns the YAML into a heading.
+ */
+export function frontmatterAsYaml(content: string): string {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/)
+  if (!match) return content
+  return `\`\`\`yaml\n${match[1]}\n\`\`\`\n${content.slice(match[0].length)}`
+}
+
 export function MarkdownRenderer({ content, root, path }: MarkdownRendererProps) {
   const rehypePlugins = useMemo(() => {
     if (!root || !path) return undefined
@@ -89,7 +99,7 @@ export function MarkdownRenderer({ content, root, path }: MarkdownRendererProps)
       rehypePlugins={rehypePlugins}
       className="px-6 py-5"
     >
-      {content}
+      {frontmatterAsYaml(content)}
     </Streamdown>
   )
 }

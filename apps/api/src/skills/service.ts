@@ -26,7 +26,7 @@ const MAX_FILE_BYTES = 1024 * 1024
 const MAX_FILES = 500
 const SKIP_DIRS = new Set(['.git', 'node_modules'])
 
-interface Roots {
+export interface Roots {
   agents: string
   claude: string
   lockFile: string
@@ -36,7 +36,7 @@ function home(): string {
   return process.env.HOME || homedir()
 }
 
-function globalRoots(): Roots {
+export function globalRoots(): Roots {
   return {
     agents: join(home(), '.agents/skills'),
     claude: join(home(), '.claude/skills'),
@@ -44,7 +44,7 @@ function globalRoots(): Roots {
   }
 }
 
-function projectRoots(projectDir: string): Roots {
+export function projectRoots(projectDir: string): Roots {
   return {
     agents: join(projectDir, '.agents/skills'),
     claude: join(projectDir, '.claude/skills'),
@@ -80,9 +80,18 @@ export function parseFrontmatter(markdown: string): { name?: string, description
   return out
 }
 
-interface LockEntry { source?: string, sourceUrl?: string, updatedAt?: string }
+export interface LockEntry {
+  source?: string
+  sourceType?: string
+  sourceUrl?: string
+  /** Path of SKILL.md inside the source repository */
+  skillPath?: string
+  /** Git tree hash of the skill folder when installed */
+  skillFolderHash?: string
+  updatedAt?: string
+}
 
-async function readLock(lockFile: string): Promise<Record<string, LockEntry>> {
+export async function readLock(lockFile: string): Promise<Record<string, LockEntry>> {
   try {
     const parsed = JSON.parse(await readFile(lockFile, 'utf8')) as { skills?: Record<string, LockEntry> }
     return parsed.skills ?? {}
@@ -150,6 +159,7 @@ async function scan(roots: Roots, scope: 'global' | 'project'): Promise<SkillInf
       managed: !!locked,
       source: locked?.source ?? null,
       sourceUrl: locked?.sourceUrl ?? null,
+      sourcePath: locked?.skillPath ? (dirname(locked.skillPath) === '.' ? '' : dirname(locked.skillPath)) : null,
       updatedAt: locked?.updatedAt ?? null,
       agents,
     })
@@ -170,6 +180,7 @@ async function scan(roots: Roots, scope: 'global' | 'project'): Promise<SkillInf
       managed: false,
       source: null,
       sourceUrl: null,
+      sourcePath: null,
       updatedAt: null,
       agents: ['claude-code'],
     })
@@ -177,9 +188,26 @@ async function scan(roots: Roots, scope: 'global' | 'project'): Promise<SkillInf
   return skills.sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/**
+ * A project rooted at HOME has the global stores as its project stores (and the
+ * global lock is not a project lock), so it has no project skills of its own:
+ * listing them would show installed skills again as editable.
+ */
+export async function isHomeDir(dir: string): Promise<boolean> {
+  const [a, b] = await Promise.all([realpath(dir).catch(() => resolve(dir)), realpath(home()).catch(() => resolve(home()))])
+  return a === b
+}
+
 export async function listSkills(projectDir?: string | null): Promise<SkillInfo[]> {
   const global = await scan(globalRoots(), 'global')
-  return projectDir ? [...global, ...await scan(projectRoots(projectDir), 'project')] : global
+  if (!projectDir || await isHomeDir(projectDir)) return global
+  return [...global, ...await scan(projectRoots(projectDir), 'project')]
+}
+
+export async function assertProjectScope(scope: 'global' | 'project', projectDir?: string | null): Promise<void> {
+  if (scope === 'project' && projectDir && await isHomeDir(projectDir)) {
+    throw new SkillError('This project\'s directory is your home directory, so its skills are the global ones: use the global scope', 400)
+  }
 }
 
 function rootsFor(location: SkillLocation, projectDir?: string | null): { roots: Roots, base: string } {
@@ -261,7 +289,7 @@ export async function writeSkillFile(skill: SkillInfo, relPath: string, content:
 }
 
 /** New skills go to the agents store (Codex) and get a relative link in .claude/skills (Claude Code). */
-async function placeNewSkill(roots: Roots, name: string, fill: (dir: string) => Promise<void>): Promise<void> {
+export async function placeNewSkill(roots: Roots, name: string, fill: (dir: string) => Promise<void>): Promise<void> {
   const dir = join(roots.agents, name)
   const link = join(roots.claude, name)
   if (await exists(dir) || await exists(link)) throw new SkillError('A skill with this name already exists', 409)
@@ -273,6 +301,7 @@ async function placeNewSkill(roots: Roots, name: string, fill: (dir: string) => 
 
 export async function createSkill(scope: 'global' | 'project', name: string, description: string, projectDir?: string | null): Promise<SkillInfo> {
   assertSkillName(name)
+  await assertProjectScope(scope, projectDir)
   const location: SkillLocation = scope === 'global' ? 'global-agents' : 'project-agents'
   const { roots } = rootsFor(location, projectDir)
   const oneLine = description.replace(/\s+/g, ' ').trim()
@@ -285,6 +314,7 @@ export async function createSkill(scope: 'global' | 'project', name: string, des
 
 export async function copySkill(skill: SkillInfo, newName: string, projectDir?: string | null): Promise<SkillInfo> {
   assertSkillName(newName)
+  await assertProjectScope(skill.scope, projectDir)
   const location: SkillLocation = skill.scope === 'global' ? 'global-agents' : 'project-agents'
   const { roots } = rootsFor(location, projectDir)
   await placeNewSkill(roots, newName, async (dir) => {

@@ -220,7 +220,12 @@ Agent skills are read and written on disk in the layout of the `skills` CLI (ver
 - New and copied skills go to `.agents/skills/` with a relative symlink in `.claude/skills/`, so both engines see them. Delete moves a local skill to `data/trash/skills/` and drops its link.
 - Paths are realpath-checked inside the skill directory; names match `^[a-z0-9][\w.-]{0,63}$`. These roots are an allowlist of their own and do not relax the file browser's workspace check (SEC-007).
 
-Routes: `GET /api/skills?projectId=`, `POST /api/skills`, `GET /api/skills/:location/:name/files`, `GET|PUT /api/skills/:location/:name/file`, `POST /api/skills/:location/:name/copy`, `DELETE /api/skills/:location/:name`.
+- Install / update / uninstall run the CLI (`skills/cli.ts`): `npx -y skills@1.7.4 …` as an argv list (no shell), telemetry off, one operation at a time (409 while busy), 5-minute timeout, cancellable; output lines are kept on the operation and polled by the UI. A repo preview installs `-s '*'` into a throwaway HOME (`add -l` has no JSON output) and reads each SKILL.md. Uninstall checks the names are installed first (the CLI reports success for unknown names). Sources must be `owner/repo` or `https://github.com/…`. Project scope runs in the project directory (lock `skills-lock.json`). Tests replace the CLI with `setSkillsCliRunner()`.
+
+- Update status (`skills/updates.ts`): the lock's `skillFolderHash` is the git tree hash of the skill folder at install time; GitHub's tree API (`/repos/{source}/git/trees/HEAD?recursive=1`, one request per source repo, `GITHUB_TOKEN`/`GH_TOKEN` if set, cached 10 min) gives the current one → `latest` / `update` / `removed` (folder gone from the repo) / `unknown`. The UI offers "Update" only for `update`.
+- Upload (`skills/upload.ts`): a `.md` (one SKILL.md) or a `.zip` / `.skill` archive with SKILL.md at its root or in top-level folders; streamed by `parseMultipartUpload()` (20 MB), unpacked with `fflate` after checking every entry (no `..` / absolute paths, ≤ 1000 files, ≤ 50 MB unpacked); skills are placed like created ones and never overwrite an existing name (reported as conflicts). The route is on the multipart allowlist in `app.ts`.
+
+Routes: `GET /api/skills?projectId=` (also `cliAvailable`), `GET /api/skills/updates`, `POST /api/skills/upload` (multipart), `POST /api/skills/operations` (`preview` / `add` / `update` / `remove`), `GET /api/skills/operations/:id`, `POST /api/skills/operations/:id/cancel`, `POST /api/skills`, `GET /api/skills/:location/:name/files`, `GET|PUT /api/skills/:location/:name/file`, `POST /api/skills/:location/:name/copy`, `DELETE /api/skills/:location/:name`.
 
 #### Background Jobs (built-in cron actions, `cron/actions/builtins/`)
 

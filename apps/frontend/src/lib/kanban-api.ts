@@ -33,6 +33,10 @@ import type {
   SkillFileEntry,
   SkillInfo,
   SkillLocation,
+  SkillsOperation,
+  SkillsOperationKind,
+  SkillUpdateStatus,
+  SkillUploadResult,
   UpgradeStatus,
   VirtualEngine,
   Webhook,
@@ -686,7 +690,7 @@ export const kanbanApi = {
   // Notes
   // Skills
   getSkills: (projectId?: string) =>
-    get<{ skills: SkillInfo[] }>(`/api/skills${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+    get<{ skills: SkillInfo[], cliAvailable: boolean }>(`/api/skills${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
   getSkillFiles: (location: SkillLocation, name: string, projectId?: string) =>
     get<SkillFileEntry[]>(`/api/skills/${location}/${encodeURIComponent(name)}/files${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
   getSkillFile: (location: SkillLocation, name: string, path: string, projectId?: string) =>
@@ -697,6 +701,26 @@ export const kanbanApi = {
     post<SkillInfo>('/api/skills', data),
   copySkill: (location: SkillLocation, name: string, data: { name: string, projectId?: string }) =>
     post<SkillInfo>(`/api/skills/${location}/${encodeURIComponent(name)}/copy`, data),
+  startSkillsOperation: (data: {
+    op: SkillsOperationKind
+    scope: 'global' | 'project'
+    projectId?: string
+    source?: string
+    skills?: string[]
+    names?: string[]
+    agents?: ('claude-code' | 'codex')[]
+  }) => post<SkillsOperation>('/api/skills/operations', data),
+  getSkillUpdates: (projectId?: string) =>
+    get<{ updates: SkillUpdateStatus[] }>(`/api/skills/updates${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  uploadSkills: (file: File, scope: 'global' | 'project', projectId?: string) => {
+    const fd = new FormData()
+    fd.append('scope', scope)
+    if (projectId) fd.append('projectId', projectId)
+    fd.append('files', file)
+    return postFormData<SkillUploadResult>('/api/skills/upload', fd)
+  },
+  getSkillsOperation: (id: string) => get<SkillsOperation>(`/api/skills/operations/${encodeURIComponent(id)}`),
+  cancelSkillsOperation: (id: string) => post<{ id: string }>(`/api/skills/operations/${encodeURIComponent(id)}/cancel`, {}),
   deleteSkill: (location: SkillLocation, name: string, projectId?: string) =>
     del<{ name: string }>(`/api/skills/${location}/${encodeURIComponent(name)}${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
 

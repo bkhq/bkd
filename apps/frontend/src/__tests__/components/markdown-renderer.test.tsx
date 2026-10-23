@@ -77,4 +77,12 @@ describe('markdownRenderer', () => {
       'https://h/y.png',
     ])
   })
+
+  it('shows leading YAML frontmatter as a YAML block instead of a heading', () => {
+    render(<MarkdownRenderer content={'---\nname: pma\ndescription: Project management\n---\n\n# Body'} />)
+    expect(screen.getByTestId('shiki')).toHaveAttribute('data-lang', 'yaml')
+    expect(screen.getByTestId('shiki')).toHaveTextContent('name: pma')
+    // The body still renders; the YAML does not become a heading
+    expect(screen.getAllByRole('heading').map(h => h.textContent)).toEqual(['Body'])
+  })
 })

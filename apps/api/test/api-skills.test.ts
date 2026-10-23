@@ -17,6 +17,7 @@ interface Skill {
   path: string
   managed: boolean
   source: string | null
+  sourcePath: string | null
   agents: string[]
 }
 
@@ -52,7 +53,7 @@ beforeAll(async () => {
   mkdirSync(join(claude, 'synced/abc'), { recursive: true })
   writeFileSync(join(home, '.agents/.skill-lock.json'), JSON.stringify({
     version: 3,
-    skills: { pma: { source: 'zzci/skills', sourceUrl: 'https://github.com/zzci/skills.git', updatedAt: '2026-09-09T15:40:10.385Z' } },
+    skills: { pma: { source: 'zzci/skills', sourceUrl: 'https://github.com/zzci/skills.git', skillPath: 'skills/pma/SKILL.md', updatedAt: '2026-09-09T15:40:10.385Z' } },
   }))
 
   projectDir = mkdtempSync(join(tmpdir(), 'bkd-skills-project-'))
@@ -74,7 +75,8 @@ describe('GET /api/skills', () => {
     const byName = Object.fromEntries(data.skills.map(s => [s.name, s]))
     expect(Object.keys(byName).sort()).toEqual(['claude-only', 'local-notes', 'pma'])
 
-    expect(byName.pma).toMatchObject({ location: 'global-agents', scope: 'global', managed: true, source: 'zzci/skills', description: 'Project management' })
+    expect(byName.pma).toMatchObject({ location: 'global-agents', scope: 'global', managed: true, source: 'zzci/skills', sourcePath: 'skills/pma', description: 'Project management' })
+    expect(byName['local-notes']!.sourcePath).toBeNull()
     expect(byName.pma!.agents.sort()).toEqual(['claude-code', 'codex'])
     expect(byName['local-notes']).toMatchObject({ managed: false, source: null, description: 'Quoted description' })
     expect(byName['local-notes']!.agents).toEqual(['codex'])
@@ -153,5 +155,16 @@ describe('create, copy, delete', () => {
 
   test('refuses to delete a managed skill', async () => {
     expectError(await del('/api/skills/global-agents/pma'), 409)
+  })
+})
+
+describe('project directory that is HOME', () => {
+  test('does not list the global skills a second time as editable project skills', async () => {
+    // A project rooted at HOME has HOME/.agents/skills as its "project" store: the
+    // global store, whose lock is HOME/.agents/.skill-lock.json, not a project lock.
+    const homeProject = expectSuccess(await post<{ id: string }>('/api/projects', { name: 'Home Project', directory: home }))
+    const data = expectSuccess(await get<{ skills: Skill[] }>(`/api/skills?projectId=${homeProject.id}`))
+    expect(data.skills.filter(s => s.scope === 'project')).toEqual([])
+    expectError(await put('/api/skills/project-agents/pma/file', { path: 'SKILL.md', content: 'x', projectId: homeProject.id }), 404)
   })
 })

@@ -1,7 +1,15 @@
 import type { Context } from 'hono'
 import { findProject } from '@/db/helpers'
 import { logger } from '@/logger'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createOpenAPIRouter } from '@/openapi/hono'
+import { SkillUploadFieldsSchema } from '@/openapi/schemas'
+import { checkSkillUpdates } from '@/skills/updates'
+import { MAX_SKILL_UPLOAD_BYTES, uploadSkills } from '@/skills/upload'
+import { parseMultipartUpload, UploadError } from '@/uploads'
+import { cancelSkillsOperation, getSkillsOperation, isSkillsCliAvailable, startSkillsOperation } from '@/skills/cli'
 import * as R from '@/openapi/routes'
 import {
   copySkill,
@@ -42,10 +50,72 @@ skillsRoutes.openapi(R.listSkillsRoute, async (c) => {
   try {
     const { projectId } = c.req.valid('query')
     const skills = await listSkills(await projectDir(projectId, false))
-    return c.json({ success: true as const, data: { skills } }, 200 as const)
+    return c.json({ success: true as const, data: { skills, cliAvailable: isSkillsCliAvailable() } }, 200 as const)
   } catch (err) {
     return fail(c, err, 'list') as never
   }
+})
+
+// GET /api/skills/updates
+skillsRoutes.openapi(R.skillUpdatesRoute, async (c) => {
+  try {
+    const { projectId } = c.req.valid('query')
+    const updates = await checkSkillUpdates(await projectDir(projectId, false))
+    return c.json({ success: true as const, data: { updates } }, 200 as const)
+  } catch (err) {
+    return fail(c, err, 'check_updates') as never
+  }
+})
+
+// POST /api/skills/upload (multipart, streamed to a temp dir; fields validated below)
+skillsRoutes.openAPIRegistry.registerPath(R.uploadSkillsRoute)
+skillsRoutes.post('/upload', async (c) => {
+  if (!(c.req.header('content-type') ?? '').includes('multipart/form-data')) {
+    return c.json({ success: false as const, error: 'Expected multipart/form-data' }, 400)
+  }
+  const staging = await mkdtemp(join(tmpdir(), 'bkd-skill-upload-'))
+  try {
+    const upload = await parseMultipartUpload(c.req.raw, { dir: staging, storedName: id => id, maxUploadSize: MAX_SKILL_UPLOAD_BYTES })
+    const fields = SkillUploadFieldsSchema.safeParse(Object.fromEntries(upload.fields))
+    if (!fields.success) return c.json({ success: false as const, error: fields.error.issues.map(i => i.message).join(', ') }, 400)
+    if (upload.files.length !== 1) return c.json({ success: false as const, error: 'Upload exactly one file' }, 400)
+    const dir = await projectDir(fields.data.projectId, fields.data.scope === 'project')
+    const result = await uploadSkills(upload.files[0]!, fields.data.scope, dir)
+    logger.info({ created: result.created.map(s => s.name), conflicts: result.conflicts }, 'skills_uploaded')
+    return c.json({ success: true as const, data: result }, 200)
+  } catch (err) {
+    if (err instanceof UploadError) return c.json({ success: false as const, error: err.message }, err.status)
+    return fail(c, err, 'upload')
+  } finally {
+    await rm(staging, { recursive: true, force: true })
+  }
+})
+
+// POST /api/skills/operations
+skillsRoutes.openapi(R.startSkillsOperationRoute, async (c) => {
+  try {
+    const { projectId, ...input } = c.req.valid('json')
+    const dir = await projectDir(projectId, input.scope === 'project')
+    const op = await startSkillsOperation({ ...input, projectDir: dir })
+    logger.info({ id: op.id, op: op.op, scope: op.scope }, 'skills_operation_started')
+    return c.json({ success: true as const, data: op }, 202 as const)
+  } catch (err) {
+    return fail(c, err, 'start_operation') as never
+  }
+})
+
+// GET /api/skills/operations/:id
+skillsRoutes.openapi(R.getSkillsOperationRoute, async (c) => {
+  const op = getSkillsOperation(c.req.valid('param').id)
+  if (!op) return c.json({ success: false as const, error: 'Operation not found' }, 404 as const)
+  return c.json({ success: true as const, data: op }, 200 as const)
+})
+
+// POST /api/skills/operations/:id/cancel
+skillsRoutes.openapi(R.cancelSkillsOperationRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  if (!cancelSkillsOperation(id)) return c.json({ success: false as const, error: 'No such running operation' }, 404 as const)
+  return c.json({ success: true as const, data: { id } }, 200 as const)
 })
 
 // GET /api/skills/:location/:name/files
