@@ -1063,3 +1063,28 @@ the editor, and creates, edits, copies and deletes (to `data/trash/skills/`) loc
 CLI-installed skills are read-only. New `skills/service.ts` + `routes/skills.ts`
 (`/api/skills/*`). Logged task `20261022-0600-patch-diff-options-flake` for a recurring
 frontend test flake.
+
+## 2026-10-23 03:30 [progress]
+
+Fixed the `patch-diff-options` frontend test flake (task
+`20261022-0600-patch-diff-options-flake`). Its 1 s `findByTestId` window included the cold
+lazy import of `@pierre/diffs` (300-500 ms, longer under load) plus React 19's 300 ms
+Suspense reveal throttle; the test now imports the library in `beforeAll`, so it measures
+only the render. Assertions unchanged.
+
+## 2026-10-23 08:00 [progress]
+
+Skills page, part C of `20261022-0307-skills-management` (task completed): install from a
+GitHub repository with a preview of its skills, update and uninstall through the `skills`
+CLI (`skills/cli.ts`, one operation at a time, live output), upload of `.md` / `.zip` /
+`.skill` (`skills/upload.ts`), and per-skill update status comparing the lock's
+`skillFolderHash` with GitHub's tree API (`skills/updates.ts`). The delete dialog no longer
+promises a restore the UI does not offer. The page adapts to small screens (list or detail,
+collapsible file tree as in the workspace).
+
+UI fixes alongside: the review list shares the project list's header height, group bars and
+row menus; the sidebar marks the current global page; selects in page headers match the
+button height; the mobile menu's close button sits in its header row; the turn navigator
+follows the latest turn on first load; assistant messages toggle between rendered Markdown
+and source.
+

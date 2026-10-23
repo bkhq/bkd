@@ -1,6 +1,6 @@
 # 20261022-0307-skills-management Manage agent skills from the BKD UI
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P2
 - **owner**: main/issue-menu-20261015
 - **createdAt**: 2026-10-22 03:07
@@ -37,3 +37,7 @@ Building skills management in the UI
 ## Notes
 
 Plan: docs/plan/20261022-0307-skills-management.md
+
+- complete: B (browse, edit, create, copy, delete) and C (install with preview, update,
+  uninstall through the `skills` CLI) shipped, plus upload of `.md` / `.zip` / `.skill`
+  and per-skill update status from the lock's `skillFolderHash` against GitHub's tree API
