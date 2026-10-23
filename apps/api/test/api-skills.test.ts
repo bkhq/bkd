@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { api, del, expectError, expectSuccess, get, post } from './helpers'
 /**
  * Skills management API: skills are read from the agent skill directories under
@@ -18,6 +18,7 @@ interface Skill {
   managed: boolean
   source: string | null
   sourcePath: string | null
+  sourceRef: string | null
   agents: string[]
 }
 
@@ -322,6 +323,50 @@ describe('copy and create edge cases', () => {
       delete process.env.CLAUDE_CONFIG_DIR
       rmSync(join(home, '.agents/skills/half-made'), { recursive: true, force: true })
       rmSync(claudeConfig, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('project stores linked outside the project', () => {
+  test('refuse project-scoped writes instead of following the link', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'bkd-skills-store-outside-'))
+    for (const store of ['.agents', '.claude/skills']) {
+      const project = mkdtempSync(join(tmpdir(), 'bkd-skills-store-proj-'))
+      mkdirSync(dirname(join(project, store)), { recursive: true })
+      symlinkSync(outside, join(project, store))
+      const created = expectSuccess(await post<{ id: string }>('/api/projects', { name: `Linked ${store}`, directory: project }))
+      try {
+        expectError(await post('/api/skills', { scope: 'project', projectId: created.id, name: 'leak', description: 'x' }), 400)
+      } finally {
+        rmSync(project, { recursive: true, force: true })
+      }
+    }
+    try {
+      expect(readdirSync(outside)).toEqual([])
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('create validation', () => {
+  test('rejects a description that is only whitespace', async () => {
+    expectError(await post('/api/skills', { scope: 'global', name: 'blank-desc', description: '   ' }), 400)
+    expect(existsSync(join(home, '.agents/skills/blank-desc'))).toBe(false)
+  })
+
+  test('reports the ref an installed skill came from', async () => {
+    const state = mkdtempSync(join(tmpdir(), 'bkd-skills-ref-'))
+    mkdirSync(join(state, 'skills'), { recursive: true })
+    writeFileSync(join(state, 'skills/.skill-lock.json'), JSON.stringify({ version: 3, skills: { pma: { source: 'zzci/skills', ref: 'v1' } } }))
+    process.env.XDG_STATE_HOME = state
+    try {
+      const data = expectSuccess(await get<{ skills: Skill[] }>('/api/skills'))
+      expect(data.skills.find(s => s.name === 'pma')?.sourceRef).toBe('v1')
+      expect(data.skills.find(s => s.name === 'claude-only')?.sourceRef).toBeNull()
+    } finally {
+      delete process.env.XDG_STATE_HOME
+      rmSync(state, { recursive: true, force: true })
     }
   })
 })

@@ -774,6 +774,8 @@ export interface SkillInfo {
   sourceUrl: string | null
   /** Folder of the skill inside its source repository ('' = repository root); null when unknown. */
   sourcePath: string | null
+  /** Branch or tag it was installed from; null for the default branch. */
+  sourceRef: string | null
   updatedAt: string | null
   /** Agents that read this skill. */
   agents: SkillAgent[]

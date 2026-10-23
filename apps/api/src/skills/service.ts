@@ -195,6 +195,7 @@ async function scan(roots: Roots, scope: 'global' | 'project', confine?: string)
       source: locked?.source ?? null,
       sourceUrl: locked?.sourceUrl ?? null,
       sourcePath: locked?.skillPath ? (dirname(locked.skillPath) === '.' ? '' : dirname(locked.skillPath)) : null,
+      sourceRef: locked?.ref || null,
       updatedAt: locked?.updatedAt ?? null,
       agents,
     })
@@ -219,6 +220,7 @@ async function scan(roots: Roots, scope: 'global' | 'project', confine?: string)
       source: null,
       sourceUrl: null,
       sourcePath: null,
+      sourceRef: null,
       updatedAt: null,
       agents: ['claude-code'],
     })
@@ -243,8 +245,20 @@ export async function listSkills(projectDir?: string | null): Promise<SkillInfo[
 }
 
 export async function assertProjectScope(scope: 'global' | 'project', projectDir?: string | null): Promise<void> {
-  if (scope === 'project' && projectDir && await isHomeDir(projectDir)) {
+  if (scope !== 'project' || !projectDir) return
+  if (await isHomeDir(projectDir)) {
     throw new SkillError('This project\'s directory is your home directory, so its skills are the global ones: use the global scope', 400)
+  }
+  // A checkout may link .agents or .claude/skills anywhere; writes would follow the link
+  const base = await realpath(projectDir).catch(() => resolve(projectDir))
+  const roots = projectRoots(projectDir)
+  for (const store of [roots.agents, roots.claude]) {
+    let probe = store
+    while (!(await exists(probe))) probe = dirname(probe)
+    const real = await realpath(probe)
+    if (real !== base && !real.startsWith(base + sep)) {
+      throw new SkillError('This project\'s skill directory links outside the project', 400)
+    }
   }
 }
 

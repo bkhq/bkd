@@ -58,11 +58,11 @@ function sourceHref(sourceUrl: string | null): string | null {
 }
 
 /** The skill's folder on GitHub; only for github.com sources (the lock file is untrusted input). */
-function githubFolderHref(sourceUrl: string | null, sourcePath: string | null): string | null {
+function githubFolderHref(sourceUrl: string | null, sourcePath: string | null, sourceRef: string | null): string | null {
   const repo = sourceHref(sourceUrl)
   if (!repo || new URL(repo).host !== 'github.com') return null
   if (!sourcePath) return repo
-  return `${repo.replace(/\/+$/, '')}/tree/HEAD/${sourcePath.split('/').map(encodeURIComponent).join('/')}`
+  return `${repo.replace(/\/+$/, '')}/tree/${encodeURIComponent(sourceRef ?? 'HEAD')}/${sourcePath.split('/').map(encodeURIComponent).join('/')}`
 }
 
 function skillKey(skill: Pick<SkillInfo, 'location' | 'name'>): string {
@@ -431,10 +431,10 @@ function SkillDetail({ skill, projectId, cliAvailable, updateStatus, onCopy, onD
             : <span className="text-xs text-muted-foreground">{skill.source}</span>
           : null}
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          {githubFolderHref(skill.sourceUrl, skill.sourcePath)
+          {githubFolderHref(skill.sourceUrl, skill.sourcePath, skill.sourceRef)
             ? (
                 <a
-                  href={githubFolderHref(skill.sourceUrl, skill.sourcePath)!}
+                  href={githubFolderHref(skill.sourceUrl, skill.sourcePath, skill.sourceRef)!}
                   target="_blank"
                   rel="noreferrer"
                   className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}

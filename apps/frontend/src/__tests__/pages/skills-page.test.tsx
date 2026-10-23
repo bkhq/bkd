@@ -16,6 +16,7 @@ const skill = (over: Partial<SkillInfo>): SkillInfo => ({
   sourceUrl: null,
   updatedAt: null,
   sourcePath: null,
+  sourceRef: null,
   agents: ['claude-code', 'codex'],
   ...over,
 })
@@ -526,6 +527,13 @@ describe('skills page source link button', () => {
     const link = screen.getByRole('link', { name: 'Open on GitHub' })
     expect(link).toHaveAttribute('href', 'https://github.com/zzci/skills/tree/HEAD/skills/pma')
     expect(link).toHaveAttribute('target', '_blank')
+  })
+
+  it('opens the folder at the branch or tag the skill was installed from', () => {
+    mocks.skills = [skill({ name: 'pma', managed: true, source: 'zzci/skills', sourceUrl: 'https://github.com/zzci/skills.git', sourcePath: 'skills/pma', sourceRef: 'release/v1' })]
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /pma/ }))
+    expect(screen.getByRole('link', { name: 'Open on GitHub' })).toHaveAttribute('href', 'https://github.com/zzci/skills/tree/release%2Fv1/skills/pma')
   })
 
   it('links the repository root for a skill at the root of its repo, and nothing for local or non-GitHub skills', () => {

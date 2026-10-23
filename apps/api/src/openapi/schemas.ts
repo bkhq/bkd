@@ -536,6 +536,7 @@ export const SkillInfoSchema = z.object({
   source: z.string().nullable(),
   sourceUrl: z.string().nullable(),
   sourcePath: z.string().nullable(),
+  sourceRef: z.string().nullable(),
   updatedAt: z.string().nullable(),
   agents: z.array(z.enum(['claude-code', 'codex'])),
 }).openapi('SkillInfo')
@@ -582,7 +583,7 @@ export const SaveSkillFileSchema = z.object({
 export const CreateSkillSchema = z.object({
   scope: z.enum(['global', 'project']),
   name: skillName,
-  description: z.string().min(1).max(1024),
+  description: z.string().trim().min(1).max(1024),
   projectId: z.string().min(1).max(100).optional(),
 }).openapi('CreateSkill')
 
