@@ -191,6 +191,7 @@ export const UpdateIssueSchema = z.object({
   sortOrder: z.string().min(1).max(50).regex(/^[a-z0-9]+$/i).optional(),
   isPinned: z.boolean().optional(),
   keepAlive: z.boolean().optional(),
+  model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional().openapi({ description: 'Rejected with 409 while the issue is working' }),
 }).openapi('UpdateIssue')
 
 export const BulkUpdateSchema = z.object({

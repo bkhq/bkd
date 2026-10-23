@@ -196,7 +196,12 @@ update.openapi(R.updateIssue, async (c) => {
   }
 
   const body = c.req.valid('json')
+  // A working issue takes the model with its next message; elsewhere it applies right away.
+  if (body.model !== undefined && body.model !== existing.model && existing.statusId === 'working') {
+    return c.json({ success: false, error: 'Cannot change model while the issue is working' }, 409 as const)
+  }
   const updates: Record<string, unknown> = {}
+  if (body.model !== undefined) updates.model = body.model
   if (body.title !== undefined) updates.title = body.title
   if (body.tags !== undefined) updates.tag = serializeTags(body.tags)
   if (body.statusId !== undefined) {
