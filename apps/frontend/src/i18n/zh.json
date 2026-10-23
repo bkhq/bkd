@@ -275,8 +275,6 @@
     "copyMessage": "复制消息",
     "viewMessage": "查看 Markdown",
     "viewSource": "查看原文",
-    "copyText": "复制文字",
-    "copyMarkdown": "复制 Markdown",
     "copied": "已复制",
     "status": {
       "pending": "等待中",

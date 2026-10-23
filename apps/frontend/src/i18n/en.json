@@ -276,8 +276,6 @@
     "copyMessage": "Copy message",
     "viewMessage": "View as Markdown",
     "viewSource": "View source",
-    "copyText": "Copy text",
-    "copyMarkdown": "Copy Markdown",
     "copied": "Copied",
     "status": {
       "pending": "Pending",

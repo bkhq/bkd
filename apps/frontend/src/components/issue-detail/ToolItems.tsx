@@ -31,6 +31,8 @@ import {
   ShikiUnifiedDiff,
   ToolPanel,
 } from './CodeRenderers'
+import { cn } from 'cn'
+import { CHAT_BLOCK_ROW, CHAT_BLOCK_SUMMARY, chatBlock } from './chat-block'
 
 function getItemToolName(item: ToolGroupItem): string | undefined {
   return (
@@ -269,7 +271,7 @@ export function CommandToolItem({ item }: { item: ToolGroupItem }) {
           </code>
           {description
             ? (
-                <span className="text-[11px] text-muted-foreground/40 truncate hidden sm:inline">
+                <span title={description} className="text-[11px] text-muted-foreground/40 truncate hidden sm:inline">
                   {description}
                 </span>
               )
@@ -441,7 +443,7 @@ export function AgentToolItem({ item }: { item: ToolGroupItem }) {
       summary={(
         <div className="flex items-center gap-2 min-w-0">
           <ToolLabel label={subtype ? `Agent: ${subtype}` : 'Agent'} icon={Users} />
-          <code className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono truncate">
+          <code title={description} className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono truncate">
             {description}
           </code>
           {badges.length > 0 && (
@@ -480,7 +482,7 @@ export function SearchToolItem({ item }: { item: ToolGroupItem }) {
       summary={(
         <div className="flex items-center gap-2 min-w-0">
           <ToolLabel label={toolName || 'Search'} icon={Search} />
-          <code className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono truncate">
+          <code title={query} className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono truncate">
             {query}
           </code>
         </div>
@@ -502,7 +504,7 @@ export function GenericToolItem({ item }: { item: ToolGroupItem }) {
       summary={(
         <div className="flex items-center gap-2 min-w-0">
           <ToolLabel label={toolName || 'Tool'} icon={Wrench} />
-          <span className="text-[11px] text-muted-foreground/60 truncate">
+          <span title={item.action.content} className="text-[11px] text-muted-foreground/60 truncate">
             {item.action.content}
           </span>
         </div>
@@ -605,7 +607,7 @@ export function ToolWithArgsItem({ item, spec }: { item: ToolGroupItem, spec: To
           <ToolLabel label={spec.label} icon={Icon} />
           {spec.detail
             ? (
-                <code className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono truncate">
+                <code title={spec.detail} className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-mono truncate">
                   {spec.detail}
                 </code>
               )
@@ -691,7 +693,7 @@ export function UserQuestionToolItem({ item }: { item: ToolGroupItem }) {
       summary={(
         <div className="flex items-center gap-2 min-w-0">
           <ToolLabel label={t('session.tool.userQuestion')} icon={HelpCircle} />
-          <span className="text-[11px] text-muted-foreground/80 truncate">
+          <span title={summaryText} className="text-[11px] text-muted-foreground/80 truncate">
             {summaryText}
             {moreCount > 0 ? ` (+${moreCount})` : ''}
           </span>
@@ -844,18 +846,18 @@ export function ToolGroupMessage({ message }: { message: ToolGroupChatMessage })
   }, [])
 
   return (
-    <div className="py-1.5 animate-message-enter">
-      <div className="rounded-lg border border-border bg-card/50 overflow-hidden">
+    <div data-slot="chat-block-row" className={cn('animate-message-enter', CHAT_BLOCK_ROW)}>
+      <div data-slot="chat-block" className={cn(chatBlock({ tone: 'neutral' }), 'overflow-hidden')}>
         <button
           type="button"
           onClick={handleHeaderClick}
           aria-expanded={bodyVisible}
           aria-controls={bodyId}
           aria-disabled={isActive || undefined}
-          className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted-foreground cursor-pointer select-none bg-muted/60"
+          className={cn('flex w-full items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none bg-muted/60', CHAT_BLOCK_SUMMARY)}
         >
           <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${bodyVisible ? 'rotate-90' : ''}`} />
-          <span className="truncate">{description || statsLabel}</span>
+          <span title={description || statsLabel} className="truncate">{description || statsLabel}</span>
           {description
             ? (
                 <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/50">
