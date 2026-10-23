@@ -51,11 +51,12 @@ function skillFolders(files: Map<string, Uint8Array>): string[] {
     .sort()
 }
 
-function pickName(skillMd: string, fallback: string): string | null {
-  const fromMeta = parseFrontmatter(skillMd).name?.trim()
-  if (fromMeta && NAME_RE.test(fromMeta)) return fromMeta
-  const base = fallback.replace(/\.(zip|skill|md)$/i, '')
-  return NAME_RE.test(base) ? base : null
+/** The frontmatter name, or null unless SKILL.md has the name and description the skills CLI requires. */
+function pickName(skillMd: string): string | null {
+  const meta = parseFrontmatter(skillMd)
+  const name = meta.name?.trim()
+  if (!name || !NAME_RE.test(name) || !meta.description?.trim()) return null
+  return name
 }
 
 export async function uploadSkills(
@@ -70,9 +71,9 @@ export async function uploadSkills(
   const ext = extname(file.originalName).toLowerCase()
   const data = new Uint8Array(await readFile(file.absolutePath))
 
-  let entries: { folder: string, files: Map<string, Uint8Array>, fallbackName: string }[]
+  let entries: { folder: string, files: Map<string, Uint8Array> }[]
   if (ext === '.md') {
-    entries = [{ folder: '', files: new Map([['SKILL.md', data]]), fallbackName: basename(file.originalName) }]
+    entries = [{ folder: '', files: new Map([['SKILL.md', data]]) }]
   } else if (ext === '.zip' || ext === '.skill') {
     let files: Map<string, Uint8Array>
     try {
@@ -86,7 +87,7 @@ export async function uploadSkills(
     entries = folders.map((folder) => {
       const prefix = folder ? `${folder}/` : ''
       const own = new Map([...files].filter(([p]) => p.startsWith(prefix)).map(([p, v]) => [p.slice(prefix.length), v]))
-      return { folder, files: own, fallbackName: folder || basename(file.originalName) }
+      return { folder, files: own }
     })
   } else {
     throw new SkillError('Upload a .zip, .skill or .md file', 400)
@@ -95,9 +96,9 @@ export async function uploadSkills(
   const result: SkillUploadResult = { created: [], conflicts: [], skipped: [] }
   for (const entry of entries) {
     const skillMd = new TextDecoder().decode(entry.files.get('SKILL.md'))
-    const name = pickName(skillMd, entry.fallbackName)
+    const name = pickName(skillMd)
     if (!name) {
-      result.skipped.push({ path: entry.folder || file.originalName, reason: 'No valid skill name in the frontmatter or file name' })
+      result.skipped.push({ path: entry.folder || file.originalName, reason: 'SKILL.md needs a valid name and a description in its frontmatter' })
       continue
     }
     try {

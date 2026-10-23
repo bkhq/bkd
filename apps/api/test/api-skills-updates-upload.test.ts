@@ -129,6 +129,20 @@ describe('POST /api/skills/upload', () => {
     expect(existsSync(join(home, '.agents/skills/packed/scripts/run.sh'))).toBe(true)
   })
 
+  test('skips a SKILL.md the skills CLI would skip: name and description are both required', async () => {
+    // No fallback to the file name: the CLI ignores a SKILL.md without both fields
+    const noName = ((await (await upload([{ name: 'good-name.md', data: '---\ndescription: d\n---\n' }])).json()) as { data: UploadResult }).data
+    expect(noName.created).toEqual([])
+    expect(noName.skipped.map(s => s.path)).toEqual(['good-name.md'])
+    expect(existsSync(join(home, '.agents/skills/good-name'))).toBe(false)
+
+    const zip = zipSync({ 'no-desc/SKILL.md': strToU8('---\nname: no-desc\n---\n') })
+    const noDesc = ((await (await upload([{ name: 'b.zip', data: zip }])).json()) as { data: UploadResult }).data
+    expect(noDesc.created).toEqual([])
+    expect(noDesc.skipped.map(s => s.path)).toEqual(['no-desc'])
+    expect(existsSync(join(home, '.agents/skills/no-desc'))).toBe(false)
+  })
+
   test('never overwrites an existing skill; reports the clash', async () => {
     const data = ((await (await upload([{ name: 'again.md', data: '---\nname: fresh\ndescription: x\n---\n' }])).json()) as { data: UploadResult }).data
     expect(data.created).toEqual([])
