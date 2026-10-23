@@ -369,6 +369,44 @@ describe('skills page CLI operations', () => {
     )
   })
 
+  it('keeps a running operation reachable: the install sheet stays open until it ends', () => {
+    // Closing it would drop the operation id while the server still runs it
+    mocks.start.mockImplementation((_input: unknown, opts: { onSuccess: (o: { id: string }) => void }) => opts.onSuccess({ id: 'p1' }))
+    mocks.operations.p1 = op('p1', { status: 'running' })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Install skill' }))
+    fireEvent.change(screen.getByLabelText('Repository'), { target: { value: 'zzci/skills' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    const sheet = screen.getByRole('dialog')
+    expect(within(sheet).queryByRole('button', { name: 'Close' })).toBeNull()
+    fireEvent.keyDown(sheet, { key: 'Escape' })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+  })
+
+  it('keeps the update dialog open while the update runs', () => {
+    mocks.start.mockImplementation((_input: unknown, opts: { onSuccess: (o: { id: string }) => void }) => opts.onSuccess({ id: 'u1' }))
+    mocks.operations.u1 = op('u1', { op: 'update', status: 'running' })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /pma/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).queryByRole('button', { name: 'Close' })).toBeNull()
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('keeps the uninstall dialog open while the uninstall runs', () => {
+    mocks.start.mockImplementation((_input: unknown, opts: { onSuccess: (o: { id: string }) => void }) => opts.onSuccess({ id: 'r1' }))
+    mocks.operations.r1 = op('r1', { op: 'remove', status: 'running' })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /pma/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Uninstall' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Uninstall' }))
+    fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' })
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+  })
+
   it('shows the CLI output of a running operation', () => {
     mocks.start.mockImplementation((_input: unknown, opts: { onSuccess: (o: { id: string }) => void }) => opts.onSuccess({ id: 'u1' }))
     mocks.operations.u1 = op('u1', { op: 'update', output: ['Updating pma…'] })

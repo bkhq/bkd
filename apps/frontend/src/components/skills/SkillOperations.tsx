@@ -103,6 +103,8 @@ export function InstallSkillDialog({ open, onOpenChange, projectId }: {
     <Sheet
       open={open}
       onOpenChange={(next) => {
+        // A running operation would lose its id and keep the server's only slot: cancel it first
+        if (!next && running) return
         if (!next) {
           reset()
           setSource('')
@@ -110,7 +112,7 @@ export function InstallSkillDialog({ open, onOpenChange, projectId }: {
         onOpenChange(next)
       }}
     >
-      <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-lg" aria-describedby={undefined}>
+      <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-lg" showCloseButton={!running} aria-describedby={undefined}>
         <SheetHeader className="border-b border-border/60">
           <SheetTitle>{t('skills.installTitle')}</SheetTitle>
         </SheetHeader>
@@ -223,8 +225,8 @@ export function OperationDialog({ open, onOpenChange, title, operationId }: {
   const cancel = useCancelSkillsOperation()
   const running = operation?.status === 'running'
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+    <Dialog open={open} onOpenChange={next => (next || !running) && onOpenChange(next)}>
+      <DialogContent className="sm:max-w-lg" showCloseButton={!running}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -252,12 +254,14 @@ export function UninstallSkillDialog({ open, onOpenChange, skill, projectId, onD
   const [operationId, setOperationId] = useState<string>()
   const { data: operation } = useSkillsOperation(operationId)
   const finished = operation && operation.status !== 'running'
+  const running = operation?.status === 'running'
 
   useEffect(() => {
     if (operation?.status === 'succeeded') onDone()
   }, [operation?.status, onDone])
 
   const close = (next: boolean) => {
+    if (!next && running) return
     if (!next) {
       setOperationId(undefined)
       start.reset()
