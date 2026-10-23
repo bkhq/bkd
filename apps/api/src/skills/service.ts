@@ -36,11 +36,14 @@ function home(): string {
   return process.env.HOME || homedir()
 }
 
+/** Resolved as skills@1.7.4 does: its global lock follows XDG_STATE_HOME, its Claude dir CLAUDE_CONFIG_DIR. */
 export function globalRoots(): Roots {
+  const stateHome = process.env.XDG_STATE_HOME
+  const claudeHome = process.env.CLAUDE_CONFIG_DIR?.trim() || join(home(), '.claude')
   return {
     agents: join(home(), '.agents/skills'),
-    claude: join(home(), '.claude/skills'),
-    lockFile: join(home(), '.agents/.skill-lock.json'),
+    claude: join(claudeHome, 'skills'),
+    lockFile: stateHome ? join(stateHome, 'skills/.skill-lock.json') : join(home(), '.agents/.skill-lock.json'),
   }
 }
 
@@ -88,6 +91,8 @@ export interface LockEntry {
   skillPath?: string
   /** Git tree hash of the skill folder when installed */
   skillFolderHash?: string
+  /** Branch or tag it was installed from; absent for the default branch */
+  ref?: string
   updatedAt?: string
 }
 

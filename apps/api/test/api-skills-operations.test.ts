@@ -20,7 +20,7 @@ interface Operation {
   result: { skills?: { name: string, description: string }[] } | null
 }
 
-interface Call { args: string[], cwd: string, home: string | undefined }
+interface Call { args: string[], cwd: string, home: string | undefined, stateHome: string | undefined }
 
 let home: string
 const originalHome = process.env.HOME
@@ -29,7 +29,7 @@ let calls: Call[] = []
 let behaviour: (call: Call, onLine: (line: string) => void, signal: AbortSignal) => Promise<{ exitCode: number, stdout: string }>
 
 const fakeRunner: SkillsCliRunner = (args, { cwd, env, onLine, signal }) => {
-  const call = { args, cwd, home: env.HOME }
+  const call = { args, cwd, home: env.HOME, stateHome: env.XDG_STATE_HOME }
   calls.push(call)
   return behaviour(call, onLine, signal)
 }
@@ -91,6 +91,18 @@ describe('preview', () => {
     expect(calls[0]!.args).toEqual(['add', 'zzci/skills', '-s', '*', '-a', 'codex', '-g', '-y', '--json'])
     // Never the real HOME
     expect(calls[0]!.home).not.toBe(home)
+  })
+
+  test('keeps the CLI lock in the throwaway HOME when XDG_STATE_HOME is set', async () => {
+    // skills@1.7.4 keeps its global lock under $XDG_STATE_HOME when set; a preview must not touch the real one
+    process.env.XDG_STATE_HOME = join(home, '.local/state')
+    try {
+      const started = expectSuccess(await post<Operation>('/api/skills/operations', { op: 'preview', source: 'zzci/skills', scope: 'global' }))
+      await finished(started.id)
+      expect(calls[0]!.stateHome?.startsWith(calls[0]!.home!)).toBe(true)
+    } finally {
+      delete process.env.XDG_STATE_HOME
+    }
   })
 })
 

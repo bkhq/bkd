@@ -168,3 +168,28 @@ describe('project directory that is HOME', () => {
     expectError(await put('/api/skills/project-agents/pma/file', { path: 'SKILL.md', content: 'x', projectId: homeProject.id }), 404)
   })
 })
+
+describe('roots resolved like the skills CLI', () => {
+  test('reads the global lock from XDG_STATE_HOME and Claude skills from CLAUDE_CONFIG_DIR when set', async () => {
+    const state = mkdtempSync(join(tmpdir(), 'bkd-skills-state-'))
+    const claudeConfig = mkdtempSync(join(tmpdir(), 'bkd-skills-claude-'))
+    mkdirSync(join(state, 'skills'), { recursive: true })
+    writeFileSync(join(state, 'skills/.skill-lock.json'), JSON.stringify({ version: 3, skills: { 'local-notes': { source: 'me/notes' } } }))
+    writeSkill(join(claudeConfig, 'skills'), 'from-config-dir', 'In CLAUDE_CONFIG_DIR')
+    process.env.XDG_STATE_HOME = state
+    process.env.CLAUDE_CONFIG_DIR = claudeConfig
+    try {
+      const data = expectSuccess(await get<{ skills: Skill[] }>('/api/skills'))
+      const byName = Object.fromEntries(data.skills.map(s => [s.name, s]))
+      expect(byName['local-notes']).toMatchObject({ managed: true, source: 'me/notes' })
+      expect(byName.pma).toMatchObject({ managed: false })
+      expect(byName['from-config-dir']).toMatchObject({ location: 'global-claude' })
+      expect(byName['claude-only']).toBeUndefined()
+    } finally {
+      delete process.env.XDG_STATE_HOME
+      delete process.env.CLAUDE_CONFIG_DIR
+      rmSync(state, { recursive: true, force: true })
+      rmSync(claudeConfig, { recursive: true, force: true })
+    }
+  })
+})

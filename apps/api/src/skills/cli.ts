@@ -203,7 +203,8 @@ async function run(input: StartOperationInput, running: Running): Promise<void> 
         previewHome = await mkdtemp(join(tmpdir(), 'bkd-skills-preview-'))
         await mkdir(join(previewHome, '.codex'), { recursive: true })
         args = ['add', input.source!, '-s', '*', '-a', 'codex', '-g', '-y', '--json']
-        env = cliEnv({ HOME: previewHome })
+        // The CLI keeps its global lock under XDG_STATE_HOME when that is set
+        env = cliEnv({ HOME: previewHome, XDG_STATE_HOME: join(previewHome, '.local/state') })
         runCwd = previewHome
         break
       case 'add':
