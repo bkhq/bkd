@@ -260,6 +260,13 @@ export async function assertProjectScope(scope: 'global' | 'project', projectDir
       throw new SkillError('This project\'s skill directory links outside the project', 400)
     }
   }
+  // The CLI writes skills-lock.json in place, following a symlink (even a dangling one)
+  if ((await lstat(roots.lockFile).catch(() => null))?.isSymbolicLink()) {
+    const real = await realpath(roots.lockFile).catch(() => null)
+    if (!real || !real.startsWith(base + sep)) {
+      throw new SkillError('This project\'s skills-lock.json links outside the project', 400)
+    }
+  }
 }
 
 function rootsFor(location: SkillLocation, projectDir?: string | null): { roots: Roots, base: string } {

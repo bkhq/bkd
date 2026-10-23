@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { SkillsCliRunner } from '@/skills/cli'
@@ -200,5 +200,24 @@ describe('project whose directory is HOME', () => {
       expectError(await post('/api/skills/operations', body), 400)
     }
     expect(calls).toEqual([])
+  })
+})
+
+describe('project lock linked outside the project', () => {
+  test('refuses project CLI operations instead of letting the CLI write through the link', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'bkd-skills-lock-outside-'))
+    writeFileSync(join(outside, 'target.json'), 'keep me')
+    for (const target of [join(outside, 'target.json'), join(outside, 'missing.json')]) {
+      const project = mkdtempSync(join(tmpdir(), 'bkd-skills-lock-proj-'))
+      symlinkSync(target, join(project, 'skills-lock.json'))
+      const created = expectSuccess(await post<{ id: string }>('/api/projects', { name: 'Linked lock', directory: project }))
+      try {
+        expectError(await post('/api/skills/operations', { op: 'update', scope: 'project', projectId: created.id }), 400)
+      } finally {
+        rmSync(project, { recursive: true, force: true })
+      }
+    }
+    expect(calls).toEqual([])
+    rmSync(outside, { recursive: true, force: true })
   })
 })
