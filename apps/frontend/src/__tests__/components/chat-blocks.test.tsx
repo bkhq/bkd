@@ -42,7 +42,8 @@ describe('chat blocks', () => {
     expect(user.container.querySelector('[data-slot="chat-block"]')).toHaveClass('bg-primary/[0.06]')
     user.unmount()
     const assistant = render(<MemoryRouter><LogEntry entry={ENTRIES[3]![1]} /></MemoryRouter>)
-    expect(assistant.container.querySelector('[data-slot="chat-block"]')).toHaveClass('bg-card')
+    // Replies sit on the chat background itself: no fill of their own
+    expect(assistant.container.querySelector('[data-slot="chat-block"]')!.className).not.toMatch(/\bbg-/)
   })
 
   it('puts user messages on the right as a bubble sized to its text', () => {
