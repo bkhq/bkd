@@ -1117,3 +1117,13 @@ re-vendored from lode v0.3.0.
 The issue list panel no longer drags at all, so scrolling cannot move an issue
 (20261024-1615-list-panel-no-drag); the `sortable` switch added by
 20261024-1445-backend-issue-order is removed. The kanban board drag is unchanged.
+
+## 2026-10-24 19:10 [decision]
+
+Follow-ups the user did not write are marked, not given a new entry type: they stay
+`user-message` with `metadata.sender` (`agent` with the sending issue, or `system` for
+message wakes and the follow-up cron), so turns, search, filters and the skill's
+`types/user-message` reads are unchanged. The follow-up body takes an optional
+`sender`; engines get `BKD_PROJECT_ID` / `BKD_ISSUE_ID` to fill it. Queued messages from
+different senders are no longer merged into one message
+(20261024-1813-agent-follow-up-messages).

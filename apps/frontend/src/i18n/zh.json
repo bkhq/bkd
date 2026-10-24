@@ -172,6 +172,11 @@
     "placeholder": "继续处理此任务...",
     "placeholderTodo": "输入消息（将在执行开始时发送）",
     "pendingMessage": "已排队",
+    "senderAgent": "来自",
+    "senderMessage": "消息回复",
+    "senderCron": "定时任务",
+    "senderShowAll": "展开全部",
+    "senderShowLess": "收起",
     "pendingCount_other": "{{count}} 条排队消息",
     "doneMessage": "已完成",
     "busyAction": {

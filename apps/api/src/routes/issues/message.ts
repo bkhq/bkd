@@ -43,6 +43,7 @@ async function parseFollowUpBody(c: {
     permissionMode?: string
     busyAction?: string
     displayPrompt?: string
+    sender?: { kind: 'agent', projectId: string, issueId: string }
     files: SavedFile[]
   } |
   { ok: false, status: 400 | 413 | 500, error: string }
@@ -147,6 +148,17 @@ message.post('/:id/follow-up', async (c) => {
     return c.json({ success: false as const, error: 'Issue not found' }, 404)
   }
 
+  // The sending agent's issue must exist
+  const { sender } = parsed
+  if (sender) {
+    const senderProject = await findProject(sender.projectId)
+    const senderIssue = senderProject && await getProjectOwnedIssue(senderProject.id, sender.issueId)
+    if (!senderIssue) {
+      await discardFiles(savedFiles)
+      return c.json({ success: false as const, error: 'Invalid sender issue' }, 400)
+    }
+  }
+
   // Reject model changes while the session is actively running
   const isActive = issue.sessionStatus === 'running' || issue.sessionStatus === 'pending'
   if (isActive && parsed.model && parsed.model !== (issue.model ?? '')) {
@@ -176,6 +188,7 @@ message.post('/:id/follow-up', async (c) => {
     followUpMeta: attachmentsMeta,
     // Link attachments to the server-assigned message log
     onMessage: messageId => insertAttachmentRecords(issueId, messageId, savedFiles),
+    sender,
   })
 
   if (!outcome.ok) {

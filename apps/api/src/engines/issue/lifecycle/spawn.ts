@@ -14,6 +14,7 @@ import {
   getPermissionOptions,
   getProjectExecContext,
   isMissingExternalSessionError,
+  issueEnvVars,
   resolveExecEnvVars,
   resolveWorkingDir,
 } from '@/engines/issue/utils/helpers'
@@ -60,7 +61,7 @@ export async function spawnWithSessionFallback(
   },
 ): Promise<SpawnedProcess> {
   const spawnCtx = {
-    vars: opts.envVars ?? {},
+    vars: issueEnvVars(opts.envVars, opts.projectId, issueId),
     workingDir: opts.workingDir,
     projectId: opts.projectId,
     issueId,
@@ -137,7 +138,7 @@ export async function spawnFresh(
       externalSessionId,
     },
     {
-      vars: opts.envVars ?? {},
+      vars: issueEnvVars(opts.envVars, opts.projectId, issueId),
       workingDir: opts.workingDir,
       projectId: opts.projectId,
       issueId,

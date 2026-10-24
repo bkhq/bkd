@@ -22,6 +22,10 @@ registerAction('issue-follow-up', {
         issue.id,
         prompt,
         (config.model as string) ?? issue.model ?? undefined,
+        undefined,
+        undefined,
+        undefined,
+        { sender: { kind: 'system', via: 'cron' } },
       )
     })
 

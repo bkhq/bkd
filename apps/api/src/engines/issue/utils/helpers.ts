@@ -95,6 +95,15 @@ export async function resolveExecEnvVars(
   return { ...(projectEnvVars ?? {}), ...profileEnv }
 }
 
+/** Engine env vars for an issue: the configured ones plus the issue's own ids, so its agent can name itself as a follow-up sender. */
+export function issueEnvVars(
+  vars: Record<string, string> | undefined,
+  projectId: string,
+  issueId: string,
+): Record<string, string> {
+  return { ...vars, BKD_PROJECT_ID: projectId, BKD_ISSUE_ID: issueId }
+}
+
 /** @deprecated Use getProjectExecContext instead */
 export async function getProjectEnvVars(
   projectId: string,

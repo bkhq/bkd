@@ -185,3 +185,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261024-1500-upgrade-panel-lode-version Show the lode version and simplify the upgrade panel**](20261024-1500-upgrade-panel-lode-version.md) `P2`
 - [x] [**20261024-1503-messages-drawer Show the messages inbox in a side drawer instead of a page**](20261024-1503-messages-drawer.md) `P2`
 - [x] [**20261024-1615-list-panel-no-drag Disable issue drag in the list panel**](20261024-1615-list-panel-no-drag.md) `P2`
+- [x] [**20261024-1813-agent-follow-up-messages Show agent-sent follow-ups apart from user messages**](20261024-1813-agent-follow-up-messages.md) `P2`
