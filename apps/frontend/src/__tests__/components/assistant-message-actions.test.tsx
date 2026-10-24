@@ -73,10 +73,11 @@ describe('assistant message actions', () => {
     expect(body).toHaveTextContent('Some bold text')
   })
 
-  it('uses the shared chat block shape, told apart from user messages by its background', () => {
+  it('uses the shared chat block shape with no fill of its own', () => {
     renderEntry()
     const body = screen.getByTestId('assistant-message-body')
-    expect(body).toHaveClass('rounded-lg', 'bg-card')
+    expect(body).toHaveClass('rounded-lg')
+    expect(body.className).not.toMatch(/\bbg-/)
     expect(body).not.toHaveClass('border')
   })
 
