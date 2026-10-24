@@ -129,8 +129,10 @@ export function FileBrowserContent({
   const [deleteTarget, setDeleteTarget] = useState<{ path: string, type: 'file' | 'directory' } | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
-  const [conflict, setConflict] = useState<{ files: File[], names: string } | null>(null)
+  const [conflict, setConflict] = useState<{ files: File[], names: string, dir: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Directory chosen from a right-click menu for the next file pick; null = the shown directory
+  const uploadTargetRef = useRef<string | null>(null)
   // A navigation waiting on "discard?"; drafts themselves live in the store
   const [saveConflict, setSaveConflict] = useState(false)
   const [pendingNav, setPendingNav] = useState<(() => void) | null>(null)
@@ -322,6 +324,18 @@ export function FileBrowserContent({
             {t('fileBrowser.download')}
           </DropdownMenuItem>
         )}
+        {canUpload && (
+          <DropdownMenuItem
+            className={item}
+            onClick={() => {
+              uploadTargetRef.current = type === 'directory' ? path : parentDir(path)
+              fileInputRef.current?.click()
+            }}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            {t('fileBrowser.uploadHere')}
+          </DropdownMenuItem>
+        )}
         {type === 'file' && (isOpenFile || hasDraft) && (
           <DropdownMenuItem variant="destructive" className={item} onClick={() => discardPath(path)}>
             <RotateCcw className="h-3.5 w-3.5" />
@@ -349,15 +363,15 @@ export function FileBrowserContent({
   const uploadDir = file ? parentDir(file.path) : currentPath
   const canUpload = !!effectiveRoot && !!listing
 
-  const uploadFiles = useCallback((files: File[], overwrite = false) => {
+  const uploadFiles = useCallback((files: File[], overwrite = false, dir = uploadDir) => {
     if (!effectiveRoot || files.length === 0) return
     setConflict(null)
     uploadMutation.mutate(
-      { root: effectiveRoot, path: uploadDir, files, overwrite },
+      { root: effectiveRoot, path: dir, files, overwrite },
       {
         onError: (err) => {
           if (err instanceof ApiError && err.statusCode === 409) {
-            setConflict({ files, names: err.message.replace(CONFLICT_PREFIX, '') })
+            setConflict({ files, names: err.message.replace(CONFLICT_PREFIX, ''), dir })
             return
           }
           setUploadError(err.message)
@@ -392,7 +406,10 @@ export function FileBrowserContent({
         <IconButton
           icon={Upload}
           label={uploadMutation.isPending ? t('fileBrowser.uploading') : t('fileBrowser.upload')}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            uploadTargetRef.current = null
+            fileInputRef.current?.click()
+          }}
         />
       )}
       <IconButton
@@ -419,7 +436,8 @@ export function FileBrowserContent({
         multiple
         className="hidden"
         onChange={(e) => {
-          uploadFiles([...(e.target.files ?? [])])
+          uploadFiles([...(e.target.files ?? [])], false, uploadTargetRef.current ?? uploadDir)
+          uploadTargetRef.current = null
           e.target.value = ''
         }}
       />
@@ -664,7 +682,7 @@ export function FileBrowserContent({
             <AlertDialogCancel>{t('fileBrowser.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               disabled={uploadMutation.isPending}
-              onClick={() => conflict && uploadFiles(conflict.files, true)}
+              onClick={() => conflict && uploadFiles(conflict.files, true, conflict.dir)}
             >
               {t('fileBrowser.replace')}
             </AlertDialogAction>
