@@ -66,6 +66,7 @@ export const VersionInfoSchema = z.object({
   commit: z.string(),
   supervised: z.boolean(),
   activeVersion: z.string().nullable(),
+  lode: z.object({ version: z.string(), commit: z.string().nullable() }).nullable(),
 })
 export const UpgradeStatusSchema = z.object({
   supervised: z.boolean(),

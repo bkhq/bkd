@@ -21,6 +21,8 @@ const savedEnv = {
   dir: process.env.LODE_DIR,
   instance: process.env.LODE_INSTANCE,
   version: process.env.LODE_ACTIVE_VERSION,
+  lodeVersion: process.env.LODE_VERSION,
+  lodeCommit: process.env.LODE_COMMIT,
 }
 
 function writeState(state: Record<string, unknown>) {
@@ -42,6 +44,8 @@ beforeEach(() => {
   delete process.env.LODE_DIR
   delete process.env.LODE_INSTANCE
   delete process.env.LODE_ACTIVE_VERSION
+  delete process.env.LODE_VERSION
+  delete process.env.LODE_COMMIT
 })
 
 afterEach(() => {
@@ -50,6 +54,8 @@ afterEach(() => {
     ['LODE_DIR', savedEnv.dir],
     ['LODE_INSTANCE', savedEnv.instance],
     ['LODE_ACTIVE_VERSION', savedEnv.version],
+    ['LODE_VERSION', savedEnv.lodeVersion],
+    ['LODE_COMMIT', savedEnv.lodeCommit],
   ] as const) {
     if (value === undefined) delete process.env[key]
     else process.env[key] = value
@@ -71,6 +77,7 @@ describe('upgrade service — unsupervised', () => {
 
     expect(info.supervised).toBe(false)
     expect(info.activeVersion).toBeNull()
+    expect(info.lode).toBeNull()
     expect(typeof info.version).toBe('string')
   })
 
@@ -88,6 +95,17 @@ describe('upgrade service — unsupervised', () => {
 
 describe('upgrade service — supervised', () => {
   beforeEach(supervise)
+
+  it('reports the supervising lode version and commit', () => {
+    process.env.LODE_VERSION = '0.3.0'
+    process.env.LODE_COMMIT = '0123456789ab'
+
+    expect(getVersionInfo().lode).toEqual({ version: '0.3.0', commit: '0123456789ab' })
+  })
+
+  it('leaves the lode version out for a lode older than 0.3.0', () => {
+    expect(getVersionInfo().lode).toBeNull()
+  })
 
   it('maps lode state onto the status payload', () => {
     writeState({

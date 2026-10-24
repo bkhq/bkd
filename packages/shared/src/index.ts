@@ -991,4 +991,6 @@ export interface VersionInfo {
   commit: string
   supervised: boolean
   activeVersion: string | null
+  /** The supervising lode's build, when lode reports it (>= 0.3.0). */
+  lode: { version: string, commit: string | null } | null
 }

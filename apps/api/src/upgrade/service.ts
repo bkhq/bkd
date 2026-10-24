@@ -12,7 +12,7 @@
 import type { UpgradeStatus, VersionInfo } from '@bkd/shared'
 import { logger } from '@/logger'
 import { COMMIT, VERSION } from '@/version'
-import { activeVersion, isSupervised, Lode } from './lode-sdk'
+import { activeVersion, isSupervised, Lode, lodeCommit, lodeVersion } from './lode-sdk'
 
 const UNSUPERVISED_ERROR = 'Not running under lode — upgrades are managed by the supervisor'
 
@@ -29,7 +29,15 @@ export function getVersionInfo(): VersionInfo {
     commit: COMMIT,
     supervised: isSupervised(),
     activeVersion: activeVersion() ?? null,
+    lode: lodeInfo(),
   }
+}
+
+/** The supervising lode's build; lode < 0.3.0 does not report it. */
+function lodeInfo(): VersionInfo['lode'] {
+  const version = lodeVersion()
+  if (!isSupervised() || !version) return null
+  return { version, commit: lodeCommit() ?? null }
 }
 
 export function getUpgradeStatus(): UpgradeStatus {
