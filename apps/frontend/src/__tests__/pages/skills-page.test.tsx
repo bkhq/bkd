@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   copy: vi.fn(),
   remove: vi.fn(),
+  removeError: null as Error | null,
   skills: [] as SkillInfo[],
   files: [{ path: 'SKILL.md', type: 'file', size: 10 }] as { path: string, type: string, size: number }[],
   cliAvailable: true,
@@ -62,7 +63,7 @@ vi.mock('@/hooks/use-skills', () => ({
   useSaveSkillFile: () => ({ mutate: mocks.save, isPending: false }),
   useCreateSkill: () => ({ mutate: mocks.create, isPending: false, error: null, reset: vi.fn() }),
   useCopySkill: () => ({ mutate: mocks.copy, isPending: false, error: null, reset: vi.fn() }),
-  useDeleteSkill: () => ({ mutate: mocks.remove, isPending: false }),
+  useDeleteSkill: () => ({ mutate: mocks.remove, isPending: false, error: mocks.removeError, reset: vi.fn() }),
 }))
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => mocks.isMobile }))
 vi.mock('@/hooks/use-theme', () => ({ useTheme: () => ({ resolved: 'light' }) }))
@@ -101,6 +102,7 @@ describe('skills page', () => {
   beforeEach(async () => {
     Object.values(mocks).forEach(m => typeof m === 'function' && m.mockReset())
     mocks.cliAvailable = true
+    mocks.removeError = null
     mocks.operations = {}
     mocks.updates = []
     mocks.skills = [
@@ -207,6 +209,13 @@ describe('skills page', () => {
       expect.objectContaining({ location: 'global-agents', name: 'local-notes' }),
       expect.anything(),
     )
+  })
+  it('shows why deleting a skill failed instead of closing silently', () => {
+    mocks.removeError = new Error('Skill not found')
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /local-notes/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(within(screen.getByRole('alertdialog')).getByText('Skill not found')).toBeInTheDocument()
   })
 })
 
@@ -375,6 +384,21 @@ describe('skills page CLI operations', () => {
       { op: 'add', source: 'zzci/skills', skills: ['alpha'], agents: ['claude-code', 'codex'], scope: 'global' },
       expect.anything(),
     )
+  })
+
+  it('starts the install sheet afresh after its Close button closed it', () => {
+    mocks.start.mockImplementation((_input: unknown, opts: { onSuccess: (o: { id: string }) => void }) => opts.onSuccess({ id: 'p1' }))
+    mocks.operations.p1 = op('p1', { status: 'succeeded', result: { skills: [{ name: 'alpha', description: 'First' }] } })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Install skill' }))
+    fireEvent.change(screen.getByLabelText('Repository'), { target: { value: 'zzci/skills' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(screen.getByRole('checkbox', { name: /alpha/ })).toBeInTheDocument()
+    const footerClose = within(screen.getByRole('dialog')).getAllByRole('button', { name: 'Close' }).find(b => b.textContent === 'Close')!
+    fireEvent.click(footerClose)
+    fireEvent.click(screen.getByRole('button', { name: 'Install skill' }))
+    expect(screen.getByLabelText('Repository')).toHaveValue('')
+    expect(screen.queryByRole('checkbox', { name: /alpha/ })).toBeNull()
   })
 
   it('keeps a running operation reachable: the install sheet stays open until it ends', () => {

@@ -12,6 +12,8 @@ import { findLockEntry, globalRoots, isHomeDir, listSkills, projectRoots, readLo
  */
 
 const SOURCE_RE = /^[\w.-]+\/[\w.-]+$/
+/** A content sha256 the CLI records when GitHub's tree API was unavailable at install; no tree hash compares with it. */
+const CONTENT_HASH_RE = /^[0-9a-f]{64}$/i
 
 export interface GithubTree {
   /** Root tree hash */
@@ -83,7 +85,7 @@ export async function checkSkillUpdates(
   return Promise.all(skills.map(async (skill): Promise<SkillUpdateStatus> => {
     const entry = findLockEntry(locks[skill.scope], skill.name)?.[1]
     const base = { location: skill.location, name: skill.name }
-    if (!entry?.source || !SOURCE_RE.test(entry.source) || (entry.sourceType && entry.sourceType !== 'github') || !entry.skillPath || !entry.skillFolderHash) {
+    if (!entry?.source || !SOURCE_RE.test(entry.source) || (entry.sourceType && entry.sourceType !== 'github') || !entry.skillPath || !entry.skillFolderHash || CONTENT_HASH_RE.test(entry.skillFolderHash)) {
       return { ...base, status: 'unknown' }
     }
     const repo = await repoAt(entry.source, entry.ref || undefined)

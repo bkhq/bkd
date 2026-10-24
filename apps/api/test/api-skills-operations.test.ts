@@ -93,6 +93,18 @@ describe('preview', () => {
     expect(calls[0]!.home).not.toBe(home)
   })
 
+  test('reads a skill whose name differs from its folder (the CLI sanitizes folder names)', async () => {
+    behaviour = async (call) => {
+      // skills@1.7.4 puts `My Skill` in my-skill/
+      mkdirSync(join(call.home!, '.agents/skills/my-skill'), { recursive: true })
+      writeFileSync(join(call.home!, '.agents/skills/my-skill/SKILL.md'), '---\nname: My Skill\ndescription: Spaced name\n---\n')
+      return { exitCode: 0, stdout: JSON.stringify([{ name: 'My Skill', status: 'installed' }]) }
+    }
+    const started = expectSuccess(await post<Operation>('/api/skills/operations', { op: 'preview', source: 'zzci/skills', scope: 'global' }))
+    const op = await finished(started.id)
+    expect(op.result?.skills).toEqual([{ name: 'My Skill', description: 'Spaced name' }])
+  })
+
   test('keeps the CLI lock in the throwaway HOME when XDG_STATE_HOME is set', async () => {
     // skills@1.7.4 keeps its global lock under $XDG_STATE_HOME when set; a preview must not touch the real one
     process.env.XDG_STATE_HOME = join(home, '.local/state')
@@ -107,6 +119,17 @@ describe('preview', () => {
 })
 
 describe('add, update, remove', () => {
+  test('installs a skill by the name the CLI reports, even one with spaces', async () => {
+    behaviour = async () => ({ exitCode: 0, stdout: JSON.stringify([{ name: 'My Skill', status: 'installed' }]) })
+    const started = expectSuccess(await post<Operation>('/api/skills/operations', { op: 'add', source: 'zzci/skills', skills: ['My Skill'], scope: 'global' }))
+    expect((await finished(started.id)).status).toBe('succeeded')
+    expect(calls[0]!.args.slice(0, 4)).toEqual(['add', 'zzci/skills', '-s', 'My Skill'])
+  })
+
+  test('refuses a skill name the CLI could read as a flag', async () => {
+    expectError(await post('/api/skills/operations', { op: 'add', source: 'zzci/skills', skills: ['-a'], scope: 'global' }), 400)
+  })
+
   test('installs the chosen skills globally for the chosen agents', async () => {
     behaviour = async () => ({ exitCode: 0, stdout: JSON.stringify([{ name: 'alpha', status: 'installed' }]) })
     const started = expectSuccess(await post<Operation>('/api/skills/operations', {

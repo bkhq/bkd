@@ -6,7 +6,7 @@ import type { SkillAgent, SkillsOperation, SkillsOperationKind } from '@bkd/shar
 import { resolveCommand, spawnNode } from '@/engines/spawn'
 import { logger } from '@/logger'
 import { ulid } from 'ulid'
-import { assertProjectScope, assertSkillName, findLockEntry, globalRoots, listSkills, parseFrontmatter, projectRoots, readLock, SkillError } from './service'
+import { assertProjectScope, assertSkillName, cliFolderName, findLockEntry, globalRoots, listSkills, parseFrontmatter, projectRoots, readLock, SkillError } from './service'
 
 /*
  * Install, update and uninstall go through the `skills` CLI (vercel-labs/skills),
@@ -140,7 +140,11 @@ async function validate(input: StartOperationInput): Promise<void> {
   }
   if (input.op === 'add') {
     if (!input.skills?.length) throw new SkillError('Choose at least one skill to install', 400)
-    input.skills.forEach(assertSkillName)
+    // Names as the repository declares them (`My Skill` is valid); only a flag-like or control-character name is refused
+    for (const name of input.skills) {
+      // eslint-disable-next-line no-control-regex
+      if (name.startsWith('-') || /[\x00-\x1F]/.test(name)) throw new SkillError('Invalid skill name', 400)
+    }
   }
   for (const name of input.names ?? []) assertSkillName(name)
   if (input.op === 'remove') {
@@ -276,7 +280,8 @@ async function describe(results: CliResult[], previewHome: string): Promise<{ na
   const out: { name: string, description: string }[] = []
   for (const r of results) {
     if (!r.name) continue
-    const dir = join(previewHome, '.agents/skills', r.name)
+    // The CLI names the folder after the sanitized skill name
+    const dir = join(previewHome, '.agents/skills', cliFolderName(r.name))
     const text = await readFile(join(dir, 'SKILL.md'), 'utf8').catch(() => '')
     out.push({ name: r.name, description: parseFrontmatter(text).description ?? '' })
   }

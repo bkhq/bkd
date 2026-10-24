@@ -45,7 +45,7 @@ beforeAll(() => {
   home = mkdtempSync(join(tmpdir(), 'bkd-skills-upd-home-'))
   process.env.HOME = home
   const store = join(home, '.agents/skills')
-  for (const n of ['fresh', 'stale', 'gone', 'other', 'pinned']) writeSkill(store, n)
+  for (const n of ['fresh', 'stale', 'gone', 'other', 'pinned', 'hashed']) writeSkill(store, n)
   writeSkill(store, 'local-only')
   writeFileSync(join(home, '.agents/.skill-lock.json'), JSON.stringify({
     version: 3,
@@ -56,6 +56,8 @@ beforeAll(() => {
       other: { source: 'b/missing', sourceType: 'github', skillPath: 'SKILL.md', skillFolderHash: 'h-x' },
       // Installed from a tag: compared with that ref, not the default branch
       pinned: { source: 'a/repo', sourceType: 'github', ref: 'v1', skillPath: 'skills/pinned/SKILL.md', skillFolderHash: 'h-pin' },
+      // Installed while GitHub's tree API was unavailable: the CLI recorded a content sha256, not a tree hash
+      hashed: { source: 'a/repo', sourceType: 'github', skillPath: 'skills/hashed/SKILL.md', skillFolderHash: 'a'.repeat(64) },
     },
   }))
   setGithubTreeFetcher(fakeFetcher)
@@ -77,13 +79,15 @@ describe('GET /api/skills/updates', () => {
       'a/repo': { sha: 'root', tree: [
         { path: 'skills/fresh', type: 'tree', sha: 'h-fresh' },
         { path: 'skills/stale', type: 'tree', sha: 'h-new' },
+        { path: 'skills/hashed', type: 'tree', sha: 'b'.repeat(40) },
       ] },
       'a/repo@v1': { sha: 'root-v1', tree: [{ path: 'skills/pinned', type: 'tree', sha: 'h-pin' }] },
       'b/missing': null,
     }
     const data = expectSuccess(await get<{ updates: UpdateStatus[] }>('/api/skills/updates'))
     const byName = Object.fromEntries(data.updates.map(u => [u.name, u.status]))
-    expect(byName).toEqual({ fresh: 'latest', stale: 'update', gone: 'removed', other: 'unknown', pinned: 'latest' })
+    // A content sha256 cannot be compared with a tree hash
+    expect(byName).toEqual({ fresh: 'latest', stale: 'update', gone: 'removed', other: 'unknown', pinned: 'latest', hashed: 'unknown' })
     expect(fetches.sort()).toEqual(['a/repo', 'a/repo@v1', 'b/missing'])
   })
 

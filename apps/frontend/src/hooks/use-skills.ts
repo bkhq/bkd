@@ -92,7 +92,6 @@ export function useSkillsOperation(id: string | undefined) {
   useEffect(() => {
     if (status && status !== 'running') {
       void qc.invalidateQueries({ queryKey: ['skills', 'list'] })
-      void qc.invalidateQueries({ queryKey: ['skills', 'updates'] })
       void qc.invalidateQueries({ queryKey: ['skills', 'files'] })
       void qc.invalidateQueries({ queryKey: ['skills', 'file'] })
     }
@@ -104,7 +103,6 @@ export function useCancelSkillsOperation() {
   return useMutation({ mutationFn: kanbanApi.cancelSkillsOperation })
 }
 
-/** Update status of installed skills (GitHub is asked at most every 10 min by the server). */
 /** Asks GitHub whether a skill has a newer version; only ever on the user's request. */
 export function useCheckSkillUpdates() {
   return useMutation({

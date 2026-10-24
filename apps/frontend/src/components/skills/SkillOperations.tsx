@@ -100,19 +100,19 @@ export function InstallSkillDialog({ open, onOpenChange, projectId }: {
 
   const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter(x => x !== item) : [...list, item])
 
+  // Every way of closing goes through here, so the next opening starts afresh
+  const handleOpenChange = (next: boolean) => {
+    // A running operation would lose its id and keep the server's only slot: cancel it first
+    if (!next && running) return
+    if (!next) {
+      reset()
+      setSource('')
+    }
+    onOpenChange(next)
+  }
+
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(next) => {
-        // A running operation would lose its id and keep the server's only slot: cancel it first
-        if (!next && running) return
-        if (!next) {
-          reset()
-          setSource('')
-        }
-        onOpenChange(next)
-      }}
-    >
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-lg" showCloseButton={!running} aria-describedby={undefined}>
         <SheetHeader className="border-b border-border/60">
           <SheetTitle>{t('skills.installTitle')}</SheetTitle>
@@ -199,7 +199,7 @@ export function InstallSkillDialog({ open, onOpenChange, projectId }: {
                 </Button>
               )
             : (
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('skills.close')}</Button>
+                <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>{t('skills.close')}</Button>
               )}
           {preview?.status === 'succeeded' && !installId
             ? (
@@ -383,17 +383,17 @@ export function UploadSkillDialog({ open, onOpenChange, projectId, onUploaded }:
     )
   }
 
+  // Every way of closing goes through here, so the next opening shows no old result
+  const handleOpenChange = (next: boolean) => {
+    if (!next) {
+      upload.reset()
+      setRejected(false)
+    }
+    onOpenChange(next)
+  }
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) {
-          upload.reset()
-          setRejected(false)
-        }
-        onOpenChange(next)
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t('skills.uploadTitle')}</DialogTitle>
@@ -462,7 +462,7 @@ export function UploadSkillDialog({ open, onOpenChange, projectId, onUploaded }:
             )
           : null}
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('skills.close')}</Button>
+          <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>{t('skills.close')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

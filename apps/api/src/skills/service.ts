@@ -157,13 +157,13 @@ async function readDescription(dir: string): Promise<{ name?: string, descriptio
   }
 }
 
-/** Names in `.claude/skills` that are symlinks resolving into the agents store. */
 /** `.claude/skills` linked wholesale to `.agents/skills`: one store seen by both engines. */
 async function claudeIsAgentsStore(roots: Roots): Promise<boolean> {
   const [claude, agents] = await Promise.all([realpath(roots.claude).catch(() => null), realpath(roots.agents).catch(() => null)])
   return !!claude && claude === agents
 }
 
+/** Names in `.claude/skills` that are symlinks resolving into the agents store. */
 async function claudeLinks(roots: Roots): Promise<Set<string>> {
   const linked = new Set<string>()
   if (await claudeIsAgentsStore(roots)) {

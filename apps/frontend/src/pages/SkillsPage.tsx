@@ -676,6 +676,11 @@ function CreateSkillDialog({ open, onOpenChange, projectId, onCreated }: {
   const [description, setDescription] = useState('')
   const [scope, setScope] = useState<'global' | 'project'>('global')
   const effectiveScope = projectId ? scope : 'global'
+  // Cancel and dismissal alike drop the last error
+  const close = (next: boolean) => {
+    create.reset()
+    onOpenChange(next)
+  }
 
   const submit = () => {
     create.mutate(
@@ -692,12 +697,7 @@ function CreateSkillDialog({ open, onOpenChange, projectId, onCreated }: {
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        create.reset(); onOpenChange(next)
-      }}
-    >
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('skills.createTitle')}</DialogTitle>
@@ -734,7 +734,7 @@ function CreateSkillDialog({ open, onOpenChange, projectId, onCreated }: {
             : null}
           {create.error ? <p className="text-sm text-destructive">{create.error.message}</p> : null}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+            <Button type="button" variant="outline" onClick={() => close(false)}>{t('common.cancel')}</Button>
             <Button type="submit" disabled={!name.trim() || !description.trim() || create.isPending}>{t('skills.create')}</Button>
           </DialogFooter>
         </form>
@@ -753,6 +753,11 @@ function CopySkillDialog({ open, onOpenChange, skill, projectId, onCopied }: {
   const { t } = useTranslation()
   const copy = useCopySkill()
   const [name, setName] = useState('')
+  // Cancel and dismissal alike drop the last error
+  const close = (next: boolean) => {
+    copy.reset()
+    onOpenChange(next)
+  }
 
   const submit = () => {
     copy.mutate(
@@ -768,12 +773,7 @@ function CopySkillDialog({ open, onOpenChange, skill, projectId, onCopied }: {
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        copy.reset(); onOpenChange(next)
-      }}
-    >
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('skills.copyTitle')}</DialogTitle>
@@ -791,7 +791,7 @@ function CopySkillDialog({ open, onOpenChange, skill, projectId, onCopied }: {
           </div>
           {copy.error ? <p className="text-sm text-destructive">{copy.error.message}</p> : null}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+            <Button type="button" variant="outline" onClick={() => close(false)}>{t('common.cancel')}</Button>
             <Button type="submit" disabled={!name.trim() || copy.isPending}>{t('skills.copy')}</Button>
           </DialogFooter>
         </form>
@@ -810,16 +810,23 @@ function DeleteSkillDialog({ open, onOpenChange, skill, projectId, onDeleted }: 
   const { t } = useTranslation()
   const remove = useDeleteSkill()
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        remove.reset(); onOpenChange(next)
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{t('skills.deleteTitle')}</AlertDialogTitle>
           <AlertDialogDescription>{t('skills.deleteConfirm', { name: skill.name, trash: 'data/trash/skills' })}</AlertDialogDescription>
           <AlertDialogDescription>{t('skills.referencesNote')}</AlertDialogDescription>
         </AlertDialogHeader>
+        {remove.error ? <p className="text-sm text-destructive">{remove.error.message}</p> : null}
         <AlertDialogFooter>
           <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
           <AlertDialogAction
+            disabled={remove.isPending}
             onClick={() => remove.mutate(
               { location: skill.location, name: skill.name, projectId },
               { onSuccess: () => {

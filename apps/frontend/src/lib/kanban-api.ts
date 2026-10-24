@@ -687,7 +687,6 @@ export const kanbanApi = {
   readAllMessages: () =>
     post<{ ids: string[] }>('/api/messages/items/read', {}),
 
-  // Notes
   // Skills
   getSkills: (projectId?: string) =>
     get<{ skills: SkillInfo[], cliAvailable: boolean }>(`/api/skills${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
@@ -727,6 +726,7 @@ export const kanbanApi = {
   deleteSkill: (location: SkillLocation, name: string, projectId?: string) =>
     del<{ name: string }>(`/api/skills/${location}/${encodeURIComponent(name)}${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
 
+  // Notes
   getNotes: () => get<Note[]>('/api/notes'),
   createNote: (data: { title?: string, content?: string }) => post<Note>('/api/notes', data),
   updateNote: (id: string, data: { title?: string, content?: string, isPinned?: boolean }) =>
