@@ -8,12 +8,10 @@ import {
   Search,
   Settings,
 } from 'lucide-react'
-import { cn } from 'cn'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { IssueContextMenu, IssueRightClickMenu } from '@/components/issue-detail/IssueContextMenu'
-import { IssueDragProvider, SortableIssues, useIssueDropGroup } from '@/components/issue-drag/IssueDragContext'
 import { IssueMessageMatches } from '@/components/issue-detail/IssueMessageMatches'
 import { ProjectSettingsDialog } from '@/components/ProjectSettingsDialog'
 import { Button } from '@/components/ui/button'
@@ -158,31 +156,19 @@ export function IssueListPanel({
 
       {/* Grouped issue list */}
       <div className="flex-1 overflow-y-auto">
-        <IssueDragProvider
-          projectId={projectId}
-          columns={byStatus}
-          visibleColumns={visibleByStatus}
-          sortable={false}
-          renderOverlay={issue => (
-            <div className="rounded-md bg-background shadow-md ring-1 ring-border">
-              <IssueRowContent issue={issue} isActive={false} />
-            </div>
-          )}
-        >
-          {issues && STATUSES.map(status => (
-            <StatusGroup
-              key={status.id}
-              status={status}
-              issues={visibleByStatus[status.id] ?? []}
-              projectId={projectId}
-              isCollapsed={!!collapsed[status.id]}
-              onToggle={() => toggleCollapse(status.id)}
-              activeIssueId={activeIssueId}
-              onNavigate={issueId => navigate(`/projects/${projectId}/issues/${issueId}`)}
-              onActiveDeleted={() => navigate(`/projects/${projectId}/issues`)}
-            />
-          ))}
-        </IssueDragProvider>
+        {issues && STATUSES.map(status => (
+          <StatusGroup
+            key={status.id}
+            status={status}
+            issues={visibleByStatus[status.id] ?? []}
+            projectId={projectId}
+            isCollapsed={!!collapsed[status.id]}
+            onToggle={() => toggleCollapse(status.id)}
+            activeIssueId={activeIssueId}
+            onNavigate={issueId => navigate(`/projects/${projectId}/issues/${issueId}`)}
+            onActiveDeleted={() => navigate(`/projects/${projectId}/issues`)}
+          />
+        ))}
         <IssueMessageMatches
           projectId={projectId}
           query={search.trim()}
@@ -267,11 +253,9 @@ export function StatusGroup({
   const { t } = useTranslation()
   const openCreateDialog = usePanelStore(s => s.openCreateDialog)
   const canCreate = status.id === 'todo' || status.id === 'working'
-  // The whole group (header included) takes drops, so a collapsed or empty group still works.
-  const { setNodeRef, isTarget, slot } = useIssueDropGroup(status.id)
 
   return (
-    <div ref={setNodeRef} className={cn('ring-1 ring-inset ring-transparent transition-shadow', isTarget && 'ring-foreground/20')}>
+    <div>
       <ListGroupHeader
         color={status.color}
         label={tStatus(t, status.name)}
@@ -295,18 +279,17 @@ export function StatusGroup({
 
       {!isCollapsed ? (
         <div>
-          <SortableIssues status={status.id} items={issues} slotClassName="mx-1.5 my-1">
-            {issue => (
-              <IssueRow
-                issue={issue}
-                projectId={projectId}
-                isActive={issue.id === activeIssueId}
-                onNavigate={onNavigate}
-                onActiveDeleted={onActiveDeleted}
-              />
-            )}
-          </SortableIssues>
-          {issues.length === 0 && slot === null ?
+          {issues.map(issue => (
+            <IssueRow
+              key={issue.id}
+              issue={issue}
+              projectId={projectId}
+              isActive={issue.id === activeIssueId}
+              onNavigate={onNavigate}
+              onActiveDeleted={onActiveDeleted}
+            />
+          ))}
+          {issues.length === 0 ?
               (
                 <div className="px-2 py-3 min-h-[44px] flex items-center justify-center">
                   <span className="text-[11px] text-muted-foreground/55 text-center pointer-events-none">
@@ -403,17 +386,3 @@ export const IssueRow = memo(({
     </div>
   )
 })
-
-/** A row's look without its menus: the lifted copy that follows the pointer while it drags. */
-function IssueRowContent({ issue, isActive }: { issue: Issue, isActive: boolean }) {
-  return (
-    <div className="flex items-center gap-1.5 px-2.5 py-2.5 md:py-1.5">
-      <span className={`text-[11px] font-mono shrink-0 tabular-nums ${isActive ? 'text-primary font-medium' : 'text-muted-foreground/70'}`}>
-        #
-        {issue.issueNumber}
-      </span>
-      {issue.isPinned && <Pin className="size-3 shrink-0 text-primary" />}
-      <span className="flex-1 min-w-0 text-[13px] truncate text-foreground/90">{issue.title}</span>
-    </div>
-  )
-}

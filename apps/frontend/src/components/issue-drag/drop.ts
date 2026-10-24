@@ -84,12 +84,10 @@ export interface DropSlot {
  * reports a new `over` when the target changes, so the half of the card the pointer
  * sits on is read on every move. The card's own column opens a sortable gap instead.
  */
-export function planDropSlot({ event: { active, over }, columns, current, sortable = true }: {
+export function planDropSlot({ event: { active, over }, columns, current }: {
   event: Pick<DragMoveEvent, 'active' | 'over'>
   columns: GroupedIssues
   current: DropSlot | null
-  /** Off, the slot sits where the card will land: first, or after the pinned cards. */
-  sortable?: boolean
 }): DropSlot | null {
   const activeId = String(active.id)
   const from = columnOf(columns, activeId)
@@ -98,10 +96,7 @@ export function planDropSlot({ event: { active, over }, columns, current, sortab
   if (over === null || overId === null || target === undefined || from === undefined || target === from) return null
   const column = columns[target] ?? []
   let index: number
-  if (!sortable) {
-    const pinned = (columns[from] ?? []).find(issue => issue.id === activeId)?.isPinned
-    index = pinned ? 0 : column.filter(issue => issue.isPinned).length
-  } else if (isStatus(overId)) {
+  if (isStatus(overId)) {
     // Over the column itself is mostly over the open slot, which is no droppable.
     index = current?.status === target ? current.index : column.length
   } else {
@@ -113,18 +108,6 @@ export function planDropSlot({ event: { active, over }, columns, current, sortab
   return current?.status === target && current.index === index && current.height === height
     ? current
     : { status: target, index, height }
-}
-
-/** A drop in an unsortable group: another group changes the status, the own group nothing. */
-export function planStatusDrop({ activeId, overId, columns }: {
-  activeId: string
-  overId: string
-  columns: GroupedIssues
-}): Array<{ id: string, statusId: string }> {
-  const from = columnOf(columns, activeId)
-  const to = isStatus(overId) ? overId : columnOf(columns, overId)
-  if (from === undefined || to === undefined || to === from) return []
-  return [{ id: activeId, statusId: to }]
 }
 
 /** Maps an insertion index in a search-filtered column onto the full column. */

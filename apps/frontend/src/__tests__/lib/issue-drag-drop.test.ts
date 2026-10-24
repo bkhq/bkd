@@ -1,10 +1,10 @@
 import type { Issue } from '@bkd/shared'
 import { describe, expect, it } from 'vitest'
-import { planDrop, planDropSlot, planDropUpdates, planStatusDrop, toFullIndex } from '@/components/issue-drag/drop'
+import { planDrop, planDropSlot, planDropUpdates, toFullIndex } from '@/components/issue-drag/drop'
 import { groupIssuesByStatus } from '@/lib/issue-order'
 
-function issue(id: string, statusId: string, sortOrder: string, extra: Partial<Issue> = {}): Issue {
-  return { id, statusId, sortOrder, isPinned: false, statusUpdatedAt: '2026-10-15T00:00:00Z', ...extra } as Issue
+function issue(id: string, statusId: string, sortOrder: string): Issue {
+  return { id, statusId, sortOrder, isPinned: false, statusUpdatedAt: '2026-10-15T00:00:00Z' } as Issue
 }
 
 const columns = groupIssuesByStatus([
@@ -104,34 +104,5 @@ describe('planDropUpdates', () => {
 
   it('returns no updates for a drop that changes nothing', () => {
     expect(planDropUpdates({ activeId: 'b', overId: 'b', slot: null, columns, visibleColumns: columns })).toEqual([])
-  })
-})
-
-describe('unsortable groups', () => {
-  const list = groupIssuesByStatus([
-    issue('a', 'todo', 'a0'),
-    issue('b', 'todo', 'a1'),
-    issue('p', 'review', 'a0', { isPinned: true }),
-    issue('r', 'review', 'a1'),
-    issue('q', 'done', 'a0', { isPinned: true }),
-  ])
-  const active = (id: string) => ({ id, rect: { current: { translated: rect(200), initial: rect(0, 36) } } })
-
-  it('puts the slot where the card will land, not under the pointer', () => {
-    const over = { id: 'r', rect: rect(100) }
-    expect(planDropSlot({ event: { active: active('a'), over } as never, columns: list, current: null, sortable: false }))
-      .toEqual({ status: 'review', index: 1, height: 36 })
-    expect(planDropSlot({ event: { active: active('q'), over } as never, columns: list, current: null, sortable: false }))
-      .toEqual({ status: 'review', index: 0, height: 36 })
-  })
-
-  it('changes only the status on a drop in another group', () => {
-    expect(planStatusDrop({ activeId: 'a', overId: 'r', columns: list }))
-      .toEqual([{ id: 'a', statusId: 'review' }])
-  })
-
-  it('does nothing on a drop in the own group', () => {
-    expect(planStatusDrop({ activeId: 'a', overId: 'b', columns: list })).toEqual([])
-    expect(planStatusDrop({ activeId: 'a', overId: 'todo', columns: list })).toEqual([])
   })
 })

@@ -1103,3 +1103,17 @@ The messages inbox moved from the `/messages` page into a global side drawer
 Sidebar, mobile menu and home-page menus open the drawer; the waiting-count badge stays on
 its button. `/messages` remains valid for webhook inbox links and opens the drawer on `/`
 (20261024-1503-messages-drawer).
+
+## 2026-10-24 16:30 [decision]
+
+The upgrade panel shows only "new version available" (with Update) or "up to date"; lode's
+failure notes (`lastError`, `checkError`, check timeout) and the raw status badge are gone,
+a real install failure included (20261024-1500-upgrade-panel-lode-version). The lode badge
+shows lode's version from `LODE_VERSION` / `LODE_COMMIT` (lode >= 0.3.0); `lode-sdk.ts` is
+re-vendored from lode v0.3.0.
+
+## 2026-10-24 16:30 [progress]
+
+The issue list panel no longer drags at all, so scrolling cannot move an issue
+(20261024-1615-list-panel-no-drag); the `sortable` switch added by
+20261024-1445-backend-issue-order is removed. The kanban board drag is unchanged.
