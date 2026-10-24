@@ -466,6 +466,11 @@ export class ClaudeCodeExecutor implements EngineExecutor {
       builder.param('--disallowedTools', 'AskUserQuestion')
     }
 
+    // Worktree admission (e.g. `--mcp-config <path>`)
+    if (env.extraArgs?.length) {
+      builder.params(env.extraArgs)
+    }
+
     if (options.env) {
       builder.envs(options.env)
     }

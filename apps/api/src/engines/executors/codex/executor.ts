@@ -384,7 +384,8 @@ export class CodexExecutor implements EngineExecutor {
   ]
 
   async spawn(options: SpawnOptions, env: ExecutionEnv): Promise<SpawnedProcess> {
-    const cmd = [...resolveBaseCmd(), 'app-server']
+    // Worktree admission args (`-c key=value` overrides) are top-level flags
+    const cmd = [...resolveBaseCmd(), ...(env.extraArgs ?? []), 'app-server']
 
     const proc = spawnNode(cmd, {
       cwd: options.workingDir,
@@ -450,7 +451,8 @@ export class CodexExecutor implements EngineExecutor {
   }
 
   async spawnFollowUp(options: FollowUpOptions, env: ExecutionEnv): Promise<SpawnedProcess> {
-    const cmd = [...resolveBaseCmd(), 'app-server']
+    // Worktree admission args (`-c key=value` overrides) are top-level flags
+    const cmd = [...resolveBaseCmd(), ...(env.extraArgs ?? []), 'app-server']
 
     const proc = spawnNode(cmd, {
       cwd: options.workingDir,

@@ -7,6 +7,10 @@ const runtimeSchema = z.object({
   SERVICE_NAME: z.string().regex(/^[\w.-]+$/).default('bkd'),
   MAX_CONCURRENT_EXECUTIONS: z.coerce.number().int().min(1).default(5),
   WORKTREE_DIR: z.string().min(1).default('worktrees'),
+  // Opt-in pre-spawn admission for worktree issues, e.g. `mcp-manager worktree`.
+  // Whitespace-separated program and leading args; unset or blank disables it.
+  WORKTREE_ADMISSION_COMMAND: z.string().trim().optional().transform(value => value || undefined),
+  WORKTREE_ADMISSION_TIMEOUT_MS: z.coerce.number().int().min(1000).default(60_000),
   ALLOWED_ORIGIN: z.string().min(1).default('*').refine(value => value === '*' || value.split(',').every((origin) => {
     try {
       const url = new URL(origin.trim())
