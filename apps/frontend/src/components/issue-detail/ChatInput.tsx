@@ -39,7 +39,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
 import { useFileAttachments } from '@/hooks/use-file-attachments'
-import { useClearIssueSession, useEngineAvailability, useEngineProfiles, useEngineSettings, useFollowUpIssue } from '@/hooks/use-kanban'
+import { useClearIssueSession, useEngineAvailability, useEngineProfiles, useEngineSettings, useFollowUpIssue, useUpdateIssue } from '@/hooks/use-kanban'
 import { formatModelName } from '@/lib/format'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { BusyAction, EngineModel, SessionStatus } from '@/types/kanban'
@@ -203,6 +203,13 @@ export function ChatInput({
   useEffect(() => {
     setSelectedModel(model || '')
   }, [model])
+  const updateIssue = useUpdateIssue(projectId ?? '')
+  // Outside working the model is saved right away; a working issue takes it with the next message.
+  const handleModelChange = (value: string) => {
+    setSelectedModel(value)
+    if (!issueId || statusId === 'working' || value === (model || '')) return
+    updateIssue.mutate({ id: issueId, model: value }, { onError: () => setSelectedModel(model || '') })
+  }
   const [mode, setMode] = useState<ModeOption>('auto')
   const [busyAction, setBusyAction] = useState<BusyAction>('queue')
   const activeModel = selectedModel || model || ''
@@ -520,7 +527,7 @@ export function ChatInput({
                   <ModelSelect
                     models={models}
                     value={activeModel}
-                    onChange={setSelectedModel}
+                    onChange={handleModelChange}
                     disabled={isSessionActive}
                   />
                 ) :

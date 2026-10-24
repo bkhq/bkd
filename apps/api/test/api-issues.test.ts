@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { eq } from 'drizzle-orm'
+import { db } from '@/db'
 import { getDefaultEngine, setDefaultEngine } from '@/db/helpers'
+import { issues as issuesTable } from '@/db/schema'
 import { createTestProject, del, expectSuccess, get, patch, post } from './helpers'
 /**
  * Issues CRUD API tests.
@@ -309,6 +312,38 @@ describe('PATCH /api/projects/:projectId/issues/:id', () => {
       title: 'Update',
     })
     expect(result.status).toBe(404)
+  })
+
+  test('updates the model outside working', async () => {
+    const created = expectSuccess(
+      await post<Issue>(`/api/projects/${projectId}/issues`, {
+        title: 'Model Test',
+        statusId: 'todo',
+      }),
+    )
+    const data = expectSuccess(
+      await patch<Issue>(`/api/projects/${projectId}/issues/${created.id}`, {
+        model: 'claude-opus-5-5',
+      }),
+    )
+    expect(data.model).toBe('claude-opus-5-5')
+    const fetched = expectSuccess(await get<Issue>(`/api/projects/${projectId}/issues/${created.id}`))
+    expect(fetched.model).toBe('claude-opus-5-5')
+  })
+
+  test('rejects a model change while working', async () => {
+    const created = expectSuccess(
+      await post<Issue>(`/api/projects/${projectId}/issues`, {
+        title: 'Working Model Test',
+        statusId: 'todo',
+      }),
+    )
+    // Set the status directly: moving to working through the route starts an execution.
+    await db.update(issuesTable).set({ statusId: 'working' }).where(eq(issuesTable.id, created.id))
+    const result = await patch<Issue>(`/api/projects/${projectId}/issues/${created.id}`, {
+      model: 'claude-opus-5-5',
+    })
+    expect(result.status).toBe(409)
   })
 })
 

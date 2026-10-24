@@ -354,6 +354,7 @@ export const updateIssue = createRoute({
   responses: {
     200: successResponse(IssueSchema, 'Updated issue'),
     404: errorResponse('Issue not found'),
+    409: errorResponse('Model change while the issue is working'),
   },
 })
 
