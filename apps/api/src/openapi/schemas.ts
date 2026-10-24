@@ -523,6 +523,126 @@ export const UpdateNoteSchema = z.object({
   isPinned: z.boolean().optional(),
 }).openapi('UpdateNote')
 
+// ── Skill schemas ──────────────────────────────────────
+
+export const SkillLocationSchema = z.enum(['global-agents', 'global-claude', 'project-agents', 'project-claude']).openapi('SkillLocation')
+
+export const SkillInfoSchema = z.object({
+  location: SkillLocationSchema,
+  scope: z.enum(['global', 'project']),
+  name: z.string(),
+  description: z.string(),
+  path: z.string(),
+  managed: z.boolean(),
+  source: z.string().nullable(),
+  sourceUrl: z.string().nullable(),
+  sourcePath: z.string().nullable(),
+  sourceRef: z.string().nullable(),
+  updatedAt: z.string().nullable(),
+  agents: z.array(z.enum(['claude-code', 'codex'])),
+}).openapi('SkillInfo')
+
+export const SkillListSchema = z.object({
+  skills: z.array(SkillInfoSchema),
+  /** Whether `npx` is available to run the skills CLI (install / update / uninstall). */
+  cliAvailable: z.boolean(),
+}).openapi('SkillList')
+
+export const SkillFileEntrySchema = z.object({
+  path: z.string(),
+  type: z.enum(['file', 'dir']),
+  size: z.number().int(),
+}).openapi('SkillFileEntry')
+
+export const SkillFileSchema = z.object({
+  path: z.string(),
+  content: z.string(),
+  binary: z.boolean(),
+}).openapi('SkillFile')
+
+const skillName = z.string().min(1).max(64)
+
+export const SkillParamsSchema = z.object({
+  location: SkillLocationSchema,
+  name: skillName,
+})
+
+export const SkillProjectQuerySchema = z.object({
+  projectId: z.string().min(1).max(100).optional(),
+})
+
+/** Without `location` and `name`, every installed skill is checked. */
+export const SkillUpdatesQuerySchema = SkillProjectQuerySchema.extend({
+  location: SkillLocationSchema.optional(),
+  name: skillName.optional(),
+})
+
+export const SkillFileQuerySchema = SkillProjectQuerySchema.extend({
+  path: z.string().min(1).max(1000),
+})
+
+export const SaveSkillFileSchema = z.object({
+  path: z.string().min(1).max(1000),
+  content: z.string().max(1024 * 1024),
+  projectId: z.string().min(1).max(100).optional(),
+}).openapi('SaveSkillFile')
+
+export const CreateSkillSchema = z.object({
+  scope: z.enum(['global', 'project']),
+  name: skillName,
+  description: z.string().trim().min(1).max(1024),
+  projectId: z.string().min(1).max(100).optional(),
+}).openapi('CreateSkill')
+
+export const SkillUpdateStatusSchema = z.object({
+  location: SkillLocationSchema,
+  name: z.string(),
+  status: z.enum(['latest', 'update', 'removed', 'unknown']),
+}).openapi('SkillUpdateStatus')
+
+export const SkillUploadFieldsSchema = z.object({
+  scope: z.enum(['global', 'project']).default('global'),
+  projectId: z.string().min(1).max(100).optional(),
+}).openapi('SkillUploadFields')
+
+export const SkillUploadResultSchema = z.object({
+  created: z.array(SkillInfoSchema),
+  conflicts: z.array(z.string()),
+  skipped: z.array(z.object({ path: z.string(), reason: z.string() })),
+}).openapi('SkillUploadResult')
+
+export const SkillsOperationSchema = z.object({
+  id: z.string(),
+  op: z.enum(['preview', 'add', 'update', 'remove']),
+  scope: z.enum(['global', 'project']),
+  status: z.enum(['running', 'succeeded', 'failed', 'cancelled']),
+  output: z.array(z.string()),
+  error: z.string().nullable(),
+  result: z.object({ skills: z.array(z.object({ name: z.string(), description: z.string() })).optional() }).nullable(),
+  startedAt: z.string(),
+  finishedAt: z.string().nullable(),
+}).openapi('SkillsOperation')
+
+export const StartSkillsOperationSchema = z.object({
+  op: z.enum(['preview', 'add', 'update', 'remove']),
+  scope: z.enum(['global', 'project']),
+  projectId: z.string().min(1).max(100).optional(),
+  /** preview / add: `owner/repo` or a https://github.com/ URL */
+  source: z.string().min(1).max(300).optional(),
+  /** add: skills to install from the source */
+  skills: z.array(skillName).max(100).optional(),
+  /** update (optional; all when empty) / remove: installed skill names */
+  names: z.array(skillName).max(100).optional(),
+  agents: z.array(z.enum(['claude-code', 'codex'])).max(2).optional(),
+}).openapi('StartSkillsOperation')
+
+export const SkillsOperationParamsSchema = z.object({ id: z.string().min(1).max(64) })
+
+export const CopySkillSchema = z.object({
+  name: skillName,
+  projectId: z.string().min(1).max(100).optional(),
+}).openapi('CopySkill')
+
 // ── Decision event schemas ─────────────────────────────
 
 export const DECISION_EVENT_STATUSES = ['open', 'decided', 'applied', 'withdrawn', 'closed'] as const

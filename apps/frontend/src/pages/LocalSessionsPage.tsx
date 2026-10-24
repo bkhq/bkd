@@ -2,8 +2,7 @@ import type { LocalSession } from '@bkd/shared'
 import { AlertTriangle, FolderGit2, Loader2, Search, Trash2 } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate } from 'react-router-dom'
-import { AppLogo } from '@/components/AppLogo'
+import { useNavigate } from 'react-router-dom'
 import { AppSidebar } from '@/components/kanban/AppSidebar'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import {
@@ -421,9 +420,6 @@ export default function LocalSessionsPage() {
         <section className="mx-auto max-w-6xl px-4 py-4 md:px-6 md:py-8">
           <div className="mb-4 flex items-center gap-2.5 md:mb-6">
             {isMobile ? <MobileSidebar activeProjectId="" /> : null}
-            <Link to="/" aria-label={t('sidebar.home')}>
-              <AppLogo className="h-8 w-8" />
-            </Link>
             <h1 className="text-lg font-semibold tracking-tight md:text-xl">
               {t('sessions.title')}
             </h1>

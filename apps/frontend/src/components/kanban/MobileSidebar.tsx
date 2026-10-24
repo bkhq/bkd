@@ -1,18 +1,18 @@
-import { ChevronRight, Menu, Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucide-react'
+import { ChevronRight, Menu, Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff, X } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { AppLogo } from '@/components/AppLogo'
 import { AppSettingsDialog } from '@/components/AppSettingsDialog'
 import { CreateProjectDialog } from '@/components/CreateProjectDialog'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetClose, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { useWaitingMessageCount } from '@/hooks/use-messages'
 import { useEventConnection } from '@/hooks/use-event-connection'
 import { useProjects } from '@/hooks/use-kanban'
 import { getProjectInitials } from '@/lib/format'
-import { GLOBAL_PAGES } from '@/lib/global-pages'
+import { GLOBAL_PAGES, isGlobalPageActive } from '@/lib/global-pages'
 import { useNotesStore } from '@/stores/notes-store'
 import { useServerStore } from '@/stores/server-store'
 import { useTerminalStore } from '@/stores/terminal-store'
@@ -37,6 +37,7 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
   const [open, setOpen] = useState(false)
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const { data: projects } = useProjects()
   const waitingMessages = useWaitingMessageCount()
   const [showCreate, setShowCreate] = useState(false)
@@ -60,28 +61,38 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
     <>
       <MobileSidebarTrigger onOpen={() => setOpen(true)} />
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="w-72 p-0" aria-describedby={undefined}>
+        <SheetContent side="left" className="w-72 p-0" showCloseButton={false} aria-describedby={undefined}>
           <SheetTitle className="sr-only">{t('sidebar.menu')}</SheetTitle>
 
           <div className="flex flex-col h-full">
-            {/* Header -- links to homepage; same name source as the document title */}
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false)
-                void navigate('/')
-              }}
-              className="flex items-center gap-3 px-4 py-3 border-b hover:bg-accent/50 active:bg-accent transition-colors"
-            >
-              <AppLogo className="h-8 w-8" />
-              <span className="text-sm font-semibold truncate">{serverName ?? 'BKD'}</span>
+            {/* Header -- links to homepage; same name source as the document title.
+                The close button sits in this row (not the sheet's absolute one) so it lines up. */}
+            <div className="flex items-center gap-2 border-b pr-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false)
+                  void navigate('/')
+                }}
+                className="flex min-w-0 flex-1 items-center gap-3 pl-4 py-3 hover:bg-accent/50 active:bg-accent transition-colors"
+              >
+                <AppLogo className="h-8 w-8" />
+                <span className="text-sm font-semibold truncate">{serverName ?? 'BKD'}</span>
+              </button>
               <span
-                className={`ml-auto shrink-0 ${connected ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}
+                className={`shrink-0 ${connected ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}
                 title={connected ? t('session.connected') : t('session.disconnected')}
               >
                 {connected ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
               </span>
-            </button>
+              <SheetClose
+                render={<Button variant="ghost" size="icon-sm" />}
+                aria-label={t('sidebar.closeMenu')}
+                title={t('sidebar.closeMenu')}
+              >
+                <X className="h-4 w-4" />
+              </SheetClose>
+            </div>
 
             {/* Project list */}
             <div className="px-4 pt-3 pb-1">
@@ -163,25 +174,30 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
                 <StickyNote className="h-4 w-4 text-muted-foreground" />
                 {t('notes.title')}
               </button>
-              {GLOBAL_PAGES.map(({ id, path, icon: Icon, labelKey }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => {
-                    setOpen(false)
-                    void navigate(path)
-                  }}
-                  className="flex items-center gap-3 w-full px-4 min-h-[44px] text-sm text-foreground/80 hover:bg-accent/50 active:bg-accent transition-colors"
-                >
-                  <Icon className="h-4 w-4 text-muted-foreground" />
-                  {t(labelKey)}
-                  {id === 'messages' && waitingMessages > 0 && (
-                    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
-                      {waitingMessages}
-                    </span>
-                  )}
-                </button>
-              ))}
+              {GLOBAL_PAGES.map((page) => {
+                const { id, path, icon: Icon, labelKey } = page
+                const isActive = isGlobalPageActive(page, pathname)
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-current={isActive ? 'page' : undefined}
+                    onClick={() => {
+                      setOpen(false)
+                      void navigate(path)
+                    }}
+                    className={`flex items-center gap-3 w-full px-4 min-h-[44px] text-sm transition-colors ${isActive ? 'bg-accent text-foreground font-medium' : 'text-foreground/80 hover:bg-accent/50 active:bg-accent'}`}
+                  >
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                    {t(labelKey)}
+                    {id === 'messages' && waitingMessages > 0 && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
+                        {waitingMessages}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
               <button
                 type="button"
                 onClick={() => setShowSettings(true)}

@@ -43,7 +43,7 @@ describe('logEntry error-message', () => {
       />,
     )
 
-    const box = screen.getByText('Reconnecting... 1/5').closest('.border')
+    const box = screen.getByText('Reconnecting... 1/5').closest('[data-slot="chat-block"]')
     expect(box?.className).toContain('amber')
     expect(box?.className).not.toContain('destructive')
   })

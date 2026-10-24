@@ -61,13 +61,17 @@ export function MarkdownContent({
   content,
   className = '',
   isStreaming = false,
+  render,
 }: {
   content: string
   className?: string
   /** Entry is still receiving deltas; lets streamdown repair unterminated markup. */
   isStreaming?: boolean
+  /** Per-message choice; defaults to the global "render Markdown" setting. */
+  render?: boolean
 }) {
-  const renderMarkdown = useViewModeStore(s => s.renderMarkdown)
+  const renderSetting = useViewModeStore(s => s.renderMarkdown)
+  const renderMarkdown = render ?? renderSetting
   if (!renderMarkdown) return <MarkdownSource content={content} className={className} />
   if (!content.trim()) return null
   return (

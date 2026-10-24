@@ -1,11 +1,12 @@
 import { Search } from 'lucide-react'
-import { memo, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useReviewIssues } from '@/hooks/use-kanban'
 import type { Issue } from '@/types/kanban'
 import { ResizeHandle } from '@/components/ui/resize-handle'
-import { LIST_MAX_WIDTH, LIST_MIN_WIDTH } from './IssueListPanel'
+import { STATUS_MAP } from '@/lib/statuses'
+import { IssueRow, LIST_MAX_WIDTH, LIST_MIN_WIDTH, ListGroupHeader } from './IssueListPanel'
 
 type ReviewIssue = Issue & { projectName: string, projectAlias: string }
 
@@ -72,18 +73,21 @@ export function ReviewListPanel({
       style={width ? { width: `${width}px` } : undefined}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-2.5 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] bg-secondary/50">
+      {/* Same height as the project list header, so the rows line up across pages */}
+      <div data-slot="list-header" className="flex items-center justify-between px-2.5 py-2.5 border-b border-border/60 shrink-0 min-h-[49px] bg-secondary/50">
         <div className="flex items-center gap-1.5 min-w-0">
           {mobileNav}
           <span className="text-sm font-semibold truncate tracking-tight">{t('review.title')}</span>
+          {issues
+            ? (
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground/60">
+                  (
+                  {issues.length}
+                  )
+                </span>
+              )
+            : null}
         </div>
-        {issues ?
-            (
-              <span className="text-[10px] font-medium text-muted-foreground/50 shrink-0 tabular-nums">
-                {issues.length}
-              </span>
-            ) :
-          null}
       </div>
 
       {/* Search */}
@@ -125,6 +129,7 @@ export function ReviewListPanel({
                     onToggle={() => toggleCollapse(group.projectId)}
                     activeIssueId={activeIssueId}
                     onNavigate={(projectId, issueId) => navigate(`/review/${projectId}/${issueId}`)}
+                    onActiveDeleted={() => navigate('/review')}
                   />
                 ))
               )}
@@ -147,6 +152,9 @@ export function ReviewListPanel({
   )
 }
 
+/** Review status colour, so project groups read like the review status group. */
+const REVIEW_COLOR = STATUS_MAP.get('review')?.color ?? '#f59e0b'
+
 function ProjectGroup({
   projectName,
   projectId,
@@ -155,6 +163,7 @@ function ProjectGroup({
   onToggle,
   activeIssueId,
   onNavigate,
+  onActiveDeleted,
 }: {
   projectName: string
   projectId: string
@@ -163,92 +172,27 @@ function ProjectGroup({
   onToggle: () => void
   activeIssueId: string
   onNavigate: (projectId: string, issueId: string) => void
+  onActiveDeleted: () => void
 }) {
-  const reviewColor = '#f59e0b' // amber — matches review status color
-
   return (
     <div>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs sticky top-0 z-10 transition-colors border-b border-border/20 bg-secondary"
-        // Tint layered over the opaque base so scrolled rows cannot show through.
-        style={{ backgroundImage: `linear-gradient(${reviewColor}14, ${reviewColor}14)` }}
-      >
-        <span
-          className="h-2 w-2 rounded-full shrink-0 ring-2 ring-offset-1 ring-offset-transparent"
-          style={{
-            backgroundColor: reviewColor,
-            boxShadow: `0 0 6px ${reviewColor}40`,
-          }}
-        />
-        <span className="font-semibold text-foreground/80 truncate tracking-tight">
-          {projectName}
-        </span>
-        <span className="text-[10px] font-medium text-muted-foreground/50 ml-auto shrink-0 tabular-nums">
-          {issues.length}
-        </span>
-      </button>
-
-      {!isCollapsed ?
-          (
+      <ListGroupHeader color={REVIEW_COLOR} label={projectName} count={issues.length} collapsed={isCollapsed} onToggle={onToggle} />
+      {!isCollapsed
+        ? (
             <div>
               {issues.map(issue => (
-                <ReviewIssueRow
+                <IssueRow
                   key={issue.id}
                   issue={issue}
+                  projectId={projectId}
                   isActive={issue.id === activeIssueId}
-                  onNavigate={() => onNavigate(projectId, issue.id)}
+                  onNavigate={issueId => onNavigate(projectId, issueId)}
+                  onActiveDeleted={onActiveDeleted}
                 />
               ))}
             </div>
-          ) :
-        null}
+          )
+        : null}
     </div>
   )
 }
-
-const ReviewIssueRow = memo(({
-  issue,
-  isActive,
-  onNavigate,
-}: {
-  issue: ReviewIssue
-  isActive: boolean
-  onNavigate: () => void
-}) => {
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onNavigate}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onNavigate()
-        }
-      }}
-      className={`w-full flex items-center gap-1 px-1.5 py-2.5 md:py-1.5 text-left border-b border-border/20 transition-all duration-150 cursor-pointer ${
-        isActive ? 'bg-primary/[0.06]' : 'hover:bg-accent/50'
-      }`}
-    >
-      <span className="w-3.5 shrink-0" />
-      <span
-        className={`text-[11px] font-mono shrink-0 tabular-nums ${
-          isActive ? 'text-primary font-medium' : 'text-muted-foreground/70'
-        }`}
-      >
-        #
-        {issue.issueNumber}
-      </span>
-      <span
-        title={issue.title}
-        className={`text-[13px] truncate ${
-          isActive ? 'text-foreground font-medium' : 'text-foreground/90'
-        }`}
-      >
-        {issue.title}
-      </span>
-    </div>
-  )
-})

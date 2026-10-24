@@ -30,6 +30,7 @@
     "consola": "^3.4.2",
     "cronbake": "^0.4.0",
     "drizzle-orm": "^0.45.4",
+    "fflate": "^0.8.3",
     "hono": "^4.13.13",
     "jittered-fractional-indexing": "catalog:",
     "nanoid": "^6.0.2",

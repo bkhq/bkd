@@ -2,7 +2,7 @@ import { Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucid
 import type { RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { AppLogo } from '@/components/AppLogo'
 import { AppSettingsDialog } from '@/components/AppSettingsDialog'
 import { CreateProjectDialog } from '@/components/CreateProjectDialog'
@@ -14,7 +14,7 @@ import { useEventConnection } from '@/hooks/use-event-connection'
 import { useProjects } from '@/hooks/use-kanban'
 import { placeFlyout } from '@/lib/flyout-position'
 import { getProjectInitials } from '@/lib/format'
-import { GLOBAL_PAGES } from '@/lib/global-pages'
+import { GLOBAL_PAGES, isGlobalPageActive } from '@/lib/global-pages'
 import { useNotesStore } from '@/stores/notes-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
@@ -163,6 +163,7 @@ function ProjectFlyout({
 export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const { data: projects } = useProjects()
   const [showCreate, setShowCreate] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -305,24 +306,29 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
           )}
         </Button>
         <ViewModeSelect activeProjectId={activeProjectId} />
-        {GLOBAL_PAGES.map(({ id, path, icon: Icon, labelKey }) => (
-          <Button
-            key={id}
-            variant="ghost"
-            size="icon"
-            className="relative h-9 w-9 text-muted-foreground"
-            aria-label={t(labelKey)}
-            title={t(labelKey)}
-            onClick={() => navigate(path)}
-          >
-            <Icon className="h-4 w-4" />
-            {id === 'messages' && waitingMessages > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
-                {waitingMessages}
-              </span>
-            )}
-          </Button>
-        ))}
+        {GLOBAL_PAGES.map((page) => {
+          const { id, path, icon: Icon, labelKey } = page
+          const isActive = isGlobalPageActive(page, pathname)
+          return (
+            <Button
+              key={id}
+              variant="ghost"
+              size="icon"
+              className={`relative h-9 w-9 ${isActive ? 'bg-accent text-foreground' : 'text-muted-foreground'}`}
+              aria-label={t(labelKey)}
+              aria-current={isActive ? 'page' : undefined}
+              title={t(labelKey)}
+              onClick={() => navigate(path)}
+            >
+              <Icon className="h-4 w-4" />
+              {id === 'messages' && waitingMessages > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+                  {waitingMessages}
+                </span>
+              )}
+            </Button>
+          )
+        })}
         <Button
           variant="ghost"
           size="icon"

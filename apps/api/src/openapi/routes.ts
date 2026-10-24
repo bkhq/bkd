@@ -14,12 +14,14 @@ import {
   ClaudeUsageSchema,
   CloseDecisionEventSchema,
   CodexUsageSchema,
+  CopySkillSchema,
   CreateCronJobSchema,
   CreateDecisionEventSchema,
   CreateIssueSchema,
   CreateMessageSchema,
   CreateNoteSchema,
   CreateProjectSchema,
+  CreateSkillSchema,
   CreateWebhookSchema,
   CronJobSchema,
   DecideDecisionEventSchema,
@@ -54,7 +56,22 @@ import {
   ProcessInfoSchema,
   ProjectSchema,
   ReplyMessageSchema,
+  SaveSkillFileSchema,
+  SkillFileEntrySchema,
+  SkillFileQuerySchema,
+  SkillFileSchema,
+  SkillInfoSchema,
+  SkillListSchema,
+  SkillParamsSchema,
+  SkillProjectQuerySchema,
+  SkillsOperationParamsSchema,
+  SkillsOperationSchema,
+  SkillUpdatesQuerySchema,
+  SkillUpdateStatusSchema,
+  SkillUploadFieldsSchema,
+  SkillUploadResultSchema,
   SortProjectSchema,
+  StartSkillsOperationSchema,
   successResponse,
   UpdateDecisionEventSchema,
   UpdateIssueSchema,
@@ -1057,6 +1074,199 @@ export const deleteNote = createRoute({
   responses: {
     200: successResponse(z.object({ id: z.string() }), 'Deleted'),
     404: errorResponse('Note not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+// ── Skills ─────────────────────────────────────────────
+
+export const listSkillsRoute = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Skills'],
+  summary: 'List agent skills (global, plus the project\'s when projectId is given)',
+  operationId: 'listSkills',
+  request: { query: SkillProjectQuerySchema },
+  responses: {
+    200: successResponse(SkillListSchema, 'Skills'),
+    404: errorResponse('Project not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const skillUpdatesRoute = createRoute({
+  method: 'get',
+  path: '/updates',
+  tags: ['Skills'],
+  summary: 'Whether installed skills, or one of them, have a newer version on GitHub',
+  operationId: 'skillUpdates',
+  request: { query: SkillUpdatesQuerySchema },
+  responses: {
+    200: successResponse(z.object({ updates: z.array(SkillUpdateStatusSchema) }), 'Update status per installed skill'),
+    404: errorResponse('Project not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+// Multipart: the handler streams the body with parseMultipartUpload() and
+// validates the fields with SkillUploadFieldsSchema; this definition documents it.
+export const uploadSkillsRoute = createRoute({
+  method: 'post',
+  path: '/upload',
+  tags: ['Skills'],
+  summary: 'Upload skills as a SKILL.md (.md) or an archive (.zip / .skill)',
+  operationId: 'uploadSkills',
+  request: {
+    body: { required: true, content: {
+      'multipart/form-data': { schema: SkillUploadFieldsSchema.extend({ files: z.string().openapi({ type: 'string', format: 'binary' }) }) },
+    } },
+  },
+  responses: {
+    200: successResponse(SkillUploadResultSchema, 'Created skills and name clashes'),
+    400: errorResponse('Invalid file or archive'),
+    404: errorResponse('Project not found'),
+    413: errorResponse('Upload too large'),
+  },
+})
+
+export const startSkillsOperationRoute = createRoute({
+  method: 'post',
+  path: '/operations',
+  tags: ['Skills'],
+  summary: 'Start a skills CLI operation (preview a repo, install, update, uninstall)',
+  operationId: 'startSkillsOperation',
+  request: { body: { required: true, content: { 'application/json': { schema: StartSkillsOperationSchema } } } },
+  responses: {
+    202: successResponse(SkillsOperationSchema, 'Operation started'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Project not found'),
+    409: errorResponse('Another operation is running'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const getSkillsOperationRoute = createRoute({
+  method: 'get',
+  path: '/operations/{id}',
+  tags: ['Skills'],
+  summary: 'Get a skills CLI operation with its output',
+  operationId: 'getSkillsOperation',
+  request: { params: SkillsOperationParamsSchema },
+  responses: {
+    200: successResponse(SkillsOperationSchema, 'Operation'),
+    404: errorResponse('Operation not found'),
+  },
+})
+
+export const cancelSkillsOperationRoute = createRoute({
+  method: 'post',
+  path: '/operations/{id}/cancel',
+  tags: ['Skills'],
+  summary: 'Cancel the running skills CLI operation',
+  operationId: 'cancelSkillsOperation',
+  request: { params: SkillsOperationParamsSchema },
+  responses: {
+    200: successResponse(z.object({ id: z.string() }), 'Cancel requested'),
+    404: errorResponse('No such running operation'),
+  },
+})
+
+export const listSkillFilesRoute = createRoute({
+  method: 'get',
+  path: '/{location}/{name}/files',
+  tags: ['Skills'],
+  summary: 'List the files of a skill',
+  operationId: 'listSkillFiles',
+  request: { params: SkillParamsSchema, query: SkillProjectQuerySchema },
+  responses: {
+    200: successResponse(z.array(SkillFileEntrySchema), 'Files'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Skill or project not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const readSkillFileRoute = createRoute({
+  method: 'get',
+  path: '/{location}/{name}/file',
+  tags: ['Skills'],
+  summary: 'Read a skill file',
+  operationId: 'readSkillFile',
+  request: { params: SkillParamsSchema, query: SkillFileQuerySchema },
+  responses: {
+    200: successResponse(SkillFileSchema, 'File'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Skill, file or project not found'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const saveSkillFileRoute = createRoute({
+  method: 'put',
+  path: '/{location}/{name}/file',
+  tags: ['Skills'],
+  summary: 'Save a file of a local skill',
+  operationId: 'saveSkillFile',
+  request: {
+    params: SkillParamsSchema,
+    body: { required: true, content: { 'application/json': { schema: SaveSkillFileSchema } } },
+  },
+  responses: {
+    200: successResponse(SkillFileSchema, 'Saved file'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Skill or project not found'),
+    409: errorResponse('Installed skills are read-only'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const createSkillRoute = createRoute({
+  method: 'post',
+  path: '/',
+  tags: ['Skills'],
+  summary: 'Create a local skill',
+  operationId: 'createSkill',
+  request: { body: { required: true, content: { 'application/json': { schema: CreateSkillSchema } } } },
+  responses: {
+    201: successResponse(SkillInfoSchema, 'Created skill'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Project not found'),
+    409: errorResponse('Name already taken'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const copySkillRoute = createRoute({
+  method: 'post',
+  path: '/{location}/{name}/copy',
+  tags: ['Skills'],
+  summary: 'Copy a skill to a new local skill',
+  operationId: 'copySkill',
+  request: {
+    params: SkillParamsSchema,
+    body: { required: true, content: { 'application/json': { schema: CopySkillSchema } } },
+  },
+  responses: {
+    201: successResponse(SkillInfoSchema, 'Copied skill'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Skill or project not found'),
+    409: errorResponse('Name already taken'),
+    500: errorResponse('Internal error'),
+  },
+})
+
+export const deleteSkillRoute = createRoute({
+  method: 'delete',
+  path: '/{location}/{name}',
+  tags: ['Skills'],
+  summary: 'Move a local skill to the trash',
+  operationId: 'deleteSkill',
+  request: { params: SkillParamsSchema, query: SkillProjectQuerySchema },
+  responses: {
+    200: successResponse(z.object({ name: z.string() }), 'Deleted'),
+    400: errorResponse('Invalid request'),
+    404: errorResponse('Skill or project not found'),
+    409: errorResponse('Installed skills are read-only'),
     500: errorResponse('Internal error'),
   },
 })

@@ -29,6 +29,14 @@ import type {
   ProbeResult,
   Project,
   ProjectProcessesResponse,
+  SkillFile,
+  SkillFileEntry,
+  SkillInfo,
+  SkillLocation,
+  SkillsOperation,
+  SkillsOperationKind,
+  SkillUpdateStatus,
+  SkillUploadResult,
   UpgradeStatus,
   VirtualEngine,
   Webhook,
@@ -678,6 +686,45 @@ export const kanbanApi = {
     post<Message>(`/api/messages/items/${id}/read`, {}),
   readAllMessages: () =>
     post<{ ids: string[] }>('/api/messages/items/read', {}),
+
+  // Skills
+  getSkills: (projectId?: string) =>
+    get<{ skills: SkillInfo[], cliAvailable: boolean }>(`/api/skills${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  getSkillFiles: (location: SkillLocation, name: string, projectId?: string) =>
+    get<SkillFileEntry[]>(`/api/skills/${location}/${encodeURIComponent(name)}/files${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  getSkillFile: (location: SkillLocation, name: string, path: string, projectId?: string) =>
+    get<SkillFile>(`/api/skills/${location}/${encodeURIComponent(name)}/file?${new URLSearchParams({ path, ...(projectId ? { projectId } : {}) })}`),
+  saveSkillFile: (location: SkillLocation, name: string, data: { path: string, content: string, projectId?: string }) =>
+    put<SkillFile>(`/api/skills/${location}/${encodeURIComponent(name)}/file`, data),
+  createSkill: (data: { scope: 'global' | 'project', name: string, description: string, projectId?: string }) =>
+    post<SkillInfo>('/api/skills', data),
+  copySkill: (location: SkillLocation, name: string, data: { name: string, projectId?: string }) =>
+    post<SkillInfo>(`/api/skills/${location}/${encodeURIComponent(name)}/copy`, data),
+  startSkillsOperation: (data: {
+    op: SkillsOperationKind
+    scope: 'global' | 'project'
+    projectId?: string
+    source?: string
+    skills?: string[]
+    names?: string[]
+    agents?: ('claude-code' | 'codex')[]
+  }) => post<SkillsOperation>('/api/skills/operations', data),
+  /** Without `location` and `name`, every installed skill is checked. */
+  getSkillUpdates: (q: { projectId?: string, location?: SkillLocation, name?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => !!e[1])).toString()
+    return get<{ updates: SkillUpdateStatus[] }>(`/api/skills/updates${qs ? `?${qs}` : ''}`)
+  },
+  uploadSkills: (file: File, scope: 'global' | 'project', projectId?: string) => {
+    const fd = new FormData()
+    fd.append('scope', scope)
+    if (projectId) fd.append('projectId', projectId)
+    fd.append('files', file)
+    return postFormData<SkillUploadResult>('/api/skills/upload', fd)
+  },
+  getSkillsOperation: (id: string) => get<SkillsOperation>(`/api/skills/operations/${encodeURIComponent(id)}`),
+  cancelSkillsOperation: (id: string) => post<{ id: string }>(`/api/skills/operations/${encodeURIComponent(id)}/cancel`, {}),
+  deleteSkill: (location: SkillLocation, name: string, projectId?: string) =>
+    del<{ name: string }>(`/api/skills/${location}/${encodeURIComponent(name)}${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
 
   // Notes
   getNotes: () => get<Note[]>('/api/notes'),

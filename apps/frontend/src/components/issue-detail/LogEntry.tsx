@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Circle,
   Clock,
+  Code,
   Copy,
   Eye,
   FileEdit,
@@ -18,7 +19,6 @@ import {
   Monitor as MonitorIcon,
   Octagon,
   Search,
-  SquareM,
   Terminal,
   Timer,
   Wrench,
@@ -28,13 +28,12 @@ import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import type { PreviewItem } from '@/components/FilePreviewModal'
 import { FilePreviewModal } from '@/components/FilePreviewModal'
-import { MarkdownRenderer } from '@/components/files/MarkdownRenderer'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { compactCommand, getCommandPreview } from '@/lib/command-preview'
+import { compactCommand } from '@/lib/command-preview'
 import { formatDuration, formatFileSize } from '@/lib/format'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import { cn } from 'cn'
 import type { NormalizedLogEntry, ToolAction } from '@/types/kanban'
+import { CHAT_BLOCK_BODY, CHAT_BLOCK_ROW, CHAT_BLOCK_SUMMARY, chatBlock } from './chat-block'
 import { MarkdownContent } from './MarkdownContent'
 
 interface AttachmentMeta {
@@ -98,8 +97,8 @@ function getToolLabel(
       if (toolName === 'Write') return `${t('session.tool.fileWrite')}: ${action.path}`
       return `${t('session.tool.fileEdit')}: ${action.path}`
     case 'command-run': {
-      const summary = getCommandPreview(action.command, 90).summary
-      return `${t('session.tool.commandRun')}: ${summary}`
+      // Whole command on one line: the row's CSS truncation cuts it at the row width
+      return `${t('session.tool.commandRun')}: ${compactCommand(action.command)}`
     }
     case 'search':
       return `${t('session.tool.search')}: ${action.query}`
@@ -256,24 +255,28 @@ function TaskPlanEntry({ entry }: { entry: NormalizedLogEntry }) {
   )
 }
 
+/** Colour of a message footer (time and actions): faint, brighter while the message is hovered. */
+const MESSAGE_META = 'text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors duration-200'
+/** Footer action: the footer colour, plus its own highlight under the pointer. */
+// `!`: group-hover is the more specific selector and would win over the button's own hover
+const MESSAGE_ACTION = cn('rounded-md p-1 hover:text-muted-foreground! hover:bg-muted/50', MESSAGE_META)
+
 /** Icon-only copy action used in message footers; swaps to a check while `copied`. */
 function CopyIconButton({
   label,
   copied,
   onClick,
-  Icon = Copy,
 }: {
   label: string
   copied: boolean
   onClick: () => void
-  Icon?: typeof Copy
 }) {
   const { t } = useTranslation()
   return (
     <button
       type="button"
       onClick={onClick}
-      className="rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50 transition-colors duration-150"
+      className={MESSAGE_ACTION}
       aria-label={copied ? t('session.copied') : label}
       title={label}
     >
@@ -282,7 +285,7 @@ function CopyIconButton({
             <Check className="h-3.5 w-3.5 text-emerald-500" />
           ) :
           (
-            <Icon className="h-3.5 w-3.5" />
+            <Copy className="h-3.5 w-3.5" />
           )}
     </button>
   )
@@ -324,11 +327,7 @@ export function UserMessageEntry({
   if (!displayContent && messageAttachments.length === 0 && !isPending && !isDone)
     return null
 
-  const barColor = isPending ?
-    'border-l-amber-400 bg-amber-500/[0.06]' :
-    isDone ?
-      'border-l-emerald-400 bg-emerald-500/[0.06]' :
-      'border-l-foreground/60 bg-muted/30'
+  const tone = isPending ? 'pending' : isDone ? 'done' : 'user'
 
   // Optimistic attachments (created locally before the server assigns an id)
   // carry id === '' and aren't yet reachable; render them as static chips.
@@ -351,8 +350,9 @@ export function UserMessageEntry({
   }
 
   return (
-    <div className="group py-2 animate-message-enter">
-      <div className={`rounded-lg border border-border border-l-[3px] px-3 py-2.5 ${barColor}`}>
+    // User messages sit on the right as a bubble sized to their text; replies stay left
+    <div data-slot="chat-block-row" className={cn('group flex flex-col items-end animate-message-enter', CHAT_BLOCK_ROW)}>
+      <div data-slot="chat-block" className={cn('w-fit max-w-[85%] min-w-0', chatBlock({ tone }), CHAT_BLOCK_BODY)}>
         {displayContent ?
             (
               <div className="text-[14px] whitespace-pre-wrap break-words text-foreground leading-[1.75]">
@@ -375,7 +375,7 @@ export function UserMessageEntry({
                           (
                             <FileText className="h-3 w-3 shrink-0" />
                           )}
-                      <span className="truncate max-w-[120px]">{att.name}</span>
+                      <span title={att.name} className="truncate max-w-[120px]">{att.name}</span>
                       <span className="text-muted-foreground/50">{formatFileSize(att.size)}</span>
                     </>
                   )
@@ -404,7 +404,7 @@ export function UserMessageEntry({
       <div className="flex items-center gap-2 mt-1">
         {entry.timestamp ?
             (
-              <span className="text-[10px] text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors duration-200">
+              <span className={cn('text-[10px]', MESSAGE_META)}>
                 {formatTime(entry.timestamp)}
               </span>
             ) :
@@ -427,7 +427,7 @@ export function UserMessageEntry({
         <span className="ml-auto flex items-center gap-1">
           {displayContent ?
               (
-                <span className="flex items-center md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
+                <span className="flex items-center">
                   <CopyIconButton label={t('session.copyMessage')} copied={copied} onClick={handleCopy} />
                 </span>
               ) :
@@ -519,7 +519,7 @@ export function LogEntry({
                   </div>
                 ) :
                 (
-                  <span className="truncate font-mono">{label || entry.content}</span>
+                  <span title={label || entry.content} className="truncate font-mono">{label || entry.content}</span>
                 )}
           </div>
         )
@@ -527,7 +527,7 @@ export function LogEntry({
       return (
         <div className="flex items-center gap-2 py-0.5 text-xs text-muted-foreground">
           <Icon className={`h-3 w-3 shrink-0 ${color}`} />
-          <span className="truncate font-mono">{label || entry.content}</span>
+          <span title={label || entry.content} className="truncate font-mono">{label || entry.content}</span>
         </div>
       )
     }
@@ -547,9 +547,9 @@ export function LogEntry({
       if (entry.metadata?.subtype === 'command_output') {
         const firstLine = entry.content.split('\n')[0]?.trim() || 'Command output'
         return (
-          <div className="my-1.5 animate-message-enter">
-            <details className="rounded-lg border border-border bg-muted/10 overflow-hidden transition-all duration-200 open:bg-muted/20">
-              <summary className="cursor-pointer list-none px-4 py-2 text-xs text-muted-foreground hover:bg-muted/20 transition-colors">
+          <div data-slot="chat-block-row" className={cn('animate-message-enter', CHAT_BLOCK_ROW)}>
+            <details data-slot="chat-block" className={cn(chatBlock({ tone: 'neutral' }), 'overflow-hidden transition-all duration-200 open:bg-muted/20')}>
+              <summary className={cn('cursor-pointer list-none text-xs', CHAT_BLOCK_SUMMARY, 'text-muted-foreground hover:bg-muted/20 transition-colors')}>
                 <span className="font-mono">{firstLine}</span>
               </summary>
               <div className="px-4 pb-3 pt-1.5 border-t border-border/20">
@@ -574,7 +574,7 @@ export function LogEntry({
         )
       }
       return (
-        <div className="py-0.5 text-[11px] text-muted-foreground/60 truncate">{entry.content}</div>
+        <div title={entry.content} className="py-0.5 text-[11px] text-muted-foreground/60 truncate">{entry.content}</div>
       )
 
     case 'error-message': {
@@ -584,36 +584,35 @@ export function LogEntry({
       // The engine retries on its own, so the turn is still running.
       const retrying = entry.metadata?.willRetry === true
       return (
-        <div
-          className={cn(
-            'flex gap-2 my-1.5 rounded-lg border px-3 py-2 animate-message-enter',
-            retrying ?
-              'bg-amber-500/[0.06] border-amber-500/20 text-amber-600 dark:text-amber-400' :
-              'bg-destructive/[0.06] border-destructive/20 text-destructive',
-          )}
-        >
-          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-          <div className="min-w-0 flex flex-col gap-0.5">
-            {typeof errorKind === 'string' && (
-              <span className="text-xs font-medium">
-                {t(`session.errorKind.${errorKind}`, { defaultValue: errorKind })}
-              </span>
-            )}
-            <code className="min-w-0 overflow-x-auto text-xs opacity-90 leading-relaxed whitespace-pre">
-              {entry.content}
-            </code>
+        <div data-slot="chat-block-row" className={cn('animate-message-enter', CHAT_BLOCK_ROW)}>
+          <div
+            data-slot="chat-block"
+            className={cn('flex gap-2', chatBlock({ tone: retrying ? 'warning' : 'error' }), CHAT_BLOCK_BODY)}
+          >
+            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex flex-col gap-0.5">
+              {typeof errorKind === 'string' && (
+                <span className="text-xs font-medium">
+                  {t(`session.errorKind.${errorKind}`, { defaultValue: errorKind })}
+                </span>
+              )}
+              <code className="min-w-0 overflow-x-auto text-xs opacity-90 leading-relaxed whitespace-pre">
+                {entry.content}
+              </code>
+            </div>
           </div>
         </div>
       )
     }
 
     case 'thinking': {
-      const preview = entry.content.length > 80 ? `${entry.content.slice(0, 80)}…` : entry.content
+      // One line, cut by CSS at the row width rather than at a fixed length
+      const preview = entry.content.replace(/\s+/g, ' ').trim()
       return (
-        <div className="my-0.5 animate-message-enter">
-          <details className="rounded-lg border border-violet-300/20 bg-violet-500/[0.04] dark:border-violet-500/15 overflow-hidden transition-all duration-200 open:bg-violet-500/[0.06]">
-            <summary className="cursor-pointer list-none px-3 py-1.5 text-xs text-violet-500/70 dark:text-violet-400/70 hover:bg-violet-500/[0.06] transition-colors">
-              <span className="italic">
+        <div data-slot="chat-block-row" className={cn('animate-message-enter', CHAT_BLOCK_ROW)}>
+          <details data-slot="chat-block" className={cn(chatBlock({ tone: 'thinking' }), 'overflow-hidden transition-all duration-200 open:bg-violet-500/[0.06]')}>
+            <summary className={cn('cursor-pointer list-none text-xs', CHAT_BLOCK_SUMMARY, 'text-violet-500/70 dark:text-violet-400/70 hover:bg-violet-500/[0.06] transition-colors')}>
+              <span title={preview} className="block truncate italic">
                 Thinking:
                 {preview}
               </span>
@@ -656,47 +655,38 @@ function AssistantMessage({
   isStreaming: boolean
 }) {
   const { t } = useTranslation()
-  const [copied, setCopied] = useState<'text' | 'markdown' | null>(null)
-  const [viewOpen, setViewOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
-  // In source view the rendered text is the Markdown itself, so one copy action suffices.
-  const renderMarkdown = useViewModeStore(s => s.renderMarkdown)
+  // Each message can flip between rendered Markdown and its source; until it does, it follows the setting.
+  const renderSetting = useViewModeStore(s => s.renderMarkdown)
+  const [renderOverride, setRenderOverride] = useState<boolean | null>(null)
+  const renderMarkdown = renderOverride ?? renderSetting
 
-  const copy = (kind: 'text' | 'markdown') => {
+  // Copies what is on screen: the rendered text, or the Markdown source in source view
+  const copy = () => {
     const body = bodyRef.current
     // innerText keeps paragraph breaks from the rendered layout; jsdom lacks it, hence the fallback.
     // eslint-disable-next-line unicorn/prefer-dom-node-text-content
-    const value = kind === 'markdown' ? content : (body?.innerText || body?.textContent || '')
+    const value = renderMarkdown ? (body?.innerText || body?.textContent || '') : content
     navigator.clipboard
       .writeText(value)
       .then(() => {
-        setCopied(kind)
-        setTimeout(setCopied, 2000, null)
+        setCopied(true)
+        setTimeout(setCopied, 2000, false)
       })
       .catch(() => {})
   }
 
-  const copyButton = (kind: 'text' | 'markdown', label: string, Icon: typeof Copy) => (
-    <CopyIconButton label={label} copied={copied === kind} onClick={() => copy(kind)} Icon={Icon} />
-  )
-
   return (
-    <div className="group py-2 animate-message-enter">
-      <div ref={bodyRef} data-testid="assistant-message-body" className="min-w-0 rounded-lg border border-border border-l-[3px] border-l-primary/60 bg-muted/30 px-3 py-2.5">
-        <MarkdownContent content={content} className="text-[14px] leading-[1.75]" isStreaming={isStreaming} />
+    <div data-slot="chat-block-row" className={cn('group animate-message-enter', CHAT_BLOCK_ROW)}>
+      {/* No side padding: with no outline or tint, the reply lines up with the footer and tool rows */}
+      <div ref={bodyRef} data-slot="chat-block" data-testid="assistant-message-body" className={cn('min-w-0 py-2', chatBlock({ tone: 'assistant' }))}>
+        <MarkdownContent content={content} className="text-[14px] leading-[1.75]" isStreaming={isStreaming} render={renderMarkdown} />
       </div>
-      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="w-[90vw] max-w-[90vw] sm:max-w-[90vw] max-h-[90vh] flex flex-col">
-          <DialogTitle className="sr-only">{t('session.viewMessage')}</DialogTitle>
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <MarkdownRenderer content={content} />
-          </div>
-        </DialogContent>
-      </Dialog>
       <div className="flex items-center gap-2 mt-1">
         {timestamp ?
             (
-              <span className="text-[10px] text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors duration-200">
+              <span className={cn('text-[10px]', MESSAGE_META)}>
                 {formatTime(timestamp)}
               </span>
             ) :
@@ -709,18 +699,19 @@ function AssistantMessage({
               </span>
             ) :
           null}
-        <span className="ml-auto flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
+        <span className="ml-auto flex items-center gap-0.5">
           <button
             type="button"
-            onClick={() => setViewOpen(true)}
-            className="rounded-md p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50 transition-colors duration-150"
-            aria-label={t('session.viewMessage')}
-            title={t('session.viewMessage')}
+            onClick={() => setRenderOverride(!renderMarkdown)}
+            className={MESSAGE_ACTION}
+            aria-label={renderMarkdown ? t('session.viewSource') : t('session.viewMessage')}
+            title={renderMarkdown ? t('session.viewSource') : t('session.viewMessage')}
+            aria-pressed={!renderMarkdown}
           >
-            <Eye className="h-3.5 w-3.5" />
+            {/* One icon; highlighted while the source is shown */}
+            <Code className={cn('h-3.5 w-3.5', !renderMarkdown && 'text-primary')} />
           </button>
-          {renderMarkdown ? copyButton('text', t('session.copyText'), Copy) : null}
-          {copyButton('markdown', t('session.copyMarkdown'), SquareM)}
+          <CopyIconButton label={t('common.copy')} copied={copied} onClick={copy} />
         </span>
       </div>
     </div>

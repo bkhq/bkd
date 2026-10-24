@@ -190,3 +190,35 @@ describe('turnNavigator paging', () => {
     expect(rail.scrollTop).toBeGreaterThanOrEqual(800 - 320)
   })
 })
+
+describe('turnNavigator first load', () => {
+  it('scrolls the rail to the current turn once the turns arrive, even if the current turn does not change', () => {
+    const many = Array.from({ length: 100 }, (_, i) => ({ index: i * 2, messageId: `u${i}`, userText: `Q${i}`, replyText: '' }))
+    // jsdom has no layout: the rail is 320px tall over 800px of ticks, 8px each
+    const proto = HTMLElement.prototype
+    const saved = ['scrollHeight', 'clientHeight', 'offsetTop', 'offsetHeight'].map(k => [k, Object.getOwnPropertyDescriptor(proto, k)] as const)
+    Object.defineProperty(proto, 'scrollHeight', { configurable: true, get() {
+      return this.dataset.testid === 'turn-rail' ? 800 : 0
+    } })
+    Object.defineProperty(proto, 'clientHeight', { configurable: true, get() {
+      return this.dataset.testid === 'turn-rail' ? 320 : 0
+    } })
+    Object.defineProperty(proto, 'offsetTop', { configurable: true, get() {
+      const n = /(\d+)$/.exec(this.getAttribute('aria-label') ?? ''); return n ? (Number(n[1]) - 1) * 8 : 0
+    } })
+    Object.defineProperty(proto, 'offsetHeight', { configurable: true, get() {
+      return 8
+    } })
+    try {
+      // First render while the conversation is loading: no rail yet
+      const { rerender } = render(<TurnNavigator turns={many.slice(-1)} activeIndex={198} onJump={vi.fn()} />)
+      rerender(<TurnNavigator turns={many} activeIndex={198} onJump={vi.fn()} />)
+      expect(screen.getByTestId('turn-rail').scrollTop).toBeGreaterThanOrEqual(800 - 320)
+    } finally {
+      for (const [k, d] of saved) {
+        if (d) Object.defineProperty(proto, k, d)
+        else delete (proto as unknown as Record<string, unknown>)[k]
+      }
+    }
+  })
+})

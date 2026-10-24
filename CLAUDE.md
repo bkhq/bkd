@@ -130,7 +130,7 @@ The `/logs/filter/*` route accepts path-based key/value filter pairs (order-inde
 - Example: `/logs/filter/types/user-message,assistant-message/turn/last3`
 - Pagination via query params: `cursor`, `before`, `limit`
 
-System routes: `/api/engines/*`, `/api/events` (SSE), `/api/messages/*`, `/api/decisions/*` (v1), `/api/settings/*` (incl. `/api/settings/upgrade/*`), `/api/sessions/*`, `/api/terminal/*` (incl. `/api/terminal/ws/:id`), `/api/files/:root/*`, `/api/filesystem/dirs`, `/api/git/detect-remote`, `/api/processes/*`, `/api/projects/:projectId/worktrees/*`, `/api/cron/*`, `/api/notes/*`.
+System routes: `/api/engines/*`, `/api/events` (SSE), `/api/messages/*`, `/api/decisions/*` (v1), `/api/settings/*` (incl. `/api/settings/upgrade/*`), `/api/sessions/*`, `/api/terminal/*` (incl. `/api/terminal/ws/:id`), `/api/files/:root/*`, `/api/filesystem/dirs`, `/api/git/detect-remote`, `/api/processes/*`, `/api/projects/:projectId/worktrees/*`, `/api/cron/*`, `/api/notes/*`, `/api/skills/*`.
 
 Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`, `duplicate.ts`, `export.ts`, `import-session.ts`, `review.ts`, `search.ts`. Shared schemas and helpers in `_shared.ts`.
 
@@ -212,6 +212,21 @@ Agent-authored messages to the user, in one `messages` table with a `kind`: `dec
 
 Routes: `GET /api/messages` (capability probe, `{ supported, contractVersion: 2, kinds }`), `GET/POST /api/messages/items`, `POST /api/messages/items/read`, `GET/PATCH /api/messages/items/:id`, `POST /api/messages/items/:id/{decision,reply,notify,ack,withdraw,close,read}`; v1: `GET /api/decisions`, `GET/POST /api/decisions/events`, `GET/PATCH /api/decisions/events/:id`, `POST /api/decisions/events/:id/{decision,notify,ack,withdraw,close}`.
 
+#### Skills (`skills/`)
+
+Agent skills are read and written on disk in the layout of the `skills` CLI (vercel-labs/skills); BKD never calls an engine CLI for them. Roots come from `HOME` at call time (plus a project's directory): the shared store `.agents/skills/<name>/` (read by Codex; entries tracked in `.agents/.skill-lock.json` are *managed*, matched by the CLI's sanitized folder name since the lock keeps the original name (`My Skill` → `my-skill/`), and update names are sent as lock keys; a lock that exists but cannot be parsed makes every store skill read-only) and `.claude/skills/` (read by Claude Code: symlinks into the store plus real skill dirs). Global paths resolve as `skills@1.7.4` does: the lock is `$XDG_STATE_HOME/skills/.skill-lock.json` when that is set, and the Claude dir is `$CLAUDE_CONFIG_DIR/skills` when that is set. A skill is a directory with `SKILL.md`; name and description come from its frontmatter. Identity is `location` (`global-agents` / `global-claude` / `project-agents` / `project-claude`) + name.
+
+- Managed skills are read-only (409): `skills update` would overwrite local edits; "copy" makes a local skill under a new name.
+- New and copied skills go to `.agents/skills/` with a relative symlink in `.claude/skills/`, so both engines see them. Delete moves a local skill to `data/trash/skills/` and drops its link.
+- Paths are realpath-checked inside the skill directory; names match `^[a-z0-9][\w.-]{0,63}$`. A project skill must resolve inside its project (a checkout's `.agents/skills/<name>` or `.claude/skills` symlink pointing elsewhere is ignored), and project-scoped writes are refused when the project's `.agents` / `.claude/skills` store or its `skills-lock.json` links outside it. A `.claude/skills` linked wholesale to `.agents/skills` is treated as one store. Copy keeps inner symlinks as links, and a failed create removes its half-made directory. These roots are an allowlist of their own and do not relax the file browser's workspace check (SEC-007).
+
+- Install / update / uninstall run the CLI (`skills/cli.ts`): `npx -y skills@1.7.4 …` as an argv list (no shell), telemetry off, one operation at a time (409 while busy), 5-minute timeout, cancellable (the UI keeps a running operation's sheet or dialog open until it ends or is cancelled); project scope is refused when the project directory is HOME; output lines are kept on the operation and polled by the UI. A repo preview installs `-s '*'` into a throwaway HOME (`add -l` has no JSON output) and reads each SKILL.md. Uninstall checks the names are installed first (the CLI reports success for unknown names). Sources must be `owner/repo` or `https://github.com/…`. Project scope runs in the project directory (lock `skills-lock.json`). Tests replace the CLI with `setSkillsCliRunner()`.
+
+- Update status (`skills/updates.ts`), checked only when the user asks (one skill via `?location=&name=`, nothing cached): the lock's `skillFolderHash` is the git tree hash of the skill folder at install time; GitHub's tree API (`/repos/{source}/git/trees/{ref|HEAD}?recursive=1`, the lock entry's `ref` when it was installed from a branch or tag, one request per source repo and ref per check, `GITHUB_TOKEN`/`GH_TOKEN` if set) gives the current one → `latest` / `update` / `removed` (folder gone from the repo) / `unknown` (also when GitHub truncated the tree and the folder is not in it). Project locks record a content hash (`computedHash`) that GitHub cannot be compared with, so project skills are not checked; their "Update" is always offered and the CLI skips current ones. Every update, single or "Update all", first opens a dialog where the user ticks which skills to update.
+- Upload (`skills/upload.ts`): a `.md` (one SKILL.md) or a `.zip` / `.skill` archive with SKILL.md at its root or in top-level folders; streamed by `parseMultipartUpload()` (20 MB), unpacked with `fflate` after checking every entry (no `..` / absolute paths, ≤ 1000 files, ≤ 50 MB unpacked); a SKILL.md without a valid `name` and a `description` is skipped, as the CLI would skip it; skills are placed like created ones and never overwrite an existing name (reported as conflicts). The route is on the multipart allowlist in `app.ts`.
+
+Routes: `GET /api/skills?projectId=` (also `cliAvailable`), `GET /api/skills/updates`, `POST /api/skills/upload` (multipart), `POST /api/skills/operations` (`preview` / `add` / `update` / `remove`), `GET /api/skills/operations/:id`, `POST /api/skills/operations/:id/cancel`, `POST /api/skills`, `GET /api/skills/:location/:name/files`, `GET|PUT /api/skills/:location/:name/file`, `POST /api/skills/:location/:name/copy`, `DELETE /api/skills/:location/:name`.
+
 #### Background Jobs (built-in cron actions, `cron/actions/builtins/`)
 
 Registered as `builtin` actions and scheduled through the cron system (see Cron System):
@@ -257,6 +272,7 @@ Deployment, migration from the old launcher, and the `lode.toml` reference: `doc
 /terminal                            → TerminalPage
 /cron                                → CronPage
 /messages                            → MessagesPage (global inbox: decisions + notifications; /decisions redirects here)
+/skills                              → SkillsPage (agent skills: browse, edit, create, copy)
 /sessions                            → SessionsPage (local engine sessions)
 ```
 

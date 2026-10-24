@@ -65,12 +65,12 @@ function isFileDrag(e: DragEvent): boolean {
   return [...e.dataTransfer.types].includes('Files')
 }
 
-function isMarkdown(path: string): boolean {
+export function isMarkdown(path: string): boolean {
   return /\.mdx?$/i.test(path)
 }
 
 /** Small square icon button used in the headers. */
-function IconButton({
+export function IconButton({
   icon: Icon,
   label,
   onClick,

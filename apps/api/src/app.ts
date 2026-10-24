@@ -14,6 +14,7 @@ import sessionsRoute from './routes/sessions'
 import decisionsRoutes from './routes/decisions'
 import messagesRoutes from './routes/messages'
 import notesRoutes from './routes/notes'
+import skillsRoutes from './routes/skills'
 import terminalRoute from './routes/terminal'
 import { VERSION } from './version'
 import { runtimeConfig } from './runtime-config'
@@ -67,6 +68,7 @@ app.use('/api/*', async (c, next) => {
     const mediaType = c.req.header('content-type')?.split(';')[0]?.trim().toLowerCase()
     const acceptsMultipart = /^\/api\/projects\/[^/]+\/issues(?:\/[^/]+\/follow-up)?\/?$/.test(c.req.path)
       || /^\/api\/files\/[^/]+\/upload(?:\/|$)/.test(c.req.path)
+      || c.req.path === '/api/skills/upload'
     if (mediaType !== 'application/json' && !(acceptsMultipart && mediaType === 'multipart/form-data')) {
       return c.json({ success: false, error: 'Unsupported media type' }, 415)
     }
@@ -101,6 +103,7 @@ app.doc31('/api/docs/openapi.json', {
     { name: 'Processes', description: 'Active engine process management' },
     { name: 'Worktrees', description: 'Git worktree management per project' },
     { name: 'Notes', description: 'Scratch notes' },
+    { name: 'Skills', description: 'Agent skills on disk' },
     { name: 'Messages', description: 'Decisions and notifications sent by agents to the user' },
     { name: 'Decisions', description: 'v1 decision-event contract, served from messages of kind decision' },
     { name: 'Settings', description: 'Application settings and configuration' },
@@ -115,6 +118,7 @@ app.route('/api/engines', engineRoutes)
 app.route('/api/events', eventRoutes)
 app.route('/api/settings', settingsRoutes)
 app.route('/api/notes', notesRoutes)
+app.route('/api/skills', skillsRoutes)
 app.route('/api/messages', messagesRoutes)
 app.route('/api/decisions', decisionsRoutes)
 app.route('/api/cron', cronRoute)

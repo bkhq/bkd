@@ -64,7 +64,7 @@ describe('queued message card', () => {
         />
       </MemoryRouter>,
     )
-    expect(container.querySelector('.rounded-lg.border')).not.toBeNull()
+    expect(container.querySelector('[data-slot="chat-block"]')).not.toBeNull()
     expect(screen.getByText('Queued')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(onEdit).toHaveBeenCalledOnce()

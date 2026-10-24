@@ -116,3 +116,34 @@ describe('command tool summary', () => {
     expect(summary).toHaveAttribute('title', command)
   })
 })
+
+describe('tool group block', () => {
+  it('keeps a 1px outline, unlike message blocks', () => {
+    const command = 'ls'
+    const action: NormalizedLogEntry = {
+      entryType: 'tool-use',
+      content: command,
+      messageId: 'm3',
+      metadata: { toolName: 'Bash', toolCallId: 'toolu_3' },
+      toolAction: { kind: 'command-run', command },
+      toolDetail: { kind: 'command-run', toolName: 'Bash', toolCallId: 'toolu_3', isResult: false, raw: {} },
+    } as NormalizedLogEntry
+    const { container } = render(<ToolGroupMessage message={{ type: 'tool-group', id: 'tg-3', items: [{ action, result: null }], stats: { 'command-run': 1 }, count: 1, hiddenCount: 0 }} />)
+    expect(container.querySelector('[data-slot="chat-block"]')).toHaveClass('border', 'border-border')
+  })
+
+  it('shows the whole header text on hover when it is cut', () => {
+    const command = 'ls'
+    const action: NormalizedLogEntry = {
+      entryType: 'tool-use',
+      content: command,
+      messageId: 'm4',
+      metadata: { toolName: 'Bash', toolCallId: 'toolu_4' },
+      toolAction: { kind: 'command-run', command },
+      toolDetail: { kind: 'command-run', toolName: 'Bash', toolCallId: 'toolu_4', isResult: false, raw: {} },
+    } as NormalizedLogEntry
+    const description = 'A long narration that the header row cuts at its width'
+    render(<ToolGroupMessage message={{ type: 'tool-group', id: 'tg-4', items: [{ action, result: null }], stats: { 'command-run': 1 }, count: 1, hiddenCount: 0, description } as never} />)
+    expect(screen.getByText(description)).toHaveAttribute('title', description)
+  })
+})

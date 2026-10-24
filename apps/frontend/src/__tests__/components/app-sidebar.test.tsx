@@ -8,12 +8,12 @@ const projects = [
   { id: 'p3', name: 'Gamma' },
 ]
 
-const mocks = vi.hoisted(() => ({ waitingMessages: 0 }))
+const mocks = vi.hoisted(() => ({ waitingMessages: 0, pathname: '/' }))
 
 const navigate = vi.fn()
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
-vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }))
+vi.mock('react-router-dom', () => ({ useNavigate: () => navigate, useLocation: () => ({ pathname: mocks.pathname }) }))
 vi.mock('@/hooks/use-kanban', () => ({ useProjects: () => ({ data: projects }) }))
 vi.mock('@/hooks/use-messages', () => ({ useWaitingMessageCount: () => mocks.waitingMessages }))
 vi.mock('@/hooks/use-event-connection', () => ({ useEventConnection: () => true }))
@@ -30,6 +30,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   mocks.waitingMessages = 0
+  mocks.pathname = '/'
   scrollIntoView.mockClear()
   navigate.mockClear()
 })
@@ -222,6 +223,21 @@ describe('appSidebar project flyout', () => {
 })
 
 describe('appSidebar global pages', () => {
+  it('marks the page being viewed as current', () => {
+    mocks.pathname = '/skills'
+    const { getByLabelText } = render(<AppSidebar activeProjectId="" />)
+
+    expect(getByLabelText('skills.title')).toHaveAttribute('aria-current', 'page')
+    expect(getByLabelText('cron.title')).not.toHaveAttribute('aria-current')
+  })
+
+  it('keeps the page current on its nested routes', () => {
+    mocks.pathname = '/review/p1/i1'
+    const { getByLabelText } = render(<AppSidebar activeProjectId="" />)
+
+    expect(getByLabelText('viewMode.review')).toHaveAttribute('aria-current', 'page')
+  })
+
   it('links to review, cron and local sessions', () => {
     const { getByLabelText } = render(<AppSidebar activeProjectId="" />)
 

@@ -178,4 +178,6 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261016-1829-messages-system Upgrade decision events into a messages system**](20261016-1829-messages-system.md) `P2`
 - [x] [**20261017-0516-message-cleanup-terminal-only Keep answered messages out of the cleanup**](20261017-0516-message-cleanup-terminal-only.md) `P1`
 - [x] [**20261021-0915-command-summary-width Let command summaries fill the row instead of a fixed cut**](20261021-0915-command-summary-width.md) `P2`
+- [x] [**20261022-0307-skills-management Manage agent skills from the BKD UI**](20261022-0307-skills-management.md) `P2`
+- [x] [**20261022-0600-patch-diff-options-flake patch-diff-options fails intermittently in the full frontend suite**](20261022-0600-patch-diff-options-flake.md) `P3`
 - [x] [**20261023-1714-model-change-outside-working Apply a model change immediately outside working**](20261023-1714-model-change-outside-working.md) `P2`

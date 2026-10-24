@@ -756,6 +756,75 @@ export interface Note {
   updatedAt: string
 }
 
+// ── Skills ──────────────────────────────────────────────
+
+/** Where a skill directory lives: the shared `.agents/skills` store or a real dir in `.claude/skills`. */
+export type SkillLocation = 'global-agents' | 'global-claude' | 'project-agents' | 'project-claude'
+export type SkillAgent = 'claude-code' | 'codex'
+
+export interface SkillInfo {
+  location: SkillLocation
+  scope: 'global' | 'project'
+  name: string
+  description: string
+  path: string
+  /** Installed by the `skills` CLI (tracked in its lock); read-only because updates overwrite it. */
+  managed: boolean
+  source: string | null
+  sourceUrl: string | null
+  /** Folder of the skill inside its source repository ('' = repository root); null when unknown. */
+  sourcePath: string | null
+  /** Branch or tag it was installed from; null for the default branch. */
+  sourceRef: string | null
+  updatedAt: string | null
+  /** Agents that read this skill. */
+  agents: SkillAgent[]
+}
+
+export interface SkillFileEntry {
+  path: string
+  type: 'file' | 'dir'
+  size: number
+}
+
+export interface SkillFile {
+  path: string
+  content: string
+  binary: boolean
+}
+
+/** Installed skill vs its source on GitHub. */
+export interface SkillUpdateStatus {
+  location: SkillLocation
+  name: string
+  /** `removed`: the folder is gone from the source repo; `unknown`: the source could not be read. */
+  status: 'latest' | 'update' | 'removed' | 'unknown'
+}
+
+export interface SkillUploadResult {
+  created: SkillInfo[]
+  /** Names that already exist; uploads never overwrite. */
+  conflicts: string[]
+  skipped: { path: string, reason: string }[]
+}
+
+export type SkillsOperationKind = 'preview' | 'add' | 'update' | 'remove'
+
+/** One run of the `skills` CLI started from BKD (install, update, uninstall, or a repo preview). */
+export interface SkillsOperation {
+  id: string
+  op: SkillsOperationKind
+  scope: 'global' | 'project'
+  status: 'running' | 'succeeded' | 'failed' | 'cancelled'
+  /** CLI progress lines, newest last (capped). */
+  output: string[]
+  error: string | null
+  /** Preview only: the skills the repository offers. */
+  result: { skills?: { name: string, description: string }[] } | null
+  startedAt: string
+  finishedAt: string | null
+}
+
 // ── Decision events ─────────────────────────────────────
 
 export type DecisionEventStatus = 'open' | 'decided' | 'applied' | 'withdrawn' | 'closed'
