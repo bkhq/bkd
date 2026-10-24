@@ -350,8 +350,8 @@ export function UserMessageEntry({
   }
 
   return (
-    // User messages sit on the right as a bubble sized to their text; replies stay left
-    <div data-slot="chat-block-row" className={cn('group flex flex-col items-end animate-message-enter', CHAT_BLOCK_ROW)}>
+    // Sent messages sit on the right as a bubble sized to their text; queued ones and replies stay left
+    <div data-slot="chat-block-row" className={cn('group flex flex-col animate-message-enter', isPending ? 'items-start' : 'items-end', CHAT_BLOCK_ROW)}>
       <div data-slot="chat-block" className={cn('w-fit max-w-[85%] min-w-0', chatBlock({ tone }), CHAT_BLOCK_BODY)}>
         {displayContent ?
             (
