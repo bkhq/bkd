@@ -894,6 +894,11 @@
   },
   "messages": {
     "title": "Messages",
+    "close": "Close messages",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "back": "Back",
+    "resizePanel": "Resize messages",
     "group": {
       "waiting": "Waiting",
       "answered": "Answered",

@@ -307,11 +307,11 @@ See `docs/deployment.md`.
 | `/review[/:projectId/:issueId]` | `ReviewPage` | Review queue |
 | `/terminal` | `TerminalPage` | Full-page terminal |
 | `/cron` | `CronPage` | Cron job management |
-| `/messages` | `MessagesPage` | Global inbox for decisions and notifications (`/decisions` redirects here) |
+| `/messages` | (redirect) | Opens the messages drawer on `/` (`/decisions` redirects here) |
 | `/skills` | `SkillsPage` | Agent skills: browse, edit, create, copy |
 | `/sessions` | `SessionsPage` | Local engine sessions |
 
-Four global drawers (lazy-mounted): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`.
+Five global drawers (lazy-mounted): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`, `MessagesDrawer` (global inbox for decisions and notifications).
 
 ### Component Architecture
 
@@ -342,6 +342,7 @@ components/
 | `file-browser-store` | File browser drawer, current path |
 | `process-manager-store` | Process manager drawer |
 | `notes-store` | Notes drawer state |
+| `messages-store` | Messages drawer state |
 | `server-store` | Server name, URL |
 | `chat-filter-store` | Chat entry-type filter |
 | `session-panel-store` | Local session panel state |

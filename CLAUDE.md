@@ -271,12 +271,12 @@ Deployment, migration from the old launcher, and the `lode.toml` reference: `doc
 /review[/:projectId/:issueId]        → ReviewPage (global review queue)
 /terminal                            → TerminalPage
 /cron                                → CronPage
-/messages                            → MessagesPage (global inbox: decisions + notifications; /decisions redirects here)
+/messages                            → opens MessagesDrawer on / (kept for inbox links; /decisions redirects here)
 /skills                              → SkillsPage (agent skills: browse, edit, create, copy)
 /sessions                            → SessionsPage (local engine sessions)
 ```
 
-Four global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`.
+Five global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`, `MessagesDrawer` (global inbox: decisions + notifications).
 
 #### State Management
 

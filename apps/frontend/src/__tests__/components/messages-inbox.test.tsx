@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '@/i18n'
-import MessagesPage from '@/pages/MessagesPage'
+import { MessagesInbox } from '@/components/messages/MessagesInbox'
 
 const mocks = vi.hoisted(() => ({
   events: [] as unknown[],
@@ -58,8 +58,6 @@ const decided = {
   decidedAt: '2026-10-13T09:00:00.000Z',
 }
 
-vi.mock('@/components/kanban/AppSidebar', () => ({ AppSidebar: () => null }))
-vi.mock('@/components/kanban/MobileSidebar', () => ({ MobileSidebar: () => null }))
 vi.mock('@/components/issue-detail/MarkdownContent', () => ({
   MarkdownContent: ({ content }: { content: string }) => <div>{content}</div>,
 }))
@@ -77,7 +75,7 @@ function renderPage(events: Message[]) {
   mocks.events = events
   render(
     <MemoryRouter>
-      <MessagesPage />
+      <MessagesInbox />
     </MemoryRouter>,
   )
 }
@@ -99,7 +97,7 @@ function notification(overrides: Partial<Message>): Message {
   })
 }
 
-describe('messages page', () => {
+describe('messages inbox', () => {
   beforeEach(async () => {
     for (const fn of [mocks.decide, mocks.close, mocks.notify, mocks.reply, mocks.read, mocks.readAll]) fn.mockReset()
     await i18n.changeLanguage('en')

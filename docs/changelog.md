@@ -1095,3 +1095,11 @@ The issue list panel now follows the API order (`isPinned DESC, statusUpdatedAt 
 issueNumber DESC`) instead of manual `sortOrder`; the kanban board keeps manual drag
 sorting (option B in 20261024-1445-backend-issue-order). In the list, drag only moves an
 issue to another status group. Queued messages in the chat now stay left-aligned.
+
+## 2026-10-24 16:35 [feature]
+
+The messages inbox moved from the `/messages` page into a global side drawer
+(`MessagesDrawer`, same `SidePanel` shell as the terminal: resize, minimize, fullscreen).
+Sidebar, mobile menu and home-page menus open the drawer; the waiting-count badge stays on
+its button. `/messages` remains valid for webhook inbox links and opens the drawer on `/`
+(20261024-1503-messages-drawer).

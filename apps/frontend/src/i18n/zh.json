@@ -893,6 +893,11 @@
   },
   "messages": {
     "title": "消息",
+    "close": "关闭消息",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "back": "返回",
+    "resizePanel": "调整消息面板大小",
     "group": {
       "waiting": "待处理",
       "answered": "已回复",
