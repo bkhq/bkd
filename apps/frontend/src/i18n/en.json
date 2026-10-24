@@ -751,6 +751,7 @@
     "cancel": "Cancel",
     "editNotSupported": "Binary files cannot be edited",
     "upload": "Upload files",
+    "uploadHere": "Upload to this folder",
     "uploading": "Uploading...",
     "dropToUpload": "Drop files to upload here",
     "uploadConflictTitle": "Replace existing files",
