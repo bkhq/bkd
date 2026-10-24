@@ -27,6 +27,21 @@ export function groupIssuesByStatus(issues: Issue[]): GroupedIssues {
   return groups
 }
 
+/** Group issues by status in the API's order: pinned first, latest status change, then highest number. */
+export function groupIssuesByRecent(issues: Issue[]): GroupedIssues {
+  const groups: GroupedIssues = {}
+  for (const status of STATUSES) {
+    groups[status.id] = issues
+      .filter(i => i.statusId === status.id)
+      .sort((a, b) => {
+        if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1
+        const byTime = new Date(b.statusUpdatedAt).getTime() - new Date(a.statusUpdatedAt).getTime()
+        return byTime !== 0 ? byTime : b.issueNumber - a.issueNumber
+      })
+  }
+  return groups
+}
+
 /** Move `cardId` to `toIndex` of `toColumnId`; returns the sortOrder updates to persist. */
 export function computeDragUpdates(
   current: GroupedIssues,

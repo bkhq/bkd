@@ -1088,3 +1088,10 @@ button height; the mobile menu's close button sits in its header row; the turn n
 follows the latest turn on first load; assistant messages toggle between rendered Markdown
 and source.
 
+
+## 2026-10-24 15:20 [decision]
+
+The issue list panel now follows the API order (`isPinned DESC, statusUpdatedAt DESC,
+issueNumber DESC`) instead of manual `sortOrder`; the kanban board keeps manual drag
+sorting (option B in 20261024-1445-backend-issue-order). In the list, drag only moves an
+issue to another status group. Queued messages in the chat now stay left-aligned.

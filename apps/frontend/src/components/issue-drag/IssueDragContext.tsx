@@ -8,6 +8,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
+import type { SortingStrategy } from '@dnd-kit/sortable'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { cn } from 'cn'
@@ -18,25 +19,31 @@ import type { GroupedIssues } from '@/lib/issue-order'
 import { STATUS_MAP } from '@/lib/statuses'
 import type { Issue } from '@/types/kanban'
 import type { DropSlot } from './drop'
-import { boardCollision, planDropSlot, planDropUpdates } from './drop'
+import { boardCollision, planDropSlot, planDropUpdates, planStatusDrop } from './drop'
 
 /* One drag context around a set of status groups (kanban columns or list groups):
    cards drag, groups take drops, the source stays dimmed while a lifted copy follows
-   the pointer, the own group opens a sortable gap and another group a dashed slot. */
+   the pointer, the own group opens a sortable gap (when sortable) and another group a dashed slot. */
 
 interface IssueDragState {
   overStatus: string | null
   slot: DropSlot | null
+  sortable: boolean
 }
 
-const IssueDragStateContext = createContext<IssueDragState>({ overStatus: null, slot: null })
+const IssueDragStateContext = createContext<IssueDragState>({ overStatus: null, slot: null, sortable: true })
 
-export function IssueDragProvider({ projectId, columns, visibleColumns, renderOverlay, children }: {
+// Cards keep their place while another card drags past them.
+const noSorting: SortingStrategy = () => null
+
+export function IssueDragProvider({ projectId, columns, visibleColumns, sortable = true, renderOverlay, children }: {
   projectId: string
   /** Every group's issues in display order, unfiltered: what a drop is persisted against. */
   columns: GroupedIssues
   /** The issues on screen, e.g. after a search filter; drop positions are read from these. */
   visibleColumns: GroupedIssues
+  /** Off, cards only move between groups and their order within a group is not touched. */
+  sortable?: boolean
   /** The lifted copy that follows the pointer. */
   renderOverlay: (issue: Issue) => ReactNode
   children: ReactNode
@@ -70,7 +77,7 @@ export function IssueDragProvider({ projectId, columns, visibleColumns, renderOv
   }
 
   function handleDragMove(event: DragMoveEvent) {
-    setSlot(current => planDropSlot({ event, columns: visibleColumns, current }))
+    setSlot(current => planDropSlot({ event, columns: visibleColumns, current, sortable }))
   }
 
   function handleDragOver({ over }: DragOverEvent) {
@@ -80,12 +87,14 @@ export function IssueDragProvider({ projectId, columns, visibleColumns, renderOv
   function handleDragEnd({ active, over }: DragEndEvent) {
     reset()
     if (!over) return
-    const updates = planDropUpdates({ activeId: String(active.id), overId: String(over.id), slot, columns, visibleColumns })
+    const updates = sortable
+      ? planDropUpdates({ activeId: String(active.id), overId: String(over.id), slot, columns, visibleColumns })
+      : planStatusDrop({ activeId: String(active.id), overId: String(over.id), columns })
     if (updates.length > 0) bulkUpdate.mutate(updates)
   }
 
   const activeIssue = activeId ? issuesById.get(activeId) : undefined
-  const state = useMemo(() => ({ overStatus, slot }), [overStatus, slot])
+  const state = useMemo(() => ({ overStatus, slot, sortable }), [overStatus, slot, sortable])
 
   return (
     <DndContext
@@ -125,10 +134,10 @@ export function SortableIssues({ status, items, slotClassName, children }: {
   slotClassName?: string
   children: (issue: Issue) => ReactNode
 }) {
-  const { slot } = use(IssueDragStateContext)
+  const { slot, sortable } = use(IssueDragStateContext)
   const ownSlot = slot?.status === status ? slot : null
   return (
-    <SortableContext items={items.map(issue => issue.id)} strategy={verticalListSortingStrategy}>
+    <SortableContext items={items.map(issue => issue.id)} strategy={sortable ? verticalListSortingStrategy : noSorting}>
       {items.map((issue, index) => (
         <Fragment key={issue.id}>
           {ownSlot?.index === index ? <DropSlotMarker height={ownSlot.height} className={slotClassName} /> : null}

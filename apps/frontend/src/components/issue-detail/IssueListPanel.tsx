@@ -21,7 +21,7 @@ import { ResizeHandle } from '@/components/ui/resize-handle'
 import { useIssues, useProject } from '@/hooks/use-kanban'
 import { tStatus } from '@/lib/i18n-utils'
 import type { GroupedIssues } from '@/lib/issue-order'
-import { groupIssuesByStatus } from '@/lib/issue-order'
+import { groupIssuesByRecent } from '@/lib/issue-order'
 import type { StatusDefinition } from '@/lib/statuses'
 import { STATUSES } from '@/lib/statuses'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
@@ -60,8 +60,8 @@ export function IssueListPanel({
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const searchTerm = search.trim().toLowerCase()
 
-  // Same order as the kanban board, so a drop stays where it was put.
-  const byStatus = useMemo(() => groupIssuesByStatus(issues ?? []), [issues])
+  // The API's order: pinned, then latest status change.
+  const byStatus = useMemo(() => groupIssuesByRecent(issues ?? []), [issues])
 
   const visibleByStatus = useMemo(() => {
     if (!searchTerm) return byStatus
@@ -162,6 +162,7 @@ export function IssueListPanel({
           projectId={projectId}
           columns={byStatus}
           visibleColumns={visibleByStatus}
+          sortable={false}
           renderOverlay={issue => (
             <div className="rounded-md bg-background shadow-md ring-1 ring-border">
               <IssueRowContent issue={issue} isActive={false} />

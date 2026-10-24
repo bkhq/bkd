@@ -82,3 +82,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261016-0448-background-task-as-subagent Background Bash tasks render as subagents in the chat**](20261016-0448-background-task-as-subagent.md) `2026-10-16`
 - [x] [**20261016-1829-messages-system Upgrade decision events into a messages system**](20261016-1829-messages-system.md) `2026-10-16`
 - [-] [**20261022-0307-skills-management Manage agent skills from the BKD UI**](20261022-0307-skills-management.md) `2026-10-22`
+- [x] [**20261024-1445-backend-issue-order Order issues by the backend rule only**](20261024-1445-backend-issue-order.md) `2026-10-24`
