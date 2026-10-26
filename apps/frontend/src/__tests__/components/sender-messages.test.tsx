@@ -49,6 +49,13 @@ describe('sender messages', () => {
     expect(screen.getByText('Message reply')).toBeInTheDocument()
   })
 
+  it('spreads a cron wake across the chat width', () => {
+    const { container } = renderEntry({ sender: { kind: 'system', via: 'cron' } }, '[auto-mode watchdog] wake')
+    const block = container.querySelector('[data-slot="chat-block"]')!
+    expect(block).toHaveClass('w-full')
+    expect(block).not.toHaveClass('w-fit')
+  })
+
   it('keeps the queued badge on a queued agent follow-up', () => {
     renderEntry({ type: 'pending', sender: { kind: 'agent', projectId: 'p2', issueId: 'l2' } })
     expect(screen.getByText('Queued')).toBeInTheDocument()
