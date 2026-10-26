@@ -145,6 +145,44 @@ describe('pending message dispatch', () => {
     expect(empty).toBeNull()
   })
 
+  test('relocates only the leading run from one sender, leaving the rest queued', async () => {
+    const issue = await createTestIssue()
+    const agent = { kind: 'agent', projectId, issueId: 'l2issue1' }
+
+    const userA = await upsertPendingMessage(issue.id, 'user a', { type: 'pending' })
+    const userB = await upsertPendingMessage(issue.id, 'user b', { type: 'pending' })
+    const fromAgent = await upsertPendingMessage(issue.id, 'agent task', { type: 'pending', sender: agent })
+
+    const first = await relocatePendingForProcessing(issue.id)
+    expect(first?.oldIds).toEqual([userA, userB])
+    expect(first?.prompt).toBe('user a\n\nuser b')
+    expect(first?.metadata.sender).toBeUndefined()
+
+    const second = await relocatePendingForProcessing(issue.id)
+    expect(second?.oldIds).toEqual([fromAgent])
+    expect(second?.metadata.sender).toEqual(agent)
+    expect(await relocatePendingForProcessing(issue.id)).toBeNull()
+  })
+
+  test('flushes consecutive runs in order: agent run, the user in between, the next agent run', async () => {
+    const issue = await createTestIssue()
+    const agent = { kind: 'agent', projectId, issueId: 'l2issue1' }
+    const queue = (text: string, sender?: object) =>
+      upsertPendingMessage(issue.id, text, { type: 'pending', ...(sender ? { sender } : {}) })
+
+    await queue('a1', agent)
+    await queue('a2', agent)
+    await queue('a3', agent)
+    await queue('u1')
+    await queue('a4', agent)
+    await queue('a5', agent)
+
+    const batches: string[] = []
+    for (let r = await relocatePendingForProcessing(issue.id); r; r = await relocatePendingForProcessing(issue.id))
+      batches.push(r.prompt)
+    expect(batches).toEqual(['a1\n\na2\n\na3', 'u1', 'a4\n\na5'])
+  })
+
   test('merges attachments metadata from all pending messages', async () => {
     const issue = await createTestIssue()
 

@@ -1,4 +1,4 @@
-import { Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucide-react'
+import { Inbox, Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff } from 'lucide-react'
 import type { RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +16,7 @@ import { placeFlyout } from '@/lib/flyout-position'
 import { getProjectInitials } from '@/lib/format'
 import { GLOBAL_PAGES, isGlobalPageActive } from '@/lib/global-pages'
 import { useNotesStore } from '@/stores/notes-store'
+import { useMessagesStore } from '@/stores/messages-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import type { Project } from '@/types/kanban'
@@ -173,6 +174,8 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
   const isTerminalMinimized = useTerminalStore(s => s.isMinimized)
   const toggleNotes = useNotesStore(s => s.toggle)
   const isNotesMinimized = useNotesStore(s => s.isMinimized)
+  const toggleMessages = useMessagesStore(s => s.toggle)
+  const isMessagesMinimized = useMessagesStore(s => s.isMinimized)
   const waitingMessages = useWaitingMessageCount()
 
   const railRef = useRef<HTMLDivElement>(null)
@@ -305,6 +308,25 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
             <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
           )}
         </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleMessages}
+          className="relative h-9 w-9 text-muted-foreground"
+          aria-label={t('messages.title')}
+          title={t('messages.title')}
+        >
+          <Inbox className="h-4 w-4" />
+          {waitingMessages > 0 ?
+              (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+                  {waitingMessages}
+                </span>
+              ) :
+            isMessagesMinimized && (
+              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
+            )}
+        </Button>
         <ViewModeSelect activeProjectId={activeProjectId} />
         {GLOBAL_PAGES.map((page) => {
           const { id, path, icon: Icon, labelKey } = page
@@ -321,11 +343,6 @@ export function AppSidebar({ activeProjectId }: { activeProjectId: string }) {
               onClick={() => navigate(path)}
             >
               <Icon className="h-4 w-4" />
-              {id === 'messages' && waitingMessages > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
-                  {waitingMessages}
-                </span>
-              )}
             </Button>
           )
         })}

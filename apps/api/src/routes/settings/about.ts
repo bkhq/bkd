@@ -37,6 +37,7 @@ about.openapi(createRoute({
         commit: versionInfo.commit,
         supervised: versionInfo.supervised,
         activeVersion: versionInfo.activeVersion,
+        lode: versionInfo.lode,
         startedAt: new Date(startedAt).toISOString(),
         uptime: Math.floor((Date.now() - startedAt) / 1000),
       },

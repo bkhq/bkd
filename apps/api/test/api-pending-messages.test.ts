@@ -94,6 +94,32 @@ describe('Follow-up queuing on todo issues', () => {
     expect(pendingMsgs[0]!.content).toBe('pending log check')
   })
 
+  test('records the sending agent issue on a queued follow-up', async () => {
+    const create = (title: string) => post<Issue>(`/api/projects/${projectId}/issues`, { title, statusId: 'todo', engineType: 'codex', model: 'auto' })
+    const sender = expectSuccess(await create('Sender L2'))
+    const target = expectSuccess(await create('Target L3'))
+
+    const sent = await post(`/api/projects/${projectId}/issues/${target.id}/follow-up`, {
+      prompt: 'do the subtask',
+      sender: { kind: 'agent', projectId, issueId: sender.id },
+    })
+    expect(sent.status).toBe(200)
+
+    const logs = expectSuccess(await get<LogsResponse>(`/api/projects/${projectId}/issues/${target.id}/logs`))
+    const msg = logs.logs.find(l => l.entryType === 'user-message' && l.content === 'do the subtask')
+    expect(msg?.metadata?.sender).toEqual({ kind: 'agent', projectId, issueId: sender.id })
+  })
+
+  test('rejects a sender issue that does not exist, accepts an issue writing to itself', async () => {
+    const target = expectSuccess(await post<Issue>(`/api/projects/${projectId}/issues`, { title: 'Self Sender', statusId: 'todo', engineType: 'codex', model: 'auto' }))
+    const url = `/api/projects/${projectId}/issues/${target.id}/follow-up`
+
+    const missing = await post(url, { prompt: 'x', sender: { kind: 'agent', projectId, issueId: 'nope1234' } })
+    expect(missing.status).toBe(400)
+    const self = await post(url, { prompt: 'x', sender: { kind: 'agent', projectId, issueId: target.id } })
+    expect(self.status).toBe(200)
+  })
+
   test('multiple queued messages accumulate', async () => {
     const issue = expectSuccess(
       await post<Issue>(`/api/projects/${projectId}/issues`, {

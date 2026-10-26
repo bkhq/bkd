@@ -147,7 +147,7 @@ export async function wakeSource(row: MessageRow): Promise<MessageRow | null> {
       logger.warn({ messageId: row.id }, 'message_source_issue_missing')
       return null
     }
-    const outcome = await dispatchFollowUp(issue, { prompt: wakePrompt(row) })
+    const outcome = await dispatchFollowUp(issue, { prompt: wakePrompt(row), sender: { kind: 'system', via: 'message' } })
     if (!outcome.ok) {
       logger.warn({ messageId: row.id, error: outcome.error }, 'message_wake_rejected')
       return null

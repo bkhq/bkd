@@ -1261,13 +1261,7 @@ function AboutSection({ open }: { open: boolean }) {
                 <Badge variant="outline" className="font-mono text-[10px] py-0">
                   {data.app.version === 'dev' ? 'dev' : `v${data.app.version}`}
                 </Badge>
-                {data.app.supervised ?
-                    (
-                      <Badge variant="secondary" className="text-[10px] py-0">
-                        lode
-                      </Badge>
-                    ) :
-                  null}
+                {data.app.supervised ? <LodeBadge lode={data.app.lode} /> : null}
               </span>
             )}
           />
@@ -1297,7 +1291,16 @@ function AboutSection({ open }: { open: boolean }) {
   )
 }
 
-function UpgradeSection({ open }: { open: boolean }) {
+/** The supervisor badge: lode's version (commit on hover) when lode reports it. */
+function LodeBadge({ lode }: { lode: { version: string, commit: string | null } | null }) {
+  return (
+    <Badge variant="secondary" className="shrink-0 py-0 font-mono text-[10px]" title={lode?.commit ?? undefined}>
+      {lode ? `lode v${lode.version}` : 'lode'}
+    </Badge>
+  )
+}
+
+export function UpgradeSection({ open }: { open: boolean }) {
   const { t } = useTranslation()
   const { data: versionInfo } = useVersionInfo(open)
   const { data: status } = useUpgradeStatus(open)
@@ -1364,11 +1367,7 @@ function UpgradeSection({ open }: { open: boolean }) {
           <Badge variant="outline" className="shrink-0 font-mono">
             {versionInfo?.version === 'dev' ? t('settings.devBuild') : `v${versionInfo?.version ?? '...'}`}
           </Badge>
-          {supervised ? (
-            <Badge variant="secondary" className="shrink-0 text-[10px] py-0">
-              {t('settings.supervisedMode')}
-            </Badge>
-          ) : null}
+          {supervised ? <LodeBadge lode={versionInfo?.lode ?? null} /> : null}
         </div>
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="shrink-0 text-muted-foreground">{t('settings.buildId')}</span>
@@ -1383,13 +1382,6 @@ function UpgradeSection({ open }: { open: boolean }) {
 
       {supervised ? (
         <div className="mt-3 flex flex-col gap-2 rounded-lg border p-3">
-          <div className="flex items-center justify-between gap-2 text-xs">
-            <span className="text-muted-foreground">{t('settings.upgradeStatusLabel')}</span>
-            <Badge variant="outline" className="py-0 font-mono text-[10px]">
-              {status?.status ?? '—'}
-            </Badge>
-          </div>
-
           {status?.hasUpdate ? (
             <div className="flex items-center gap-2 text-xs">
               <ArrowDownToLine className="h-3.5 w-3.5 text-blue-500" />
@@ -1412,39 +1404,6 @@ function UpgradeSection({ open }: { open: boolean }) {
                 <RefreshCw className="h-3 w-3" />
                 {t('settings.upgradeReload')}
               </Button>
-            </div>
-          ) : null}
-
-          {/* lode records a failed check or install without changing `status`, and only
-              clears it when an update commits. Presenting that as a red error misreads a
-              transient network failure as a broken install — the server is still serving,
-              and the Update button retries. Only a real error state gets error styling. */}
-          {status?.lastError ? (
-            <div
-              className={cn(
-                'flex items-start gap-2 text-xs',
-                status.status === 'error' ?
-                  'text-red-600 dark:text-red-400' :
-                  'text-muted-foreground',
-              )}
-            >
-              <CircleAlert className="mt-0.5 h-3 w-3 shrink-0" />
-              <span className="min-w-0 break-words">
-                {status.status === 'error' ?
-                  status.lastError :
-                    t('settings.upgradeLastAttemptFailed', { error: status.lastError })}
-              </span>
-            </div>
-          ) : null}
-
-          {checkTimedOut || status?.checkError ? (
-            <div className="flex items-start gap-2 text-xs text-muted-foreground">
-              <CircleAlert className="mt-0.5 h-3 w-3 shrink-0" />
-              <span className="min-w-0 break-words">
-                {checkTimedOut ?
-                    t('settings.upgradeCheckTimedOut') :
-                    t('settings.upgradeCheckFailed', { error: status?.checkError })}
-              </span>
             </div>
           ) : null}
 

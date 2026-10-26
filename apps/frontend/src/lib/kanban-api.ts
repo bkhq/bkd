@@ -560,6 +560,7 @@ export const kanbanApi = {
         commit: string
         supervised: boolean
         activeVersion: string | null
+        lode: { version: string, commit: string | null } | null
         startedAt: string
         uptime: number
       }
@@ -585,6 +586,7 @@ export const kanbanApi = {
       commit: string
       supervised: boolean
       activeVersion: string | null
+      lode: { version: string, commit: string | null } | null
     }>('/api/settings/upgrade/version'),
   getUpgradeStatus: () =>
     get<UpgradeStatus>('/api/settings/upgrade/status'),

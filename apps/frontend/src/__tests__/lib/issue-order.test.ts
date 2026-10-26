@@ -1,6 +1,6 @@
 import type { Issue } from '@bkd/shared'
 import { describe, expect, it } from 'vitest'
-import { computeDragUpdates, groupIssuesByStatus } from '@/lib/issue-order'
+import { computeDragUpdates, groupIssuesByRecent, groupIssuesByStatus } from '@/lib/issue-order'
 
 function issue(id: string, statusId: string, sortOrder: string, extra: Partial<Issue> = {}): Issue {
   return { id, statusId, sortOrder, isPinned: false, statusUpdatedAt: '2026-10-15T00:00:00Z', ...extra } as Issue
@@ -16,6 +16,19 @@ describe('groupIssuesByStatus', () => {
     ])
     expect(grouped.todo!.map(i => i.id)).toEqual(['p', 'a', 'c'])
     expect(grouped.working!.map(i => i.id)).toEqual(['w'])
+    expect(grouped.done).toEqual([])
+  })
+})
+
+describe('groupIssuesByRecent', () => {
+  it('orders each status like the API: pinned, latest status change, then highest number', () => {
+    const grouped = groupIssuesByRecent([
+      issue('old', 'todo', 'a0', { statusUpdatedAt: '2026-10-01T00:00:00Z', issueNumber: 1 }),
+      issue('new', 'todo', 'a5', { statusUpdatedAt: '2026-10-20T00:00:00Z', issueNumber: 2 }),
+      issue('tie', 'todo', 'a1', { statusUpdatedAt: '2026-10-20T00:00:00Z', issueNumber: 3 }),
+      issue('pin', 'todo', 'a9', { isPinned: true, statusUpdatedAt: '2026-09-01T00:00:00Z', issueNumber: 4 }),
+    ])
+    expect(grouped.todo!.map(i => i.id)).toEqual(['pin', 'tie', 'new', 'old'])
     expect(grouped.done).toEqual([])
   })
 })

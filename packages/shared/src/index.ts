@@ -209,6 +209,14 @@ export interface ToolDetail {
   raw?: Record<string, unknown>
 }
 
+/**
+ * Who sent a follow-up that is not the user's own message, stored as
+ * `metadata.sender` on its `user-message`. Absent means the user.
+ */
+export type FollowUpSender =
+  | { kind: 'agent', projectId: string, issueId: string }
+  | { kind: 'system', via: 'message' | 'cron' }
+
 export interface NormalizedLogEntry {
   messageId?: string
   replyToMessageId?: string
@@ -991,4 +999,6 @@ export interface VersionInfo {
   commit: string
   supervised: boolean
   activeVersion: string | null
+  /** The supervising lode's build, when lode reports it (>= 0.3.0). */
+  lode: { version: string, commit: string | null } | null
 }

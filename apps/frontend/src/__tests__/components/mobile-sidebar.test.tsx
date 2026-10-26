@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
+import { useMessagesStore } from '@/stores/messages-store'
 import { useServerStore } from '@/stores/server-store'
 
 const mocks = vi.hoisted(() => ({ waitingMessages: 0, pathname: '/' }))
@@ -64,6 +65,15 @@ describe('mobileSidebar', () => {
     openSheet()
 
     expect(screen.getByText('messages.title').closest('button')).toHaveTextContent('2')
+  })
+
+  it('opens the messages drawer fullscreen', () => {
+    useMessagesStore.setState({ isOpen: false, isFullscreen: false })
+    openSheet()
+
+    fireEvent.click(screen.getByText('messages.title'))
+
+    expect(useMessagesStore.getState()).toMatchObject({ isOpen: true, isFullscreen: true })
   })
 
   it('falls back to the BKD brand when no server name is configured', () => {

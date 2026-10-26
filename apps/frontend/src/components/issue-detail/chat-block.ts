@@ -12,6 +12,8 @@ export const chatBlock = cva('rounded-lg', {
       assistant: '',
       pending: 'bg-amber-500/[0.08]',
       done: 'bg-emerald-500/[0.08]',
+      // A follow-up sent by another issue's agent
+      agent: 'bg-sky-500/[0.06]',
       // Tool groups and command output keep an outline; messages do not
       neutral: 'border border-border bg-muted/30',
       thinking: 'bg-violet-500/[0.05]',

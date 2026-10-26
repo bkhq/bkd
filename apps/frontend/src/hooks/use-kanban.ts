@@ -348,10 +348,12 @@ export function useBulkUpdateIssues(projectId: string) {
           const update = updates.find(u => u.id === issue.id)
           if (update) {
             const { id: _, ...fields } = update
+            const now = new Date().toISOString()
             return {
               ...issue,
               ...fields,
-              updatedAt: new Date().toISOString(),
+              updatedAt: now,
+              ...(fields.statusId !== undefined && fields.statusId !== issue.statusId ? { statusUpdatedAt: now } : {}),
             }
           }
           return issue

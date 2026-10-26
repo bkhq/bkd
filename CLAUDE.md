@@ -177,6 +177,14 @@ Route handler → IssueEngine.executeIssue() → acquires per-issue lock
   → monitorCompletion() watches subprocess.exited → settleIssue() (status → 'review')
 ```
 
+**Follow-up senders:** a follow-up the user did not write carries `metadata.sender` on its `user-message`
+(`FollowUpSender`): `{ kind: 'agent', projectId, issueId }` from the follow-up body's optional `sender` (an agent
+naming its own issue, validated to exist), or `{ kind: 'system', via: 'message' | 'cron' }`
+for message wakes and the `issue-follow-up` cron. Every engine spawn gets `BKD_PROJECT_ID` / `BKD_ISSUE_ID` so an
+agent can fill `sender`. The chat renders these on the left (agent card with a link to the sender, system row)
+instead of the user's bubble. Queued messages are merged per sender only: `relocatePendingForProcessing()` takes the
+leading run from one sender, and the rest flush after that turn.
+
 **Follow-up flow** (Codex is special — process stays alive):
 
 - Claude: spawns new process with `--resume <sessionId>` flag
@@ -271,12 +279,12 @@ Deployment, migration from the old launcher, and the `lode.toml` reference: `doc
 /review[/:projectId/:issueId]        → ReviewPage (global review queue)
 /terminal                            → TerminalPage
 /cron                                → CronPage
-/messages                            → MessagesPage (global inbox: decisions + notifications; /decisions redirects here)
+/messages                            → opens MessagesDrawer on / (kept for inbox links; /decisions redirects here)
 /skills                              → SkillsPage (agent skills: browse, edit, create, copy)
 /sessions                            → SessionsPage (local engine sessions)
 ```
 
-Four global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`.
+Five global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`, `MessagesDrawer` (global inbox: decisions + notifications).
 
 #### State Management
 

@@ -9,6 +9,7 @@ import { UploadProgress } from './components/UploadProgress'
 import { useSystemInfo } from './hooks/use-kanban'
 import { eventBus } from './lib/event-bus'
 import { useFileBrowserStore } from './stores/file-browser-store'
+import { useMessagesStore } from './stores/messages-store'
 import { useNotesStore } from './stores/notes-store'
 import { useProcessManagerStore } from './stores/process-manager-store'
 import { useServerStore } from './stores/server-store'
@@ -56,7 +57,6 @@ const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const TerminalPage = lazy(() => import('./pages/TerminalPage'))
 const CronPage = lazy(() => import('./pages/CronPage'))
 const SkillsPage = lazy(() => import('./pages/SkillsPage'))
-const MessagesPage = lazy(() => import('./pages/MessagesPage'))
 const LocalSessionsPage = lazy(() => import('./pages/LocalSessionsPage'))
 const LazyTerminalDrawer = lazy(() =>
   import('./components/terminal/TerminalDrawer').then(m => ({
@@ -71,6 +71,11 @@ const LazyFileBrowserDrawer = lazy(() =>
 const LazyProcessManagerDrawer = lazy(() =>
   import('./components/processes/ProcessManagerDrawer').then(m => ({
     default: m.ProcessManagerDrawer,
+  })),
+)
+const LazyMessagesDrawer = lazy(() =>
+  import('./components/messages/MessagesDrawer').then(m => ({
+    default: m.MessagesDrawer,
   })),
 )
 const LazyNotesDrawer = lazy(() =>
@@ -133,6 +138,26 @@ function NotesDrawerMount() {
       <LazyNotesDrawer />
     </Suspense>
   )
+}
+
+function MessagesDrawerMount() {
+  const isOpen = useMessagesStore(s => s.isOpen)
+
+  if (!isOpen) return null
+
+  return (
+    <Suspense fallback={null}>
+      <LazyMessagesDrawer />
+    </Suspense>
+  )
+}
+
+/** Inbox links (webhooks, bookmarks) land on home with the messages drawer open. */
+function OpenMessagesDrawer() {
+  useEffect(() => {
+    useMessagesStore.getState().open()
+  }, [])
+  return <Navigate to="/" replace />
 }
 
 function EventBusManager() {
@@ -235,14 +260,7 @@ if (!rootElement.innerHTML) {
                     </ErrorBoundary>
                   )}
                 />
-                <Route
-                  path="/messages"
-                  element={(
-                    <ErrorBoundary>
-                      <MessagesPage />
-                    </ErrorBoundary>
-                  )}
-                />
+                <Route path="/messages" element={<OpenMessagesDrawer />} />
                 <Route path="/decisions" element={<Navigate to="/messages" replace />} />
                 <Route
                   path="/cron"
@@ -276,6 +294,7 @@ if (!rootElement.innerHTML) {
           <FileBrowserDrawerMount />
           <ProcessManagerDrawerMount />
           <NotesDrawerMount />
+          <MessagesDrawerMount />
           <Toaster position="top-center" />
           <UploadProgress />
           <EventBusManager />

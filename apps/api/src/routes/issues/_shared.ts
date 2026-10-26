@@ -1,3 +1,4 @@
+import type { FollowUpSender } from '@bkd/shared'
 import { mkdir, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -173,6 +174,8 @@ export interface FollowUpInput {
   followUpMeta?: Record<string, unknown>
   /** Runs once the message has a log id, queued or sent. */
   onMessage?: (messageId: string) => Promise<void>
+  /** Who sent it when it is not the user; stored as `metadata.sender`. */
+  sender?: FollowUpSender
 }
 
 export type FollowUpOutcome =
@@ -192,8 +195,9 @@ export async function dispatchFollowUp(
   const issueId = issue.id
   const { prompt } = input
 
+  const senderMeta = input.sender ? { sender: input.sender } : {}
   const queue = async (type: string): Promise<FollowUpOutcome> => {
-    const messageId = await upsertPendingMessage(issueId, prompt, { type, ...input.pendingMeta })
+    const messageId = await upsertPendingMessage(issueId, prompt, { type, ...input.pendingMeta, ...senderMeta })
     await input.onMessage?.(messageId)
     return { ok: true, queued: true, messageId }
   }
@@ -243,6 +247,7 @@ export async function dispatchFollowUp(
       const isCommand = firstWord.startsWith('/') && knownCommands.includes(firstWord)
       const followUpMeta: Record<string, unknown> = {
         ...input.followUpMeta,
+        ...senderMeta,
         ...(isCommand ? { type: 'command' } : {}),
       }
       const hasFollowUpMeta = Object.keys(followUpMeta).length > 0

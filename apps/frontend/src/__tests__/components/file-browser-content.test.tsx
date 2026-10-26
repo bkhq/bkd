@@ -331,4 +331,43 @@ describe('file actions menus', () => {
     expect(mocks.deleteMutate).toHaveBeenCalledWith({ root: '/ws/proj', path: 'src/deep' }, expect.anything())
     expect(useFileBrowserStore.getState().drafts).toEqual({})
   })
+
+  it('uploads into the right-clicked directory, also when replacing a clash', async () => {
+    mocks.rootListing = {
+      path: '.',
+      type: 'directory',
+      entries: [
+        { name: 'docs', type: 'directory', size: 0, modifiedAt: FILE.modifiedAt },
+        { name: 'a.ts', type: 'file', size: 12, modifiedAt: FILE.modifiedAt },
+      ],
+    }
+    mocks.uploadMutate.mockReset()
+    mocks.uploadMutate.mockImplementationOnce((_vars, opts) => opts?.onError?.(new ApiError('Already exists: n.md', 409)))
+    const { container } = renderBrowser('a.ts')
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'docs' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Upload to this folder' }))
+    const file = new File(['n'], 'n.md')
+    pickFiles(container, [file])
+    expect(mocks.uploadMutate).toHaveBeenLastCalledWith({ root: '/ws/proj', path: 'docs', files: [file], overwrite: false }, expect.anything())
+
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Replace' }))
+    expect(mocks.uploadMutate).toHaveBeenLastCalledWith({ root: '/ws/proj', path: 'docs', files: [file], overwrite: true }, expect.anything())
+
+    // The header button goes back to the opened file's folder (src/a.ts → src)
+    fireEvent.click(screen.getByRole('button', { name: 'Upload files' }))
+    pickFiles(container, [file])
+    expect(mocks.uploadMutate).toHaveBeenLastCalledWith({ root: '/ws/proj', path: 'src', files: [file], overwrite: false }, expect.anything())
+  })
+
+  it('uploads beside a right-clicked file', async () => {
+    mocks.uploadMutate.mockReset()
+    mocks.listing = DIRECTORY
+    mocks.rootListing = { path: '.', type: 'directory', entries: [{ name: 'a.ts', type: 'file', size: 12, modifiedAt: FILE.modifiedAt }] }
+    const { container } = renderBrowser('src')
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'a.ts' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Upload to this folder' }))
+    const file = new File(['x'], 'x.txt')
+    pickFiles(container, [file])
+    expect(mocks.uploadMutate).toHaveBeenLastCalledWith({ root: '/ws/proj', path: '.', files: [file], overwrite: false }, expect.anything())
+  })
 })

@@ -181,3 +181,8 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261022-0307-skills-management Manage agent skills from the BKD UI**](20261022-0307-skills-management.md) `P2`
 - [x] [**20261022-0600-patch-diff-options-flake patch-diff-options fails intermittently in the full frontend suite**](20261022-0600-patch-diff-options-flake.md) `P3`
 - [x] [**20261023-1714-model-change-outside-working Apply a model change immediately outside working**](20261023-1714-model-change-outside-working.md) `P2`
+- [x] [**20261024-1445-backend-issue-order Order issues by the backend rule only, drop in-column drag sorting**](20261024-1445-backend-issue-order.md) `P2`
+- [x] [**20261024-1500-upgrade-panel-lode-version Show the lode version and simplify the upgrade panel**](20261024-1500-upgrade-panel-lode-version.md) `P2`
+- [x] [**20261024-1503-messages-drawer Show the messages inbox in a side drawer instead of a page**](20261024-1503-messages-drawer.md) `P2`
+- [x] [**20261024-1615-list-panel-no-drag Disable issue drag in the list panel**](20261024-1615-list-panel-no-drag.md) `P2`
+- [x] [**20261024-1813-agent-follow-up-messages Show agent-sent follow-ups apart from user messages**](20261024-1813-agent-follow-up-messages.md) `P2`

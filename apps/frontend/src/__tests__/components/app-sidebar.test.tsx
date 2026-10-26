@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppSidebar } from '@/components/kanban/AppSidebar'
+import { useMessagesStore } from '@/stores/messages-store'
 
 const projects = [
   { id: 'p1', name: 'Alpha' },
@@ -257,5 +258,15 @@ describe('appSidebar global pages', () => {
     const { getByLabelText } = render(<AppSidebar activeProjectId="" />)
 
     expect(getByLabelText('messages.title')).toHaveTextContent('')
+  })
+
+  it('opens the messages drawer instead of navigating', () => {
+    useMessagesStore.setState({ isOpen: false, isMinimized: false })
+    const { getByLabelText } = render(<AppSidebar activeProjectId="" />)
+
+    fireEvent.click(getByLabelText('messages.title'))
+
+    expect(useMessagesStore.getState().isOpen).toBe(true)
+    expect(navigate).not.toHaveBeenCalled()
   })
 })

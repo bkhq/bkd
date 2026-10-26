@@ -52,6 +52,12 @@ describe('chat blocks', () => {
     expect(container.querySelector('[data-slot="chat-block"]')).toHaveClass('w-fit', 'max-w-[85%]')
   })
 
+  it('keeps queued messages on the left', () => {
+    const entry = { ...ENTRIES[0]![1], metadata: { type: 'pending' } }
+    const { container } = render(<MemoryRouter><LogEntry entry={entry} /></MemoryRouter>)
+    expect(container.querySelector('[data-slot="chat-block-row"]')).not.toHaveClass('items-end')
+  })
+
   it('keeps assistant replies on the left at full width', () => {
     const { container } = render(<MemoryRouter><LogEntry entry={ENTRIES[3]![1]} /></MemoryRouter>)
     expect(container.querySelector('[data-slot="chat-block-row"]')).not.toHaveClass('items-end')
@@ -77,9 +83,9 @@ describe('chat blocks', () => {
     }
   })
 
-  it('gives an assistant reply no side padding: without an outline or tint its text lines up with the rest', () => {
+  it('pads an assistant reply like a user message, inside its card background', () => {
     const { container } = render(<MemoryRouter><LogEntry entry={ENTRIES[3]![1]} /></MemoryRouter>)
-    expect(container.querySelector('[data-slot="chat-block"]')!.className).not.toMatch(/\bpx-/)
+    expect(container.querySelector('[data-slot="chat-block"]')).toHaveClass('px-3', 'py-2')
     const user = render(<MemoryRouter><LogEntry entry={ENTRIES[0]![1]} /></MemoryRouter>)
     expect(user.container.querySelector('[data-slot="chat-block"]')).toHaveClass('px-3')
   })

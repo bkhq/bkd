@@ -19,6 +19,27 @@ export interface HistoryEntry {
   result: "good" | "bad";
 }
 
+/** lode's view of one [[resource]] (state.json `resources.<name>`). */
+export interface ResourceState {
+  /** The active version. */
+  current?: string;
+  /** A newer version found by a check (policy = "check"). */
+  available?: string;
+  /** Where the active version lives (also in LODE_RESOURCE_<NAME>). */
+  path?: string;
+  /** Why the last check or apply failed. */
+  error?: string;
+}
+
+/** The lode supervising the app (state.json `lode`). */
+export interface LodeInfo {
+  version: string;
+  /** The git commit lode was built from, when known. */
+  commit?: string;
+  /** App-contract features this lode supports (see {@link hasFeature}). */
+  features: string[];
+}
+
 /** Parsed state.json. lode writes the top group; the app writes target/restartNonce/checkNonce/ready. */
 export interface State {
   current?: string;
@@ -30,6 +51,8 @@ export interface State {
   lastCheck?: string;
   lastError?: string;
   history: HistoryEntry[];
+  /** The lode supervising the app, once its loop has started. */
+  lode?: LodeInfo;
   configGeneration: number;
   /** The highest checkNonce lode has answered (see {@link Lode.requestCheck}). */
   checkedNonce: number;
@@ -40,11 +63,27 @@ export interface State {
   checkNonce: number;
   hold: boolean;
   ready?: string;
+  /** Per-resource state, keyed by [[resource]] name. */
+  resources: Record<string, ResourceState>;
+  /** Pending resource requests (see {@link Lode.applyResource}). */
+  resourceTarget: Record<string, string>;
+}
+
+function toLodeInfo(v: unknown): LodeInfo | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  if (typeof o.version !== "string") return undefined;
+  return {
+    version: o.version,
+    commit: typeof o.commit === "string" ? o.commit : undefined,
+    features: Array.isArray(o.features) ? o.features.filter((f): f is string => typeof f === "string") : [],
+  };
 }
 
 function toState(raw: Record<string, unknown>): State {
   const num = (v: unknown): number | undefined => (typeof v === "number" ? v : undefined);
   const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? { ...(v as Record<string, unknown>) } : {});
   return {
     current: str(raw.current),
     lastGood: str(raw.last_good),
@@ -55,6 +94,7 @@ function toState(raw: Record<string, unknown>): State {
     lastCheck: str(raw.last_check),
     lastError: str(raw.last_error),
     history: Array.isArray(raw.history) ? (raw.history as HistoryEntry[]) : [],
+    lode: toLodeInfo(raw.lode),
     configGeneration: num(raw.config_generation) ?? 0,
     checkedNonce: num(raw.checked_nonce) ?? 0,
     checkError: str(raw.check_error),
@@ -63,6 +103,8 @@ function toState(raw: Record<string, unknown>): State {
     checkNonce: num(raw.check_nonce) ?? 0,
     hold: raw.hold === true,
     ready: str(raw.ready),
+    resources: obj(raw.resources) as Record<string, ResourceState>,
+    resourceTarget: obj(raw.resource_target) as Record<string, string>,
   };
 }
 
@@ -250,6 +292,23 @@ export class Lode {
     });
   }
 
+  /** The state of [[resource]] `name` (undefined until lode has recorded it). */
+  resource(name: string): ResourceState | undefined {
+    return this.read()?.resources[name];
+  }
+
+  /** Ask lode to activate `version` (default "latest") of [[resource]] `name`;
+   *  an older version rolls it back. lode acts ~1s later, then records the
+   *  result in `resource(name)` and notifies per the resource's `notify`. */
+  applyResource(name: string, version = "latest"): void {
+    if (!name || !version) throw new Error("lode.applyResource: empty name or version");
+    this.update((raw) => {
+      const targets = raw.resource_target && typeof raw.resource_target === "object" ? (raw.resource_target as Record<string, unknown>) : {};
+      targets[name] = version;
+      raw.resource_target = targets;
+    });
+  }
+
   /** Ask lode NOT to (re)start your process (maintenance) → status "held"; a
    *  running child is left alone. Clear with {@link release}. */
   hold(): void {
@@ -406,6 +465,11 @@ export function readConfig(): string | undefined {
   }
 }
 
+/** The active path of [[resource]] `name` (LODE_RESOURCE_<NAME>), when installed. */
+export function resourcePath(name: string): string | undefined {
+  return env[`LODE_RESOURCE_${name.toUpperCase().replace(/[-.]/g, "_")}`];
+}
+
 /** This launch's instance id ({pid}-{nanoid}), or "". */
 export function instanceId(): string {
   return env.LODE_INSTANCE ?? "";
@@ -414,6 +478,26 @@ export function instanceId(): string {
 /** The version lode launched, or undefined. */
 export function activeVersion(): string | undefined {
   return env.LODE_ACTIVE_VERSION || undefined;
+}
+
+/** The supervising lode's version (LODE_VERSION), or undefined. */
+export function lodeVersion(): string | undefined {
+  return env.LODE_VERSION || undefined;
+}
+
+/** The git commit the supervising lode was built from (LODE_COMMIT), when known. */
+export function lodeCommit(): string | undefined {
+  return env.LODE_COMMIT || undefined;
+}
+
+/** App-contract features the supervising lode supports (LODE_FEATURES). */
+export function lodeFeatures(): string[] {
+  return (env.LODE_FEATURES ?? "").split(",").filter((f) => f.length > 0);
+}
+
+/** True when the supervising lode supports feature `name` (e.g. "check", "staged-cutover"). */
+export function hasFeature(name: string): boolean {
+  return lodeFeatures().includes(name);
 }
 
 /** Readiness mode in force ("none" | "state"), or undefined. */

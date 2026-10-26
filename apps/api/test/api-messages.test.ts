@@ -142,6 +142,10 @@ describe('notifications awaiting a reply', () => {
     expect(replied.reply).toMatchObject({ text: 'eu-west-1', repliedBy: 'roy' })
     expect(replied.notifiedAt).not.toBeNull()
     expect(await pendingOf(sender)).toContain(`[message-reply messageId=${message.id} campaignId=camp-r]`)
+    const wake = expectSuccess(
+      await get<{ content: string, metadata: Record<string, unknown> | null }[]>(`/api/projects/${projectId}/issues/${sender}/pending`),
+    ).find(r => r.content.startsWith('[message-reply'))
+    expect(wake?.metadata?.sender).toEqual({ kind: 'system', via: 'message' })
 
     expectError(await post(`${BASE}/${message.id}/reply`, { text: 'again' }), 409)
 

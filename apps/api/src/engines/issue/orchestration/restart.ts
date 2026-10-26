@@ -14,6 +14,7 @@ import { killUnregistered, register } from '@/engines/issue/process/register'
 import {
   getPermissionOptions,
   getProjectExecContext,
+  issueEnvVars,
   resolveExecEnvVars,
   resolveWorkingDir,
 } from '@/engines/issue/utils/helpers'
@@ -100,7 +101,7 @@ export async function restartIssue(
               permissionMode: spawnOpts.permissionMode,
             },
             {
-              vars: envVars ?? {},
+              vars: issueEnvVars(envVars, issue.projectId, issueId),
               workingDir,
               projectId: issue.projectId,
               issueId,

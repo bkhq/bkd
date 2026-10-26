@@ -173,9 +173,19 @@ export async function deletePendingMessage(issueId: string, messageId: string): 
   }
 }
 
+/** Who queued a message: the user (no sender) or the agent / system in `metadata.sender`. */
+function senderKey(metadata: string | null): string {
+  try {
+    return JSON.stringify(JSON.parse(metadata!).sender ?? null)
+  } catch {
+    return 'null'
+  }
+}
+
 /**
- * Relocate all queued pending messages for AI processing:
- * 1. Atomically mark all pending rows as visible=0 inside a transaction
+ * Relocate queued pending messages for AI processing:
+ * 1. Atomically mark the leading pending rows from one sender as visible=0
+ *    inside a transaction; rows from another sender stay queued for the next turn
  * 2. Return the merged content + metadata for caller to create a single entry
  *
  * Returns null if no pending found or already consumed (race with user edit).
@@ -189,14 +199,18 @@ export async function relocatePendingForProcessing(issueId: string): Promise<{
   metadata: Record<string, unknown>
 } | null> {
   const all = await getPendingMessages(issueId)
-  const pendingRows = all.filter((row) => {
+  const queued = all.filter((row) => {
     try {
       return JSON.parse(row.metadata!).type === 'pending'
     } catch {
       return false
     }
   })
-  if (pendingRows.length === 0) return null
+  if (queued.length === 0) return null
+  // Never merge the user's words with an agent's or a system wake into one message
+  const firstSender = senderKey(queued[0]!.metadata)
+  const mixedAt = queued.findIndex(row => senderKey(row.metadata) !== firstSender)
+  const pendingRows = mixedAt === -1 ? queued : queued.slice(0, mixedAt)
 
   // Atomic relocation: hide all pending rows in a single transaction
   // to prevent concurrent flushes from splitting the batch

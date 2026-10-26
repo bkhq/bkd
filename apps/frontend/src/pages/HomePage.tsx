@@ -15,6 +15,7 @@ import {
   Copy,
   FolderOpen,
   Hash,
+  Inbox,
   Menu,
   Plus,
   Settings,
@@ -38,6 +39,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { useProjectStats } from '@/hooks/use-project-stats'
 import { getProjectInitials } from '@/lib/format'
 import { GLOBAL_PAGES } from '@/lib/global-pages'
+import { useMessagesStore } from '@/stores/messages-store'
 import { useNotesStore } from '@/stores/notes-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { useViewModeStore } from '@/stores/view-mode-store'
@@ -376,6 +378,19 @@ function MobileHomeMenu({
                 {t('notes.title')}
               </button>
 
+              {/* Messages */}
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false)
+                  useMessagesStore.getState().openFullscreen()
+                }}
+                className="flex items-center gap-3 w-full px-4 min-h-[48px] text-sm text-foreground/80 hover:bg-accent/50 active:bg-accent transition-colors"
+              >
+                <Inbox className="h-4.5 w-4.5 text-muted-foreground" />
+                {t('messages.title')}
+              </button>
+
               {GLOBAL_PAGES.map(({ id, path, icon: Icon, labelKey }) => (
                 <button
                   key={id}
@@ -442,6 +457,16 @@ function DesktopHeaderControls({
         aria-label={t('notes.title')}
       >
         <StickyNote className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-muted-foreground"
+        onClick={useMessagesStore.getState().toggle}
+        aria-label={t('messages.title')}
+        title={t('messages.title')}
+      >
+        <Inbox className="h-4 w-4" />
       </Button>
       {GLOBAL_PAGES.map(({ id, path, icon: Icon, labelKey }) => (
         <Button

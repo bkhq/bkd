@@ -1,4 +1,4 @@
-import { ChevronRight, Menu, Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff, X } from 'lucide-react'
+import { ChevronRight, Inbox, Menu, Plus, Settings, StickyNote, TerminalSquare, Wifi, WifiOff, X } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -15,6 +15,7 @@ import { getProjectInitials } from '@/lib/format'
 import { GLOBAL_PAGES, isGlobalPageActive } from '@/lib/global-pages'
 import { useNotesStore } from '@/stores/notes-store'
 import { useServerStore } from '@/stores/server-store'
+import { useMessagesStore } from '@/stores/messages-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import type { Project } from '@/types/kanban'
 
@@ -174,6 +175,22 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
                 <StickyNote className="h-4 w-4 text-muted-foreground" />
                 {t('notes.title')}
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false)
+                  useMessagesStore.getState().openFullscreen()
+                }}
+                className="flex items-center gap-3 w-full px-4 min-h-[44px] text-sm text-foreground/80 hover:bg-accent/50 active:bg-accent transition-colors"
+              >
+                <Inbox className="h-4 w-4 text-muted-foreground" />
+                {t('messages.title')}
+                {waitingMessages > 0 && (
+                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
+                    {waitingMessages}
+                  </span>
+                )}
+              </button>
               {GLOBAL_PAGES.map((page) => {
                 const { id, path, icon: Icon, labelKey } = page
                 const isActive = isGlobalPageActive(page, pathname)
@@ -190,11 +207,6 @@ export function MobileSidebar({ activeProjectId }: { activeProjectId: string }) 
                   >
                     <Icon className="h-4 w-4 text-muted-foreground" />
                     {t(labelKey)}
-                    {id === 'messages' && waitingMessages > 0 && (
-                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
-                        {waitingMessages}
-                      </span>
-                    )}
                   </button>
                 )
               })}

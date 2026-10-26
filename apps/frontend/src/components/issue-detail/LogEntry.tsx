@@ -19,20 +19,22 @@ import {
   Monitor as MonitorIcon,
   Octagon,
   Search,
+  Settings2,
   Terminal,
   Timer,
   Wrench,
 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import type { PreviewItem } from '@/components/FilePreviewModal'
 import { FilePreviewModal } from '@/components/FilePreviewModal'
+import { useIssue } from '@/hooks/use-kanban'
 import { compactCommand } from '@/lib/command-preview'
 import { formatDuration, formatFileSize } from '@/lib/format'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import { cn } from 'cn'
-import type { NormalizedLogEntry, ToolAction } from '@/types/kanban'
+import type { FollowUpSender, NormalizedLogEntry, ToolAction } from '@/types/kanban'
 import { CHAT_BLOCK_BODY, CHAT_BLOCK_ROW, CHAT_BLOCK_SUMMARY, chatBlock } from './chat-block'
 import { MarkdownContent } from './MarkdownContent'
 
@@ -296,6 +298,38 @@ function copyToClipboard(value: string, onDone: () => void) {
   navigator.clipboard.writeText(value).then(onDone).catch(() => {})
 }
 
+/** Where a follow-up that is not the user's own came from: the sending issue, or BKD itself. */
+function SenderLabel({ sender }: { sender: FollowUpSender }) {
+  const { t } = useTranslation()
+  if (sender.kind === 'system') {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <Settings2 className="h-3 w-3 shrink-0" />
+        {t(sender.via === 'cron' ? 'chat.senderCron' : 'chat.senderMessage')}
+      </span>
+    )
+  }
+  return <AgentSenderLink projectId={sender.projectId} issueId={sender.issueId} />
+}
+
+function AgentSenderLink({ projectId, issueId }: { projectId: string, issueId: string }) {
+  const { t } = useTranslation()
+  const { data: issue } = useIssue(projectId, issueId)
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1">
+      <Bot className="h-3 w-3 shrink-0" />
+      <span className="shrink-0">{t('chat.senderAgent')}</span>
+      <Link to={`/projects/${projectId}/issues/${issueId}`} className="min-w-0 truncate font-medium text-foreground/80 hover:underline">
+        {issue ? `#${issue.issueNumber} ${issue.title}` : issueId}
+      </Link>
+    </span>
+  )
+}
+
+/** Agent follow-ups longer than this are folded to 8 lines (`line-clamp-8`) until expanded. */
+const SENDER_FOLD_LINES = 8
+const SENDER_FOLD_CHARS = 600
+
 /**
  * Sent message card. Also used by ChatBody for queued messages, which pass the
  * ids explicitly (they may render outside the issue route) and an edit action.
@@ -317,7 +351,9 @@ export function UserMessageEntry({
   const issueId = issueIdProp ?? params.issueId
   const [preview, setPreview] = useState<PreviewItem | null>(null)
   const [copied, setCopied] = useState(false)
+  const [expanded, setExpanded] = useState(false)
 
+  const sender = entry.metadata?.sender as FollowUpSender | undefined
   const isPending = entry.metadata?.type === 'pending'
   const isDone = entry.metadata?.type === 'done'
   const messageAttachments = (entry.metadata?.attachments ?? []) as AttachmentMeta[]
@@ -327,7 +363,9 @@ export function UserMessageEntry({
   if (!displayContent && messageAttachments.length === 0 && !isPending && !isDone)
     return null
 
-  const tone = isPending ? 'pending' : isDone ? 'done' : 'user'
+  const tone = isPending ? 'pending' : isDone ? 'done' : sender?.kind === 'agent' ? 'agent' : 'user'
+  const foldable = sender?.kind === 'agent' &&
+    (displayContent.length > SENDER_FOLD_CHARS || displayContent.split('\n').length > SENDER_FOLD_LINES)
 
   // Optimistic attachments (created locally before the server assigns an id)
   // carry id === '' and aren't yet reachable; render them as static chips.
@@ -350,14 +388,52 @@ export function UserMessageEntry({
   }
 
   return (
-    // User messages sit on the right as a bubble sized to their text; replies stay left
-    <div data-slot="chat-block-row" className={cn('group flex flex-col items-end animate-message-enter', CHAT_BLOCK_ROW)}>
-      <div data-slot="chat-block" className={cn('w-fit max-w-[85%] min-w-0', chatBlock({ tone }), CHAT_BLOCK_BODY)}>
+    // The user's sent messages sit on the right as a bubble sized to their text; queued
+    // ones, agent and system follow-ups, and replies stay left
+    <div
+      data-slot="chat-block-row"
+      data-sender={sender?.kind}
+      className={cn('group flex flex-col animate-message-enter', isPending || sender ? 'items-start' : 'items-end', CHAT_BLOCK_ROW)}
+    >
+      <div
+        data-slot="chat-block"
+        className={cn(
+          'min-w-0',
+          sender?.kind === 'agent' ? 'w-full' : 'w-fit max-w-[85%]',
+          chatBlock({ tone: sender?.kind === 'system' && !isPending ? 'neutral' : tone }),
+          sender?.kind === 'system' ? CHAT_BLOCK_SUMMARY : CHAT_BLOCK_BODY,
+        )}
+      >
+        {sender ?
+            (
+              <div className={cn('flex min-w-0 items-center text-[11px] text-muted-foreground', sender.kind === 'agent' && 'mb-1')}>
+                <SenderLabel sender={sender} />
+              </div>
+            ) :
+          null}
         {displayContent ?
             (
-              <div className="text-[14px] whitespace-pre-wrap break-words text-foreground leading-[1.75]">
+              <div
+                data-slot="sender-body"
+                className={cn(
+                  'whitespace-pre-wrap break-words text-foreground',
+                  sender?.kind === 'system' ? 'font-mono text-[12px] text-muted-foreground' : 'text-[14px] leading-[1.75]',
+                  foldable && !expanded && 'line-clamp-8',
+                )}
+              >
                 {displayContent}
               </div>
+            ) :
+          null}
+        {foldable ?
+            (
+              <button
+                type="button"
+                onClick={() => setExpanded(v => !v)}
+                className="mt-1 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                {t(expanded ? 'chat.senderShowLess' : 'chat.senderShowAll')}
+              </button>
             ) :
           null}
         {messageAttachments.length > 0 ?
@@ -679,8 +755,7 @@ function AssistantMessage({
 
   return (
     <div data-slot="chat-block-row" className={cn('group animate-message-enter', CHAT_BLOCK_ROW)}>
-      {/* No side padding: with no outline or tint, the reply lines up with the footer and tool rows */}
-      <div ref={bodyRef} data-slot="chat-block" data-testid="assistant-message-body" className={cn('min-w-0 py-2', chatBlock({ tone: 'assistant' }))}>
+      <div ref={bodyRef} data-slot="chat-block" data-testid="assistant-message-body" className={cn('min-w-0', chatBlock({ tone: 'assistant' }), CHAT_BLOCK_BODY)}>
         <MarkdownContent content={content} className="text-[14px] leading-[1.75]" isStreaming={isStreaming} render={renderMarkdown} />
       </div>
       <div className="flex items-center gap-2 mt-1">

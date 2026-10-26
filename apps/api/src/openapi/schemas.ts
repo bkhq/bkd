@@ -228,6 +228,11 @@ export const FollowUpSchema = z.object({
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
   busyAction: z.enum(['queue', 'cancel']).optional(),
   displayPrompt: z.string().max(500).optional(),
+  sender: z.object({
+    kind: z.literal('agent'),
+    projectId: z.string().min(1).max(64),
+    issueId: z.string().min(1).max(64),
+  }).optional().openapi({ description: 'The issue whose agent sent this follow-up; absent for the user.' }),
 }).openapi('FollowUp')
 
 export const AttachmentFollowUpSchema = FollowUpSchema.extend({

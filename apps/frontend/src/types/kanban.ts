@@ -24,6 +24,7 @@ export type {
   FileEntry,
   FileListingResult,
   FileUploadResult,
+  FollowUpSender,
   ImportSessionRequest,
   ImportSessionResult,
   Issue,

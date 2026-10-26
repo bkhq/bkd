@@ -1088,3 +1088,42 @@ button height; the mobile menu's close button sits in its header row; the turn n
 follows the latest turn on first load; assistant messages toggle between rendered Markdown
 and source.
 
+
+## 2026-10-24 15:20 [decision]
+
+The issue list panel now follows the API order (`isPinned DESC, statusUpdatedAt DESC,
+issueNumber DESC`) instead of manual `sortOrder`; the kanban board keeps manual drag
+sorting (option B in 20261024-1445-backend-issue-order). In the list, drag only moves an
+issue to another status group. Queued messages in the chat now stay left-aligned.
+
+## 2026-10-24 16:35 [feature]
+
+The messages inbox moved from the `/messages` page into a global side drawer
+(`MessagesDrawer`, same `SidePanel` shell as the terminal: resize, minimize, fullscreen).
+Sidebar, mobile menu and home-page menus open the drawer; the waiting-count badge stays on
+its button. `/messages` remains valid for webhook inbox links and opens the drawer on `/`
+(20261024-1503-messages-drawer).
+
+## 2026-10-24 16:30 [decision]
+
+The upgrade panel shows only "new version available" (with Update) or "up to date"; lode's
+failure notes (`lastError`, `checkError`, check timeout) and the raw status badge are gone,
+a real install failure included (20261024-1500-upgrade-panel-lode-version). The lode badge
+shows lode's version from `LODE_VERSION` / `LODE_COMMIT` (lode >= 0.3.0); `lode-sdk.ts` is
+re-vendored from lode v0.3.0.
+
+## 2026-10-24 16:30 [progress]
+
+The issue list panel no longer drags at all, so scrolling cannot move an issue
+(20261024-1615-list-panel-no-drag); the `sortable` switch added by
+20261024-1445-backend-issue-order is removed. The kanban board drag is unchanged.
+
+## 2026-10-24 19:10 [decision]
+
+Follow-ups the user did not write are marked, not given a new entry type: they stay
+`user-message` with `metadata.sender` (`agent` with the sending issue, or `system` for
+message wakes and the follow-up cron), so turns, search, filters and the skill's
+`types/user-message` reads are unchanged. The follow-up body takes an optional
+`sender`; engines get `BKD_PROJECT_ID` / `BKD_ISSUE_ID` to fill it. Queued messages from
+different senders are no longer merged into one message
+(20261024-1813-agent-follow-up-messages).
