@@ -52,10 +52,12 @@ describe('chat blocks', () => {
     expect(container.querySelector('[data-slot="chat-block"]')).toHaveClass('w-fit', 'max-w-[85%]')
   })
 
-  it('keeps queued messages on the left', () => {
+  it('spreads queued messages across the full width', () => {
     const entry = { ...ENTRIES[0]![1], metadata: { type: 'pending' } }
     const { container } = render(<MemoryRouter><LogEntry entry={entry} /></MemoryRouter>)
     expect(container.querySelector('[data-slot="chat-block-row"]')).not.toHaveClass('items-end')
+    expect(container.querySelector('[data-slot="chat-block"]')).toHaveClass('w-full')
+    expect(container.querySelector('[data-slot="chat-block"]')).not.toHaveClass('w-fit')
   })
 
   it('keeps assistant replies on the left at full width', () => {
