@@ -11,7 +11,7 @@ import {
   restorePendingVisibility,
   upsertPendingMessage,
 } from '@/db/pending-messages'
-import { issueLogs, issues as issuesTable, projects as projectsTable } from '@/db/schema'
+import { attachments as attachmentsTable, issueLogs, issues as issuesTable, projects as projectsTable } from '@/db/schema'
 import './setup'
 
 let projectId: string
@@ -122,6 +122,26 @@ describe('pending message recall', () => {
     expect(recalled?.id).toBe(doneId)
     expect(recalled?.metadata).toEqual({ type: 'done' })
     expect(await getPendingMessages(issue.id)).toHaveLength(0)
+  })
+
+  test('recalls a pending message that has an attachment', async () => {
+    const issue = await createTestIssue()
+    const pendingId = await upsertPendingMessage(issue.id, 'with image', { type: 'pending' })
+    await db.insert(attachmentsTable).values({
+      issueId: issue.id,
+      logId: pendingId,
+      originalName: 'image.png',
+      storedName: 'stored.png',
+      mimeType: 'image/png',
+      size: 1024,
+      storagePath: '/tmp/stored.png',
+    })
+
+    const recalled = await deletePendingMessage(issue.id, pendingId)
+    expect(recalled?.id).toBe(pendingId)
+    expect(recalled?.attachments.map(a => a.originalName)).toEqual(['image.png'])
+    expect(await getPendingMessages(issue.id)).toHaveLength(0)
+    expect(await db.select().from(attachmentsTable).where(eq(attachmentsTable.logId, pendingId))).toHaveLength(0)
   })
 })
 

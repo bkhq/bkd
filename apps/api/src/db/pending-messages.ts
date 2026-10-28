@@ -153,12 +153,12 @@ export async function deletePendingMessage(issueId: string, messageId: string): 
     .from(attachmentsTable)
     .where(eq(attachmentsTable.logId, pending.id))
 
-  // Hard delete the pending row (it was never processed by AI)
-  await db.delete(issueLogs).where(eq(issueLogs.id, pending.id))
-  // Also delete associated attachments records
-  if (attachmentRows.length > 0) {
-    await db.delete(attachmentsTable).where(eq(attachmentsTable.logId, pending.id))
-  }
+  // Hard delete the pending row (it was never processed by AI). Its attachment
+  // records reference it, so they go first.
+  db.transaction((tx) => {
+    tx.delete(attachmentsTable).where(eq(attachmentsTable.logId, pending.id)).run()
+    tx.delete(issueLogs).where(eq(issueLogs.id, pending.id)).run()
+  })
 
   return {
     id: pending.id,
