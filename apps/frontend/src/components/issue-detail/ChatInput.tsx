@@ -72,7 +72,7 @@ export function ChatInput({
   slashCommands = [],
   pluginCommands = [],
   onRefreshLogs,
-  pendingEditContent,
+  pendingEdit,
   onPendingEditConsumed,
 }: {
   projectId?: string
@@ -91,7 +91,7 @@ export function ChatInput({
   slashCommands?: string[]
   pluginCommands?: Array<{ name: string, path: string }>
   onRefreshLogs?: () => void
-  pendingEditContent?: string | null
+  pendingEdit?: { content: string, files: File[] } | null
   onPendingEditConsumed?: () => void
 }) {
   const { t } = useTranslation()
@@ -147,15 +147,6 @@ export function ChatInput({
       /* quota exceeded — ignore */
     }
   }, [draftKey, input])
-  // Fill input from pending message edit (recall)
-  useEffect(() => {
-    if (pendingEditContent) {
-      setInput(pendingEditContent)
-      textareaRef.current?.focus()
-      onPendingEditConsumed?.()
-    }
-  }, [pendingEditContent, onPendingEditConsumed])
-
   const [sendError, setSendError] = useState<string | null>(null)
   const attach = useFileAttachments()
   const {
@@ -174,6 +165,16 @@ export function ChatInput({
     reset: resetAttachments,
   } = attach
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Fill input and attachments from pending message edit (recall)
+  const setAttachedFiles = attach.setAttachedFiles
+  useEffect(() => {
+    if (pendingEdit) {
+      setInput(pendingEdit.content)
+      setAttachedFiles(pendingEdit.files)
+      textareaRef.current?.focus()
+      onPendingEditConsumed?.()
+    }
+  }, [pendingEdit, setAttachedFiles, onPendingEditConsumed])
   const isSendingRef = useRef(false)
   const [textareaH, setTextareaH] = useState(36)
   const dragRef = useRef({ active: false, startY: 0, startH: 0 })

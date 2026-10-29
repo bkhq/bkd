@@ -423,6 +423,24 @@ export const kanbanApi = {
       `/api/projects/${projectId}/issues/${issueId}/pending?messageId=${encodeURIComponent(messageId)}`,
     ),
 
+  /**
+   * Take a queued message back for editing. Its attachments are downloaded first, since
+   * deleting the message deletes their records; a failed download leaves it queued.
+   */
+  recallPendingMessage: async (
+    projectId: string,
+    issueId: string,
+    message: { messageId: string, metadata: { attachments?: Array<{ id: string, name: string, mimeType: string }> } | null },
+  ) => {
+    const files = await Promise.all((message.metadata?.attachments ?? []).map(async (att) => {
+      const res = await fetch(`/api/projects/${projectId}/issues/${issueId}/attachments/${att.id}`)
+      if (!res.ok) throw new ApiError(`Failed to download attachment ${att.name}`, res.status)
+      return new File([await res.blob()], att.name, { type: att.mimeType })
+    }))
+    const result = await kanbanApi.deletePendingMessage(projectId, issueId, message.messageId)
+    return { id: result.id, content: result.content, files }
+  },
+
   getPendingMessages: (projectId: string, issueId: string) =>
     get<Array<{
       messageId: string
