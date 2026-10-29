@@ -167,7 +167,7 @@ export function ChatBody({
   const deleteIssueMutation = useDeleteIssue(projectId)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
-  const [pendingEditContent, setPendingEditContent] = useState<string | null>(null)
+  const [pendingEdit, setPendingEdit] = useState<{ content: string, files: File[] } | null>(null)
   const [navigatorContainer, setNavigatorContainer] = useState<HTMLDivElement | null>(null)
 
   const handleDelete = useCallback(() => {
@@ -212,10 +212,10 @@ export function ChatBody({
   const invalidatePending = useInvalidatePendingMessages()
   const [pendingCollapsed, setPendingCollapsed] = useState(false)
 
-  const handleEditPending = useCallback(async (messageId: string) => {
+  const handleEditPending = useCallback(async (message: { messageId: string, metadata: { attachments?: Array<{ id: string, name: string, mimeType: string }> } | null }) => {
     try {
-      const result = await kanbanApi.deletePendingMessage(projectId, issueId, messageId)
-      setPendingEditContent(result.content)
+      const result = await kanbanApi.recallPendingMessage(projectId, issueId, message)
+      setPendingEdit({ content: result.content, files: result.files })
       removeEntries([result.id])
       invalidatePending(projectId, issueId)
     } catch {
@@ -382,7 +382,7 @@ export function ChatBody({
               }}
               projectId={projectId}
               issueId={issueId}
-              onEdit={() => handleEditPending(msg.messageId)}
+              onEdit={() => handleEditPending(msg)}
             />
           ))}
         </div>
@@ -417,8 +417,8 @@ export function ChatBody({
         onMessageSent={(messageId, prompt, metadata) => {
           appendServerMessage(messageId, prompt, metadata)
         }}
-        pendingEditContent={pendingEditContent}
-        onPendingEditConsumed={() => setPendingEditContent(null)}
+        pendingEdit={pendingEdit}
+        onPendingEditConsumed={() => setPendingEdit(null)}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

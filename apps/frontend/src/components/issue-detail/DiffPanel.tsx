@@ -464,7 +464,7 @@ function JumpToFile({ files, onSelect }: { files: IssueChangedFile[], onSelect: 
       <PopoverContent align="end" className="w-80 p-0">
         <Command>
           <CommandInput placeholder={t('diff.jumpPlaceholder')} className="h-8 text-xs" />
-          <CommandList className="max-h-[280px]">
+          <CommandList className="max-h-[280px] p-1">
             <CommandEmpty className="px-3 py-2 text-xs text-muted-foreground">{t('diff.noMatchingFiles')}</CommandEmpty>
             {files.map((file) => {
               const slash = file.path.lastIndexOf('/')

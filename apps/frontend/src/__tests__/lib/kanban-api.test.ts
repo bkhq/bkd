@@ -259,3 +259,32 @@ describe('kanbanApi.uploadFiles', () => {
     }
   })
 })
+
+describe('kanbanApi.recallPendingMessage', () => {
+  const message = {
+    messageId: '01JAAAAAAAAAAAAAAAAAAAAAAA',
+    metadata: { type: 'pending', attachments: [{ id: 'att1', name: 'image.png', mimeType: 'image/png', size: 3 }] },
+  }
+
+  it('downloads the attachments before deleting the queued message', async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, status: 200, blob: () => Promise.resolve(new Blob(['png'])) })
+      .mockResolvedValueOnce(mockJsonResponse({ id: message.messageId, content: 'hello', metadata: {}, attachments: [] }))
+
+    const result = await kanbanApi.recallPendingMessage('p1', 'i1', message)
+
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/projects/p1/issues/i1/attachments/att1')
+    expect(mockFetch.mock.calls[1][0]).toBe(`/api/projects/p1/issues/i1/pending?messageId=${message.messageId}`)
+    expect(mockFetch.mock.calls[1][1].method).toBe('DELETE')
+    expect(result.content).toBe('hello')
+    expect(result.files).toHaveLength(1)
+    expect(result.files[0]).toMatchObject({ name: 'image.png', type: 'image/png' })
+  })
+
+  it('keeps the queued message when an attachment cannot be downloaded', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 404, blob: () => Promise.resolve(new Blob()) })
+
+    await expect(kanbanApi.recallPendingMessage('p1', 'i1', message)).rejects.toThrow()
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+})

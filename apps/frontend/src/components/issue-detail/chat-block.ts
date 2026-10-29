@@ -8,7 +8,8 @@ export const chatBlock = cva('rounded-lg', {
   variants: {
     tone: {
       user: 'bg-primary/[0.06]',
-      assistant: 'bg-card',
+      // Replies sit on the chat background itself
+      assistant: '',
       pending: 'bg-amber-500/[0.08]',
       done: 'bg-emerald-500/[0.08]',
       // A follow-up sent by another issue's agent

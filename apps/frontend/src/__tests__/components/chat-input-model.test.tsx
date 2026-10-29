@@ -61,3 +61,21 @@ describe('chatInput model selector', () => {
     expect(updateMutate).not.toHaveBeenCalled()
   })
 })
+
+describe('chatInput pending edit', () => {
+  it('restores the text and attachments of a recalled message', () => {
+    const onConsumed = vi.fn()
+    render(
+      <ChatInput
+        projectId="p1"
+        issueId="i1"
+        engineType="claude-code"
+        pendingEdit={{ content: 'edit me', files: [new File(['png'], 'image.png', { type: 'image/png' })] }}
+        onPendingEditConsumed={onConsumed}
+      />,
+    )
+    expect(screen.getByRole('textbox')).toHaveValue('edit me')
+    expect(screen.getByText('image.png')).toBeInTheDocument()
+    expect(onConsumed).toHaveBeenCalledTimes(1)
+  })
+})

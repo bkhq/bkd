@@ -389,7 +389,7 @@ export function UserMessageEntry({
 
   return (
     // The user's sent messages sit on the right as a bubble sized to their text; queued
-    // ones, agent and system follow-ups, and replies stay left
+    // ones and agent and system follow-ups span the width on the left, like replies
     <div
       data-slot="chat-block-row"
       data-sender={sender?.kind}
@@ -399,7 +399,7 @@ export function UserMessageEntry({
         data-slot="chat-block"
         className={cn(
           'min-w-0',
-          sender?.kind === 'agent' ? 'w-full' : 'w-fit max-w-[85%]',
+          isPending || sender ? 'w-full' : 'w-fit max-w-[85%]',
           chatBlock({ tone: sender?.kind === 'system' && !isPending ? 'neutral' : tone }),
           sender?.kind === 'system' ? CHAT_BLOCK_SUMMARY : CHAT_BLOCK_BODY,
         )}
