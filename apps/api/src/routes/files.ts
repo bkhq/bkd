@@ -228,6 +228,20 @@ async function handleShow(c: Context, relativePath: string) {
 
 // ── /files/:root/raw — raw file download ──
 
+/**
+ * `?inline=1` on a PDF: served inline and frameable by the app, so the file
+ * browser can show it in the browser's own viewer. Other types (HTML, SVG)
+ * stay attachments — rendered inline they would run script on this origin.
+ * Also read by the CSP `frame-ancestors` callback in `app.ts`.
+ */
+export function isInlineRawRequest(c: Context): boolean {
+  const { pathname, searchParams } = new URL(c.req.url)
+  return searchParams.get('inline') === '1'
+    && pathname.startsWith('/api/files/')
+    && pathname.includes('/raw/')
+    && pathname.toLowerCase().endsWith('.pdf')
+}
+
 async function handleRaw(c: Context, relativePath: string) {
   const resolved = await resolveRootPath(c, relativePath)
   const { target } = resolved
@@ -246,7 +260,7 @@ async function handleRaw(c: Context, relativePath: string) {
       headers: {
         'Content-Type': file.type || 'application/octet-stream',
         'Content-Length': String(targetStat.size),
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
+        'Content-Disposition': `${isInlineRawRequest(c) ? 'inline' : 'attachment'}; filename="${encodeURIComponent(fileName)}"`,
       },
     })
   } catch (err: unknown) {
@@ -473,7 +487,7 @@ files.openAPIRegistry.registerPath(createRoute({
   path: '/{root}/raw/{path}',
   tags: ['Files'],
   operationId: 'getFilesRawPath',
-  request: { params: z.object({ root: z.string().min(1), path: z.string().min(1) }) },
+  request: { params: z.object({ root: z.string().min(1), path: z.string().min(1) }), query: z.object({ inline: z.enum(['1']).optional().openapi({ description: 'Serve a PDF inline and frameable by the app' }) }) },
   responses: {
     200: { description: 'File content', content: { 'application/octet-stream': { schema: z.string().openapi({ format: 'binary' }) } } },
     400: errorResponse('Invalid request'),

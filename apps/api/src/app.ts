@@ -10,6 +10,7 @@ import { getEngineDiscovery } from './engines/startup-probe'
 import { httpLogger, logger } from './logger'
 import { apiRoutes, engineRoutes, eventRoutes, settingsRoutes } from './routes'
 import cronRoute from './routes/cron'
+import { isInlineRawRequest } from './routes/files'
 import sessionsRoute from './routes/sessions'
 import decisionsRoutes from './routes/decisions'
 import messagesRoutes from './routes/messages'
@@ -30,10 +31,11 @@ app.use(secureHeaders({
     imgSrc: ['\'self\'', 'data:', 'blob:'],
     connectSrc: ['\'self\''],
     fontSrc: ['\'self\''],
-    frameAncestors: ['\'none\''],
+    frameAncestors: [c => (isInlineRawRequest(c) ? '\'self\'' : '\'none\'')],
     baseUri: ['\'self\''],
     formAction: ['\'self\''],
-    objectSrc: ['\'none\''],
+    // Chrome's built-in PDF viewer is a plugin: an inline PDF needs object-src too
+    objectSrc: [c => (isInlineRawRequest(c) ? '\'self\'' : '\'none\'')],
   },
   strictTransportSecurity: 'max-age=31536000; includeSubDomains',
 }))

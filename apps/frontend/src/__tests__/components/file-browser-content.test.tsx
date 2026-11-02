@@ -44,7 +44,8 @@ vi.mock('@/hooks/use-kanban', async () => ({
 }))
 
 // The real editor is CodeMirror; a textarea stands in for it.
-vi.mock('@/components/files/FileEditor', () => ({
+vi.mock('@/components/files/FileEditor', async () => ({
+  ...await vi.importActual<typeof import('@/components/files/FileEditor')>('@/components/files/FileEditor'),
   FileEditor: ({ value, onChange }: { value: string, onChange: (v: string) => void }) => (
     <textarea aria-label="editor" value={value} onChange={e => onChange(e.target.value)} />
   ),

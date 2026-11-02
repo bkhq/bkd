@@ -47,7 +47,7 @@ import { ApiError, kanbanApi } from '@/lib/kanban-api'
 import { joinRootPath } from '@/lib/path-tree'
 import { selectDraft, useFileBrowserStore } from '@/stores/file-browser-store'
 import { FileBreadcrumb } from './FileBreadcrumb'
-import { FileEditor } from './FileEditor'
+import { FileEditor, isSvg } from './FileEditor'
 import { FileList } from './FileList'
 import { FileTree } from './FileTree'
 import { TreePane } from './TreePane'
@@ -509,7 +509,7 @@ export function FileBrowserContent({
                 </button>
               </>
             )}
-            {file && isMarkdown(file.path) && (
+            {file && (isMarkdown(file.path) || isSvg(file.path)) && (
               <IconButton
                 icon={preview ? Code : FileText}
                 label={preview ? t('fileBrowser.viewSource') : t('fileBrowser.viewRendered')}
