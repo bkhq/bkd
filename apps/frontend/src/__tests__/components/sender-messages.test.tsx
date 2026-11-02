@@ -56,6 +56,14 @@ describe('sender messages', () => {
     expect(block).not.toHaveClass('w-fit')
   })
 
+  it('draws a cron wake as a tinted message, not an outlined tool box', () => {
+    const { container } = renderEntry({ sender: { kind: 'system', via: 'cron' } }, '[hourly check] report progress')
+    const block = container.querySelector('[data-slot="chat-block"]')!
+    expect(block).toHaveClass('bg-slate-500/[0.06]')
+    expect(block).not.toHaveClass('border')
+    expect(container.querySelector('[data-slot="sender-body"]')).not.toHaveClass('font-mono')
+  })
+
   it('keeps the queued badge on a queued agent follow-up', () => {
     renderEntry({ type: 'pending', sender: { kind: 'agent', projectId: 'p2', issueId: 'l2' } })
     expect(screen.getByText('Queued')).toBeInTheDocument()

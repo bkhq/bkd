@@ -363,7 +363,7 @@ export function UserMessageEntry({
   if (!displayContent && messageAttachments.length === 0 && !isPending && !isDone)
     return null
 
-  const tone = isPending ? 'pending' : isDone ? 'done' : sender?.kind === 'agent' ? 'agent' : 'user'
+  const tone = isPending ? 'pending' : isDone ? 'done' : sender?.kind ?? 'user'
   const foldable = sender?.kind === 'agent' &&
     (displayContent.length > SENDER_FOLD_CHARS || displayContent.split('\n').length > SENDER_FOLD_LINES)
 
@@ -400,13 +400,13 @@ export function UserMessageEntry({
         className={cn(
           'min-w-0',
           isPending || sender ? 'w-full' : 'w-fit max-w-[85%]',
-          chatBlock({ tone: sender?.kind === 'system' && !isPending ? 'neutral' : tone }),
-          sender?.kind === 'system' ? CHAT_BLOCK_SUMMARY : CHAT_BLOCK_BODY,
+          chatBlock({ tone }),
+          CHAT_BLOCK_BODY,
         )}
       >
         {sender ?
             (
-              <div className={cn('flex min-w-0 items-center text-[11px] text-muted-foreground', sender.kind === 'agent' && 'mb-1')}>
+              <div className="mb-1 flex min-w-0 items-center text-[11px] text-muted-foreground">
                 <SenderLabel sender={sender} />
               </div>
             ) :
@@ -417,7 +417,7 @@ export function UserMessageEntry({
                 data-slot="sender-body"
                 className={cn(
                   'whitespace-pre-wrap break-words text-foreground',
-                  sender?.kind === 'system' ? 'font-mono text-[12px] text-muted-foreground' : 'text-[14px] leading-[1.75]',
+                  sender?.kind === 'system' ? 'text-[13px] leading-[1.7] text-muted-foreground' : 'text-[14px] leading-[1.75]',
                   foldable && !expanded && 'line-clamp-8',
                 )}
               >
