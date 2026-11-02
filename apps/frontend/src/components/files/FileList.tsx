@@ -1,64 +1,34 @@
 import { File, Folder, Trash2 } from 'lucide-react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { formatFileSize } from '@/lib/format'
 import type { FileEntry } from '@/types/kanban'
 
+/** Concrete local date and time, e.g. "2026/11/01 23:01". */
 function formatDate(iso: string): string {
-  const d = new Date(iso)
-  const now = new Date()
-  const diffMs = now.getTime() - d.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
-  if (diffDays === 0) {
-    return d.toLocaleTimeString(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-  if (diffDays < 30) {
-    return `${diffDays}d ago`
-  }
-  return d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+  return new Date(iso).toLocaleString(undefined, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
   })
 }
 
 interface FileListProps {
   entries: FileEntry[]
   onNavigate: (name: string, type: 'file' | 'directory') => void
+  /** Asks to delete an entry; the caller confirms. */
   onDelete?: (name: string, type: 'file' | 'directory') => void
-  isDeleting?: boolean
-  breadcrumb?: React.ReactNode
 }
 
-export function FileList({ entries, onNavigate, onDelete, isDeleting, breadcrumb }: FileListProps) {
+export function FileList({ entries, onNavigate, onDelete }: FileListProps) {
   const { t } = useTranslation()
-  const [deleteTarget, setDeleteTarget] = useState<{ name: string, type: 'file' | 'directory' } | null>(null)
 
   if (entries.length === 0) {
     return (
-      <div className="overflow-auto flex-1 min-h-0">
-        {breadcrumb && (
-          <div className="sticky top-0 z-[2] bg-muted px-4 py-1.5">
-            {breadcrumb}
-          </div>
-        )}
-        <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
-          {t('fileBrowser.emptyDirectory')}
-        </div>
+      <div className="flex flex-1 min-h-0 items-center justify-center py-16 text-sm text-muted-foreground">
+        {t('fileBrowser.emptyDirectory')}
       </div>
     )
   }
@@ -67,13 +37,6 @@ export function FileList({ entries, onNavigate, onDelete, isDeleting, breadcrumb
     <div className="overflow-auto flex-1 min-h-0">
       <table className="w-full text-sm">
         <thead className="sticky top-0 z-[1]">
-          {breadcrumb && (
-            <tr className="bg-muted border-b border-border">
-              <th colSpan={4} className="text-left px-4 py-1.5 font-normal">
-                {breadcrumb}
-              </th>
-            </tr>
-          )}
           <tr className="bg-muted border-b border-border">
             <th className="text-left font-medium text-muted-foreground px-4 py-2">
               {t('fileBrowser.name')}
@@ -81,7 +44,7 @@ export function FileList({ entries, onNavigate, onDelete, isDeleting, breadcrumb
             <th className="text-right font-medium text-muted-foreground px-4 py-2 w-24">
               {t('fileBrowser.size')}
             </th>
-            <th className="text-right font-medium text-muted-foreground px-4 py-2 w-28 hidden sm:table-cell">
+            <th className="text-right font-medium text-muted-foreground px-4 py-2 w-40 hidden sm:table-cell">
               {t('fileBrowser.modified')}
             </th>
             {onDelete && <th className="w-10" />}
@@ -111,7 +74,7 @@ export function FileList({ entries, onNavigate, onDelete, isDeleting, breadcrumb
               <td className="px-4 py-2 text-right text-muted-foreground">
                 {entry.type === 'file' ? formatFileSize(entry.size) : '—'}
               </td>
-              <td className="px-4 py-2 text-right text-muted-foreground hidden sm:table-cell">
+              <td className="px-4 py-2 text-right text-muted-foreground tabular-nums whitespace-nowrap hidden sm:table-cell">
                 {formatDate(entry.modifiedAt)}
               </td>
               {onDelete && (
@@ -122,7 +85,7 @@ export function FileList({ entries, onNavigate, onDelete, isDeleting, breadcrumb
                     title={t('fileBrowser.delete')}
                     onClick={(e) => {
                       e.stopPropagation()
-                      setDeleteTarget({ name: entry.name, type: entry.type })
+                      onDelete(entry.name, entry.type)
                     }}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -133,34 +96,6 @@ export function FileList({ entries, onNavigate, onDelete, isDeleting, breadcrumb
           ))}
         </tbody>
       </table>
-
-      <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('fileBrowser.deleteConfirmTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget?.type === 'directory'
-                ? t('fileBrowser.deleteConfirmDirDesc', { name: deleteTarget?.name })
-                : t('fileBrowser.deleteConfirmDesc', { name: deleteTarget?.name })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('fileBrowser.cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={isDeleting}
-              onClick={() => {
-                if (deleteTarget) {
-                  onDelete?.(deleteTarget.name, deleteTarget.type)
-                  setDeleteTarget(null)
-                }
-              }}
-            >
-              {isDeleting ? t('fileBrowser.deleting') : t('fileBrowser.delete')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

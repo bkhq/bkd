@@ -229,7 +229,7 @@ Three-tier caching: memory (10 min) → DB (`appSettings`) → live probe (15s t
 
 Powered by `cronbake` scheduler:
 
-- **Built-in jobs**: `upload-cleanup` (hourly), `log-cleanup`, `worktree-cleanup` (30 min), `issue-log-retention`, `message-cleanup` (daily)
+- **Built-in jobs**: `upload-cleanup` (hourly), `log-cleanup`, `worktree-cleanup` (30 min), `issue-log-retention`, `message-cleanup`, `trash-cleanup` (daily)
 - **Issue jobs**: `issue-execute`, `issue-follow-up`, `issue-close`, `issue-check-status`
 - Tables: `cronJobs` + `cronJobLogs`
 - Jobs are addressed by ID only; a job auto-pauses after 3 consecutive failures

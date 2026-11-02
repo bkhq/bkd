@@ -1127,3 +1127,12 @@ message wakes and the follow-up cron), so turns, search, filters and the skill's
 `sender`; engines get `BKD_PROJECT_ID` / `BKD_ISSUE_ID` to fill it. Queued messages from
 different senders are no longer merged into one message
 (20261024-1813-agent-follow-up-messages).
+
+## 2026-11-02 10:23 [progress]
+
+File browser polish (20261102-1023-file-browser-polish): list dates as concrete times,
+binary sniff before reading text, character-safe truncation, parallel stats, raw-file
+`Last-Modified` revalidation; deletes move to `data/trash/files/` (purged by the new
+`trash-cleanup` builtin after 7 days); create file/folder and rename
+(`POST /api/files/:root/{create,rename}/*`); quick open by name
+(`GET /api/files/:root/search`, Ctrl/Cmd+P); a virtualized file tree.

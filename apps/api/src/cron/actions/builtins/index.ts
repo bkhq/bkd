@@ -2,6 +2,7 @@ import { registerAction } from '../registry'
 import { runIssueLogRetention } from './issue-log-retention'
 import { runLogCleanup } from './log-cleanup'
 import { runMessageCleanup } from './message-cleanup'
+import { runTrashCleanup } from './trash-cleanup'
 import { runUploadCleanup } from './upload-cleanup'
 import { runWorktreeCleanup } from './worktree-cleanup'
 
@@ -39,4 +40,11 @@ registerAction('message-cleanup', {
   category: 'builtin',
   defaultCron: '0 0 5 * * *', // daily at 5 AM
   handler: () => runMessageCleanup(),
+})
+
+registerAction('trash-cleanup', {
+  description: 'Purge file browser deletes kept in the trash for over 7 days',
+  category: 'builtin',
+  defaultCron: '0 30 5 * * *', // daily at 5:30 AM
+  handler: () => runTrashCleanup(),
 })

@@ -6,12 +6,16 @@ import {
   Ellipsis,
   Eye,
   EyeOff,
+  FilePlus,
   FileText,
   FolderOpen,
+  FolderPlus,
   ListTree,
+  Pencil,
   RefreshCw,
   RotateCcw,
   Save,
+  Search,
   Trash2,
   Upload,
   WrapText,
@@ -41,7 +45,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { queryKeys, useDeleteFile, useProject, useProjectFiles, useSaveFile, useUploadFiles } from '@/hooks/use-kanban'
+import { queryKeys, useCreateFile, useDeleteFile, useProject, useProjectFiles, useRenameFile, useSaveFile, useUploadFiles } from '@/hooks/use-kanban'
 import { eventBus } from '@/lib/event-bus'
 import { ApiError, kanbanApi } from '@/lib/kanban-api'
 import { joinRootPath } from '@/lib/path-tree'
@@ -49,7 +53,9 @@ import { selectDraft, useFileBrowserStore } from '@/stores/file-browser-store'
 import { FileBreadcrumb } from './FileBreadcrumb'
 import { FileEditor, isSvg } from './FileEditor'
 import { FileList } from './FileList'
+import { FileNameDialog } from './FileNameDialog'
 import { FileTree } from './FileTree'
+import { QuickOpenDialog } from './QuickOpenDialog'
 import { TreePane } from './TreePane'
 
 const UPLOAD_ERROR_TTL_MS = 5000
@@ -59,6 +65,15 @@ const CONFLICT_PREFIX = /^Already exists:\s*/
 function parentDir(path: string): string {
   return path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.'
 }
+
+function childPath(dir: string, name: string): string {
+  return dir === '.' ? name : `${dir}/${name}`
+}
+
+/** A pending name prompt: create in `dir`, or rename `path`. */
+type NameRequest =
+  | { mode: 'file' | 'directory', dir: string }
+  | { mode: 'rename', path: string }
 
 /** Only OS file drags upload; text dragged inside the editor stays the editor's. */
 function isFileDrag(e: DragEvent): boolean {
@@ -137,6 +152,9 @@ export function FileBrowserContent({
   const [saveConflict, setSaveConflict] = useState(false)
   const [pendingNav, setPendingNav] = useState<(() => void) | null>(null)
   const [previewPath, setPreviewPath] = useState<string | null>(null)
+  const [nameRequest, setNameRequest] = useState<NameRequest | null>(null)
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [quickOpen, setQuickOpen] = useState(false)
   const [collapseVersion, setCollapseVersion] = useState(0)
   // On a phone the tree and the content take turns at full width; this local
   // flag drives it, so the desktop `showTree` preference stays untouched
@@ -157,6 +175,8 @@ export function FileBrowserContent({
   const deleteFileMutation = useDeleteFile()
   const saveFileMutation = useSaveFile()
   const uploadMutation = useUploadFiles()
+  const createMutation = useCreateFile()
+  const renameMutation = useRenameFile()
 
   const {
     data: listing,
@@ -294,9 +314,53 @@ export function FileBrowserContent({
     setDeleteTarget(null)
   }, [deleteTarget, deletePath])
 
+  const askName = (request: NameRequest) => {
+    setNameError(null)
+    setNameRequest(request)
+  }
+
+  /** After a rename, follow the open path and keep its unsaved edits under the new name. */
+  const followRename = (from: string, to: string) => {
+    if (!effectiveRoot) return
+    const store = useFileBrowserStore.getState()
+    const moved = currentPath === from ? selectDraft(store, effectiveRoot, from) : null
+    store.clearDraftsUnder(effectiveRoot, from)
+    if (moved) store.setDraft(effectiveRoot, to, moved)
+    if (currentPath === from || currentPath.startsWith(`${from}/`)) navigateTo(to + currentPath.slice(from.length))
+  }
+
+  const submitName = (name: string) => {
+    if (!effectiveRoot || !nameRequest) return
+    const onError = (err: Error) => {
+      if (err instanceof ApiError && err.statusCode === 409) setNameError(t('fileBrowser.nameExists'))
+      else toast.error(err.message)
+    }
+    if (nameRequest.mode === 'rename') {
+      const from = nameRequest.path
+      const to = childPath(parentDir(from), name)
+      renameMutation.mutate({ root: effectiveRoot, path: from, to }, {
+        onSuccess: () => {
+          setNameRequest(null)
+          followRename(from, to)
+        },
+        onError,
+      })
+      return
+    }
+    const { mode } = nameRequest
+    const path = childPath(nameRequest.dir, name)
+    createMutation.mutate({ root: effectiveRoot, path, type: mode }, {
+      onSuccess: () => {
+        setNameRequest(null)
+        if (mode === 'file') openPath(path)
+      },
+      onError,
+    })
+  }
+
   /**
    * The file actions, shared by the header "..." menu and the tree's
-   * right-click menu so both stay in sync. Directories only copy or delete.
+   * right-click menu so both stay in sync. Directories also create entries.
    */
   const renderFileActions = (path: string, type: 'file' | 'directory') => {
     const isOpenFile = path === file?.path
@@ -304,6 +368,22 @@ export function FileBrowserContent({
     const item = 'whitespace-nowrap text-xs'
     return (
       <>
+        {type === 'directory' && (
+          <>
+            <DropdownMenuItem className={item} onClick={() => askName({ mode: 'file', dir: path })}>
+              <FilePlus className="h-3.5 w-3.5" />
+              {t('fileBrowser.newFile')}
+            </DropdownMenuItem>
+            <DropdownMenuItem className={item} onClick={() => askName({ mode: 'directory', dir: path })}>
+              <FolderPlus className="h-3.5 w-3.5" />
+              {t('fileBrowser.newFolder')}
+            </DropdownMenuItem>
+          </>
+        )}
+        <DropdownMenuItem className={item} onClick={() => askName({ mode: 'rename', path })}>
+          <Pencil className="h-3.5 w-3.5" />
+          {t('fileBrowser.rename')}
+        </DropdownMenuItem>
         <DropdownMenuItem className={item} onClick={() => copyText(joinRootPath(effectiveRoot, path))}>
           <Copy className="h-3.5 w-3.5" />
           {t('fileBrowser.copyPath')}
@@ -354,10 +434,9 @@ export function FileBrowserContent({
     openPath(currentPath === '.' ? name : `${currentPath}/${name}`)
   }, [currentPath, openPath])
 
-  // FileList confirms on its own
-  const handleDeleteEntry = useCallback((name: string) => {
-    deletePath(currentPath === '.' ? name : `${currentPath}/${name}`)
-  }, [currentPath, deletePath])
+  const handleDeleteEntry = useCallback((name: string, type: 'file' | 'directory') => {
+    setDeleteTarget({ path: currentPath === '.' ? name : `${currentPath}/${name}`, type })
+  }, [currentPath])
 
   // Uploads land in the shown directory, or beside the opened file
   const uploadDir = file ? parentDir(file.path) : currentPath
@@ -402,6 +481,15 @@ export function FileBrowserContent({
 
   const workspaceTools = (
     <>
+      {effectiveRoot && (
+        <IconButton icon={Search} label={t('fileBrowser.quickOpen')} onClick={() => setQuickOpen(true)} />
+      )}
+      {canUpload && (
+        <>
+          <IconButton icon={FilePlus} label={t('fileBrowser.newFile')} onClick={() => askName({ mode: 'file', dir: uploadDir })} />
+          <IconButton icon={FolderPlus} label={t('fileBrowser.newFolder')} onClick={() => askName({ mode: 'directory', dir: uploadDir })} />
+        </>
+      )}
       {canUpload && (
         <IconButton
           icon={Upload}
@@ -426,6 +514,12 @@ export function FileBrowserContent({
   return (
     <div
       className="relative flex flex-1 min-h-0"
+      onKeyDown={(e) => {
+        if (effectiveRoot && e.key.toLowerCase() === 'p' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+          e.preventDefault()
+          setQuickOpen(true)
+        }
+      }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -591,7 +685,6 @@ export function FileBrowserContent({
                               entries={listing.entries}
                               onNavigate={handleEntryClick}
                               onDelete={handleDeleteEntry}
-                              isDeleting={deleteFileMutation.isPending}
                             />
                           ))
                     : null}
@@ -689,6 +782,22 @@ export function FileBrowserContent({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {nameRequest && (
+        <FileNameDialog
+          key={nameRequest.mode === 'rename' ? `rename:${nameRequest.path}` : `${nameRequest.mode}:${nameRequest.dir}`}
+          title={t(nameRequest.mode === 'rename' ? 'fileBrowser.rename' : nameRequest.mode === 'file' ? 'fileBrowser.newFile' : 'fileBrowser.newFolder')}
+          confirmLabel={t(nameRequest.mode === 'rename' ? 'fileBrowser.rename' : 'fileBrowser.create')}
+          initial={nameRequest.mode === 'rename' ? nameRequest.path.split('/').pop() : ''}
+          error={nameError}
+          pending={createMutation.isPending || renameMutation.isPending}
+          onSubmit={submitName}
+          onClose={() => setNameRequest(null)}
+        />
+      )}
+
+      {effectiveRoot && (
+        <QuickOpenDialog root={effectiveRoot} open={quickOpen} onOpenChange={setQuickOpen} onPick={openPath} />
+      )}
     </div>
   )
 }

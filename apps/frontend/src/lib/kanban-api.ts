@@ -646,6 +646,22 @@ export const kanbanApi = {
     return del<{ deleted: boolean }>(`/api/files/${encodedRoot}/delete/${encodedPath}`)
   },
 
+  /** New empty file or directory; 409 if the path exists. */
+  createFile: (root: string, path: string, type: 'file' | 'directory') => {
+    const encodedPath = path.split('/').map(encodeURIComponent).join('/')
+    return post<{ path: string }>(`/api/files/${encodeRootPath(root)}/create/${encodedPath}`, { type })
+  },
+
+  /** Move `path` to the root-relative `to`; 409 if `to` exists. */
+  renameFile: (root: string, path: string, to: string) => {
+    const encodedPath = path.split('/').map(encodeURIComponent).join('/')
+    return post<{ path: string }>(`/api/files/${encodeRootPath(root)}/rename/${encodedPath}`, { to })
+  },
+
+  /** Up to 50 root-relative file paths ranked against `q`. */
+  searchFiles: (root: string, q: string) =>
+    get<{ paths: string[] }>(`/api/files/${encodeRootPath(root)}/search?${new URLSearchParams({ q })}`),
+
   /** With `expectedModifiedAt`, the server answers 409 if the file changed on disk. */
   saveFile: (root: string, path: string, content: string, expectedModifiedAt?: string) => {
     const encodedRoot = encodeRootPath(root)

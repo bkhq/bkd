@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { eventBus } from '@/lib/event-bus'
 import { kanbanApi } from '@/lib/kanban-api'
@@ -32,6 +32,7 @@ export const queryKeys = {
     ['projects', projectId, 'issues', issueId, 'slash-commands'] as const,
   projectFiles: (root: string | null, path: string, hideIgnored: boolean) =>
     ['files', root, path, { hideIgnored }] as const,
+  fileSearch: (root: string | null, q: string) => ['files', 'search', root, q] as const,
   allProcesses: () => ['processes', 'all'] as const,
   projectWorktrees: (projectId: string) => ['projects', projectId, 'worktrees'] as const,
   logPageSize: () => ['settings', 'logPageSize'] as const,
@@ -993,13 +994,20 @@ export function useRestartServer() {
 
 // --- File Browser hooks ---
 
+/** Query options for one file-browser path; shared with the tree's `useQueries`. */
+export function projectFilesQuery(root: string, path: string, hideIgnored: boolean) {
+  return {
+    queryKey: queryKeys.projectFiles(root, path, hideIgnored),
+    queryFn: () => kanbanApi.listFiles(root, path || undefined, hideIgnored),
+    staleTime: STALE_TIME.STANDARD,
+  }
+}
+
 export function useProjectFiles(root: string | null | undefined, path: string, enabled = true) {
   const hideIgnored = useFileBrowserStore(s => s.hideIgnored)
   return useQuery({
-    queryKey: queryKeys.projectFiles(root ?? null, path, hideIgnored),
-    queryFn: () => kanbanApi.listFiles(root!, path || undefined, hideIgnored),
+    ...projectFilesQuery(root ?? '', path, hideIgnored),
     enabled: !!root && enabled,
-    staleTime: STALE_TIME.STANDARD,
   })
 }
 
@@ -1011,6 +1019,38 @@ export function useDeleteFile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files'] })
     },
+  })
+}
+
+export function useCreateFile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ root, path, type }: { root: string, path: string, type: 'file' | 'directory' }) =>
+      kanbanApi.createFile(root, path, type),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files'] })
+    },
+  })
+}
+
+export function useRenameFile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ root, path, to }: { root: string, path: string, to: string }) =>
+      kanbanApi.renameFile(root, path, to),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files'] })
+    },
+  })
+}
+
+export function useFileSearch(root: string | null, q: string) {
+  return useQuery({
+    queryKey: queryKeys.fileSearch(root, q),
+    queryFn: () => kanbanApi.searchFiles(root!, q),
+    enabled: !!root && q.trim().length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.STANDARD,
   })
 }
 

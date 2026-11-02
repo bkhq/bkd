@@ -1,16 +1,18 @@
 import { HTTPException } from 'hono/http-exception'
-import { FileListingSchema, SavedFileSchema, SaveFileSchema, UploadedFilesSchema } from '@/openapi/extra-schemas'
+import { CreateFileSchema, FileListingSchema, FilePathSchema, FileSearchSchema, RenameFileSchema, SavedFileSchema, SaveFileSchema, UploadedFilesSchema } from '@/openapi/extra-schemas'
 import { errorResponse, successResponse } from '@/openapi/schemas'
 import * as z from 'zod'
 import { createRoute } from '@hono/zod-openapi'
-import { readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
-import { basename, resolve } from 'node:path'
+import { cp, mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { basename, join, resolve } from 'node:path'
 import bs58 from 'bs58'
+import { ulid } from 'ulid'
 import { getAppSetting } from '@/db/helpers'
 import { runCommand } from '@/engines/spawn'
 import { discardFiles, parseMultipartUpload, UploadError } from '@/uploads'
 import type { Context } from 'hono'
 import { createOpenAPIRouter } from '@/openapi/hono'
+import { DATA_DIR } from '@/root'
 
 interface FileEntry {
   name: string
@@ -20,6 +22,12 @@ interface FileEntry {
 }
 
 const MAX_FILE_SIZE = 1024 * 1024 // 1 MB
+const BINARY_SNIFF_SIZE = 8192
+
+/** Deleted entries land in `<trash>/<ulid>/<name>`; `trash-cleanup` purges them after 7 days. */
+export function filesTrashDir(): string {
+  return process.env.BKD_FILES_TRASH_DIR || join(DATA_DIR, 'trash/files')
+}
 
 /** Check that `target` is inside `root` (or equals it). */
 function isInsideRoot(target: string, root: string): boolean {
@@ -27,12 +35,8 @@ function isInsideRoot(target: string, root: string): boolean {
 }
 
 /** Heuristic binary check: look for null bytes in the first 8KB. */
-function isBinaryBuffer(buf: Buffer): boolean {
-  const len = Math.min(buf.length, 8192)
-  for (let i = 0; i < len; i++) {
-    if (buf[i] === 0) return true
-  }
-  return false
+function isBinaryBuffer(buf: Uint8Array): boolean {
+  return buf.subarray(0, BINARY_SNIFF_SIZE).includes(0)
 }
 
 /** Return a Set of names that git considers ignored in the given directory. */
@@ -130,14 +134,10 @@ async function handleShow(c: Context, relativePath: string) {
     if (targetStat.isFile()) {
       const relPath = target === root ? basename(target) : target.slice(root.length + 1)
       const isTruncated = targetStat.size > MAX_FILE_SIZE
-      const buf = Buffer.alloc(Math.min(targetStat.size, MAX_FILE_SIZE))
-
       const file = Bun.file(target)
-      const slice = file.slice(0, MAX_FILE_SIZE)
-      const arrayBuf = await slice.arrayBuffer()
-      Buffer.from(arrayBuf).copy(buf)
 
-      if (isBinaryBuffer(buf)) {
+      // Sniff first: images and PDFs never need the full text read
+      if (isBinaryBuffer(new Uint8Array(await file.slice(0, BINARY_SNIFF_SIZE).arrayBuffer()))) {
         return c.json({
           success: true as const,
           data: {
@@ -157,7 +157,8 @@ async function handleShow(c: Context, relativePath: string) {
         data: {
           path: relPath,
           type: 'file' as const,
-          content: buf.toString('utf-8'),
+          // Streaming decode holds back a multi-byte character cut at the cap
+          content: new TextDecoder().decode(await file.slice(0, MAX_FILE_SIZE).arrayBuffer(), { stream: isTruncated }),
           size: targetStat.size,
           isTruncated,
           isBinary: false,
@@ -177,34 +178,16 @@ async function handleShow(c: Context, relativePath: string) {
       ? await getGitIgnoredNames(target, validNames)
       : new Set<string>()
 
-    const entries: FileEntry[] = []
-
-    for (const d of dirents) {
-      if (!d.isFile() && !d.isDirectory() && !d.isSymbolicLink()) continue
-      if (d.name === '.git') continue
-      if (ignoredNames.has(d.name)) continue
-
-      let size = 0
-      let modifiedAt = ''
-      let entryType: 'file' | 'directory'
-      try {
+    const listed = await Promise.all(validNames
+      .filter(name => name !== '.git' && !ignoredNames.has(name))
+      .map(async (name): Promise<FileEntry | null> => {
         // stat() follows symlinks, giving us the target's type and size
-        const s = await stat(resolve(target, d.name))
-        size = s.size
-        modifiedAt = s.mtime.toISOString()
-        entryType = s.isDirectory() ? 'directory' : 'file'
-      } catch {
+        const s = await stat(resolve(target, name)).catch(() => null)
         // Broken symlink or inaccessible target — skip
-        continue
-      }
-
-      entries.push({
-        name: d.name,
-        type: entryType,
-        size,
-        modifiedAt,
-      })
-    }
+        if (!s) return null
+        return { name, type: s.isDirectory() ? 'directory' : 'file', size: s.size, modifiedAt: s.mtime.toISOString() }
+      }))
+    const entries = listed.filter(entry => entry !== null)
 
     entries.sort((a, b) => {
       if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
@@ -255,9 +238,17 @@ async function handleRaw(c: Context, relativePath: string) {
 
     const file = Bun.file(target)
     const fileName = basename(target)
+    // Revalidate on every use: unchanged files answer 304 instead of a full download
+    const lastModified = new Date(Math.floor(targetStat.mtimeMs / 1000) * 1000)
+    const since = Date.parse(c.req.header('If-Modified-Since') ?? '')
+    if (!Number.isNaN(since) && lastModified.getTime() <= since) {
+      return new Response(null, { status: 304, headers: { 'Last-Modified': lastModified.toUTCString(), 'Cache-Control': 'no-cache' } })
+    }
 
     return new Response(file.stream(), {
       headers: {
+        'Last-Modified': lastModified.toUTCString(),
+        'Cache-Control': 'no-cache',
         'Content-Type': file.type || 'application/octet-stream',
         'Content-Length': String(targetStat.size),
         'Content-Disposition': `${isInlineRawRequest(c) ? 'inline' : 'attachment'}; filename="${encodeURIComponent(fileName)}"`,
@@ -285,8 +276,17 @@ async function handleDelete(c: Context, relativePath: string) {
 
   try {
     const targetStat = await stat(target)
-    const isDir = targetStat.isDirectory()
-    await rm(target, { recursive: isDir })
+    // Recoverable: move into the trash rather than removing
+    const trashed = join(filesTrashDir(), ulid(), basename(target))
+    await mkdir(join(trashed, '..'), { recursive: true })
+    try {
+      await rename(target, trashed)
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+      // Different filesystem: copy, then remove
+      await cp(target, trashed, { recursive: true, verbatimSymlinks: true })
+      await rm(target, { recursive: targetStat.isDirectory(), force: true })
+    }
 
     return c.json({ success: true as const, data: { deleted: true } }, 200)
   } catch (err: unknown) {
@@ -334,6 +334,127 @@ async function handleSave(c: Context, relativePath: string) {
     }
     return c.json({ success: false as const, error: 'Failed to save file' }, 500)
   }
+}
+
+// ── /files/:root/create — new empty file or directory ──
+
+async function handleCreate(c: Context, relativePath: string) {
+  const { target, root } = await resolveRootPath(c, relativePath)
+  if (target === root) return c.json({ success: false as const, error: 'Path already exists' }, 409)
+  const parsed = CreateFileSchema.safeParse(await c.req.json().catch(() => null))
+  if (!parsed.success) return c.json({ success: false as const, error: 'Invalid request body' }, 400)
+
+  try {
+    if (parsed.data.type === 'directory') await mkdir(target)
+    else await writeFile(target, '', { flag: 'wx' })
+    return c.json({ success: true as const, data: { path: target.slice(root.length + 1) } }, 201)
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === 'EEXIST') return c.json({ success: false as const, error: 'Path already exists' }, 409)
+    if (code === 'ENOENT' || code === 'ENOTDIR') return c.json({ success: false as const, error: 'Parent directory not found' }, 404)
+    return c.json({ success: false as const, error: 'Failed to create' }, 500)
+  }
+}
+
+// ── /files/:root/rename — move an entry to another root-relative path ──
+
+async function handleRename(c: Context, relativePath: string) {
+  const { target, root } = await resolveRootPath(c, relativePath)
+  const parsed = RenameFileSchema.safeParse(await c.req.json().catch(() => null))
+  if (!parsed.success) return c.json({ success: false as const, error: 'Invalid request body' }, 400)
+  const destination = resolve(root, parsed.data.to)
+  if (!isInsideRoot(destination, root)) {
+    return c.json({ success: false as const, error: 'Path is outside root directory' }, 403)
+  }
+  if (target === root || destination === root) {
+    return c.json({ success: false as const, error: 'Cannot rename the root directory' }, 400)
+  }
+  if (isInsideRoot(destination, target)) {
+    return c.json({ success: false as const, error: 'Cannot move a directory into itself' }, 400)
+  }
+
+  try {
+    await stat(target)
+    if (await pathExists(destination)) return c.json({ success: false as const, error: 'Path already exists' }, 409)
+    await rename(target, destination)
+    return c.json({ success: true as const, data: { path: destination.slice(root.length + 1) } }, 200)
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return c.json({ success: false as const, error: 'Path not found' }, 404)
+    return c.json({ success: false as const, error: 'Failed to rename' }, 500)
+  }
+}
+
+// ── /files/:root/search — quick open by file name ──
+
+const SEARCH_LIMIT = 50
+const MAX_CANDIDATES = 50_000
+const WALK_SKIP = new Set(['.git', 'node_modules'])
+
+/** Files of a git checkout (tracked + untracked, minus ignored), relative to `dir`. */
+async function gitFiles(dir: string): Promise<string[] | null> {
+  try {
+    const { code, stdout } = await runCommand(['git', 'ls-files', '-co', '--exclude-standard', '-z'], { cwd: dir })
+    if (code !== 0) return null
+    return stdout.split('\0').filter(Boolean).slice(0, MAX_CANDIDATES)
+  } catch {
+    return null
+  }
+}
+
+/** Bounded walk for non-git roots; does not follow symlinked directories. */
+async function walkFiles(root: string): Promise<string[]> {
+  const out: string[] = []
+  const queue = ['']
+  while (queue.length > 0 && out.length < MAX_CANDIDATES) {
+    const rel = queue.shift()!
+    const dirents = await readdir(join(root, rel), { withFileTypes: true }).catch(() => [])
+    for (const d of dirents) {
+      const path = rel ? `${rel}/${d.name}` : d.name
+      if (d.isDirectory()) {
+        if (!WALK_SKIP.has(d.name)) queue.push(path)
+      } else {
+        out.push(path)
+      }
+    }
+  }
+  return out.slice(0, MAX_CANDIDATES)
+}
+
+/**
+ * Rank a path against a lower-case query: a file-name substring beats a path
+ * substring, which beats a scattered (subsequence) match. -1 = no match.
+ */
+export function scorePath(path: string, query: string): number {
+  const lower = path.toLowerCase()
+  const name = lower.slice(lower.lastIndexOf('/') + 1)
+  const inName = name.indexOf(query)
+  if (inName >= 0) return 3000 - (inName === 0 ? 0 : 100) - name.length - lower.length / 100
+  if (lower.includes(query)) return 2000 - lower.length
+  let at = -1
+  let gaps = 0
+  for (const ch of query) {
+    const next = lower.indexOf(ch, at + 1)
+    if (next < 0) return -1
+    if (next !== at + 1) gaps++
+    at = next
+  }
+  return 1000 - gaps * 10 - lower.length / 10
+}
+
+async function handleSearch(c: Context) {
+  const { root } = await resolveRootPath(c, '.')
+  const query = (c.req.query('q') ?? '').toLowerCase().replace(/\s+/g, '')
+  if (!query) return c.json({ success: true as const, data: { paths: [] } }, 200)
+
+  const candidates = (await gitFiles(root)) ?? (await walkFiles(root))
+  const paths = candidates
+    .map(path => ({ path, score: scorePath(path, query) }))
+    .filter(match => match.score >= 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, SEARCH_LIMIT)
+    .map(match => match.path)
+  return c.json({ success: true as const, data: { paths } }, 200)
 }
 
 // ── /files/:root/upload — multipart upload into a directory ──
@@ -457,6 +578,15 @@ files.get('/:root/raw/*', c => handleRaw(c, extractPathAfter(c, '/raw/')))
 // DELETE /files/:root/delete/* — delete file or directory
 files.delete('/:root/delete/*', c => handleDelete(c, extractPathAfter(c, '/delete/')))
 
+// POST /files/:root/create/* — new empty file or directory
+files.post('/:root/create/*', c => handleCreate(c, extractPathAfter(c, '/create/')))
+
+// POST /files/:root/rename/* — rename or move inside the root
+files.post('/:root/rename/*', c => handleRename(c, extractPathAfter(c, '/rename/')))
+
+// GET /files/:root/search?q= — file paths matching a name query
+files.get('/:root/search', c => handleSearch(c))
+
 // PUT /files/:root/save/* — save text file content
 files.put('/:root/save/*', c => handleSave(c, extractPathAfter(c, '/save/')))
 
@@ -514,6 +644,41 @@ files.openAPIRegistry.registerPath(createRoute({
     415: errorResponse('Unsupported media type'),
     500: errorResponse('Internal error'),
   },
+}))
+
+const fileOpErrors = {
+  400: errorResponse('Invalid request'),
+  404: errorResponse('Not found'),
+  403: errorResponse('Forbidden'),
+  409: errorResponse('Conflict'),
+  500: errorResponse('Internal error'),
+}
+
+files.openAPIRegistry.registerPath(createRoute({
+  method: 'post',
+  path: '/{root}/create/{path}',
+  tags: ['Files'],
+  operationId: 'postFilesCreatePath',
+  request: { params: z.object({ root: z.string().min(1), path: z.string().min(1) }), body: { required: true, content: { 'application/json': { schema: CreateFileSchema } } } },
+  responses: { 201: successResponse(FilePathSchema, 'Created'), ...fileOpErrors },
+}))
+
+files.openAPIRegistry.registerPath(createRoute({
+  method: 'post',
+  path: '/{root}/rename/{path}',
+  tags: ['Files'],
+  operationId: 'postFilesRenamePath',
+  request: { params: z.object({ root: z.string().min(1), path: z.string().min(1) }), body: { required: true, content: { 'application/json': { schema: RenameFileSchema } } } },
+  responses: { 200: successResponse(FilePathSchema, 'Success'), ...fileOpErrors },
+}))
+
+files.openAPIRegistry.registerPath(createRoute({
+  method: 'get',
+  path: '/{root}/search',
+  tags: ['Files'],
+  operationId: 'getFilesSearch',
+  request: { params: z.object({ root: z.string().min(1) }), query: z.object({ q: z.string().optional() }) },
+  responses: { 200: successResponse(FileSearchSchema, 'Success'), ...fileOpErrors },
 }))
 
 files.openAPIRegistry.registerPath(createRoute({

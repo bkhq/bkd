@@ -94,6 +94,11 @@ export const SaveFileSchema = z.object({
   expectedModifiedAt: z.string().optional(),
 })
 export const SavedFileSchema = z.object({ size: z.number(), modifiedAt: z.string() })
+export const CreateFileSchema = z.object({ type: z.enum(['file', 'directory']) })
+/** Root-relative destination path. */
+export const RenameFileSchema = z.object({ to: z.string().min(1) })
+export const FilePathSchema = z.object({ path: z.string() })
+export const FileSearchSchema = z.object({ paths: z.array(z.string()) })
 export const UploadedFilesSchema = z.object({ uploaded: z.array(z.object({ name: z.string(), size: z.number() })) })
 export const FileListingSchema = z.union([
   z.object({

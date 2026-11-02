@@ -1,15 +1,37 @@
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useQueries } from '@tanstack/react-query'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useProjectFiles } from '@/hooks/use-kanban'
+import { projectFilesQuery } from '@/hooks/use-kanban'
+import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { FileEntry } from '@/types/kanban'
 import { TreeRow } from './TreeRow'
 
+/** Every row is one line of `text-xs` plus `py-1`. */
+const ROW_HEIGHT = 24
+
 type RenderMenu = (path: string, type: FileEntry['type']) => ReactNode
+
+type Row =
+  | { kind: 'entry', path: string, entry: FileEntry, depth: number }
+  | { kind: 'loading', path: string, depth: number }
+
+/** Directories that hold `path`, outermost first: "a/b/c" → ["a", "a/b"]. */
+function ancestorsOf(path: string): string[] {
+  const parts = path.split('/')
+  return parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join('/'))
+}
+
+function childPath(parent: string, name: string): string {
+  return parent === '.' ? name : `${parent}/${name}`
+}
 
 /**
  * Lazily loaded directory tree of a workspace root: a directory lists its
  * entries only once expanded. Ancestors of `currentPath` open automatically.
+ * Expanded directories flatten into one virtualized list, so a directory with
+ * thousands of entries renders only the rows in view.
  */
 export function FileTree({
   root,
@@ -26,135 +48,90 @@ export function FileTree({
   /** Right-click menu items for an entry. */
   renderMenu?: RenderMenu
 }) {
-  return (
-    <div className="h-full overflow-y-auto px-1 py-2">
-      <TreeDir
-        root={root}
-        path="."
-        depth={0}
-        currentPath={currentPath}
-        onOpenFile={onOpenFile}
-        collapseVersion={collapseVersion}
-        renderMenu={renderMenu}
-      />
-    </div>
-  )
-}
-
-function TreeDir({
-  root,
-  path,
-  depth,
-  currentPath,
-  onOpenFile,
-  collapseVersion,
-  renderMenu,
-}: {
-  root: string
-  path: string
-  depth: number
-  currentPath: string
-  onOpenFile: (path: string) => void
-  collapseVersion: number
-  renderMenu?: RenderMenu
-}) {
   const { t } = useTranslation()
-  const { data: listing, isLoading } = useProjectFiles(root, path)
+  const hideIgnored = useFileBrowserStore(s => s.hideIgnored)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [expanded, setExpanded] = useState(() => new Set(ancestorsOf(currentPath)))
 
-  if (isLoading) {
-    return <p className="py-1 text-xs text-muted-foreground" style={{ paddingLeft: depth * 12 + 20 }}>{t('common.loading')}</p>
-  }
-  if (listing?.type !== 'directory') return null
-
-  const entries = [...listing.entries].sort((a, b) =>
-    a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'directory' ? -1 : 1,
-  )
-  return entries.map(entry => (
-    <TreeEntry
-      key={entry.name}
-      root={root}
-      parent={path}
-      entry={entry}
-      depth={depth}
-      currentPath={currentPath}
-      onOpenFile={onOpenFile}
-      collapseVersion={collapseVersion}
-      renderMenu={renderMenu}
-    />
-  ))
-}
-
-function TreeEntry({
-  root,
-  parent,
-  entry,
-  depth,
-  currentPath,
-  onOpenFile,
-  collapseVersion,
-  renderMenu,
-}: {
-  root: string
-  parent: string
-  entry: FileEntry
-  depth: number
-  currentPath: string
-  onOpenFile: (path: string) => void
-  collapseVersion: number
-  renderMenu?: RenderMenu
-}) {
-  const path = parent === '.' ? entry.name : `${parent}/${entry.name}`
-  const isAncestor = currentPath.startsWith(`${path}/`)
-  const [expanded, setExpanded] = useState(isAncestor)
-  // Open when navigation elsewhere moves the current path inside this directory
-  const [wasAncestor, setWasAncestor] = useState(isAncestor)
-  if (isAncestor !== wasAncestor) {
-    setWasAncestor(isAncestor)
-    if (isAncestor) setExpanded(true)
+  // Open the ancestors when navigation moves the current path elsewhere
+  const [seenPath, setSeenPath] = useState(currentPath)
+  if (seenPath !== currentPath) {
+    setSeenPath(currentPath)
+    const missing = ancestorsOf(currentPath).filter(dir => !expanded.has(dir))
+    if (missing.length > 0) setExpanded(new Set([...expanded, ...missing]))
   }
   const [seenCollapse, setSeenCollapse] = useState(collapseVersion)
   if (collapseVersion !== seenCollapse) {
     setSeenCollapse(collapseVersion)
-    setExpanded(false)
+    setExpanded(new Set())
   }
 
-  const menu = renderMenu?.(path, entry.type)
+  // Load only directories that are shown: expanded, under expanded parents
+  const shownDirs = ['.', ...[...expanded].filter(dir => ancestorsOf(dir).every(a => expanded.has(a)))]
+  const listings = useQueries({ queries: shownDirs.map(dir => projectFilesQuery(root, dir, hideIgnored)) })
+  const byDir = new Map(shownDirs.map((dir, i) => [dir, listings[i]!]))
 
-  if (entry.type === 'file') {
-    return (
-      <TreeRow
-        depth={depth}
-        name={entry.name}
-        isDir={false}
-        title={path}
-        selected={currentPath === path}
-        onClick={() => onOpenFile(path)}
-        menu={menu}
-      />
-    )
+  // Entries arrive sorted by the server (directories first, then by name)
+  const rows: Row[] = []
+  const walk = (dir: string, depth: number) => {
+    const listing = byDir.get(dir)
+    if (listing?.isLoading) rows.push({ kind: 'loading', path: dir, depth })
+    if (listing?.data?.type !== 'directory') return
+    for (const entry of listing.data.entries) {
+      const path = childPath(dir, entry.name)
+      rows.push({ kind: 'entry', path, entry, depth })
+      if (entry.type === 'directory' && expanded.has(path)) walk(path, depth + 1)
+    }
   }
+  walk('.', 0)
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    getItemKey: i => `${rows[i]!.kind}:${rows[i]!.path}`,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 20,
+  })
+
+  const toggle = (path: string) => {
+    const next = new Set(expanded)
+    if (!next.delete(path)) next.add(path)
+    setExpanded(next)
+  }
+
   return (
-    <>
-      <TreeRow
-        depth={depth}
-        name={entry.name}
-        isDir
-        expanded={expanded}
-        selected={currentPath === path}
-        onClick={() => setExpanded(v => !v)}
-        menu={menu}
-      />
-      {expanded && (
-        <TreeDir
-          root={root}
-          path={path}
-          depth={depth + 1}
-          currentPath={currentPath}
-          onOpenFile={onOpenFile}
-          collapseVersion={collapseVersion}
-          renderMenu={renderMenu}
-        />
-      )}
-    </>
+    <div ref={scrollRef} className="h-full overflow-y-auto px-1 py-2">
+      <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map((item) => {
+          const row = rows[item.index]!
+          return (
+            <div
+              key={item.key}
+              className="absolute left-0 top-0 w-full"
+              style={{ height: ROW_HEIGHT, transform: `translateY(${item.start}px)` }}
+            >
+              {row.kind === 'loading'
+                ? (
+                    <p className="py-1 text-xs text-muted-foreground" style={{ paddingLeft: row.depth * 12 + 20 }}>
+                      {t('common.loading')}
+                    </p>
+                  )
+                : (
+                    <TreeRow
+                      depth={row.depth}
+                      name={row.entry.name}
+                      isDir={row.entry.type === 'directory'}
+                      expanded={row.entry.type === 'directory' ? expanded.has(row.path) : undefined}
+                      title={row.entry.type === 'file' ? row.path : undefined}
+                      selected={currentPath === row.path}
+                      onClick={() => (row.entry.type === 'file' ? onOpenFile(row.path) : toggle(row.path))}
+                      menu={renderMenu?.(row.path, row.entry.type)}
+                    />
+                  )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }

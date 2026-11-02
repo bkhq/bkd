@@ -244,6 +244,7 @@ Registered as `builtin` actions and scheduled through the cron system (see Cron 
 - `log-cleanup` (daily at 03:00) — trims cron job logs to the last 1000 per job
 - `issue-log-retention` (daily at 04:00) — deletes issue logs of `done` issues older than `log:retentionDays` (default 30)
 - `message-cleanup` (daily at 05:00) — soft-deletes messages in a terminal state (`applied` / `withdrawn` / `closed`) unchanged for 1 day, and read notifications unchanged for 7 days; `open`, `decided` and `replied` are never removed
+- `trash-cleanup` (daily at 05:30) — purges file-browser deletes from `data/trash/files/<ulid>/` after 7 days (`DELETE /api/files/:root/delete/*` moves entries there instead of removing them)
 
 #### Upgrade (`upgrade/`)
 

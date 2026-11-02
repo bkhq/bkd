@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '@/i18n'
 import { FileBrowserContent } from '@/components/files/FileBrowserContent'
 import { ApiError } from '@/lib/kanban-api'
@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   uploadMutate: vi.fn(),
   deleteMutate: vi.fn(),
   saveMutate: vi.fn(),
+  createMutate: vi.fn(),
+  renameMutate: vi.fn(),
+  searchPaths: [] as string[],
   listing: null as unknown,
   rootListing: null as unknown,
   isMobile: false,
@@ -38,6 +41,14 @@ vi.mock('@/hooks/use-kanban', async () => ({
     error: null,
     refetch: vi.fn(),
   }),
+  // The tree loads through useQueries; initialData keeps its rows synchronous
+  projectFilesQuery: (_root: string, path: string) => {
+    const data = path === '.' && mocks.rootListing ? mocks.rootListing : mocks.listing
+    return { queryKey: ['files', path, data], queryFn: () => data, initialData: data }
+  },
+  useCreateFile: () => ({ mutate: mocks.createMutate, isPending: false }),
+  useRenameFile: () => ({ mutate: mocks.renameMutate, isPending: false }),
+  useFileSearch: (_root: string, q: string) => ({ data: q ? { paths: mocks.searchPaths } : undefined, isFetching: false }),
   useDeleteFile: () => ({ mutate: mocks.deleteMutate, isPending: false }),
   useSaveFile: () => ({ mutate: mocks.saveMutate, isPending: false }),
   useUploadFiles: () => ({ mutate: mocks.uploadMutate, isPending: false }),
@@ -50,6 +61,20 @@ vi.mock('@/components/files/FileEditor', async () => ({
     <textarea aria-label="editor" value={value} onChange={e => onChange(e.target.value)} />
   ),
 }))
+
+// jsdom has no layout: give the tree's scroll box a height so the virtualizer renders rows
+const offsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')!
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.classList.contains('overflow-y-auto') ? 600 : 0
+    },
+  })
+})
+afterAll(() => {
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', offsetHeight)
+})
 
 function renderBrowser(currentPath = 'src', client = new QueryClient()) {
   useFileBrowserStore.setState({
@@ -370,5 +395,101 @@ describe('file actions menus', () => {
     const file = new File(['x'], 'x.txt')
     pickFiles(container, [file])
     expect(mocks.uploadMutate).toHaveBeenLastCalledWith({ root: '/ws/proj', path: '.', files: [file], overwrite: false }, expect.anything())
+  })
+})
+
+describe('create, rename and quick open', () => {
+  const ROOT = {
+    path: '.',
+    type: 'directory',
+    entries: [
+      { name: 'docs', type: 'directory', size: 0, modifiedAt: FILE.modifiedAt },
+      { name: 'a.ts', type: 'file', size: 12, modifiedAt: FILE.modifiedAt },
+    ],
+  }
+
+  beforeEach(async () => {
+    mocks.isMobile = false
+    mocks.createMutate.mockReset()
+    mocks.renameMutate.mockReset()
+    mocks.rootListing = ROOT
+    mocks.listing = FILE
+    mocks.searchPaths = []
+    useFileBrowserStore.setState({ drafts: {} })
+    await i18n.changeLanguage('en')
+  })
+
+  it('creates a file in the right-clicked folder and opens it', async () => {
+    mocks.createMutate.mockImplementation((_vars, opts) => opts?.onSuccess?.())
+    renderBrowser('.')
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'docs' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'New file' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'notes.md' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(mocks.createMutate).toHaveBeenCalledWith({ root: '/ws/proj', path: 'docs/notes.md', type: 'file' }, expect.anything())
+    expect(useFileBrowserStore.getState().currentPath).toBe('docs/notes.md')
+  })
+
+  it('keeps the dialog open with an error when the name is taken', async () => {
+    mocks.createMutate.mockImplementation((_vars, opts) => opts?.onError?.(new ApiError('Path already exists', 409)))
+    renderBrowser('.')
+    fireEvent.click(screen.getAllByRole('button', { name: 'New folder' })[0]!)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'docs' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(mocks.createMutate).toHaveBeenCalledWith({ root: '/ws/proj', path: 'docs', type: 'directory' }, expect.anything())
+    expect(screen.getByRole('alert')).toHaveTextContent('A file or folder with that name already exists')
+  })
+
+  it('refuses a name with a slash before calling the server', async () => {
+    renderBrowser('.')
+    fireEvent.click(screen.getAllByRole('button', { name: 'New file' })[0]!)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'a/b.ts' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(mocks.createMutate).not.toHaveBeenCalled()
+  })
+
+  it('renames the open file, following it with its unsaved edits', async () => {
+    mocks.renameMutate.mockImplementation((_vars, opts) => opts?.onSuccess?.())
+    renderBrowser('a.ts')
+    useFileBrowserStore.getState().setDraft('/ws/proj', 'a.ts', { content: 'edited', baseModifiedAt: FILE.modifiedAt })
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'a.ts' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }))
+    const input = screen.getByRole('textbox', { name: 'Name' })
+    expect(input).toHaveValue('a.ts')
+    fireEvent.change(input, { target: { value: 'b.ts' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
+
+    expect(mocks.renameMutate).toHaveBeenCalledWith({ root: '/ws/proj', path: 'a.ts', to: 'b.ts' }, expect.anything())
+    const state = useFileBrowserStore.getState()
+    expect(state.currentPath).toBe('b.ts')
+    expect(selectDraft(state, '/ws/proj', 'b.ts')?.content).toBe('edited')
+    expect(selectDraft(state, '/ws/proj', 'a.ts')).toBeNull()
+  })
+
+  it('opens a file picked from quick open (Ctrl+P)', async () => {
+    // cmdk observes its list size; jsdom has no ResizeObserver
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {} unobserve() {} disconnect() {}
+    })
+    mocks.searchPaths = ['docs/guide.md']
+    const { container } = renderBrowser('.')
+    fireEvent.keyDown(container.firstChild as HTMLElement, { key: 'p', ctrlKey: true })
+    fireEvent.change(await screen.findByPlaceholderText('Search files by name…'), { target: { value: 'guide' } })
+    fireEvent.click(await screen.findByRole('option', { name: /guide\.md/ }))
+    expect(useFileBrowserStore.getState().currentPath).toBe('docs/guide.md')
+    vi.unstubAllGlobals()
+  })
+
+  it('renders only the visible rows of a huge directory', () => {
+    mocks.rootListing = {
+      path: '.',
+      type: 'directory',
+      entries: Array.from({ length: 3000 }, (_, i) => ({ name: `f${String(i).padStart(4, '0')}.ts`, type: 'file', size: 1, modifiedAt: FILE.modifiedAt })),
+    }
+    renderBrowser('.')
+    expect(screen.getByRole('button', { name: 'f0000.ts' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'f2999.ts' })).toBeNull()
   })
 })
