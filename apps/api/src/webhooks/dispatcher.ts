@@ -1,4 +1,4 @@
-import type { DecisionEventStatus, MessageStatus, WebhookEventType } from '@bkd/shared'
+import type { BrowserNotificationEvent, DecisionEventStatus, MessageStatus, WebhookEventType } from '@bkd/shared'
 import { and, desc, eq, gte, inArray, notInArray } from 'drizzle-orm'
 import { db } from '@/db'
 import { getServerUrl } from '@/db/helpers'
@@ -305,6 +305,44 @@ async function deliverTelegram(
   return { statusCode: res.status, response, success: res.ok }
 }
 
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+export function buildBrowserNotification(
+  webhookId: string,
+  event: WebhookEventType,
+  payload: Record<string, unknown>,
+): BrowserNotificationEvent {
+  const base = { webhookId, event, projectId: null, issueId: null, messageId: null }
+  if (event.startsWith('decision.')) {
+    const links = payload.links as { projectName?: unknown } | undefined
+    return {
+      ...base,
+      title: stringOrNull(payload.question) ?? event,
+      projectName: stringOrNull(links?.projectName),
+      messageId: stringOrNull(payload.id),
+    }
+  }
+  if (event.startsWith('message.')) {
+    const message = payload.message as { id?: unknown, title?: unknown } | undefined
+    const source = payload.source as { projectName?: unknown } | null | undefined
+    return {
+      ...base,
+      title: stringOrNull(message?.title) ?? event,
+      projectName: stringOrNull(source?.projectName),
+      messageId: stringOrNull(message?.id),
+    }
+  }
+  return {
+    ...base,
+    title: stringOrNull(payload.title) ?? 'BKD',
+    projectName: stringOrNull(payload.projectName),
+    projectId: stringOrNull(payload.projectId),
+    issueId: stringOrNull(payload.issueId),
+  }
+}
+
 export async function deliver(
   webhook: WebhookRow,
   event: WebhookEventType,
@@ -320,10 +358,15 @@ export async function deliver(
   }
 
   try {
-    result =
-      webhook.channel === 'telegram' ?
-          await deliverTelegram(webhook, event, payload, telegramText) :
-          await deliverWebhook(webhook, event, payload)
+    if (webhook.channel === 'browser') {
+      appEvents.emit('browser-notification', buildBrowserNotification(webhook.id, event, payload))
+      result = { statusCode: null, response: null, success: true }
+    } else {
+      result =
+        webhook.channel === 'telegram' ?
+            await deliverTelegram(webhook, event, payload, telegramText) :
+            await deliverWebhook(webhook, event, payload)
+    }
   } catch (err) {
     result = {
       statusCode: null,

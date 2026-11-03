@@ -188,3 +188,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261024-1813-agent-follow-up-messages Show agent-sent follow-ups apart from user messages**](20261024-1813-agent-follow-up-messages.md) `P2`
 - [x] [**20261101-1534-file-viewer-image-pdf Preview images and PDFs in the file browser**](20261101-1534-file-viewer-image-pdf.md) `P2`
 - [x] [**20261102-1023-file-browser-polish File browser fixes, recoverable delete, create/rename, quick open, virtual tree**](20261102-1023-file-browser-polish.md) `P2`
+- [x] [**20261102-1100-browser-notifications Show browser notifications for review and new messages**](20261102-1100-browser-notifications.md) `P2`
