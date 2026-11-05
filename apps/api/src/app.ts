@@ -73,11 +73,12 @@ app.use(httpLogger())
 
 // Reject unsupported request formats before validators can ignore the body.
 app.use('/api/*', async (c, next) => {
-  // The file manager validates its own bodies (raw file bytes, upload parts, JSON)
-  if (['POST', 'PUT', 'PATCH'].includes(c.req.method) && c.req.raw.body !== null && !c.req.path.startsWith('/api/fm/')) {
+  // File manager writes and upload parts PUT raw bytes; a cross-site PUT always
+  // preflights, so only its POST / PATCH bodies need the JSON gate
+  const fmRawBytes = c.req.method === 'PUT' && c.req.path.startsWith('/api/fm/')
+  if (['POST', 'PUT', 'PATCH'].includes(c.req.method) && c.req.raw.body !== null && !fmRawBytes) {
     const mediaType = c.req.header('content-type')?.split(';')[0]?.trim().toLowerCase()
     const acceptsMultipart = /^\/api\/projects\/[^/]+\/issues(?:\/[^/]+\/follow-up)?\/?$/.test(c.req.path)
-      || /^\/api\/files\/[^/]+\/upload(?:\/|$)/.test(c.req.path)
       || c.req.path === '/api/skills/upload'
     if (mediaType !== 'application/json' && !(acceptsMultipart && mediaType === 'multipart/form-data')) {
       return c.json({ success: false, error: 'Unsupported media type' }, 415)

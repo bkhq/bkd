@@ -105,6 +105,19 @@ describe('writes', () => {
   })
 })
 
+describe('csrf', () => {
+  test('refuses a non-JSON ops body, as a cross-site form would send', async () => {
+    writeFileSync(resolve(projectDir, 'keep.txt'), 'keep')
+    const res = await fm('/m/project/ops', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ op: 'delete', paths: ['/keep.txt'] }),
+    })
+    expect(res.status).toBe(415)
+    expect(existsSync(resolve(projectDir, 'keep.txt'))).toBe(true)
+  })
+})
+
 describe('trash', () => {
   const remove = (path: string) => fm('/m/project/ops', {
     method: 'POST',

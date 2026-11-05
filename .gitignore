@@ -74,6 +74,8 @@ apps/api/src/_static-assets.generated.ts
 # core dumps
 core
 core.*
+# ...but not the vendored file manager's core module
+!apps/*/src/fm/core/
 
 # temp
 tmp/
