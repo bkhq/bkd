@@ -909,7 +909,7 @@ const webhookEventTypes = [
 
 export const WebhookSchema = z.object({
   id: z.string(),
-  channel: z.enum(['webhook', 'telegram']),
+  channel: z.enum(['webhook', 'telegram', 'browser']),
   url: z.string(),
   secret: z.string().nullable().openapi({ description: 'Masked in responses' }),
   events: z.array(z.string()),
@@ -920,8 +920,8 @@ export const WebhookSchema = z.object({
 }).openapi('Webhook')
 
 export const CreateWebhookSchema = z.object({
-  channel: z.enum(['webhook', 'telegram']).optional().default('webhook'),
-  url: z.string().min(1).openapi({ description: 'Webhook URL or Telegram chat ID' }),
+  channel: z.enum(['webhook', 'telegram', 'browser']).optional().default('webhook'),
+  url: z.string().openapi({ description: 'Webhook URL or Telegram chat ID; empty for a browser channel' }),
   secret: z.string().max(256).optional().openapi({ description: 'HMAC secret or Telegram bot token' }),
   events: z.array(z.enum(webhookEventTypes)).openapi({ description: 'May be empty only when interactive' }),
   isActive: z.boolean().optional(),

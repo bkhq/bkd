@@ -1136,3 +1136,36 @@ binary sniff before reading text, character-safe truncation, parallel stats, raw
 `trash-cleanup` builtin after 7 days); create file/folder and rename
 (`POST /api/files/:root/{create,rename}/*`); quick open by name
 (`GET /api/files/:root/search`, Ctrl/Cmd+P); a virtualized file tree.
+
+## 2026-11-02 11:10 [progress]
+
+Completed `20261102-1100-browser-notifications`: the frontend shows browser notifications (Notification API)
+when an issue moves to review or a new decision / notification opens, matching the events the webhook and
+Telegram channels announce. Permission is requested on load and from a row in Settings → Notifications;
+notifications show only while the window is unfocused, and clicking one opens the issue or the messages drawer.
+Frontend only, no backend or SSE contract change.
+
+## 2026-11-02 11:25 [decision]
+
+`20261102-1100-browser-notifications` revised after review: the permission prompt is no longer shown on app
+load, only from the settings button; notifications no longer require the window to be unfocused.
+
+## 2026-11-02 11:50 [decision]
+
+`20261102-1100-browser-notifications` reworked after review: browser notifications are now a `browser`
+notification channel that the user creates and configures like Webhook and Telegram, instead of a fixed settings
+row with fixed events. Deliveries go out over SSE (`browser-notification`). The channel card's event list now
+wraps instead of squeezing labels into vertical columns.
+
+## 2026-11-03 01:55 [progress]
+
+`20261102-1100-browser-notifications`: rebuilt the Notifications settings UI on the shared primitives — `Card`
+per channel with an icon tile, the event count and a one-line event summary; `Tabs` for the channel type;
+`Field*` for the form; `AlertDialog` instead of `window.confirm` for deletion. The event picker keeps its
+original pill toggles (checkbox and collapsible variants were tried and dropped). Added `__tests__/components/webhook-section.test.tsx`.
+
+## 2026-11-03 02:30 [BUG-P1]
+
+`20261102-1100-browser-notifications`: repeated deliveries for the same item (e.g. clicking Test twice) showed
+nothing after the first one — a notification with an existing `tag` replaces the shown one silently. Browser
+notifications now set `renotify: true`.

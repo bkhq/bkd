@@ -1,0 +1,25 @@
+import type { WebhookEventType } from '@bkd/shared'
+
+export const EVENT_LABEL_KEYS: Record<WebhookEventType, string> = {
+  'issue.created': 'settings.webhooksEventIssueCreated',
+  'issue.updated': 'settings.webhooksEventIssueUpdated',
+  'issue.deleted': 'settings.webhooksEventIssueDeleted',
+  'issue.status.todo': 'settings.webhooksEventStatusTodo',
+  'issue.status.working': 'settings.webhooksEventStatusWorking',
+  'issue.status.review': 'settings.webhooksEventStatusReview',
+  'issue.status.done': 'settings.webhooksEventStatusDone',
+  'session.started': 'settings.webhooksEventSessionStarted',
+  'session.completed': 'settings.webhooksEventSessionCompleted',
+  'session.failed': 'settings.webhooksEventSessionFailed',
+  'decision.opened': 'settings.webhooksEventDecisionOpened',
+  'decision.decided': 'settings.webhooksEventDecisionDecided',
+  'decision.applied': 'settings.webhooksEventDecisionApplied',
+  'decision.withdrawn': 'settings.webhooksEventDecisionWithdrawn',
+  'decision.closed': 'settings.webhooksEventDecisionClosed',
+  'message.sent': 'settings.webhooksEventMessageSent',
+  'message.replied': 'settings.webhooksEventMessageReplied',
+  'message.applied': 'settings.webhooksEventMessageApplied',
+  'message.withdrawn': 'settings.webhooksEventMessageWithdrawn',
+  'message.closed': 'settings.webhooksEventMessageClosed',
+  'issue.status_changed': 'settings.webhooksEventStatusChanged',
+}

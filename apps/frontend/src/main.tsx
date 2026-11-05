@@ -7,6 +7,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { Toaster } from './components/ui/sonner'
 import { UploadProgress } from './components/UploadProgress'
 import { useSystemInfo } from './hooks/use-kanban'
+import { useBrowserNotifications } from './hooks/use-browser-notifications'
 import { eventBus } from './lib/event-bus'
 import { useFileBrowserStore } from './stores/file-browser-store'
 import { useMessagesStore } from './stores/messages-store'
@@ -160,6 +161,11 @@ function OpenMessagesDrawer() {
   return <Navigate to="/" replace />
 }
 
+function BrowserNotifications() {
+  useBrowserNotifications()
+  return null
+}
+
 function EventBusManager() {
   useEffect(() => {
     eventBus.connect()
@@ -298,6 +304,7 @@ if (!rootElement.innerHTML) {
           <Toaster position="top-center" />
           <UploadProgress />
           <EventBusManager />
+          <BrowserNotifications />
           <ServerConfigLoader />
         </ErrorBoundary>
       </BrowserRouter>

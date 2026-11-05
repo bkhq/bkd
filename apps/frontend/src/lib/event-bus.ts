@@ -1,4 +1,4 @@
-import type { ChangesSummary, ContextUsageEvent, SSEEventMap } from '@bkd/shared'
+import type { BrowserNotificationEvent, ChangesSummary, ContextUsageEvent, SSEEventMap } from '@bkd/shared'
 import type { NormalizedLogEntry, SessionStatus } from '@/types/kanban'
 
 export interface IssueEventHandler {
@@ -15,6 +15,7 @@ type IssueUpdatedListener = (data: { issueId: string, changes: Record<string, un
 type ChangesSummaryListener = (data: ChangesSummaryData) => void
 type ContextUsageListener = (data: ContextUsageEvent) => void
 type MessageListener = (data: SSEEventMap['message-updated']) => void
+type BrowserNotificationListener = (data: BrowserNotificationEvent) => void
 type IssueActivityListener = (issueId: string) => void
 type ConnectionListener = (connected: boolean) => void
 
@@ -34,6 +35,7 @@ class EventBus {
   private changesSummaryListeners = new Set<ChangesSummaryListener>()
   private contextUsageListeners = new Set<ContextUsageListener>()
   private messageListeners = new Set<MessageListener>()
+  private browserNotificationListeners = new Set<BrowserNotificationListener>()
   private issueActivityListeners = new Set<IssueActivityListener>()
   private connectionListeners = new Set<ConnectionListener>()
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -193,6 +195,21 @@ class EventBus {
       }
     })
 
+    es.addEventListener('browser-notification', (e) => {
+      try {
+        const data = JSON.parse(e.data) as BrowserNotificationEvent
+        for (const cb of this.browserNotificationListeners) {
+          try {
+            cb(data)
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+    })
+
     // Reset watchdog on heartbeat — server sends every 15s
     es.addEventListener('heartbeat', () => {
       this.resetHeartbeatWatchdog(es)
@@ -291,6 +308,13 @@ class EventBus {
     this.messageListeners.add(listener)
     return () => {
       this.messageListeners.delete(listener)
+    }
+  }
+
+  onBrowserNotification(listener: BrowserNotificationListener): () => void {
+    this.browserNotificationListeners.add(listener)
+    return () => {
+      this.browserNotificationListeners.delete(listener)
     }
   }
 

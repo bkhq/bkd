@@ -85,9 +85,9 @@ webhooksRoute.openapi(R.createWebhook, async (c) => {
   const [row] = await db
     .insert(webhooks)
     .values({
-      channel: body.channel ?? 'webhook',
-      url: body.url,
-      secret: body.secret ?? null,
+      channel,
+      url: channel === 'browser' ? '' : body.url,
+      secret: channel === 'browser' ? null : body.secret ?? null,
       events: JSON.stringify(body.events),
       isActive: body.isActive ?? true,
       interactive,
@@ -145,9 +145,10 @@ webhooksRoute.openapi(R.updateWebhook, async (c) => {
 
   const updates: Record<string, unknown> = {}
 
-  if (body.url !== undefined) updates.url = body.url
+  // A browser channel has no target or secret
+  if (body.url !== undefined && effectiveChannel !== 'browser') updates.url = body.url
   // Skip masked secret (means "unchanged"); null means "clear"; otherwise set new value
-  if (body.secret !== undefined && body.secret !== SECRET_MASK) {
+  if (body.secret !== undefined && body.secret !== SECRET_MASK && effectiveChannel !== 'browser') {
     updates.secret = body.secret
   }
   if (body.events !== undefined) updates.events = JSON.stringify(body.events)

@@ -102,6 +102,11 @@ events.get('/', async (c) => {
         writeEvent('message-updated', data)
       })
 
+      // Browser notification channel deliveries
+      const unsubBrowserNotification = appEvents.on('browser-notification', (data) => {
+        writeEvent('browser-notification', data)
+      })
+
       // Heartbeat every 15s — keeps connection alive and detects client disconnect
       const heartbeat = setInterval(() => {
         if (done) return
@@ -122,6 +127,7 @@ events.get('/', async (c) => {
         unsubChangesSummary()
         unsubContextUsage()
         unsubMessage()
+        unsubBrowserNotification()
         logger.debug('global_sse_closed')
       }
     })

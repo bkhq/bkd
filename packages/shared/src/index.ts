@@ -589,6 +589,7 @@ export interface SSEEventMap {
   'changes-summary': ChangesSummary
   'context-usage': ContextUsageEvent
   'message-updated': { id: string, kind: MessageKind, expects: MessageExpects, status: MessageStatus, campaignId: string | null }
+  'browser-notification': BrowserNotificationEvent
   'heartbeat': { ts: string }
 }
 
@@ -614,6 +615,7 @@ export interface AppEventMap {
   'changes-summary': ChangesSummary
   'context-usage': { issueId: string, contextTokens: number, contextWindow: number }
   'message-updated': SSEEventMap['message-updated']
+  'browser-notification': BrowserNotificationEvent
   'heartbeat': { ts: string }
 }
 
@@ -724,9 +726,20 @@ export const WEBHOOK_EVENT_GROUPS: { category: string, events: WebhookEventType[
 
 export const WEBHOOK_EVENT_TYPES: WebhookEventType[] = WEBHOOK_EVENT_GROUPS.flatMap(g => g.events)
 
-export type NotificationChannel = 'webhook' | 'telegram'
+export type NotificationChannel = 'webhook' | 'telegram' | 'browser'
 
-export const NOTIFICATION_CHANNELS: NotificationChannel[] = ['webhook', 'telegram']
+export const NOTIFICATION_CHANNELS: NotificationChannel[] = ['webhook', 'telegram', 'browser']
+
+/** A browser-channel delivery, pushed over SSE and shown by every open tab that has notification permission. */
+export interface BrowserNotificationEvent {
+  webhookId: string
+  event: WebhookEventType
+  title: string
+  projectName: string | null
+  projectId: string | null
+  issueId: string | null
+  messageId: string | null
+}
 
 export interface Webhook {
   id: string
