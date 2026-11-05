@@ -43,7 +43,7 @@ registerAction('message-cleanup', {
 })
 
 registerAction('trash-cleanup', {
-  description: 'Purge file browser deletes kept in the trash for over 7 days',
+  description: 'Purge file manager deletes kept in the trash for over 7 days',
   category: 'builtin',
   defaultCron: '0 30 5 * * *', // daily at 5:30 AM
   handler: () => runTrashCleanup(),

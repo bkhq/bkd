@@ -1169,3 +1169,13 @@ original pill toggles (checkbox and collapsible variants were tried and dropped)
 `20261102-1100-browser-notifications`: repeated deliveries for the same item (e.g. clicking Test twice) showed
 nothing after the first one — a notification with an existing `tag` replaces the shown one silently. Browser
 notifications now set `renotify: true`.
+
+## 2026-11-05 11:30 [progress]
+
+`20261105-1053-adopt-filemanager`: the file browser is now the vendored `bkhq/filemanager` (upstream `8d95a43`).
+`/api/files/:root/*` and `components/files/{FileBrowserContent,FileTree,FileList,FileBreadcrumb,FileNameDialog,QuickOpenDialog}`
+are gone; `/api/fm/:projectId/*` serves the project directory and each issue worktree as mounts, and
+`WorkspaceFiles` renders `<FileManager />` in the drawer and the issue Files tab. Trash and upload sessions live
+in `data/fm/<hash>/`, never in the project; `trash-cleanup` purges both that trash and the old
+`data/trash/files/`. The Review tab is unchanged. Checked in Chromium: Markdown preview, image zoom and the PDF
+viewer under the content CSP.

@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { MarkdownRenderer } from '@/components/files/MarkdownRenderer'
-import { kanbanApi } from '@/lib/kanban-api'
 
 /** File-browser Markdown preview on streamdown (UI-010). */
 
@@ -38,44 +37,6 @@ describe('markdownRenderer', () => {
   it('routes fenced code to ShikiCodeBlock', () => {
     render(<MarkdownRenderer content={'\`\`\`json\n{"a":1}\n\`\`\`'} />)
     expect(screen.getByTestId('shiki')).toHaveAttribute('data-lang', 'json')
-  })
-
-  it('decodes percent-escapes and non-ASCII names once before hitting the raw API', () => {
-    const md = '![a](./img/a%20b.png) <img src="图 1.png"> ![bad](d%zz.png) ![mixed](my%20d%zz.png) ![cut](%E4%B8.png)'
-    const { container } = render(
-      <MarkdownRenderer content={md} root="/ws/proj" path="my docs/guide/README.md" />,
-    )
-    const srcs = Array.from(container.querySelectorAll('img')).map(i => i.getAttribute('src'))
-    expect(srcs).toEqual([
-      kanbanApi.rawFileUrl('/ws/proj', 'my docs/guide/img/a b.png'),
-      kanbanApi.rawFileUrl('/ws/proj', 'my docs/guide/图 1.png'),
-      kanbanApi.rawFileUrl('/ws/proj', 'my docs/guide/d%zz.png'),
-      kanbanApi.rawFileUrl('/ws/proj', 'my docs/guide/my d%zz.png'),
-      kanbanApi.rawFileUrl('/ws/proj', 'my docs/guide/%E4%B8.png'),
-    ])
-  })
-
-  it('does not reuse the previous file directory when another file is previewed', () => {
-    const first = render(<MarkdownRenderer content="![a](a.png)" root="/ws/proj" path="one/README.md" />)
-    expect(first.container.querySelector('img')).toHaveAttribute('src', kanbanApi.rawFileUrl('/ws/proj', 'one/a.png'))
-    first.unmount()
-    const second = render(<MarkdownRenderer content="![a](a.png)" root="/ws/proj" path="two/README.md" />)
-    expect(second.container.querySelector('img')).toHaveAttribute('src', kanbanApi.rawFileUrl('/ws/proj', 'two/a.png'))
-  })
-
-  it('resolves relative images against the file directory via the raw API', () => {
-    const md = '![a](./img/a.png) ![b](../shared/b.png) <img src="c.png"> ![abs](/x.png) ![ext](https://h/y.png)'
-    const { container } = render(
-      <MarkdownRenderer content={md} root="/ws/proj" path="docs/guide/README.md" />,
-    )
-    const srcs = Array.from(container.querySelectorAll('img')).map(i => i.getAttribute('src'))
-    expect(srcs).toEqual([
-      kanbanApi.rawFileUrl('/ws/proj', 'docs/guide/img/a.png'),
-      kanbanApi.rawFileUrl('/ws/proj', 'docs/shared/b.png'),
-      kanbanApi.rawFileUrl('/ws/proj', 'docs/guide/c.png'),
-      '/x.png',
-      'https://h/y.png',
-    ])
   })
 
   it('shows leading YAML frontmatter as a YAML block instead of a heading', () => {

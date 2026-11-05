@@ -2,7 +2,6 @@ import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 import { checkDbHealth } from '@/db'
 import { COMMIT, VERSION } from '@/version'
-import files from './files'
 import filesystem from './filesystem'
 import git from './git'
 import issues from './issues'
@@ -17,7 +16,6 @@ const apiRoutes = createOpenAPIRouter()
 apiRoutes.route('/projects', projects)
 apiRoutes.route('/projects/:projectId/issues', issues)
 apiRoutes.route('/issues/review', reviewIssues)
-apiRoutes.route('/files', files)
 apiRoutes.route('/projects/:projectId/worktrees', worktrees)
 apiRoutes.route('/processes', processes)
 

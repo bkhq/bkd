@@ -1,6 +1,6 @@
 # BKD - Plan Index
 
-> Updated: 2026-11-02
+> Updated: 2026-11-05
 
 ## Usage
 
@@ -88,3 +88,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261024-1813-agent-follow-up-messages Show agent-sent follow-ups apart from user messages**](20261024-1813-agent-follow-up-messages.md) `2026-10-24`
 - [x] [**20261102-1023-file-browser-polish File browser fixes, recoverable delete, create/rename, quick open, virtual tree**](20261102-1023-file-browser-polish.md) `2026-11-02`
 - [x] [**20261102-1100-browser-notifications Browser notifications for review and new messages**](20261102-1100-browser-notifications.md) `2026-11-02`
+- [x] [**20261105-1053-adopt-filemanager Replace the file browser with bkhq/filemanager**](20261105-1053-adopt-filemanager.md) `2026-11-05`

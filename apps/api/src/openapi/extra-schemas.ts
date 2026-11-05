@@ -88,32 +88,4 @@ export const SystemInfoSchema = z.object({
   server: z.object({ name: z.string().nullable(), url: z.string().nullable() }),
   process: z.object({ pid: z.number() }),
 })
-export const SaveFileSchema = z.object({
-  content: z.string().refine(value => Buffer.byteLength(value, 'utf8') <= 5 * 1024 * 1024, 'Content exceeds maximum size of 5 MB'),
-  /** `modifiedAt` of the version the edit started from; a mismatch on disk is a 409. Omit to overwrite. */
-  expectedModifiedAt: z.string().optional(),
-})
-export const SavedFileSchema = z.object({ size: z.number(), modifiedAt: z.string() })
-export const CreateFileSchema = z.object({ type: z.enum(['file', 'directory']) })
-/** Root-relative destination path. */
-export const RenameFileSchema = z.object({ to: z.string().min(1) })
-export const FilePathSchema = z.object({ path: z.string() })
-export const FileSearchSchema = z.object({ paths: z.array(z.string()) })
-export const UploadedFilesSchema = z.object({ uploaded: z.array(z.object({ name: z.string(), size: z.number() })) })
-export const FileListingSchema = z.union([
-  z.object({
-    path: z.string(),
-    type: z.literal('file'),
-    content: z.string(),
-    size: z.number(),
-    isTruncated: z.boolean(),
-    isBinary: z.boolean(),
-    modifiedAt: z.string(),
-  }),
-  z.object({
-    path: z.string(),
-    type: z.literal('directory'),
-    entries: z.array(z.object({ name: z.string(), type: z.enum(['file', 'directory']), size: z.number(), modifiedAt: z.string() })),
-  }),
-])
 export { WriteFilterRuleSchema }

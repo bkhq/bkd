@@ -1,9 +1,8 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { eventBus } from '@/lib/event-bus'
 import { kanbanApi } from '@/lib/kanban-api'
 import { STALE_TIME } from '@/lib/query-config'
-import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { DeleteLocalSessionsRequest, ExecuteIssueRequest, ImportSessionRequest, Issue, VirtualEngine, WebhookEventType } from '@/types/kanban'
 
 export const queryKeys = {
@@ -30,9 +29,6 @@ export const queryKeys = {
     ['projects', projectId, 'issues', issueId, 'changes', 'file', path] as const,
   slashCommands: (projectId: string, issueId: string) =>
     ['projects', projectId, 'issues', issueId, 'slash-commands'] as const,
-  projectFiles: (root: string | null, path: string, hideIgnored: boolean) =>
-    ['files', root, path, { hideIgnored }] as const,
-  fileSearch: (root: string | null, q: string) => ['files', 'search', root, q] as const,
   allProcesses: () => ['processes', 'all'] as const,
   projectWorktrees: (projectId: string) => ['projects', projectId, 'worktrees'] as const,
   logPageSize: () => ['settings', 'logPageSize'] as const,
@@ -988,90 +984,6 @@ export function useRestartServer() {
         window.location.reload()
       }
       void poll()
-    },
-  })
-}
-
-// --- File Browser hooks ---
-
-/** Query options for one file-browser path; shared with the tree's `useQueries`. */
-export function projectFilesQuery(root: string, path: string, hideIgnored: boolean) {
-  return {
-    queryKey: queryKeys.projectFiles(root, path, hideIgnored),
-    queryFn: () => kanbanApi.listFiles(root, path || undefined, hideIgnored),
-    staleTime: STALE_TIME.STANDARD,
-  }
-}
-
-export function useProjectFiles(root: string | null | undefined, path: string, enabled = true) {
-  const hideIgnored = useFileBrowserStore(s => s.hideIgnored)
-  return useQuery({
-    ...projectFilesQuery(root ?? '', path, hideIgnored),
-    enabled: !!root && enabled,
-  })
-}
-
-export function useDeleteFile() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ root, path }: { root: string, path: string }) =>
-      kanbanApi.deleteFile(root, path),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['files'] })
-    },
-  })
-}
-
-export function useCreateFile() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ root, path, type }: { root: string, path: string, type: 'file' | 'directory' }) =>
-      kanbanApi.createFile(root, path, type),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['files'] })
-    },
-  })
-}
-
-export function useRenameFile() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ root, path, to }: { root: string, path: string, to: string }) =>
-      kanbanApi.renameFile(root, path, to),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['files'] })
-    },
-  })
-}
-
-export function useFileSearch(root: string | null, q: string) {
-  return useQuery({
-    queryKey: queryKeys.fileSearch(root, q),
-    queryFn: () => kanbanApi.searchFiles(root!, q),
-    enabled: !!root && q.trim().length > 0,
-    placeholderData: keepPreviousData,
-    staleTime: STALE_TIME.STANDARD,
-  })
-}
-
-export function useSaveFile() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ root, path, content, expectedModifiedAt }: { root: string, path: string, content: string, expectedModifiedAt?: string }) =>
-      kanbanApi.saveFile(root, path, content, expectedModifiedAt),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['files'] })
-    },
-  })
-}
-
-export function useUploadFiles() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ root, path, files, overwrite }: { root: string, path: string, files: File[], overwrite?: boolean }) =>
-      kanbanApi.uploadFiles(root, path, files, overwrite),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['files'] })
     },
   })
 }

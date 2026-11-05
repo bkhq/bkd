@@ -10,7 +10,7 @@ import { getEngineDiscovery } from './engines/startup-probe'
 import { httpLogger, logger } from './logger'
 import { apiRoutes, engineRoutes, eventRoutes, settingsRoutes } from './routes'
 import cronRoute from './routes/cron'
-import { isInlineRawRequest } from './routes/files'
+import fmRoute, { fmContentPolicy, isFmContentPath } from './routes/fm'
 import sessionsRoute from './routes/sessions'
 import decisionsRoutes from './routes/decisions'
 import messagesRoutes from './routes/messages'
@@ -23,7 +23,7 @@ import { runtimeConfig } from './runtime-config'
 const app = new OpenAPIHono()
 
 // --- Security headers (CSP + HSTS) ---
-app.use(secureHeaders({
+const appHeaders = secureHeaders({
   contentSecurityPolicy: {
     defaultSrc: ['\'self\''],
     scriptSrc: ['\'self\'', '\'unsafe-inline\''],
@@ -31,14 +31,20 @@ app.use(secureHeaders({
     imgSrc: ['\'self\'', 'data:', 'blob:'],
     connectSrc: ['\'self\''],
     fontSrc: ['\'self\''],
-    frameAncestors: [c => (isInlineRawRequest(c) ? '\'self\'' : '\'none\'')],
+    frameAncestors: ['\'none\''],
     baseUri: ['\'self\''],
     formAction: ['\'self\''],
-    // Chrome's built-in PDF viewer is a plugin: an inline PDF needs object-src too
-    objectSrc: [c => (isInlineRawRequest(c) ? '\'self\'' : '\'none\'')],
+    objectSrc: ['\'none\''],
   },
   strictTransportSecurity: 'max-age=31536000; includeSubDomains',
-}))
+})
+// Files served by the file manager keep its own sandboxing CSP, framable by the app
+const fmContentHeaders = secureHeaders({ strictTransportSecurity: 'max-age=31536000; includeSubDomains' })
+app.use(async (c, next) => {
+  if (!isFmContentPath(c.req.path)) return appHeaders(c, next)
+  await fmContentHeaders(c, next)
+  c.res.headers.set('Content-Security-Policy', fmContentPolicy(c.res.headers.get('Content-Type'), c.res.headers.get('Content-Security-Policy')))
+})
 
 // --- CORS ---
 const allowedOrigin = runtimeConfig.ALLOWED_ORIGIN
@@ -55,7 +61,8 @@ app.use('/api/*', cors({
 
 // --- Compression (skip for SSE routes) ---
 app.use('*', async (c, next) => {
-  if (c.req.path.endsWith('/stream') || c.req.path === '/api/events') {
+  // File bytes stay as stored: compressing would break Range and Content-Length
+  if (c.req.path.endsWith('/stream') || c.req.path === '/api/events' || isFmContentPath(c.req.path)) {
     return next()
   }
   return compress()(c, next)
@@ -66,7 +73,8 @@ app.use(httpLogger())
 
 // Reject unsupported request formats before validators can ignore the body.
 app.use('/api/*', async (c, next) => {
-  if (['POST', 'PUT', 'PATCH'].includes(c.req.method) && c.req.raw.body !== null) {
+  // The file manager validates its own bodies (raw file bytes, upload parts, JSON)
+  if (['POST', 'PUT', 'PATCH'].includes(c.req.method) && c.req.raw.body !== null && !c.req.path.startsWith('/api/fm/')) {
     const mediaType = c.req.header('content-type')?.split(';')[0]?.trim().toLowerCase()
     const acceptsMultipart = /^\/api\/projects\/[^/]+\/issues(?:\/[^/]+\/follow-up)?\/?$/.test(c.req.path)
       || /^\/api\/files\/[^/]+\/upload(?:\/|$)/.test(c.req.path)
@@ -125,6 +133,7 @@ app.route('/api/messages', messagesRoutes)
 app.route('/api/decisions', decisionsRoutes)
 app.route('/api/cron', cronRoute)
 app.route('/api/sessions', sessionsRoute)
+app.route('/api/fm/:projectId', fmRoute)
 app.route('/api', terminalRoute)
 
 // --- 404 handler ---

@@ -2,7 +2,7 @@ import { FileDiff, FolderOpen, Maximize2, Minimize2, PanelRightClose, Plus, X } 
 import type { LucideIcon } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FileBrowserContent } from '@/components/files/FileBrowserContent'
+import { WorkspaceFiles } from '@/components/files/WorkspaceFiles'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,10 +12,9 @@ import {
 import { ResizeHandle } from '@/components/ui/resize-handle'
 import { SidePanelButton } from '@/components/ui/side-panel'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
-import { useIssueChanges, useProject, useProjectFiles } from '@/hooks/use-kanban'
+import { useIssueChanges } from '@/hooks/use-kanban'
 import { cn } from 'cn'
 import { useDiffViewStore } from '@/stores/diff-view-store'
-import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { WorkspaceTab } from '@/stores/workspace-panel-store'
 import { useWorkspacePanelStore, WORKSPACE_PANEL_MIN_WIDTH } from '@/stores/workspace-panel-store'
 import { DiffChanges } from './DiffPanel'
@@ -29,17 +28,6 @@ const TAB_ICONS: Record<WorkspaceTab, LucideIcon> = {
 const TREE_PANEL_WIDTH = 640
 
 const LAUNCHER_TABS: WorkspaceTab[] = ['files', 'review']
-
-/** Entry count of the directory the file browser is showing; null on a file view. */
-function useFileBrowserEntryCount(): number | null {
-  const projectId = useFileBrowserStore(s => s.projectId)
-  const rootPath = useFileBrowserStore(s => s.rootPath)
-  const currentPath = useFileBrowserStore(s => s.currentPath)
-  const { data: project } = useProject(projectId ?? '')
-  // Same query as FileBrowserContent, so this reads its cache.
-  const { data: listing } = useProjectFiles(rootPath ?? project?.directory ?? null, currentPath)
-  return listing?.type === 'directory' ? listing.entries.length : null
-}
 
 export function WorkspacePanel({
   projectId,
@@ -66,46 +54,25 @@ export function WorkspacePanel({
 
   // A file tree takes ~224px, so make room when one is showing in this panel
   const reviewTree = useDiffViewStore(s => s.showTree)
-  const filesTree = useFileBrowserStore(s => s.showTree)
-  const treeShown = (activeTab === 'review' && reviewTree) || (activeTab === 'files' && filesTree)
+  const treeShown = activeTab === 'review' && reviewTree
   useEffect(() => {
     if (treeShown) useWorkspacePanelStore.getState().ensureWidth(TREE_PANEL_WIDTH)
   }, [treeShown])
 
   const changesSummary = useChangesSummary(projectId, issueId)
-  // The issue's own workspace (its worktree, or the project directory). Until
-  // /changes answers it is unknown (undefined): the Files tab must wait rather
-  // than fall back to the project directory, which for a worktree issue is the
-  // main checkout. null means the project has no directory at all.
+  // Until /changes answers, whether the issue works in a worktree is unknown:
+  // the Files tab waits rather than open the project directory, which for a
+  // worktree issue is the main checkout.
   const changes = useIssueChanges(projectId, issueId)
   // A worktree issue with no worktree (not created yet, or cleaned up) gets the
-  // project root back: never treat that as its workspace (the browser would
-  // edit the main checkout)
+  // project root back: never open that as its workspace
   const worktreeMissing = !!changes.data?.worktreeMissing
-  const issueRoot = changes.data && !worktreeMissing ? (changes.data.root ?? null) : undefined
-  const fileCount = useFileBrowserEntryCount()
   const counts: Record<WorkspaceTab, number | null> = {
-    files: fileCount,
+    files: null,
     review: changesSummary?.fileCount ?? 0,
   }
 
-  // Bind the shared file browser to this issue's workspace once it is known,
-  // unless the global drawer currently owns it; it re-binds once the drawer
-  // closes. The tab only renders the browser while it is bound here.
   const hasFilesTab = tabs.includes('files')
-  const fbIssueId = useFileBrowserStore(s => s.issueId)
-  const fbRootPath = useFileBrowserStore(s => s.rootPath)
-  const fbOpen = useFileBrowserStore(s => s.isOpen)
-  const fbDrawer = useFileBrowserStore(s => s.isDrawer)
-  const drawerOwnsBrowser = fbOpen && fbDrawer
-  const filesBound = issueRoot !== undefined && fbOpen && !fbDrawer && fbIssueId === issueId && fbRootPath === issueRoot
-  const bindFiles = () => {
-    if (issueRoot !== undefined) useFileBrowserStore.getState().openForIssue(projectId, issueId, issueRoot ?? undefined)
-  }
-  useEffect(() => {
-    if (!hasFilesTab || issueRoot === undefined || drawerOwnsBrowser || filesBound) return
-    useFileBrowserStore.getState().openForIssue(projectId, issueId, issueRoot ?? undefined)
-  }, [hasFilesTab, issueRoot, drawerOwnsBrowser, filesBound, projectId, issueId])
 
   const maxWidth = typeof window === 'undefined' ? 1600 : window.innerWidth
 
@@ -218,8 +185,8 @@ export function WorkspacePanel({
         {/* Tab contents stay mounted so switching keeps their state */}
         {hasFilesTab && (
           <div className={cn('flex flex-col flex-1 min-h-0', activeTab !== 'files' && 'hidden')}>
-            {filesBound
-              ? <FileBrowserContent />
+            {changes.data && !worktreeMissing
+              ? <WorkspaceFiles projectId={projectId} issueId={issueId} />
               : (
                   <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
                     {worktreeMissing
@@ -233,16 +200,7 @@ export function WorkspacePanel({
                               </button>
                             </>
                           )
-                        : drawerOwnsBrowser && issueRoot !== undefined
-                          ? (
-                              <>
-                                <p>{t('workspace.browserInDrawer')}</p>
-                                <button type="button" onClick={bindFiles} className="rounded-md border border-border px-3 py-1 text-xs hover:bg-accent">
-                                  {t('workspace.openHere')}
-                                </button>
-                              </>
-                            )
-                          : <p>{t('common.loading')}</p>}
+                        : <p>{t('common.loading')}</p>}
                   </div>
                 )}
           </div>

@@ -1,7 +1,6 @@
 import { FileWarning } from 'lucide-react'
 import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
-import { kanbanApi } from '@/lib/kanban-api'
 import type { FileContent } from '@/types/kanban'
 import { MarkdownRenderer } from './MarkdownRenderer'
 
@@ -13,10 +12,8 @@ const spinner = (
   </div>
 )
 
-const RASTER_IMAGE_RE = /\.(?:png|jpe?g|gif|webp|avif|bmp|ico)$/i
-
-export function isSvg(path: string): boolean {
-  return /\.svg$/i.test(path)
+export function isMarkdown(path: string): boolean {
+  return /\.mdx?$/i.test(path)
 }
 
 /**
@@ -26,7 +23,6 @@ export function isSvg(path: string): boolean {
  */
 export function FileEditor({
   file,
-  root,
   value,
   onChange,
   onSave,
@@ -35,37 +31,16 @@ export function FileEditor({
   readOnly = false,
 }: {
   file: FileContent
-  root?: string | null
   value: string
   onChange: (value: string) => void
   onSave: () => void
   wrap: boolean
-  /** Show rendered Markdown (or the SVG image) instead of the editor. */
+  /** Show rendered Markdown instead of the editor. */
   preview: boolean
   /** Not editable for a reason other than truncation (e.g. an installed skill). */
   readOnly?: boolean
 }) {
   const { t } = useTranslation()
-  const name = file.path.split('/').pop() ?? file.path
-
-  // Images and PDFs load from the raw-file API, which needs a workspace root
-  if (root && (RASTER_IMAGE_RE.test(file.path) || (preview && isSvg(file.path)))) {
-    return (
-      <div className="flex flex-1 min-h-0 items-center justify-center overflow-auto p-4">
-        <img src={kanbanApi.rawFileUrl(root, file.path)} alt={name} className="max-h-full max-w-full object-contain" />
-      </div>
-    )
-  }
-
-  if (root && /\.pdf$/i.test(file.path)) {
-    return (
-      <iframe
-        src={`${kanbanApi.rawFileUrl(root, file.path)}?inline=1`}
-        title={name}
-        className="flex-1 min-h-0 w-full border-0"
-      />
-    )
-  }
 
   if (file.isBinary) {
     return (
@@ -76,10 +51,10 @@ export function FileEditor({
     )
   }
 
-  if (preview && !isSvg(file.path)) {
+  if (preview) {
     return (
       <div className="flex-1 min-h-0 overflow-auto">
-        <MarkdownRenderer content={value} root={root} path={file.path} />
+        <MarkdownRenderer content={value} />
       </div>
     )
   }

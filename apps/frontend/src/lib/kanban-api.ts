@@ -11,8 +11,6 @@ import type {
   EngineSettings,
   ExecuteIssueRequest,
   ExecuteIssueResponse,
-  FileListingResult,
-  FileUploadResult,
   ImportSessionRequest,
   ImportSessionResult,
   Issue,
@@ -44,25 +42,6 @@ import type {
   WebhookEventType,
 } from '@/types/kanban'
 import { useUploadStore } from '@/stores/upload-store'
-
-/** Encode a filesystem path as base58 for use in URL path segments. */
-function encodeRootPath(path: string): string {
-  const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-  const bytes = new TextEncoder().encode(path)
-  let zeros = 0
-  for (const b of bytes) {
-    if (b === 0) zeros++
-    else break
-  }
-  let num = 0n
-  for (const b of bytes) num = num * 256n + BigInt(b)
-  let encoded = ''
-  while (num > 0n) {
-    encoded = ALPHABET[Number(num % 58n)] + encoded
-    num /= 58n
-  }
-  return '1'.repeat(zeros) + encoded
-}
 
 export class ApiError extends Error {
   readonly statusCode: number
@@ -615,15 +594,6 @@ export const kanbanApi = {
     post<{ requested: string }>('/api/settings/upgrade/rollback', version ? { version } : {}),
   restartServer: () => post<{ status: string }>('/api/settings/upgrade/restart', {}),
 
-  // File Browser
-  listFiles: (root: string, path?: string, hideIgnored?: boolean) => {
-    const encodedRoot = encodeRootPath(root)
-    const encodedPath =
-      path && path !== '.' ? `/${path.split('/').map(encodeURIComponent).join('/')}` : ''
-    const qs = hideIgnored ? '?hideIgnored=true' : ''
-    return get<FileListingResult>(`/api/files/${encodedRoot}/show${encodedPath}${qs}`)
-  },
-
   // Process Manager
   getAllProcesses: () =>
     get<ProjectProcessesResponse>('/api/processes'),
@@ -633,54 +603,6 @@ export const kanbanApi = {
       `/api/processes/${issueId}/terminate`,
       {},
     ),
-
-  rawFileUrl: (root: string, path: string) => {
-    const encodedRoot = encodeRootPath(root)
-    const encodedPath = path.split('/').map(encodeURIComponent).join('/')
-    return `/api/files/${encodedRoot}/raw/${encodedPath}`
-  },
-
-  deleteFile: (root: string, path: string) => {
-    const encodedRoot = encodeRootPath(root)
-    const encodedPath = path.split('/').map(encodeURIComponent).join('/')
-    return del<{ deleted: boolean }>(`/api/files/${encodedRoot}/delete/${encodedPath}`)
-  },
-
-  /** New empty file or directory; 409 if the path exists. */
-  createFile: (root: string, path: string, type: 'file' | 'directory') => {
-    const encodedPath = path.split('/').map(encodeURIComponent).join('/')
-    return post<{ path: string }>(`/api/files/${encodeRootPath(root)}/create/${encodedPath}`, { type })
-  },
-
-  /** Move `path` to the root-relative `to`; 409 if `to` exists. */
-  renameFile: (root: string, path: string, to: string) => {
-    const encodedPath = path.split('/').map(encodeURIComponent).join('/')
-    return post<{ path: string }>(`/api/files/${encodeRootPath(root)}/rename/${encodedPath}`, { to })
-  },
-
-  /** Up to 50 root-relative file paths ranked against `q`. */
-  searchFiles: (root: string, q: string) =>
-    get<{ paths: string[] }>(`/api/files/${encodeRootPath(root)}/search?${new URLSearchParams({ q })}`),
-
-  /** With `expectedModifiedAt`, the server answers 409 if the file changed on disk. */
-  saveFile: (root: string, path: string, content: string, expectedModifiedAt?: string) => {
-    const encodedRoot = encodeRootPath(root)
-    const encodedPath = path.split('/').map(encodeURIComponent).join('/')
-    return request<{ size: number, modifiedAt: string }>(
-      `/api/files/${encodedRoot}/save/${encodedPath}`,
-      { method: 'PUT', body: JSON.stringify({ content, expectedModifiedAt }) },
-    )
-  },
-
-  uploadFiles: (root: string, path: string, files: File[], overwrite = false) => {
-    const encodedRoot = encodeRootPath(root)
-    const encodedPath =
-      path && path !== '.' ? `/${path.split('/').map(encodeURIComponent).join('/')}` : ''
-    const fd = new FormData()
-    for (const file of files) fd.append('files', file)
-    if (overwrite) fd.append('overwrite', 'true')
-    return postFormData<FileUploadResult>(`/api/files/${encodedRoot}/upload${encodedPath}`, fd)
-  },
 
   // Webhooks
   getWebhooks: () => get<Webhook[]>('/api/settings/webhooks'),

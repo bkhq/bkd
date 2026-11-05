@@ -115,7 +115,7 @@ Hardcoded constants — no DB table:
 | `/api/events` | GET | `events.ts` | Global SSE endpoint |
 | `/api/settings/*` | GET, POST, PATCH, PUT, DELETE | `settings/` | App settings, webhooks, cleanup, system logs, upgrade |
 | `/api/terminal/*`, `/api/terminal/ws/:id` | GET, POST, DELETE, WS | `terminal.ts` | PTY sessions, WebSocket terminal |
-| `/api/files/:root/*` | GET, PUT, POST, DELETE | `files.ts` | File browser: list, read, save, upload, delete |
+| `/api/fm/:projectId/*` | GET, PUT, POST, DELETE | `fm.ts` | File manager (vendored bkhq/filemanager router): project and worktree mounts, read, write, upload, trash; not in OpenAPI |
 | `/api/filesystem/dirs` | GET, POST | `filesystem.ts` | Directory listing / creation |
 | `/api/git/detect-remote` | POST | `git.ts` | Remote URL detection |
 | `/api/processes/*` | GET, POST | `processes.ts` | Active engine processes, capacity, terminate |
@@ -320,7 +320,7 @@ components/
 ├── ui/              ← shadcn/ui primitives (25+ components)
 ├── kanban/          ← Board: columns, cards, sidebar, create dialog, header
 ├── issue-detail/    ← Chat area, log entries, tool items, diff panel, markdown
-├── files/           ← File browser: breadcrumbs, directory listing, file viewer
+├── files/           ← WorkspaceFiles (fm wrapper), skill editor pieces
 ├── terminal/        ← xterm.js WebSocket terminal
 ├── processes/       ← Active engine process list
 ├── notes/           ← Notes drawer and editor
@@ -339,7 +339,7 @@ components/
 | `view-mode-store` | Kanban/list toggle (persisted in localStorage) |
 | `terminal-store` | Terminal drawer state |
 | `terminal-session-store` | xterm.js instance, WebSocket, session ID |
-| `file-browser-store` | File browser drawer, current path |
+| `file-browser-store` | File manager drawer (project, issue, width) |
 | `process-manager-store` | Process manager drawer |
 | `notes-store` | Notes drawer state |
 | `messages-store` | Messages drawer state |

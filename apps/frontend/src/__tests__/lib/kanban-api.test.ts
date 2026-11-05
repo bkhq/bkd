@@ -180,43 +180,31 @@ function lastXhr() {
   return xhr
 }
 
-describe('kanbanApi.uploadFiles', () => {
+describe('kanbanApi multipart uploads', () => {
   beforeEach(() => {
     FakeXhr.instances = []
     vi.stubGlobal('XMLHttpRequest', FakeXhr)
     useUploadStore.setState({ uploads: [] })
   })
 
-  it('posts multipart form data to the encoded upload URL', async () => {
-    const uploaded = [{ name: 'a.txt', size: 1 }]
-    const file = new File(['a'], 'a.txt', { type: 'text/plain' })
+  it('posts multipart form data with progress tracking', async () => {
+    const file = new File(['a'], 'a.md', { type: 'text/markdown' })
 
-    const promise = kanbanApi.uploadFiles('/ws/proj', 'src/lib', [file], true)
+    const promise = kanbanApi.uploadSkills(file, 'project', 'p1')
     const xhr = lastXhr()
-    xhr.respond(201, JSON.stringify({ success: true, data: { uploaded } }))
-    const result = await promise
+    xhr.respond(200, JSON.stringify({ success: true, data: { installed: [] } }))
+    await promise
 
-    expect(xhr.url).toMatch(/^\/api\/files\/[1-9A-HJ-NP-Za-km-z]+\/upload\/src\/lib$/)
+    expect(xhr.url).toBe('/api/skills/upload')
     expect(xhr.method).toBe('POST')
     const body = xhr.body as FormData
     expect(body).toBeInstanceOf(FormData)
     expect(body.getAll('files')).toEqual([file])
-    expect(body.get('overwrite')).toBe('true')
-    expect(result.uploaded).toEqual(uploaded)
-  })
-
-  it('omits the path segment and overwrite flag at the root', async () => {
-    const promise = kanbanApi.uploadFiles('/ws/proj', '.', [new File(['a'], 'a.txt')])
-    const xhr = lastXhr()
-    xhr.respond(201, JSON.stringify({ success: true, data: { uploaded: [] } }))
-    await promise
-
-    expect(xhr.url).toMatch(/^\/api\/files\/[1-9A-HJ-NP-Za-km-z]+\/upload$/)
-    expect((xhr.body as FormData).get('overwrite')).toBeNull()
+    expect(body.get('projectId')).toBe('p1')
   })
 
   it('reports upload progress to the upload store', async () => {
-    const promise = kanbanApi.uploadFiles('/ws/proj', '.', [new File(['abcd'], 'a.txt')])
+    const promise = kanbanApi.uploadSkills(new File(['abcd'], 'a.txt'), 'global')
     const xhr = lastXhr()
     xhr.upload.onprogress?.({ lengthComputable: true, loaded: 2, total: 4 })
     expect(useUploadStore.getState().uploads[0]).toMatchObject({ fileName: 'a.txt', loaded: 2, total: 4, status: 'uploading' })
@@ -227,7 +215,7 @@ describe('kanbanApi.uploadFiles', () => {
   })
 
   it('rejects with the server error and marks the upload failed', async () => {
-    const promise = kanbanApi.uploadFiles('/ws/proj', '.', [new File(['a'], 'a.txt')])
+    const promise = kanbanApi.uploadSkills(new File(['a'], 'a.txt'), 'global')
     lastXhr().respond(409, JSON.stringify({ success: false, error: 'Already exists: a.txt' }))
 
     await expect(promise).rejects.toMatchObject({ message: 'Already exists: a.txt', statusCode: 409 })
@@ -235,7 +223,7 @@ describe('kanbanApi.uploadFiles', () => {
   })
 
   it('rejects a non-JSON response with its HTTP status', async () => {
-    const promise = kanbanApi.uploadFiles('/ws/proj', '.', [new File(['a'], 'a.txt')])
+    const promise = kanbanApi.uploadSkills(new File(['a'], 'a.txt'), 'global')
     lastXhr().respond(413, 'Payload Too Large')
 
     await expect(promise).rejects.toMatchObject({ statusCode: 413 })
@@ -244,7 +232,7 @@ describe('kanbanApi.uploadFiles', () => {
   it('aborts only after the upload makes no progress for 60s', async () => {
     vi.useFakeTimers()
     try {
-      const promise = kanbanApi.uploadFiles('/ws/proj', '.', [new File(['abcd'], 'a.txt')])
+      const promise = kanbanApi.uploadSkills(new File(['abcd'], 'a.txt'), 'global')
       const rejection = expect(promise).rejects.toMatchObject({ statusCode: 408 })
       const xhr = lastXhr()
       vi.advanceTimersByTime(59_000)

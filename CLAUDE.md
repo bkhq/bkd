@@ -122,7 +122,7 @@ GET            /api/issues/review
 ```
 
 Attachments are uploaded through the multipart form of issue create and follow-up; there is no separate upload route.
-Multipart bodies (attachments and `/api/files/:root/upload`) are streamed to disk by `parseMultipartUpload()` in `uploads.ts` (`@fastify/busboy`, 1 GB total per request) — never use `c.req.formData()` for uploads, it buffers the whole body in memory.
+Multipart bodies (attachments and skill uploads) are streamed to disk by `parseMultipartUpload()` in `uploads.ts` (`@fastify/busboy`, 1 GB total per request) — never use `c.req.formData()` for uploads, it buffers the whole body in memory.
 
 The `/logs/filter/*` route accepts path-based key/value filter pairs (order-independent):
 - `types/<comma-separated>` — filter by entry type (`user-message`, `assistant-message`, `tool-use`, `system-message`, `thinking`)
@@ -130,7 +130,7 @@ The `/logs/filter/*` route accepts path-based key/value filter pairs (order-inde
 - Example: `/logs/filter/types/user-message,assistant-message/turn/last3`
 - Pagination via query params: `cursor`, `before`, `limit`
 
-System routes: `/api/engines/*`, `/api/events` (SSE), `/api/messages/*`, `/api/decisions/*` (v1), `/api/settings/*` (incl. `/api/settings/upgrade/*`), `/api/sessions/*`, `/api/terminal/*` (incl. `/api/terminal/ws/:id`), `/api/files/:root/*`, `/api/filesystem/dirs`, `/api/git/detect-remote`, `/api/processes/*`, `/api/projects/:projectId/worktrees/*`, `/api/cron/*`, `/api/notes/*`, `/api/skills/*`.
+System routes: `/api/engines/*`, `/api/events` (SSE), `/api/messages/*`, `/api/decisions/*` (v1), `/api/settings/*` (incl. `/api/settings/upgrade/*`), `/api/sessions/*`, `/api/terminal/*` (incl. `/api/terminal/ws/:id`), `/api/fm/:projectId/*`, `/api/filesystem/dirs`, `/api/git/detect-remote`, `/api/processes/*`, `/api/projects/:projectId/worktrees/*`, `/api/cron/*`, `/api/notes/*`, `/api/skills/*`.
 
 Issue routes are split across focused files in `routes/issues/`: `query.ts`, `create.ts`, `update.ts`, `delete.ts`, `command.ts`, `message.ts`, `logs.ts`, `attachments.ts`, `changes.ts`, `duplicate.ts`, `export.ts`, `import-session.ts`, `review.ts`, `search.ts`. Shared schemas and helpers in `_shared.ts`.
 
@@ -226,7 +226,7 @@ Agent skills are read and written on disk in the layout of the `skills` CLI (ver
 
 - Managed skills are read-only (409): `skills update` would overwrite local edits; "copy" makes a local skill under a new name.
 - New and copied skills go to `.agents/skills/` with a relative symlink in `.claude/skills/`, so both engines see them. Delete moves a local skill to `data/trash/skills/` and drops its link.
-- Paths are realpath-checked inside the skill directory; names match `^[a-z0-9][\w.-]{0,63}$`. A project skill must resolve inside its project (a checkout's `.agents/skills/<name>` or `.claude/skills` symlink pointing elsewhere is ignored), and project-scoped writes are refused when the project's `.agents` / `.claude/skills` store or its `skills-lock.json` links outside it. A `.claude/skills` linked wholesale to `.agents/skills` is treated as one store. Copy keeps inner symlinks as links, and a failed create removes its half-made directory. These roots are an allowlist of their own and do not relax the file browser's workspace check (SEC-007).
+- Paths are realpath-checked inside the skill directory; names match `^[a-z0-9][\w.-]{0,63}$`. A project skill must resolve inside its project (a checkout's `.agents/skills/<name>` or `.claude/skills` symlink pointing elsewhere is ignored), and project-scoped writes are refused when the project's `.agents` / `.claude/skills` store or its `skills-lock.json` links outside it. A `.claude/skills` linked wholesale to `.agents/skills` is treated as one store. Copy keeps inner symlinks as links, and a failed create removes its half-made directory. These roots are an allowlist of their own and do not relax the file manager's workspace check (SEC-007).
 
 - Install / update / uninstall run the CLI (`skills/cli.ts`): `npx -y skills@1.7.4 …` as an argv list (no shell), telemetry off, one operation at a time (409 while busy), 5-minute timeout, cancellable (the UI keeps a running operation's sheet or dialog open until it ends or is cancelled); project scope is refused when the project directory is HOME; output lines are kept on the operation and polled by the UI. A repo preview installs `-s '*'` into a throwaway HOME (`add -l` has no JSON output) and reads each SKILL.md. Uninstall checks the names are installed first (the CLI reports success for unknown names). Sources must be `owner/repo` or `https://github.com/…`. Project scope runs in the project directory (lock `skills-lock.json`). Tests replace the CLI with `setSkillsCliRunner()`.
 
@@ -234,6 +234,26 @@ Agent skills are read and written on disk in the layout of the `skills` CLI (ver
 - Upload (`skills/upload.ts`): a `.md` (one SKILL.md) or a `.zip` / `.skill` archive with SKILL.md at its root or in top-level folders; streamed by `parseMultipartUpload()` (20 MB), unpacked with `fflate` after checking every entry (no `..` / absolute paths, ≤ 1000 files, ≤ 50 MB unpacked); a SKILL.md without a valid `name` and a `description` is skipped, as the CLI would skip it; skills are placed like created ones and never overwrite an existing name (reported as conflicts). The route is on the multipart allowlist in `app.ts`.
 
 Routes: `GET /api/skills?projectId=` (also `cliAvailable`), `GET /api/skills/updates`, `POST /api/skills/upload` (multipart), `POST /api/skills/operations` (`preview` / `add` / `update` / `remove`), `GET /api/skills/operations/:id`, `POST /api/skills/operations/:id/cancel`, `POST /api/skills`, `GET /api/skills/:location/:name/files`, `GET|PUT /api/skills/:location/:name/file`, `POST /api/skills/:location/:name/copy`, `DELETE /api/skills/:location/:name`.
+
+#### File Manager (`fm/`, `routes/fm.ts`)
+
+The file browser is the [bkhq/filemanager](https://github.com/bkhq/filemanager) shadcn registry, vendored as-is
+into `apps/api/src/fm/` (core, router, local driver) and `apps/frontend/src/fm/` (client, `<FileManager />`,
+Markdown plugin). Both trees keep upstream formatting and are eslint-ignored; update by re-copying the registry
+files (`docs/decisions/2026-11-05-filemanager-vendored-style.md`).
+
+- `routes/fm.ts` mounts `createFmRouter()` at `/api/fm/:projectId`. Mounts per project: `project` (its directory)
+  and `wt-<issueId>` for each existing issue worktree; none for an unknown project or one outside
+  `workspace:defaultPath` (SEC-007).
+- `workspaceDriver()` wraps the local driver so the router's `/.fm-trash` and `/.fm-uploads` folders live in
+  `data/fm/<sha256(root)[0:16]>/` (override `BKD_FM_DATA_DIR`), never in the project; delete and restore move
+  across with rename (copy + remove across filesystems).
+- The routes are outside BKD's OpenAPI document (upstream `hono-openapi` contract;
+  `docs/decisions/2026-11-05-filemanager-openapi-exception.md`). `app.ts` skips the 415 JSON check and compression
+  for them, and file bytes (`read`, `thumb`, `zip/read`) get fm's sandboxing CSP plus `frame-ancestors 'self'`
+  (PDFs drop `sandbox` so the browser viewer renders them).
+- Frontend: `components/files/WorkspaceFiles.tsx` opens the issue's worktree mount when present, else `project`,
+  and refreshes listings on `changes-summary`. Used by `FileBrowserDrawer` and the workspace panel's Files tab.
 
 #### Background Jobs (built-in cron actions, `cron/actions/builtins/`)
 
@@ -244,7 +264,7 @@ Registered as `builtin` actions and scheduled through the cron system (see Cron 
 - `log-cleanup` (daily at 03:00) — trims cron job logs to the last 1000 per job
 - `issue-log-retention` (daily at 04:00) — deletes issue logs of `done` issues older than `log:retentionDays` (default 30)
 - `message-cleanup` (daily at 05:00) — soft-deletes messages in a terminal state (`applied` / `withdrawn` / `closed`) unchanged for 1 day, and read notifications unchanged for 7 days; `open`, `decided` and `replied` are never removed
-- `trash-cleanup` (daily at 05:30) — purges file-browser deletes from `data/trash/files/<ulid>/` after 7 days (`DELETE /api/files/:root/delete/*` moves entries there instead of removing them)
+- `trash-cleanup` (daily at 05:30) — purges file-manager trash items under `data/fm/<hash>/.fm-trash/` after 7 days, plus leftovers of the old file browser's `data/trash/files/<ulid>/`
 
 #### Upgrade (`upgrade/`)
 
@@ -294,7 +314,7 @@ Five global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDraw
   - `panel-store.ts` — Side panel and create dialog open/close.
   - `view-mode-store.ts` — Kanban/list toggle (persisted in localStorage).
   - `terminal-store.ts` / `terminal-session-store.ts` — Terminal drawer state + xterm.js session.
-  - `file-browser-store.ts` — File browser drawer state + current path.
+  - `file-browser-store.ts` — File manager drawer state (project, issue, width).
   - `process-manager-store.ts` — Process manager drawer state.
 
 #### Real-Time Data Flow
@@ -316,7 +336,8 @@ Server (IssueEngine) → SSE /api/events → EventBus singleton (lib/event-bus.t
 - `components/ui/` — shadcn/ui primitives
 - `components/kanban/` — Kanban board: columns, cards, sidebar, create issue dialog, header
 - `components/issue-detail/` — Issue detail page: chat area (`ChatBody`), diff panel, issue list, chat input (attachments, slash commands, model selector)
-- `components/files/` — File browser: breadcrumbs, directory listing, file viewer (Shiki + markdown)
+- `components/files/` — `WorkspaceFiles` (the fm `<FileManager />` for a project) and the editor pieces the Skills page uses
+- `fm/` — vendored file manager UI (see File Manager)
 - `components/terminal/` — xterm.js WebSocket terminal
 - `components/processes/` — Active engine process list
 

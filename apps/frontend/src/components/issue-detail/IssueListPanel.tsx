@@ -102,7 +102,7 @@ export function IssueListPanel({
               variant="ghost"
               size="icon"
               className="h-9 w-9 md:h-7 md:w-7 text-muted-foreground hover:text-foreground"
-              onClick={() => toggleFileBrowser(projectId, project?.directory ?? undefined)}
+              onClick={() => toggleFileBrowser(projectId)}
               aria-label={t('viewMode.files')}
               title={t('viewMode.files')}
             >

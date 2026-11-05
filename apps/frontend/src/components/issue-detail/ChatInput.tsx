@@ -187,7 +187,6 @@ export function ChatInput({
   const changedCount = changesSummary?.fileCount ?? 0
   const additions = changesSummary?.additions ?? 0
   const deletions = changesSummary?.deletions ?? 0
-  const changesRoot = (changesSummary as { root?: string } | null)?.root
   const toggleFileBrowserDrawer = useFileBrowserStore(s => s.toggleDrawer)
 
   // Fetch models for current engine, filtering out hidden ones
@@ -488,7 +487,7 @@ export function ChatInput({
             type="button"
             onClick={() => {
               if (onToggleFiles) onToggleFiles()
-              else if (projectId) toggleFileBrowserDrawer(projectId, changesRoot)
+              else if (projectId) toggleFileBrowserDrawer(projectId, issueId)
             }}
             className="inline-flex items-center justify-center rounded-lg px-1.5 py-1 text-muted-foreground bg-muted/40 hover:bg-muted/60 transition-all duration-200"
             title={t('diff.openFiles')}

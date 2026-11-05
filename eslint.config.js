@@ -26,6 +26,8 @@ export default antfu({
     'apps/frontend/src/components/ui/**',
     // Vendored verbatim from github.com/bkhq/lode (sdks/lode.ts) so updates stay a plain copy
     'apps/api/src/upgrade/lode-sdk.ts',
+    // Vendored from github.com/bkhq/filemanager (shadcn registry); upstream style kept (docs/decisions/2026-11-05-filemanager-vendored-style.md)
+    'apps/*/src/fm/**',
   ],
 }, {
   // Custom rule overrides

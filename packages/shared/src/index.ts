@@ -619,20 +619,7 @@ export interface AppEventMap {
   'heartbeat': { ts: string }
 }
 
-// ── File Browser ──────────────────────────────────────────
-
-export interface FileEntry {
-  name: string
-  type: 'file' | 'directory'
-  size: number
-  modifiedAt: string
-}
-
-export interface DirectoryListing {
-  path: string
-  type: 'directory'
-  entries: FileEntry[]
-}
+// ── File Editor ──────────────────────────────────────────
 
 export interface FileContent {
   path: string
@@ -643,12 +630,6 @@ export interface FileContent {
   isBinary: boolean
   /** mtime (ISO) of the version returned; send it back to save without clobbering. */
   modifiedAt: string
-}
-
-export type FileListingResult = DirectoryListing | FileContent
-
-export interface FileUploadResult {
-  uploaded: Array<{ name: string, size: number }>
 }
 
 // ── Process Manager ─────────────────────────────────────
