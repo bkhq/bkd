@@ -63,8 +63,20 @@ export const entrySchema = z.object({
   caps: capsSchema,
   /** Matched by an ignore rule such as .gitignore; set only by drivers that know. */
   ignored: z.boolean().optional(),
+  /** Stable id from drivers that have one; it survives renames and moves. */
+  id: z.string().optional(),
+  /** Host data shown by the UI (owner, shared …). */
+  /** Folders only: whether it holds folders; absent when the driver does not know cheaply. */
+  hasSubfolders: z.boolean().optional(),
+  extra: z.record(z.string(), z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+  ])).optional(),
 });
 export type FmEntry = z.infer<typeof entrySchema>;
+export type FmEntryExtra = NonNullable<FmEntry["extra"]>;
 
 export const mountInfoSchema = z.object({
   id: z.string(),
@@ -83,6 +95,13 @@ export const mountInfoSchema = z.object({
   uploadSessions: z.boolean(),
   /** Trash items older than this many days are deleted for good. */
   trashRetentionDays: z.number().int().positive().optional(),
+  /** Host grouping of spaces (personal, team, shared with me …). */
+  group: z.string().optional(),
+  /** Bytes used, and the limit when there is one. */
+  quota: z.object({
+    used: z.number().nonnegative(),
+    total: z.number().positive().optional(),
+  }).optional(),
 });
 export type FmMountInfo = z.infer<typeof mountInfoSchema>;
 

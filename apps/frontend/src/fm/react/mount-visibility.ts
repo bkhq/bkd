@@ -27,6 +27,20 @@ export function groupMountsByDriver(mounts: FmMountInfo[]): FmMountGroup[] {
   return [...groups].map(([driver, list]) => ({ driver, mounts: list }));
 }
 
+/** Mounts with a host `group`, by group in order of first appearance; ungrouped mounts are left out. */
+export function groupMountsBySpace(mounts: FmMountInfo[]): { group: string; mounts: FmMountInfo[] }[] {
+  const groups = new Map<string, FmMountInfo[]>();
+  for (const m of mounts) {
+    if (m.group === undefined)
+      continue;
+    groups.set(m.group, [
+      ...groups.get(m.group) ?? [],
+      m,
+    ]);
+  }
+  return [...groups].map(([group, list]) => ({ group, mounts: list }));
+}
+
 /** Parses a stored hidden list; anything but an array of strings reads as empty. */
 export function parseHidden(raw: string | null): string[] {
   try {

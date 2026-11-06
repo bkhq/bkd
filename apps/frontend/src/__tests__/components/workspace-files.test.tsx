@@ -16,8 +16,15 @@ vi.mock('@/fm/client/hooks', async () => ({
   useMounts: () => mocks.mounts,
 }))
 vi.mock('@/fm/react/file-manager', () => ({
-  FileManager: ({ client, initialMount }: { client: { baseUrl: string }, initialMount: string }) => (
-    <div>{`fm ${client.baseUrl} ${initialMount}`}</div>
+  FileManager: ({ client, initialMount, sidebar }: {
+    client: { baseUrl: string }
+    initialMount: string
+    sidebar: { hidden: string[] }
+  }) => (
+    <div>
+      <p>{`fm ${client.baseUrl} ${initialMount}`}</p>
+      <p>{`hidden ${sidebar.hidden.join(',')}`}</p>
+    </div>
   ),
 }))
 vi.mock('@/lib/event-bus', () => ({
@@ -46,6 +53,12 @@ describe('workspaceFiles', () => {
   it('opens on the issue worktree when the project serves one', () => {
     renderFiles(new QueryClient(), 'i1')
     expect(screen.getByText('fm /api/fm/p1 wt-i1')).toBeInTheDocument()
+  })
+
+  it('shows only the drive it opens on', () => {
+    mocks.mounts = { isPending: false, data: [{ id: 'project' }, { id: 'wt-i1' }, { id: 'wt-i2' }] }
+    renderFiles(new QueryClient(), 'i1')
+    expect(screen.getByText('hidden project,wt-i2')).toBeInTheDocument()
   })
 
   it('opens on the project directory for an issue without a worktree', () => {

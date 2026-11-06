@@ -1,7 +1,7 @@
 import type { Context, Env } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { FmAction, FmCaps, FmConflict, FmEntry, FmMountInfo, FmOpResult, FmTrashItem, FmUploadMode, FmUploadSession, FmUsage } from "../core/schema";
-import type { FmChangeContext, FmDriver, FmDriverEntry, FmUploadPart, FmWriteOptions } from "./driver";
+import type { FmChangeContext, FmDriver, FmDriverEntry, FmDriverTrash, FmDriverTrashItem, FmUploadPart, FmWriteOptions } from "./driver";
 import { Hono } from "hono";
 import { describeRoute, resolver, validator } from "hono-openapi";
 import { z } from "zod";
@@ -33,7 +33,7 @@ import {
 import { collect, zipStream } from "./archive";
 import { readAll } from "./driver";
 import { inlineType, mimeOf } from "./mime";
-import { dropTrashItem, expiresAt, getTrashItem, listTrash, moveToTrash, purgeExpiredItems, TRASH_DIR, trashedPath } from "./trash";
+import { folderTrash, TRASH_DIR } from "./trash";
 import { openZipEntry, readZipEntries } from "./zip";
 
 export interface FmMount {
@@ -58,6 +58,10 @@ export interface FmMount {
    * counts (commits, remote workspaces): uploads then go in one request each.
    */
   uploads?: boolean;
+  /** Host grouping of spaces in the drive tree ("Personal", "Shared with me" …). */
+  group?: string;
+  /** Usage of the space in bytes, shown by the drive; resolve it per request with the mounts. */
+  quota?: { used: number; total?: number };
 }
 
 /** Retention of a mount's trash in days, if any. */
@@ -76,7 +80,34 @@ export async function purgeExpired(mount: FmMount, now = Date.now()): Promise<nu
   // Read-only views only hide the trash folder; they never delete from it.
   if (!days || mount.readOnly || !mount.driver.caps.delete)
     return 0;
-  return (await purgeExpiredItems(mount.driver, days, now)).purged;
+  return (await purgeExpiredOf(mount, days, now)).purged;
+}
+
+/** The driver's own trash, else the router's `/.fm-trash` folder. */
+const trashOf = (m: FmMount): FmDriverTrash => m.driver.trash ?? folderTrash(m.driver);
+
+const DAY_MS = 86_400_000;
+
+/** When an item goes for good: the driver's own expiry, else the mount retention. */
+function expiryOf(item: FmDriverTrashItem, days: number | undefined): number | undefined {
+  return item.expiresAt ?? (days
+    ? item.deletedAt + days * DAY_MS
+    : undefined);
+}
+
+/** Deletes items past their expiry (best effort, per item); returns the rest and the count removed. */
+async function purgeExpiredOf(mount: FmMount, days: number, now: number) {
+  const trash = trashOf(mount);
+  const kept: FmDriverTrashItem[] = [];
+  let purged = 0;
+  for (const item of await trash.list()) {
+    const at = expiryOf(item, days);
+    if (at === undefined || at > now)
+      kept.push(item);
+    else
+      await trash.purge(item.id).then(() => purged++, () => kept.push(item));
+  }
+  return { kept, purged };
 }
 
 export interface FmLimits {
@@ -357,7 +388,7 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
 
   const hasTrash = (m: FmMount) => !!m.trash && mountCaps(m).delete;
   /** Paths inside the trash or uploads folder are never exposed by regular routes (also on read-only views of the same storage). */
-  const hidden = (m: FmMount, path: string) => isWithin(path, UPLOADS_DIR) || (!!m.trash && isWithin(path, TRASH_DIR));
+  const hidden = (m: FmMount, path: string) => isWithin(path, UPLOADS_DIR) || (!!m.trash && !m.driver.trash && isWithin(path, TRASH_DIR));
   const assertVisible = (m: FmMount, path: string) => {
     if (hidden(m, path))
       throw new FmError("INVALID", `Reserved name: ${path}`);
@@ -405,6 +436,15 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
       ...(e.ignored === true
         ? { ignored: true }
         : {}),
+      ...(e.id === undefined
+        ? {}
+        : { id: e.id }),
+      ...(e.extra === undefined
+        ? {}
+        : { extra: e.extra }),
+      ...(e.hasSubfolders === undefined
+        ? {}
+        : { hasSubfolders: e.hasSubfolders }),
     };
   };
 
@@ -544,7 +584,7 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
     // The source goes only after the whole copy landed.
     if (op === "move") {
       if (hasTrash(src.mount))
-        await moveToTrash(from, src.path, changeCtx(c));
+        await trashOf(src.mount).remove(src.path, changeCtx(c));
       else
         await from.remove(src.path, changeCtx(c));
     }
@@ -595,6 +635,19 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
                 trashRetentionDays: retentionOf(mount),
               }
             : {}),
+          ...(mount.group === undefined
+            ? {}
+            : { group: mount.group }),
+          ...(mount.quota === undefined
+            ? {}
+            : {
+                quota: {
+                  used: mount.quota.used,
+                  ...(mount.quota.total === undefined
+                    ? {}
+                    : { total: mount.quota.total }),
+                },
+              }),
         });
       }
     }
@@ -989,7 +1042,7 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
           if (t.path === "/")
             throw new FmError("INVALID", "Cannot delete the root");
           if (hasTrash(t.mount) && !req.permanent) {
-            event.trashId = await moveToTrash(t.mount.driver, t.path, changeCtx(c));
+            event.trashId = await trashOf(t.mount).remove(t.path, changeCtx(c));
             return { trashId: event.trashId };
           }
           await t.mount.driver.remove(t.path, changeCtx(c));
@@ -1252,17 +1305,25 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
     const mount = await trashMount(c, c.req.param("mount"));
     const days = retentionOf(mount);
     const all = days
-      ? (await purgeExpiredItems(mount.driver, days)).kept
-      : await listTrash(mount.driver);
+      ? (await purgeExpiredOf(mount, days, Date.now())).kept
+      : await trashOf(mount).list();
     const items: FmTrashItem[] = [];
     for (const item of all) {
       if (await resolve(c, mount.id, item.path).then(() => true, () => false)) {
-        items.push(days
-          ? {
-              ...item,
-              expiresAt: expiresAt(item, days),
-            }
-          : item);
+        const at = expiryOf(item, days);
+        items.push({
+          id: item.id,
+          path: item.path,
+          name: item.name,
+          kind: item.kind,
+          size: item.size,
+          deletedAt: new Date(item.deletedAt).toISOString(),
+          ...(at === undefined
+            ? {}
+            : {
+                expiresAt: new Date(at).toISOString(),
+              }),
+        });
       }
     }
     return c.json({ items });
@@ -1280,6 +1341,7 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
   }), v("json", trashIdsSchema), async (c) => {
     const mount = await trashMount(c, c.req.param("mount"));
     const d = mount.driver;
+    const trash = trashOf(mount);
     const results: FmOpResult[] = [];
     for (const id of c.req.valid("json").ids) {
       const event: EventDraft = {
@@ -1289,12 +1351,11 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
         trashId: id,
       };
       await settle(c, results, id, event, async () => {
-        const item = await getTrashItem(d, id);
+        const item = await trash.get(id);
         event.path = item.path;
         const t = await resolve(c, mount.id, item.path, "write");
         const to = await destination(d, dirname(t.path), item.name, "rename");
-        const entry = toEntry(t, await d.move(trashedPath(item), to, changeCtx(c)));
-        await dropTrashItem(d, id, changeCtx(c));
+        const entry = toEntry(t, await trash.restore(id, to, changeCtx(c)));
         event.to = to;
         return { entry };
       });
@@ -1313,8 +1374,8 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
     },
   }), v("json", trashIdsSchema.partial()), async (c) => {
     const mount = await trashMount(c, c.req.param("mount"));
-    const d = mount.driver;
-    const ids = c.req.valid("json").ids ?? (await listTrash(d)).map(i => i.id);
+    const trash = trashOf(mount);
+    const ids = c.req.valid("json").ids ?? (await trash.list()).map(i => i.id);
     const results: FmOpResult[] = [];
     for (const id of ids) {
       const event: EventDraft = {
@@ -1324,10 +1385,10 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
         trashId: id,
       };
       await settle(c, results, id, event, async () => {
-        const item = await getTrashItem(d, id);
+        const item = await trash.get(id);
         event.path = item.path;
         await resolve(c, mount.id, item.path, "delete");
-        await dropTrashItem(d, id, changeCtx(c));
+        await trash.purge(id, changeCtx(c));
         return {};
       });
     }

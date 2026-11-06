@@ -12,8 +12,9 @@ const plugins = [markdownPlugin()]
 
 /**
  * The file manager over a project's directories (`/api/fm/:projectId`). It
- * opens on the issue's worktree when the issue has one, else on the project
- * directory, and refreshes its listings when an issue's changes settle.
+ * shows one drive: the issue's worktree when the issue has one, else the
+ * project directory (with one drive fm drops "Manage drives"), and refreshes
+ * its listings when an issue's changes settle.
  */
 export function WorkspaceFiles({ projectId, issueId }: { projectId: string, issueId?: string | null }) {
   const { i18n } = useTranslation()
@@ -30,6 +31,7 @@ export function WorkspaceFiles({ projectId, issueId }: { projectId: string, issu
   if (mounts.isPending) return null
   const worktree = issueId ? `wt-${issueId}` : undefined
   const initialMount = mounts.data?.some(m => m.id === worktree) ? worktree : 'project'
+  const hidden = (mounts.data ?? []).map(m => m.id).filter(id => id !== initialMount)
 
   return (
     <FileManager
@@ -38,6 +40,7 @@ export function WorkspaceFiles({ projectId, issueId }: { projectId: string, issu
       labels={i18n.language.startsWith('zh') ? zhLabels : enLabels}
       initialMount={initialMount}
       plugins={plugins}
+      sidebar={{ hidden }}
       storageKey="bkd-fm"
       className="flex-1 rounded-none border-0"
     />

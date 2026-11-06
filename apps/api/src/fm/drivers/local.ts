@@ -1,6 +1,6 @@
 import type { Stats } from "node:fs";
 import type { FmChange, FmChanges, FmDriver, FmDriverEntry, FmMultipart, FmSearchOptions, FmUploadPart, FmWriteOptions } from "../server/driver";
-import { cp, link, lstat, mkdir, open, readdir, realpath, rename, rm, stat, unlink } from "node:fs/promises";
+import { cp, link, lstat, mkdir, open, opendir, readdir, readFile, realpath, rename, rm, stat, unlink } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import process from "node:process";
 import { FmError } from "../core/errors";
@@ -116,6 +116,24 @@ export function localDriver(opts: FmLocalDriverOptions): FmDriver {
     etag: etagOf(st),
   });
 
+  /** Whether a folder holds folders, reading at most 256 entries; unknown past that or at a symlink. */
+  const hasSubfolders = async (a: string): Promise<boolean | undefined> => {
+    let seen = 0;
+    try {
+      for await (const d of await opendir(a)) {
+        if (opts.showHidden === false && d.name.startsWith("."))
+          continue;
+        if (d.isDirectory())
+          return true;
+        if (d.isSymbolicLink() || ++seen >= 256)
+          return undefined;
+      }
+      return false;
+    }
+    catch {
+      return undefined;
+    }
+  };
   const statAbs = async (path: string, a: string) => {
     try {
       return toEntry(path, await stat(a, { bigint: true }) as unknown as Stats & { mtimeNs: bigint });
@@ -275,6 +293,8 @@ export function localDriver(opts: FmLocalDriverOptions): FmDriver {
   };
   /** Above this many changed files, line counts are skipped. */
   const NUMSTAT_MAX = 2000;
+  /** Untracked files larger than this get no line count. */
+  const UNTRACKED_COUNT_MAX = 1024 * 1024;
   const changes: FmChanges = {
     async list() {
       const base = await gitBase();
@@ -351,6 +371,31 @@ export function localDriver(opts: FmLocalDriverOptions): FmDriver {
           if (c && add !== "-") {
             c.additions = Number(add);
             c.deletions = Number(del);
+          }
+        }
+        // git diff leaves untracked files out; count their lines as a new file would, skipping binaries.
+        for (const c of out.values()) {
+          if (c.status !== "untracked")
+            continue;
+          try {
+            const a = await abs(c.path);
+            if ((await lstat(a)).size > UNTRACKED_COUNT_MAX)
+              continue;
+            const bytes = await readFile(a);
+            if (bytes.includes(0))
+              continue;
+            let lines = 0;
+            for (const b of bytes) {
+              if (b === 10)
+                lines++;
+            }
+            c.additions = bytes.length > 0 && bytes.at(-1) !== 10
+              ? lines + 1
+              : lines;
+            c.deletions = 0;
+          }
+          catch {
+            // Gone or unreadable since git listed it: no count.
           }
         }
       }
@@ -563,6 +608,15 @@ export function localDriver(opts: FmLocalDriverOptions): FmDriver {
         catch {
           // Dangling symlinks and entries removed mid-listing are skipped.
         }
+      }
+      // Folder hints, a few directories at a time.
+      const dirs = out.filter(e => e.kind === "dir");
+      for (let i = 0; i < dirs.length; i += 32) {
+        await Promise.all(dirs.slice(i, i + 32).map(async (e) => {
+          const has = await hasSubfolders(join(dir, e.name));
+          if (has !== undefined)
+            e.hasSubfolders = has;
+        }));
       }
       if (opts.gitIgnore && out.length > 0) {
         const ignored = await gitIgnored(out.map(e => e.path.slice(1)));

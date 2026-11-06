@@ -213,6 +213,14 @@ export const enLabels = {
   openPreview: "Open preview",
   openPreviewToSide: "Open preview to the side",
   reopenSource: "Reopen as source",
+  newMenu: "New",
+  uploadMenu: "Upload",
+  quotaUsed: (used: string, total: string) => `${used} of ${total} used`,
+  quotaUsedOnly: (used: string) => `${used} used`,
+  moveTo: "Move to…",
+  copyTo: "Copy to…",
+  moveHere: "Move here",
+  copyHere: "Copy here",
 };
 
 export type FmLabels = typeof enLabels;
@@ -412,4 +420,12 @@ export const zhLabels: FmLabels = {
   openPreview: "以预览方式打开",
   openPreviewToSide: "在侧边打开预览",
   reopenSource: "以源文件格式重新打开",
+  newMenu: "新建",
+  uploadMenu: "上传",
+  quotaUsed: (used, total) => `已用 ${used}，共 ${total}`,
+  quotaUsedOnly: used => `已用 ${used}`,
+  moveTo: "移动到…",
+  copyTo: "复制到…",
+  moveHere: "移动到这里",
+  copyHere: "复制到这里",
 };

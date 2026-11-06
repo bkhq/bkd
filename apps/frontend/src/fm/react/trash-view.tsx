@@ -48,6 +48,8 @@ export function TrashView({ mount, mountLabel, retentionDays, client, labels, on
       : 1));
     return list;
   }, [trash.data, sort]);
+  // The mount's retention, or a driver that expires items on its own schedule.
+  const showExpiry = !!retentionDays || items.some(i => i.expiresAt);
   const order = useMemo(() => items.map(i => i.id), [items]);
   // Ids that left the trash (restored, purged, expired) drop out of the selection.
   const selected = order.filter(id => selection.paths.has(id));
@@ -160,7 +162,7 @@ export function TrashView({ mount, mountLabel, retentionDays, client, labels, on
                     <th className="px-3 py-1.5 font-normal">{sortHeader("name", labels.name)}</th>
                     <th className="px-3 py-1.5 font-normal">{labels.originalLocation}</th>
                     <th className="px-3 py-1.5 font-normal">{sortHeader("deletedAt", labels.deletedAt)}</th>
-                    {retentionDays && <th className="px-3 py-1.5 font-normal">{labels.expires}</th>}
+                    {showExpiry && <th className="px-3 py-1.5 font-normal">{labels.expires}</th>}
                     <th className="px-3 py-1.5 text-right font-normal">{labels.size}</th>
                     <th className="w-20" />
                   </tr>
@@ -196,7 +198,7 @@ export function TrashView({ mount, mountLabel, retentionDays, client, labels, on
                             : dirname(item.path)}`}
                         </td>
                         <td className="px-3 py-1 text-muted-foreground">{new Date(item.deletedAt).toLocaleString()}</td>
-                        {retentionDays && (
+                        {showExpiry && (
                           <td className="px-3 py-1 text-muted-foreground">
                             {left === undefined
                               ? ""

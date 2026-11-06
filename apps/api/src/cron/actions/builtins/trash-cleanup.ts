@@ -2,7 +2,7 @@ import { readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { decodeTime, isValid } from 'ulid'
 import { localDriver } from '@/fm/drivers/local'
-import { purgeExpiredItems } from '@/fm/server/trash'
+import { purgeExpired } from '@/fm/server/router'
 import { logger } from '@/logger'
 import { DATA_DIR } from '@/root'
 import { fmDataDir, TRASH_RETENTION_DAYS } from '@/routes/fm'
@@ -31,9 +31,8 @@ export async function runTrashCleanup(now = Date.now()): Promise<string> {
   const base = fmDataDir()
   for (const dir of await readdir(base, { withFileTypes: true }).catch(() => [])) {
     if (!dir.isDirectory()) continue
-    const { purged } = await purgeExpiredItems(localDriver({ root: join(base, dir.name) }), TRASH_RETENTION_DAYS, now)
-      .catch(() => ({ purged: 0 }))
-    cleaned += purged
+    const mount = { id: dir.name, label: dir.name, driver: localDriver({ root: join(base, dir.name) }), trash: { retentionDays: TRASH_RETENTION_DAYS } }
+    cleaned += await purgeExpired(mount, now).catch(() => 0)
   }
   if (cleaned > 0) logger.info({ cleaned }, 'trash_cleanup_done')
   return `cleaned ${cleaned} entries`

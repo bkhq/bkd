@@ -1179,3 +1179,13 @@ are gone; `/api/fm/:projectId/*` serves the project directory and each issue wor
 in `data/fm/<hash>/`, never in the project; `trash-cleanup` purges both that trash and the old
 `data/trash/files/`. The Review tab is unchanged. Checked in Chromium: Markdown preview, image zoom and the PDF
 viewer under the content CSP.
+
+## 2026-11-06 10:30 [progress]
+
+Re-copied the vendored file manager from `bkhq/filemanager` `b6790c4` (was `8d95a43`). `<FileManager />` is split
+into shared state hooks and `manager-*` parts. Two upstream changes matter here: optional driver-owned trash, and
+"Manage drives" now shows only when more than one drive is visible. BKD's `workspaceDriver` still uses the router's
+folder trash, redirected to `data/fm/<hash>/`; `localDriver` has no trash of its own. `trash-cleanup` now calls the
+router's `purgeExpired(mount)`, which replaces the removed `purgeExpiredItems`. `WorkspaceFiles` hides every drive
+except the one it opens on (the issue's worktree, else the project), so the sidebar shows only that drive and no
+"Manage drives".
