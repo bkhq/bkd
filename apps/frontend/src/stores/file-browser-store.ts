@@ -23,15 +23,12 @@ interface FileBrowserStore {
   projectId: string | null
   /** Issue whose worktree the drawer opens on, when it has one. */
   issueId: string | null
-  /** Soft-wrap long lines in the skill editor. */
-  wrap: boolean
   close: () => void
   /** Toggle the drawer for a project, opening on the issue's worktree when given. */
   toggleDrawer: (projectId: string, issueId?: string) => void
   minimize: () => void
   toggleFullscreen: () => void
   setWidth: (w: number) => void
-  toggleWrap: () => void
 }
 
 export { MIN_WIDTH as FILE_BROWSER_MIN_WIDTH }
@@ -44,7 +41,6 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
   width: Math.round(getViewportWidth() * DEFAULT_WIDTH_RATIO),
   projectId: null,
   issueId: null,
-  wrap: false,
 
   close: () => set({ isOpen: false }),
   toggleDrawer: (projectId, issueId) =>
@@ -57,7 +53,6 @@ export const useFileBrowserStore = create<FileBrowserStore>(set => ({
   minimize: () => set({ isOpen: false, isMinimized: true, isFullscreen: false }),
   toggleFullscreen: () => set(s => ({ isFullscreen: !s.isFullscreen })),
   setWidth: w => set({ width: clampWidth(w) }),
-  toggleWrap: () => set(s => ({ wrap: !s.wrap })),
 }))
 
 // Re-clamp width on window resize (HMR-safe via import.meta.hot.dispose)

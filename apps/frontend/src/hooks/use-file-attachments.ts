@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { useDropzone } from 'react-dropzone'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_MAX_TOTAL_SIZE = 1024 * 1024 * 1024 // 1 GB
@@ -6,7 +7,9 @@ const DEFAULT_MAX_FILES = 10
 
 /**
  * Shared file-attachment state + handlers used by ChatInput (follow-up) and
- * CreateIssueDialog. Keeps the picker/drag/paste/preview behaviour aligned.
+ * CreateIssueDialog. Keeps the picker/drag/paste/preview behaviour aligned; drop and
+ * picker go through react-dropzone (spread `getRootProps` on the drop area and
+ * `getInputProps` on a hidden input), paste through `handlePaste`.
  *
  * Limits mirror server-side `uploads.ts` constants (total size across all files). Errors auto-clear after 5s.
  */
@@ -17,9 +20,7 @@ export function useFileAttachments(opts: { maxTotalSize?: number, maxFiles?: num
 
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const [attachError, setAttachError] = useState<string | null>(null)
-  const [isDragOver, setIsDragOver] = useState(false)
   const [previewFile, setPreviewFile] = useState<File | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const addFiles = useCallback(
     (incoming: File[]) => {
@@ -68,10 +69,6 @@ export function useFileAttachments(opts: { maxTotalSize?: number, maxFiles?: num
     setPreviewFile(null)
   }, [])
 
-  const openPicker = useCallback(() => {
-    fileInputRef.current?.click()
-  }, [])
-
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
       const items = e.clipboardData.items
@@ -90,53 +87,29 @@ export function useFileAttachments(opts: { maxTotalSize?: number, maxFiles?: num
     [addFiles],
   )
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(true)
-  }, [])
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(false)
-  }, [])
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      setIsDragOver(false)
-      const files = [...e.dataTransfer.files]
+  // Limits live in addFiles: dropzone's maxFiles/maxSize apply per drop, not per draft
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+    onDrop: (files) => {
       if (files.length > 0) addFiles(files)
     },
-    [addFiles],
-  )
-
-  const handleFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = [...e.target.files ?? []]
-      if (files.length > 0) addFiles(files)
-      // Reset so the same file can be re-selected later
-      e.target.value = ''
-    },
-    [addFiles],
-  )
+    noClick: true,
+    noKeyboard: true,
+  })
 
   return {
     attachedFiles,
     setAttachedFiles,
     attachError,
     setAttachError,
-    isDragOver,
+    isDragOver: isDragActive,
     previewFile,
     setPreviewFile,
-    fileInputRef,
     addFiles,
     removeFile,
     reset,
-    openPicker,
+    openPicker: open,
     handlePaste,
-    handleDragOver,
-    handleDragLeave,
-    handleDrop,
-    handleFileSelect,
+    getRootProps,
+    getInputProps,
   }
 }

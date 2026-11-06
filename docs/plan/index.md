@@ -89,3 +89,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261102-1023-file-browser-polish File browser fixes, recoverable delete, create/rename, quick open, virtual tree**](20261102-1023-file-browser-polish.md) `2026-11-02`
 - [x] [**20261102-1100-browser-notifications Browser notifications for review and new messages**](20261102-1100-browser-notifications.md) `2026-11-02`
 - [x] [**20261105-1053-adopt-filemanager Replace the file browser with bkhq/filemanager**](20261105-1053-adopt-filemanager.md) `2026-11-05`
+- [x] [**20261106-0745-filemanager-rollout Roll bkhq/filemanager out across BKD's file UI**](20261106-0745-filemanager-rollout.md) `2026-11-06`

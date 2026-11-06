@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { api, del, expectError, expectSuccess, get, post } from './helpers'
+import { del, expectError, expectSuccess, get, post } from './helpers'
+import app from '@/app'
 /**
  * Skills management API: skills are read from the agent skill directories under
  * HOME and the project, never through an engine CLI.
@@ -32,8 +33,10 @@ function writeSkill(dir: string, name: string, description: string, body = 'Body
   writeFileSync(join(dir, name, 'SKILL.md'), `---\nname: ${name}\ndescription: ${description}\n---\n\n${body}\n`)
 }
 
-function put<T>(path: string, body: unknown) {
-  return api<T>('PUT', path, body)
+/** Status of a write to `SKILL.md` through the skills file manager. */
+async function fmWrite(scope: string, mount: string) {
+  const res = await app.request(`http://localhost/api/skills/fm/${scope}/m/${encodeURIComponent(mount)}/write?path=/SKILL.md`, { method: 'PUT', body: 'x' })
+  return res.status
 }
 
 beforeAll(async () => {
@@ -95,33 +98,6 @@ describe('GET /api/skills', () => {
   })
 })
 
-describe('skill files', () => {
-  test('lists files and reads one', async () => {
-    const files = expectSuccess(await get<{ path: string, type: string, size: number }[]>('/api/skills/global-agents/pma/files'))
-    expect(files).toEqual([{ path: 'SKILL.md', type: 'file', size: expect.any(Number) }])
-    const file = expectSuccess(await get<{ content: string }>('/api/skills/global-agents/pma/file?path=SKILL.md'))
-    expect(file.content).toContain('Managed body')
-  })
-
-  test('saves a local skill file, creating new files inside the skill', async () => {
-    expectSuccess(await put('/api/skills/global-agents/local-notes/file', { path: 'SKILL.md', content: 'edited' }))
-    expect(readFileSync(join(home, '.agents/skills/local-notes/SKILL.md'), 'utf8')).toBe('edited')
-    expectSuccess(await put('/api/skills/global-agents/local-notes/file', { path: 'references/a.md', content: 'ref' }))
-    expect(readFileSync(join(home, '.agents/skills/local-notes/references/a.md'), 'utf8')).toBe('ref')
-  })
-
-  test('refuses to write a managed skill, which the CLI would overwrite', async () => {
-    expectError(await put('/api/skills/global-agents/pma/file', { path: 'SKILL.md', content: 'x' }), 409)
-  })
-
-  test('refuses paths outside the skill and invalid names', async () => {
-    expectError(await get('/api/skills/global-agents/pma/file?path=../local-notes/SKILL.md'), 400)
-    expectError(await put('/api/skills/global-agents/local-notes/file', { path: '../../escape.md', content: 'x' }), 400)
-    expectError(await get('/api/skills/global-agents/..%2Fx/files'), 400)
-    expectError(await get('/api/skills/global-agents/missing/files'), 404)
-  })
-})
-
 describe('create, copy, delete', () => {
   test('creates a global skill in the shared store and links it for Claude Code', async () => {
     const skill = expectSuccess(await post<Skill>('/api/skills', { scope: 'global', name: 'new-skill', description: 'Does things' }))
@@ -166,7 +142,7 @@ describe('project directory that is HOME', () => {
     const homeProject = expectSuccess(await post<{ id: string }>('/api/projects', { name: 'Home Project', directory: home }))
     const data = expectSuccess(await get<{ skills: Skill[] }>(`/api/skills?projectId=${homeProject.id}`))
     expect(data.skills.filter(s => s.scope === 'project')).toEqual([])
-    expectError(await put('/api/skills/project-agents/pma/file', { path: 'SKILL.md', content: 'x', projectId: homeProject.id }), 404)
+    expect(await fmWrite(homeProject.id, 'project-agents~pma')).toBe(404)
   })
 })
 
@@ -207,7 +183,7 @@ describe('unreadable lock', () => {
       const store = data.skills.filter(s => s.location === 'global-agents')
       expect(store.length).toBeGreaterThan(0)
       expect(store.every(s => s.managed)).toBe(true)
-      expectError(await put('/api/skills/global-agents/local-notes/file', { path: 'SKILL.md', content: 'x' }), 409)
+      expect(await fmWrite('global', 'global-agents~local-notes')).toBe(403)
       expectError(await del('/api/skills/global-agents/local-notes'), 409)
     } finally {
       delete process.env.XDG_STATE_HOME
@@ -244,8 +220,7 @@ describe('project store symlinks', () => {
       expect(data.skills.find(s => s.name === 'escape')).toBeUndefined()
       // Links inside the project (.claude/skills -> ../../.agents/skills) still count
       expect(data.skills.find(s => s.name === 'proj-new')?.agents.sort()).toEqual(['claude-code', 'codex'])
-      expectError(await get(`/api/skills/project-agents/escape/file?path=SKILL.md&projectId=${projectId}`), 404)
-      expectError(await put('/api/skills/project-agents/escape/file', { path: 'SKILL.md', content: 'x', projectId }), 404)
+      expect(await fmWrite(projectId, 'project-agents~escape')).toBe(404)
       expect(readFileSync(join(outside, 'escape/SKILL.md'), 'utf8')).toContain('Outside the project')
     } finally {
       rmSync(join(projectDir, '.agents/skills/escape'), { force: true })
@@ -285,7 +260,7 @@ describe('symlinked Claude stores', () => {
     try {
       const data = expectSuccess(await get<{ skills: Skill[] }>(`/api/skills?projectId=${created.id}`))
       expect(data.skills.find(s => s.name === 'external')).toBeUndefined()
-      expectError(await put('/api/skills/project-claude/external/file', { path: 'SKILL.md', content: 'x', projectId: created.id }), 404)
+      expect(await fmWrite(created.id, 'project-claude~external')).toBe(404)
     } finally {
       rmSync(project, { recursive: true, force: true })
       rmSync(outside, { recursive: true, force: true })
@@ -302,7 +277,8 @@ describe('copy and create edge cases', () => {
     try {
       expectSuccess(await post('/api/skills/global-agents/has-link/copy', { name: 'has-link-copy' }))
       expect(lstatSync(join(home, '.agents/skills/has-link-copy/secret.txt')).isSymbolicLink()).toBe(true)
-      expectError(await get('/api/skills/global-agents/has-link-copy/file?path=secret.txt'), 400)
+      const read = await app.request(`http://localhost/api/skills/fm/global/m/${encodeURIComponent('global-agents~has-link-copy')}/read?path=/secret.txt`)
+      expect(read.status).toBe(404)
     } finally {
       for (const n of ['has-link', 'has-link-copy']) rmSync(join(home, '.agents/skills', n), { recursive: true, force: true })
       rmSync(join(home, '.claude/skills/has-link-copy'), { force: true })
@@ -381,7 +357,7 @@ describe('lock keys the CLI sanitized into folder names', () => {
     try {
       const data = expectSuccess(await get<{ skills: Skill[] }>('/api/skills'))
       expect(data.skills.find(s => s.name === 'local-notes')).toMatchObject({ managed: true, source: 'me/notes' })
-      expectError(await put('/api/skills/global-agents/local-notes/file', { path: 'SKILL.md', content: 'x' }), 409)
+      expect(await fmWrite('global', 'global-agents~local-notes')).toBe(403)
     } finally {
       delete process.env.XDG_STATE_HOME
       rmSync(state, { recursive: true, force: true })

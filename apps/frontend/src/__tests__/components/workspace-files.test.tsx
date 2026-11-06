@@ -16,8 +16,8 @@ vi.mock('@/fm/client/hooks', async () => ({
   useMounts: () => mocks.mounts,
 }))
 vi.mock('@/fm/react/file-manager', () => ({
-  FileManager: ({ client, initialMount }: { client: { baseUrl: string }, initialMount: string }) => (
-    <div>{`fm ${client.baseUrl} ${initialMount}`}</div>
+  FileManager: ({ client, initialMount, plugins }: { client: { baseUrl: string }, initialMount: string, plugins: { id: string }[] }) => (
+    <div data-plugins={plugins.map(p => p.id).join(',')}>{`fm ${client.baseUrl} ${initialMount}`}</div>
   ),
 }))
 vi.mock('@/lib/event-bus', () => ({
@@ -51,6 +51,11 @@ describe('workspaceFiles', () => {
   it('opens on the project directory for an issue without a worktree', () => {
     renderFiles(new QueryClient(), 'i2')
     expect(screen.getByText('fm /api/fm/p1 project')).toBeInTheDocument()
+  })
+
+  it('shows Markdown previews and git-change reviews', () => {
+    renderFiles(new QueryClient(), 'i1')
+    expect(screen.getByText('fm /api/fm/p1 wt-i1')).toHaveAttribute('data-plugins', 'markdown,review')
   })
 
   it('waits for the mounts before choosing one', () => {

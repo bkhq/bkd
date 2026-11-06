@@ -783,18 +783,6 @@ export interface SkillInfo {
   agents: SkillAgent[]
 }
 
-export interface SkillFileEntry {
-  path: string
-  type: 'file' | 'dir'
-  size: number
-}
-
-export interface SkillFile {
-  path: string
-  content: string
-  binary: boolean
-}
-
 /** Installed skill vs its source on GitHub. */
 export interface SkillUpdateStatus {
   location: SkillLocation

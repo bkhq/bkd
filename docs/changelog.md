@@ -1179,3 +1179,132 @@ are gone; `/api/fm/:projectId/*` serves the project directory and each issue wor
 in `data/fm/<hash>/`, never in the project; `trash-cleanup` purges both that trash and the old
 `data/trash/files/`. The Review tab is unchanged. Checked in Chromium: Markdown preview, image zoom and the PDF
 viewer under the content CSP.
+
+## 2026-11-06 02:55 [progress]
+
+Completed `20261106-0233-react-dropzone-uploads`: chat and issue-creation attachments (`useFileAttachments`) and
+the skill upload dialog use `react-dropzone` instead of hand-written drag handlers and hidden file inputs. Paste
+to attach is unchanged; the skill dialog filters `.zip/.skill/.md` through dropzone's `accept`.
+`bun run check` showed two API failures that already reproduce on `main` (file manager); recorded as
+`20261106-0250-fm-failing-tests`.
+
+## 2026-11-06 03:40 [progress]
+
+Completed `20261106-0310-update-filemanager`: both workspaces declare the `@bkhq` registry
+(`https://bkhq.github.io/filemanager/next/r/{name}.json`); `apps/api/components.json` is a minimal config (no
+Tailwind CSS) so `shadcn add @bkhq/fm-server @bkhq/fm-driver-contract @bkhq/fm-driver-local` runs there. The API
+fm sources already matched upstream; the frontend picked up upstream's tree viewport fix (`fm-react`:
+`file-manager.tsx`, `file-tree.tsx`, `scroll.ts`). The CLI also rewrote BKD's customized `components/ui/*`
+and pinned dependency ranges; those changes were reverted — re-check after every `shadcn add @bkhq/...`.
+
+## 2026-11-06 03:40 [pitfall]
+
+`20261106-0250-fm-failing-tests` closed: the two fm API failures are Bun 1.4.0 bugs, fixed in 1.4.2 (CI, release
+and `docs/bkd.lode.toml` pin 1.4.2; an install whose own `lode.toml` still downloads 1.4.0 is affected at runtime). On 1.4.0 `new Response(Bun.file(p).slice(a, b).stream()).arrayBuffer()` — and an HTTP
+response built that way — carries the whole file, and `Bun.write(path, new Response(stream.pipeThrough(...)))`
+never settles — in the fm router that breaks Range reads (206 with the whole file) and hangs raw `write`.
+Run BKD and its API suite on Bun >= 1.4.2. Agents spawned by BKD inherit BKD's runtime first on `PATH`.
+The local install was moved to Bun 1.4.4 (`[runtime] version`, which lets lode use the `bun` on `PATH`); `bun run check`
+is green there.
+
+## 2026-11-06 03:30 [progress]
+
+Workspace panel has one width: it opens at 400px (capped at 60% of the viewport) whether it is shown from the
+side toggle or by opening Files / Review, and switching tabs no longer resizes it (`ensureWidth` removed, which
+widened the panel to 640px for the Review tree, so the size depended on how the panel was opened).
+
+## 2026-11-06 06:00 [progress]
+
+Completed `20261106-0540-fm-review-plugin` (step 1 of moving Review onto bkhq/filemanager): project and worktree
+mounts run the local driver with `gitChanges` (diff against `HEAD`, untracked files included), and the Files tab
+loads `@bkhq/fm-plugin-review` (installed with the shadcn CLI; existing `components/ui` kept, dependency ranges
+restored). BKD's Review tab, `DiffPanel` and `/changes` are unchanged until the two are compared.
+
+## 2026-11-06 06:10 [progress]
+
+Synced the vendored file manager with upstream `bkhq/filemanager` `e37da41` through the `@bkhq` registry: only
+`fm-react`'s `file-manager.tsx` changed (explorer actions show on hover, and by default on narrow trees and
+touch screens). The CLI's rewrite of `components/ui/*` and dependency ranges was reverted again.
+
+## 2026-11-06 06:20 [progress]
+
+Completed `20261106-0620-review-tab-fm`: the workspace Review tab shows fm's review view (`WorkspaceReview` in
+`components/files/WorkspaceFiles.tsx`, same mount and workspace gate as the Files tab; opening a file switches to
+Files). The kanban `IssuePanel` still uses BKD's `DiffPanel`.
+
+## 2026-11-06 06:30 [progress]
+
+Synced the vendored file manager with upstream `bkhq/filemanager` `6ee5b6a` (registry, shadcn CLI): `fm-react`
+gains `sidebar.drives: false` (a tree of only the Changes / Starred / Recent sections — changes only with
+`features.starred` / `features.recent` off) and line-count totals on the Changes header; `fm-driver-local` counts
+lines of untracked text files up to 1 MiB. CLI rewrites of `components/ui/*` and dependency ranges reverted.
+
+## 2026-11-06 06:50 [decision]
+
+Completed `20261106-0640-single-workspace-panel`: the issue chat's right panel is one file manager, as in the
+upstream demo — its tree carries a Changes section (with line totals) above the drives, a changed file opens as a
+diff and "Review all changes" stacks them. No tab bar, launcher or Review tab; the folder and "N files +x −y"
+buttons in the chat input both toggle the panel (the latter reads as active while it is open).
+`workspace-panel-store` keeps only `isOpen` / `isMaximized` / `width`. This supersedes
+`20261106-0620-review-tab-fm`: `WorkspaceReview` and its test are removed, as are the unused `workspace.*` tab keys.
+The kanban `IssuePanel` still uses `DiffPanel`.
+
+## 2026-11-06 07:15 [decision]
+
+Completed `20261106-0659-skills-page-fm`: the Skills page shows a skill's files in the vendored file manager
+(`components/skills/SkillFiles.tsx`) served by `routes/skills-fm.ts` at `/api/skills/fm/:projectId`, one mount per
+skill (`<location>~<name>`). Managed skills, and project skills of a project whose skill store links outside it,
+are read-only mounts. `workspaceDriver()` takes `{ git }` (off for skills). Removed: the
+`GET /api/skills/:location/:name/files` and `GET|PUT …/file` routes, their schemas, service functions and shared
+types, the skill file hooks and API client functions, and the components only the old editor used
+(`FileEditor`, `CodeEditor`, `MarkdownRenderer`, `IconButton`, the file browser store's `wrap`) with their i18n keys.
+Single-file deletes now go to the fm trash (`data/fm/<hash>/`); deleting a whole skill still uses
+`data/trash/skills/`. The old 500-file / 1 MB caps are gone.
+
+## 2026-11-06 07:35 [progress]
+
+Follow-ups to `20261106-0659-skills-page-fm`:
+
+- The Skills page sidebar was empty: `sidebar.drives: false` drops the mount tree, and with Starred / Recent off and
+  no review on skill mounts nothing was left. `SkillFiles` now keeps the drives and passes every other skill's mount
+  in `sidebar.hidden`, so the tree shows the open skill's folders (and opens in the split layout).
+- Local divergence in the vendored `fm/react/file-manager.tsx`: context menus go through a new exported
+  `tidyMenu()`, which drops separators left at either end or side by side by hidden items (a read-only file's menu
+  ended in a separator because Delete was hidden). To be sent upstream to bkhq/filemanager; re-copying the registry
+  before that lands would drop it.
+
+## 2026-11-06 08:00 [progress]
+
+Synced the vendored file manager with upstream `bkhq/filemanager` `37a643e` (registry contents written to their
+targets; no shadcn CLI run, so `components/ui/*` and dependency ranges were untouched): `fm-react` gains
+`tidy-menu.ts` (upstream `1d73deb`, the context-menu separator fix) and hides Manage drives when only one drive is
+visible (`37a643e`; the Skills page, which hides every other skill's mount, no longer shows it). This replaces the
+local `tidyMenu()` divergence recorded at 07:35 and its BKD-side test; every vendored fm file now matches the
+registry again.
+
+## 2026-11-06 08:10 [decision]
+
+Merged this branch's file-manager tracking into one task and plan, `20261106-0745-filemanager-rollout`. The
+merged tasks `20261106-0233-react-dropzone-uploads`, `20261106-0250-fm-failing-tests`,
+`20261106-0310-update-filemanager`, `20261106-0540-fm-review-plugin`, `20261106-0620-review-tab-fm`,
+`20261106-0640-single-workspace-panel` and `20261106-0659-skills-page-fm`, and the plans with the IDs
+`20261106-0233-react-dropzone-uploads`, `20261106-0540-fm-review-plugin` and `20261106-0659-skills-page-fm`, were
+never committed, so their detail files and index lines were removed rather than marked `[d]`; the entries above
+that name them remain their history. `20261106-0600-dev-hot-reload-pid-lock` stays a separate open task.
+
+## 2026-11-06 08:20 [progress]
+
+Dropped the eleven `@codemirror/lang-*` direct dependencies (css, go, html, javascript, json, markdown, python, rust,
+sql, xml, yaml) from `apps/frontend/package.json`; only the removed `CodeEditor` imported them. The file manager
+loads languages through `@codemirror/language-data`, which declares them (and eleven more) as its own dependencies,
+so they stay installed and resolvable from it: `bun install` reported no install changes, and the build's
+`code-language` chunk references all 115 of its on-demand language chunks.
+
+## 2026-11-06 08:35 [pitfall]
+
+Regenerated `bun.lock` from scratch (`bun run clean`, lockfile deleted, `bun install`): 189 packages moved within
+their ranges. `shiki` 4.5.0 -> 4.6.0 now gunzips the inlined Oniguruma WASM through `Blob.prototype.stream()`, which
+jsdom lacks, so every Vitest run reported 6 unhandled rejections and exited 1 although all tests passed. The app
+is unaffected (`shikiSlim` in `vite.config.ts` swaps Oniguruma for the JavaScript regex engine; Vitest does not
+transform `node_modules`, so the swap does not apply there). `src/test-setup.ts` now polyfills `Blob.stream()` for
+jsdom. `bun run check` is green on the new lockfile.

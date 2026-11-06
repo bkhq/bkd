@@ -56,10 +56,6 @@ import {
   ProcessInfoSchema,
   ProjectSchema,
   ReplyMessageSchema,
-  SaveSkillFileSchema,
-  SkillFileEntrySchema,
-  SkillFileQuerySchema,
-  SkillFileSchema,
   SkillInfoSchema,
   SkillListSchema,
   SkillParamsSchema,
@@ -1168,55 +1164,6 @@ export const cancelSkillsOperationRoute = createRoute({
   responses: {
     200: successResponse(z.object({ id: z.string() }), 'Cancel requested'),
     404: errorResponse('No such running operation'),
-  },
-})
-
-export const listSkillFilesRoute = createRoute({
-  method: 'get',
-  path: '/{location}/{name}/files',
-  tags: ['Skills'],
-  summary: 'List the files of a skill',
-  operationId: 'listSkillFiles',
-  request: { params: SkillParamsSchema, query: SkillProjectQuerySchema },
-  responses: {
-    200: successResponse(z.array(SkillFileEntrySchema), 'Files'),
-    400: errorResponse('Invalid request'),
-    404: errorResponse('Skill or project not found'),
-    500: errorResponse('Internal error'),
-  },
-})
-
-export const readSkillFileRoute = createRoute({
-  method: 'get',
-  path: '/{location}/{name}/file',
-  tags: ['Skills'],
-  summary: 'Read a skill file',
-  operationId: 'readSkillFile',
-  request: { params: SkillParamsSchema, query: SkillFileQuerySchema },
-  responses: {
-    200: successResponse(SkillFileSchema, 'File'),
-    400: errorResponse('Invalid request'),
-    404: errorResponse('Skill, file or project not found'),
-    500: errorResponse('Internal error'),
-  },
-})
-
-export const saveSkillFileRoute = createRoute({
-  method: 'put',
-  path: '/{location}/{name}/file',
-  tags: ['Skills'],
-  summary: 'Save a file of a local skill',
-  operationId: 'saveSkillFile',
-  request: {
-    params: SkillParamsSchema,
-    body: { required: true, content: { 'application/json': { schema: SaveSkillFileSchema } } },
-  },
-  responses: {
-    200: successResponse(SkillFileSchema, 'Saved file'),
-    400: errorResponse('Invalid request'),
-    404: errorResponse('Skill or project not found'),
-    409: errorResponse('Installed skills are read-only'),
-    500: errorResponse('Internal error'),
   },
 })
 

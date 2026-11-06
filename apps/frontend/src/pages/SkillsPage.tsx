@@ -1,12 +1,9 @@
 import { cn } from 'cn'
-import { ArrowLeft, ChevronRight, Code, Copy, Download, ExternalLink, FileText, ListTree, Lock, Plus, RefreshCw, Save, Search, Trash2, Upload, WrapText } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Copy, Download, ExternalLink, Lock, Plus, RefreshCw, Search, Trash2, Upload } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FileEditor, isMarkdown } from '@/components/files/FileEditor'
-import { IconButton } from '@/components/files/IconButton'
-import { TreePane } from '@/components/files/TreePane'
-import { TreeRow } from '@/components/files/TreeRow'
 import { AppSidebar } from '@/components/kanban/AppSidebar'
+import { SkillFiles } from '@/components/skills/SkillFiles'
 import { InstallSkillDialog, OperationDialog, UninstallSkillDialog, UpdateSkillsDialog, UploadSkillDialog } from '@/components/skills/SkillOperations'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import {
@@ -33,15 +30,9 @@ import {
   useCopySkill,
   useCreateSkill,
   useDeleteSkill,
-  useSaveSkillFile,
-  useSkillFile,
-  useSkillFiles,
   useSkills,
   useStartSkillsOperation,
 } from '@/hooks/use-skills'
-import type { PathTreeNode } from '@/lib/path-tree'
-import { buildPathTree } from '@/lib/path-tree'
-import { useFileBrowserStore } from '@/stores/file-browser-store'
 import type { SkillInfo, SkillUpdateStatus } from '@/types/kanban'
 
 const NO_PROJECT = '__none__'
@@ -413,30 +404,6 @@ function SkillDetail({ skill, projectId, cliAvailable, updateStatus, checking, o
   onBack?: () => void
 }) {
   const { t } = useTranslation()
-  const { data: files } = useSkillFiles(skill.location, skill.name, projectId)
-  const [path, setPath] = useState('SKILL.md')
-  const { data: file } = useSkillFile(skill.location, skill.name, path, projectId)
-  const [drafts, setDrafts] = useState<Record<string, string>>({})
-  const [preview, setPreview] = useState(false)
-  // As in the workspace: on a phone the tree and the file take turns at full
-  // width. SKILL.md opens first, so a phone starts on the file.
-  const isMobile = useIsMobile()
-  const [treeOpen, setTreeOpen] = useState(!isMobile)
-  const toggleTree = () => setTreeOpen(v => !v)
-  const wrap = useFileBrowserStore(s => s.wrap)
-  const toggleWrap = useFileBrowserStore(s => s.toggleWrap)
-  const save = useSaveSkillFile()
-  const content = drafts[path] ?? file?.content ?? ''
-  const dirty = drafts[path] !== undefined && drafts[path] !== file?.content
-
-  const handleSave = () => {
-    if (skill.managed || !dirty) return
-    save.mutate(
-      { location: skill.location, name: skill.name, path, content, projectId },
-      { onSuccess: () => setDrafts(({ [path]: _, ...rest }) => rest) },
-    )
-  }
-
   return (
     <>
       <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
@@ -531,135 +498,7 @@ function SkillDetail({ skill, projectId, cliAvailable, updateStatus, checking, o
           ? <p className="basis-full text-xs text-amber-600 dark:text-amber-400">{t('skills.removedNote')}</p>
           : null}
       </header>
-      <div className="flex min-h-0 flex-1">
-        {treeOpen
-          ? (
-              <TreePane fill={isMobile}>
-                <div className="flex h-full min-h-0 flex-col">
-                  {/* The file header (and its toggle) is hidden behind the tree on a phone */}
-                  {isMobile
-                    ? (
-                        <div className="flex shrink-0 items-center gap-1.5 border-b border-border/60 px-3 py-1.5 min-h-[37px]">
-                          <span className="min-w-0 flex-1 truncate text-xs font-medium">{t('skills.files')}</span>
-                          <IconButton icon={ListTree} label={t('fileBrowser.fileTree')} onClick={toggleTree} active />
-                        </div>
-                      )
-                    : null}
-                  <nav aria-label={t('skills.files')} className="min-h-0 flex-1 overflow-y-auto p-1.5">
-                    <SkillFileTree
-                      nodes={buildPathTree((files ?? []).filter(f => f.type === 'file').map(f => f.path))}
-                      selected={path}
-                      dirty={drafts}
-                      onSelect={(next) => {
-                        setPath(next)
-                        if (isMobile) setTreeOpen(false)
-                      }}
-                    />
-                  </nav>
-                </div>
-              </TreePane>
-            )
-          : null}
-        <div className={cn('flex min-w-0 flex-1 flex-col', isMobile && treeOpen && 'hidden')}>
-          {/* Same header and body as the workspace file browser */}
-          <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-1.5 min-h-[37px]">
-            <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground" title={path}>{path}</span>
-            <div className="flex shrink-0 items-center gap-1">
-              {dirty && !skill.managed
-                ? (
-                    <>
-                      <span className="text-xs text-muted-foreground">{t('fileBrowser.modified')}</span>
-                      <button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={save.isPending}
-                        className="flex h-6 items-center gap-1 rounded-md bg-emerald-600 px-2 text-xs font-medium text-white transition-colors hover:bg-emerald-600/90 disabled:opacity-60"
-                      >
-                        <Save className="h-3.5 w-3.5" />
-                        {save.isPending ? t('fileBrowser.saving') : t('fileBrowser.saveFile')}
-                      </button>
-                    </>
-                  )
-                : null}
-              {isMarkdown(path)
-                ? (
-                    <IconButton
-                      icon={preview ? Code : FileText}
-                      label={preview ? t('fileBrowser.viewSource') : t('fileBrowser.viewRendered')}
-                      onClick={() => setPreview(p => !p)}
-                    />
-                  )
-                : null}
-              <IconButton icon={WrapText} label={t('fileBrowser.wordWrap')} onClick={toggleWrap} active={wrap} />
-              <IconButton icon={ListTree} label={t('fileBrowser.fileTree')} onClick={toggleTree} active={treeOpen} />
-            </div>
-          </div>
-          {file
-            ? (
-                <FileEditor
-                  file={{
-                    path,
-                    type: 'file',
-                    content: file.content,
-                    size: file.content.length,
-                    isTruncated: false,
-                    isBinary: file.binary,
-                    modifiedAt: '',
-                  }}
-                  value={content}
-                  onChange={value => setDrafts(prev => ({ ...prev, [path]: value }))}
-                  onSave={handleSave}
-                  wrap={wrap}
-                  preview={preview && isMarkdown(path)}
-                  readOnly={skill.managed}
-                />
-              )
-            : null}
-        </div>
-      </div>
-    </>
-  )
-}
-
-/** Folder tree of a skill's files; folders start expanded (skills are small). */
-function SkillFileTree({ nodes, selected, dirty, onSelect, depth = 0 }: {
-  nodes: PathTreeNode[]
-  selected: string
-  dirty: Record<string, string>
-  onSelect: (path: string) => void
-  depth?: number
-}) {
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
-  return (
-    <>
-      {nodes.map(node => node.children
-        ? (
-            <div key={node.path}>
-              <TreeRow
-                depth={depth}
-                name={node.name}
-                title={node.path}
-                isDir
-                expanded={!collapsed[node.path]}
-                onClick={() => setCollapsed(prev => ({ ...prev, [node.path]: !prev[node.path] }))}
-              />
-              {!collapsed[node.path]
-                ? <SkillFileTree nodes={node.children} selected={selected} dirty={dirty} onSelect={onSelect} depth={depth + 1} />
-                : null}
-            </div>
-          )
-        : (
-            <TreeRow
-              key={node.path}
-              depth={depth}
-              name={node.name}
-              title={node.path}
-              isDir={false}
-              selected={node.path === selected}
-              trailing={dirty[node.path] !== undefined ? <span className="text-primary">•</span> : undefined}
-              onClick={() => onSelect(node.path)}
-            />
-          ))}
+      <SkillFiles skill={skill} projectId={projectId} />
     </>
   )
 }

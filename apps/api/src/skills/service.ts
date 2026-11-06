@@ -1,9 +1,9 @@
 import type { Dirent } from 'node:fs'
-import { cp, lstat, mkdir, readdir, readFile, readlink, realpath, rename, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { cp, lstat, mkdir, readdir, readFile, readlink, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
-import type { SkillAgent, SkillFileEntry, SkillInfo, SkillLocation } from '@bkd/shared'
+import type { SkillAgent, SkillInfo, SkillLocation } from '@bkd/shared'
 import { DATA_DIR } from '@/root'
 
 /*
@@ -22,9 +22,6 @@ export class SkillError extends Error {
 }
 
 const NAME_RE = /^[a-z0-9][\w.-]{0,63}$/i
-const MAX_FILE_BYTES = 1024 * 1024
-const MAX_FILES = 500
-const SKIP_DIRS = new Set(['.git', 'node_modules'])
 
 export interface Roots {
   agents: string
@@ -305,63 +302,10 @@ export async function getSkill(location: SkillLocation, name: string, projectDir
   return skill
 }
 
-/** Resolve a file path inside a skill directory, following symlinks, or throw. */
-async function resolveInside(skillDir: string, relPath: string): Promise<string> {
-  if (!relPath || relPath.includes('\0')) throw new SkillError('Invalid path', 400)
-  const root = await realpath(skillDir)
-  const target = resolve(root, relPath)
-  if (target !== root && !target.startsWith(root + sep)) throw new SkillError('Path is outside the skill', 400)
-  // An existing entry (or its nearest existing parent) must not lead outside via a symlink.
-  let probe = target
-  while (!(await exists(probe))) probe = dirname(probe)
-  const real = await realpath(probe)
-  if (real !== root && !real.startsWith(root + sep)) throw new SkillError('Path is outside the skill', 400)
-  return target
-}
-
-export async function listSkillFiles(skill: SkillInfo): Promise<SkillFileEntry[]> {
-  const root = await realpath(skill.path)
-  const out: SkillFileEntry[] = []
-  async function walk(dir: string): Promise<void> {
-    for (const entry of (await readEntries(dir)).sort((a, b) => a.name.localeCompare(b.name))) {
-      if (out.length >= MAX_FILES) return
-      const full = join(dir, entry.name)
-      const rel = relative(root, full)
-      if (entry.isDirectory()) {
-        if (SKIP_DIRS.has(entry.name)) continue
-        out.push({ path: rel, type: 'dir', size: 0 })
-        await walk(full)
-      } else if (entry.isFile()) {
-        out.push({ path: rel, type: 'file', size: (await stat(full)).size })
-      }
-    }
-  }
-  await walk(root)
-  return out
-}
-
-export async function readSkillFile(skill: SkillInfo, relPath: string): Promise<{ path: string, content: string, binary: boolean }> {
-  const target = await resolveInside(skill.path, relPath)
-  const info = await stat(target).catch(() => null)
-  if (!info?.isFile()) throw new SkillError('File not found', 404)
-  if (info.size > MAX_FILE_BYTES) throw new SkillError('File is too large to open', 400)
-  const buffer = await readFile(target)
-  const binary = buffer.includes(0)
-  return { path: relPath, content: binary ? '' : buffer.toString('utf8'), binary }
-}
-
 function assertEditable(skill: SkillInfo): void {
   if (skill.managed) {
     throw new SkillError('Installed skills are read-only: `skills update` would overwrite local changes. Copy it to a local skill first.', 409)
   }
-}
-
-export async function writeSkillFile(skill: SkillInfo, relPath: string, content: string): Promise<void> {
-  assertEditable(skill)
-  if (Buffer.byteLength(content) > MAX_FILE_BYTES) throw new SkillError('File is too large', 400)
-  const target = await resolveInside(skill.path, relPath)
-  await mkdir(dirname(target), { recursive: true })
-  await writeFile(target, content, 'utf8')
 }
 
 /** New skills go to the agents store (Codex) and get a relative link in .claude/skills (Claude Code). */

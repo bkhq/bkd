@@ -10,6 +10,7 @@ import type { FmLabels } from "./labels";
 import type { FmMeta } from "./meta";
 import type { FmActionContext, FmFileAction, FmPlugin } from "./plugins";
 import type { FmClipboard, FmSelection, FmSelectMode } from "./state";
+import type { FmMenuItems } from "./tidy-menu";
 import type { FmUndo } from "./undo";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
@@ -116,6 +117,7 @@ import { QuickOpen } from "./quick-open";
 import { ReviewDialog, ReviewView } from "./review-dialog";
 import { viewportRef } from "./scroll";
 import { EMPTY_SELECTION, formatSize, kindOf, prune, select, step } from "./state";
+import { tidyMenu } from "./tidy-menu";
 import { TrashView } from "./trash-view";
 import { undoFor } from "./undo";
 import { UploadPanel } from "./upload-panel";
@@ -127,6 +129,11 @@ export interface FmSidebarOptions {
   hidden?: string[];
   /** `driver`: one section per driver kind. */
   group?: "none" | "driver";
+  /**
+   * `false` leaves the drives and "Manage drives" out of the tree, keeping only its sections
+   * (Changes, Starred, Recent). With `features.starred` / `features.recent` off the tree shows changes only.
+   */
+  drives?: boolean;
 }
 
 export interface FmPickOptions {
@@ -341,6 +348,8 @@ export function FileManager(props: FileManagerProps) {
   const [userHidden, setUserHidden] = useStoredList(`${storageKey}:hidden`);
   const mount = location.mount ?? (mounts.data && (visibleMounts(mounts.data, hostHidden, userHidden, undefined)[0] ?? mounts.data[0]))?.id;
   const shownMounts = mounts.data && visibleMounts(mounts.data, hostHidden, userHidden, mount);
+  // Manage drives picks which drives to show, which means nothing with only one.
+  const canManageDrives = !!mounts.data && visibleMounts(mounts.data, hostHidden, [], undefined).length > 1;
   const { path, trash: inTrash } = location;
   // Expanded tree rows; a new location opens the rows on its path that were not on the previous one.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -643,6 +652,26 @@ export function FileManager(props: FileManagerProps) {
   // eslint-disable-next-line react/exhaustive-deps -- `changesKey` stands for the query results.
   }))), [changeMounts, changesKey]);
 
+  // Line counts over every change that has them.
+  const changeTotals = useMemo(() => {
+    let additions = 0;
+    let deletions = 0;
+    let counted = false;
+    for (const q of changeQueries) {
+      for (const c of q.data ?? []) {
+        if (c.additions === undefined)
+          continue;
+        counted = true;
+        additions += c.additions;
+        deletions += c.deletions ?? 0;
+      }
+    }
+    return counted
+      ? { additions, deletions }
+      : undefined;
+  // eslint-disable-next-line react/exhaustive-deps -- `changesKey` stands for the query results.
+  }, [changesKey]);
+
   const treeSections = useMemo(() => [
     ...(changeEntries.length
       ? [
@@ -651,6 +680,13 @@ export function FileManager(props: FileManagerProps) {
             label: labels.changes,
             icon: <GitCompareIcon className="text-muted-foreground" />,
             entries: changeEntries,
+            extra: changeTotals && (
+              <span className="shrink-0 text-xs tabular-nums" data-fm-change-totals="">
+                <span className="text-emerald-600 dark:text-emerald-400">{`+${changeTotals.additions}`}</span>
+                {" "}
+                <span className="text-red-600 dark:text-red-400">{`−${changeTotals.deletions}`}</span>
+              </span>
+            ),
             onOpen: (e: FmEntry) => openChangeRef.current(e),
           },
         ]
@@ -677,6 +713,7 @@ export function FileManager(props: FileManagerProps) {
       : []),
   ], [
     changeEntries,
+    changeTotals,
     meta,
     showStarred,
     showRecent,
@@ -1190,7 +1227,7 @@ export function FileManager(props: FileManagerProps) {
           </ContextMenuItem>
         );
   /** Shared shell for the list and tree context menus. */
-  const menuContent = (items: ReactNode) => <ContextMenuContent className="w-56">{items}</ContextMenuContent>;
+  const menuContent = (items: FmMenuItems | false | undefined) => <ContextMenuContent className="w-56">{tidyMenu(items || [])}</ContextMenuContent>;
 
   const runAction = (action: FmFileAction, targets: FmEntry[], at?: FolderRef) => {
     const m = at?.mount ?? mount;
@@ -1321,9 +1358,12 @@ export function FileManager(props: FileManagerProps) {
       </DropdownMenuContent>
     </DropdownMenu>
   );
+  // State, not a ref: the viewport is attached after FileTree's first layout effect (it is an
+  // ancestor), so the tree must re-render to pick it up even when no data change follows.
+  const [treeViewport, setTreeViewport] = useState<HTMLDivElement | null>(null);
+  const treeViewportRef = useMemo(() => viewportRef<HTMLDivElement>(setTreeViewport), []);
   // Explorer refresh also reveals the selected row (or the current folder) like VS Code:
   // its ancestors open and the tree scrolls the row into view once it is loaded.
-  const treeScrollRef = useRef<HTMLDivElement>(null);
   const [revealTick, setRevealTick] = useState(0);
   const refreshTree = () => {
     void qc.invalidateQueries({
@@ -1381,10 +1421,16 @@ export function FileManager(props: FileManagerProps) {
   const treePane = (
     <>
       {explorer && (
-        // VS Code style: title on the left, common actions on hover, the rest under "More".
+        // VS Code style: title on the left, common actions, the rest under "More". With a mouse the
+        // actions appear on hover and take no room otherwise, so the title is not cut short; touch
+        // screens, which cannot hover, always show them.
         <div className="group/explorer flex h-9 shrink-0 items-center gap-0.5 pr-1 pl-3">
           <span className="flex-1 truncate text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{labels.explorer}</span>
-          <div role="toolbar" aria-label={labels.folderActions} className="flex items-center gap-0.5 opacity-0 group-hover/explorer:opacity-100 focus-within:opacity-100 has-aria-expanded:opacity-100">
+          <div
+            role="toolbar"
+            aria-label={labels.folderActions}
+            className="flex items-center gap-0.5 pointer-fine:w-0 pointer-fine:overflow-hidden pointer-fine:opacity-0 group-hover/explorer:w-auto group-hover/explorer:overflow-visible group-hover/explorer:opacity-100 focus-within:w-auto focus-within:overflow-visible focus-within:opacity-100 has-aria-expanded:w-auto has-aria-expanded:overflow-visible has-aria-expanded:opacity-100"
+          >
             {canNewFile && <IconButton label={labels.newFile} onClick={() => setDialog({ kind: "newFile" })}><FilePlusIcon /></IconButton>}
             {canMkdir && <IconButton label={labels.newFolder} onClick={() => setDialog({ kind: "mkdir" })}><FolderPlusIcon /></IconButton>}
             <IconButton label={labels.refresh} onClick={refreshTree}><RefreshCwIcon /></IconButton>
@@ -1464,7 +1510,7 @@ export function FileManager(props: FileManagerProps) {
       <ScrollArea
         className="min-h-0 flex-1"
         // The virtualized tree scrolls the viewport, not the root.
-        ref={viewportRef(treeScrollRef)}
+        ref={treeViewportRef}
       >
         {shownMounts && (
           <ContextMenu>
@@ -1503,10 +1549,13 @@ export function FileManager(props: FileManagerProps) {
                 readOnlyLabel={labels.readOnly}
                 trashLabel={labels.trash}
                 group={props.sidebar?.group}
+                drives={props.sidebar?.drives}
                 groupLabel={labels.driverGroup}
                 manageLabel={labels.manageDrives}
-                onManage={() => setDialog({ kind: "manageDrives" })}
-                scrollRef={treeScrollRef}
+                onManage={canManageDrives
+                  ? () => setDialog({ kind: "manageDrives" })
+                  : undefined}
+                scrollElement={treeViewport}
                 revealTick={revealTick}
                 filterEntries={treeFilter}
                 changesOf={changesOf}
@@ -1656,11 +1705,15 @@ export function FileManager(props: FileManagerProps) {
                                             </DropdownMenuItem>
                                           </>
                                         )}
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => setDialog({ kind: "manageDrives" })}>
-                                          <SettingsIcon />
-                                          {labels.manageDrives}
-                                        </DropdownMenuItem>
+                                        {canManageDrives && (
+                                          <>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem onClick={() => setDialog({ kind: "manageDrives" })}>
+                                              <SettingsIcon />
+                                              {labels.manageDrives}
+                                            </DropdownMenuItem>
+                                          </>
+                                        )}
                                       </DropdownMenuContent>
                                     </DropdownMenu>
                                   )

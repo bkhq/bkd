@@ -1,4 +1,4 @@
-import type { DragEvent, KeyboardEvent, ReactNode, RefObject } from "react";
+import type { DragEvent, KeyboardEvent, ReactNode } from "react";
 import type { FmClient, FmListFilter } from "../client/client";
 import type { FmEntry, FmMountInfo } from "../core/schema";
 import type { FmChangeIndex } from "./changes";
@@ -54,6 +54,8 @@ export interface FmTreeSection {
   label: string;
   icon: ReactNode;
   entries: readonly FmEntry[];
+  /** Shown after the label, e.g. line counts. */
+  extra?: ReactNode;
   /** Click on a file of the section (default: reveal it). */
   onOpen?: ((entry: FmEntry) => void) | undefined;
 }
@@ -185,7 +187,7 @@ function parentIndex(rows: readonly Row[], i: number) {
 
 /**
  * Sidebar tree: mounts at the top level (or under driver sections), folders loaded lazily on expand.
- * Rows are flattened and virtualized inside `scrollRef`, so large folders stay cheap.
+ * Rows are flattened and virtualized inside `scrollElement`, so large folders stay cheap.
  */
 export function FileTree(props: TreeProps & {
   mounts: FmMountInfo[];
@@ -194,13 +196,16 @@ export function FileTree(props: TreeProps & {
   group?: "none" | "driver" | undefined;
   groupLabel: (driver: string) => string;
   manageLabel: string;
-  onManage: () => void;
+  /** Leaves the Manage drives button out when unset. */
+  onManage?: (() => void) | undefined;
   /** Scroll container of the tree. */
-  scrollRef: RefObject<HTMLElement | null>;
+  scrollElement: HTMLElement | null;
   /** Bumping it scrolls the selected row (or the current folder) into view once it is rendered. */
   revealTick?: number;
   /** Host lists (starred, recent) above the drives. */
   sections?: readonly FmTreeSection[] | undefined;
+  /** `false` leaves the drives and "Manage drives" out, so only the sections remain. */
+  drives?: boolean | undefined;
 }) {
   const t = props;
   const { filterEntries, sections } = props;
@@ -373,6 +378,8 @@ export function FileTree(props: TreeProps & {
           listTree(entries, "/", 2, `${key}:`, section.onOpen);
       }
     }
+    if (props.drives === false)
+      return { rows, open };
     if (props.group === "driver") {
       for (const g of groupMountsByDriver(props.mounts)) {
         const isOpen = !closedGroups.has(g.driver);
@@ -395,6 +402,7 @@ export function FileTree(props: TreeProps & {
     listings,
     t.expanded,
     props.group,
+    props.drives,
     props.mounts,
     sections,
     filterEntries,
@@ -403,7 +411,7 @@ export function FileTree(props: TreeProps & {
 
   const virtualizer = useVirtualizer({
     count: rows.length,
-    getScrollElement: () => props.scrollRef.current,
+    getScrollElement: () => props.scrollElement,
     estimateSize: () => ROW_H,
     scrollMargin: PAD,
     overscan: 10,
@@ -534,6 +542,7 @@ export function FileTree(props: TreeProps & {
               {chevron(row.open)}
               {row.section.icon}
               <span className="truncate">{row.section.label}</span>
+              {row.section.extra}
             </Button>
           </Item>
         );
@@ -679,10 +688,12 @@ export function FileTree(props: TreeProps & {
           {virtualizer.getVirtualItems().map(v => renderRow(rows[v.index]!, v.index, v.start))}
         </div>
       </div>
-      <Button variant="ghost" size="sm" className="mx-2 my-2 justify-start font-normal text-muted-foreground" onClick={props.onManage}>
-        <SettingsIcon />
-        {props.manageLabel}
-      </Button>
+      {props.drives !== false && props.onManage && (
+        <Button variant="ghost" size="sm" className="mx-2 my-2 justify-start font-normal text-muted-foreground" onClick={props.onManage}>
+          <SettingsIcon />
+          {props.manageLabel}
+        </Button>
+      )}
     </>
   );
 }

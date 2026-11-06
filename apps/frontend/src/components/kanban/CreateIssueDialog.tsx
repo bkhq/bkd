@@ -93,15 +93,12 @@ export function CreateIssueForm({
     isDragOver,
     previewFile,
     setPreviewFile,
-    fileInputRef,
     removeFile,
     openPicker,
     reset: resetAttachments,
     handlePaste,
-    handleDragOver,
-    handleDragLeave,
-    handleDrop,
-    handleFileSelect,
+    getRootProps,
+    getInputProps,
   } = useFileAttachments()
 
   // Keep worktree disabled for non-git projects, but do not auto-enable it.
@@ -220,9 +217,7 @@ export function CreateIssueForm({
         className={`rounded-lg border bg-muted/30 focus-within:ring-1 focus-within:ring-ring transition-shadow ${
           isDragOver ? 'border-primary/50 ring-2 ring-primary/20' : ''
         }`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        {...getRootProps()}
       >
         <Textarea
           ref={textareaRef}
@@ -264,13 +259,7 @@ export function CreateIssueForm({
           null}
 
         {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={handleFileSelect}
-        />
+        <input {...getInputProps()} />
 
         <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center gap-2">

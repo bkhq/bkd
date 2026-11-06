@@ -37,8 +37,8 @@ describe('REST documentation', () => {
     const documented = new Set(Object.entries(spec.paths ?? {}).flatMap(([path, operations]) =>
       Object.keys(operations ?? {}).map(method => `${method.toUpperCase()} ${normalize(path)}`)))
     // Wildcard file/log paths and multipart handlers register their contracts separately.
-    // /api/fm: the vendored file manager documents its own routes (docs/decisions/2026-11-05-filemanager-openapi-exception.md)
-    const exceptions = ['/api/docs', '/api/openapi.json', '/api/runtime', '/api/events', '/api/terminal/ws/', '/api/fm/']
+    // /api/fm, /api/skills/fm: the vendored file manager documents its own routes (docs/decisions/2026-11-05-filemanager-openapi-exception.md)
+    const exceptions = ['/api/docs', '/api/openapi.json', '/api/runtime', '/api/events', '/api/terminal/ws/', '/api/fm/', '/api/skills/fm/']
     const missing = [...new Set(app.routes
       .filter(route => route.method !== 'ALL' && !route.path.includes('*')
         && !exceptions.some(prefix => route.path.startsWith(prefix)))

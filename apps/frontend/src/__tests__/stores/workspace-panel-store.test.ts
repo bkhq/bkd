@@ -5,68 +5,22 @@ const store = () => useWorkspacePanelStore.getState()
 
 describe('workspace-panel-store', () => {
   beforeEach(() => {
-    useWorkspacePanelStore.setState({ isOpen: false, isMaximized: false, tabs: ['files', 'review'], activeTab: 'files' })
+    useWorkspacePanelStore.setState({ isOpen: false, isMaximized: false })
   })
 
-  it('starts hidden with no tabs', () => {
+  it('starts hidden and has no tabs', () => {
     const initial = useWorkspacePanelStore.getInitialState()
     expect(initial.isOpen).toBe(false)
-    expect(initial.tabs).toEqual([])
-    expect(initial.activeTab).toBeNull()
+    expect('tabs' in initial).toBe(false)
   })
 
-  it('togglePanel shows and hides without touching tabs', () => {
+  it('togglePanel shows and hides the panel', () => {
     store().togglePanel()
     expect(store().isOpen).toBe(true)
     store().togglePanel()
     expect(store().isOpen).toBe(false)
-    expect(store().tabs).toEqual(['files', 'review'])
   })
 
-  it('closing a tab activates a neighbour; closing the last tab hides the panel', () => {
-    store().togglePanel()
-    store().closeTab('files')
-    expect(store().tabs).toEqual(['review'])
-    expect(store().activeTab).toBe('review')
-    expect(store().isOpen).toBe(true)
-    store().closeTab('review')
-    expect(store().tabs).toEqual([])
-    expect(store().activeTab).toBeNull()
-    expect(store().isOpen).toBe(false)
-  })
-
-  it('togglePanel with no tabs opens the empty launcher', () => {
-    useWorkspacePanelStore.setState({ isOpen: false, tabs: [], activeTab: null })
-    store().togglePanel()
-    expect(store().isOpen).toBe(true)
-    expect(store().tabs).toEqual([])
-    expect(store().activeTab).toBeNull()
-  })
-
-  it('opening tabs from the launcher keeps files before review', () => {
-    useWorkspacePanelStore.setState({ isOpen: true, tabs: [], activeTab: null })
-    store().toggleTab('review')
-    store().toggleTab('files')
-    expect(store().tabs).toEqual(['files', 'review'])
-    expect(store().activeTab).toBe('files')
-  })
-
-  it('toggleTab opens a closed tab, activates it, then hides the panel on a second call', () => {
-    useWorkspacePanelStore.setState({ isOpen: false, tabs: ['files'], activeTab: 'files' })
-    store().toggleTab('review')
-    expect(store().isOpen).toBe(true)
-    expect(store().tabs).toEqual(['files', 'review'])
-    expect(store().activeTab).toBe('review')
-    store().toggleTab('review')
-    expect(store().isOpen).toBe(false)
-  })
-
-  it('toggleTab switches to another open tab instead of hiding', () => {
-    store().togglePanel()
-    store().toggleTab('review')
-    expect(store().isOpen).toBe(true)
-    expect(store().activeTab).toBe('review')
-  })
   it('toggleMaximized expands the panel; hiding the panel restores the normal width', () => {
     store().togglePanel()
     store().toggleMaximized()
@@ -78,34 +32,24 @@ describe('workspace-panel-store', () => {
     expect(store().isMaximized).toBe(false)
   })
 
-  it('closing the last tab also leaves the maximized state', () => {
+  it('hide closes the panel and leaves the maximized state', () => {
     store().togglePanel()
     store().toggleMaximized()
-    store().closeTab('files')
-    expect(store().isMaximized).toBe(true)
-    store().closeTab('review')
+    store().hide()
+    expect(store().isOpen).toBe(false)
     expect(store().isMaximized).toBe(false)
   })
-  it('openTab adds and activates a tab without ever hiding the panel', () => {
-    useWorkspacePanelStore.setState({ isOpen: true, tabs: ['review'], activeTab: 'review' })
-    store().openTab('review')
-    expect(store().isOpen).toBe(true)
-    store().openTab('files')
-    expect(store().tabs).toEqual(['files', 'review'])
-    expect(store().activeTab).toBe('files')
+
+  it('starts 400px wide, at most 60% of the viewport', () => {
+    expect(useWorkspacePanelStore.getInitialState().width).toBe(Math.min(400, Math.round(window.innerWidth * 0.6)))
   })
-  it('ensureWidth only widens, and stays within 60% of the viewport', () => {
-    window.innerWidth = 1600
-    useWorkspacePanelStore.setState({ width: 400 })
-    store().ensureWidth(640)
-    expect(store().width).toBe(640)
-    useWorkspacePanelStore.setState({ width: 800 })
-    store().ensureWidth(640)
-    expect(store().width).toBe(800)
-    window.innerWidth = 900
-    useWorkspacePanelStore.setState({ width: 400 })
-    store().ensureWidth(640)
-    expect(store().width).toBe(540)
+
+  it('keeps its width when shown again', () => {
+    useWorkspacePanelStore.setState({ width: 500 })
+    store().togglePanel()
+    store().togglePanel()
+    store().togglePanel()
+    expect(store().width).toBe(500)
   })
 
   it('keeps the chat at its minimum: width caps at the viewport and re-clamps on resize', () => {

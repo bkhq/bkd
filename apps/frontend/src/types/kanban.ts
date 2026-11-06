@@ -47,8 +47,6 @@ export type {
   ProjectProcessesResponse,
   SessionStatus,
   SkillAgent,
-  SkillFile,
-  SkillFileEntry,
   SkillInfo,
   SkillLocation,
   SkillsOperation,
