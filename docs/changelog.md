@@ -1308,3 +1308,11 @@ jsdom lacks, so every Vitest run reported 6 unhandled rejections and exited 1 al
 is unaffected (`shikiSlim` in `vite.config.ts` swaps Oniguruma for the JavaScript regex engine; Vitest does not
 transform `node_modules`, so the swap does not apply there). `src/test-setup.ts` now polyfills `Blob.stream()` for
 jsdom. `bun run check` is green on the new lockfile.
+
+## 2026-11-06 09:00 [progress]
+
+Dependencies on their latest releases: `@antfu/eslint-config` 9.5.1 -> 10.0.0, `swagger-ui-dist` 5.33.1 -> 5.34.1,
+`cn` 0.4.0 -> 0.5.2, `jsdom` 30 -> 31 (everything else was already current within its range after the lockfile
+rebuild). `@antfu/eslint-config` 10 adds `antfu/reasonable-newline`, which would reflow ~4,100 array and ternary
+sites; it is off in `eslint.config.js` to keep the existing style. The root `typescript` stays on 6.x:
+typescript-eslint 8.72.1 still requires `typescript <6.1.0`.

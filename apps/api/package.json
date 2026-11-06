@@ -36,7 +36,7 @@
     "jittered-fractional-indexing": "catalog:",
     "nanoid": "^6.0.2",
     "pino": "^10.4.0",
-    "swagger-ui-dist": "5.33.1",
+    "swagger-ui-dist": "5.34.1",
     "ulid": "^3.0.2",
     "zod": "catalog:"
   },
