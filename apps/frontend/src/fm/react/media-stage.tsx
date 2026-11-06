@@ -1,8 +1,9 @@
+import type { PointerEvent as ReactPointerEvent } from "react";
 import type { FmLabels } from "./labels";
 import type { FmMediaView, FmSize } from "./transform";
 import { cn } from "cn";
 import { FlipHorizontal2Icon, RotateCcwIcon, RotateCwIcon, ZoomInIcon, ZoomOutIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "./icon-button";
@@ -86,6 +87,43 @@ export function MediaStage({ kind, src, alt, labels, actions }: {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [isImage, root, scale]);
+  // Drag with the mouse to pan a zoomed image; touch scrolls natively. A drag is not a click.
+  const drag = useRef<{ id: number; x: number; y: number; left: number; top: number; moved: boolean }>(undefined);
+  const [panning, setPanning] = useState(false);
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    drag.current = undefined;
+    if (!isImage || e.pointerType !== "mouse" || e.button !== 0
+      || (el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight)) {
+      return;
+    }
+    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop, moved: false };
+  };
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId)
+      return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (!d.moved) {
+      if (Math.abs(dx) + Math.abs(dy) < 4)
+        return;
+      d.moved = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setPanning(true);
+    }
+    e.currentTarget.scrollLeft = d.left - dx;
+    e.currentTarget.scrollTop = d.top - dy;
+  };
+  const endDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (drag.current?.id !== e.pointerId)
+      return;
+    if (!drag.current.moved)
+      drag.current = undefined;
+    setPanning(false);
+  };
+  const pannable = !!root && !!layout && (layout.width > (stage?.width ?? 0) || layout.height > (stage?.height ?? 0));
+
   const style = layout && natural
     ? {
         position: "absolute" as const,
@@ -118,7 +156,15 @@ export function MediaStage({ kind, src, alt, labels, actions }: {
   );
 
   return (
-    <div ref={setRoot} className={cn("flex h-full overflow-auto", isImage ? "bg-muted/30" : "bg-black/90")} style={{ padding: PAD }}>
+    <div
+      ref={setRoot}
+      className={cn("flex h-full overflow-auto", isImage ? "bg-muted/30" : "bg-black/90", panning && "cursor-grabbing select-none")}
+      style={{ padding: PAD }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+    >
       {actions && createPortal(tools, actions)}
       <div ref={stageRef} className="flex min-h-0 min-w-0 flex-1">
         <div
@@ -134,16 +180,28 @@ export function MediaStage({ kind, src, alt, labels, actions }: {
                   alt={alt}
                   draggable={false}
                   style={style}
-                  className={view.zoom === undefined
-                    ? "cursor-zoom-in"
-                    : "cursor-zoom-out"}
+                  className={panning
+                    ? "cursor-grabbing"
+                    : pannable
+                      ? "cursor-grab"
+                      : view.zoom === undefined
+                        ? "cursor-zoom-in"
+                        : "cursor-zoom-out"}
                   onLoad={e => setNatural({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })}
-                  onClick={() => setView(v => ({
-                    ...v,
-                    zoom: v.zoom === undefined
-                      ? 1
-                      : undefined,
-                  }))}
+                  onClick={() => {
+                    // The click that ends a pan keeps the zoom.
+                    if (drag.current?.moved) {
+                      drag.current = undefined;
+                      return;
+                    }
+                    drag.current = undefined;
+                    setView(v => ({
+                      ...v,
+                      zoom: v.zoom === undefined
+                        ? 1
+                        : undefined,
+                    }));
+                  }}
                 />
               )
             : (
