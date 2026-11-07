@@ -1,5 +1,6 @@
 import type { SkillInfo } from '@bkd/shared'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '@/i18n'
@@ -22,13 +23,11 @@ const skill = (over: Partial<SkillInfo>): SkillInfo => ({
 })
 
 const mocks = vi.hoisted(() => ({
-  save: vi.fn(),
   create: vi.fn(),
   copy: vi.fn(),
   remove: vi.fn(),
   removeError: null as Error | null,
   skills: [] as SkillInfo[],
-  files: [{ path: 'SKILL.md', type: 'file', size: 10 }] as { path: string, type: string, size: number }[],
   cliAvailable: true,
   start: vi.fn(),
   operations: {} as Record<string, unknown>,
@@ -40,13 +39,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/components/kanban/AppSidebar', () => ({ AppSidebar: () => null }))
 vi.mock('@/components/kanban/MobileSidebar', () => ({ MobileSidebar: () => null }))
-vi.mock('@/components/files/CodeEditor', () => ({
-  CodeEditor: ({ value, onChange, readOnly }: { value: string, onChange: (v: string) => void, readOnly?: boolean }) => (
-    <textarea aria-label="editor" value={value} readOnly={readOnly} onChange={e => onChange(e.target.value)} />
-  ),
+vi.mock('@/fm/client/hooks', async () => ({
+  ...await vi.importActual<typeof import('@/fm/client/hooks')>('@/fm/client/hooks'),
+  useMounts: () => ({ isPending: false, data: [] }),
 }))
-vi.mock('@/components/files/MarkdownRenderer', () => ({
-  MarkdownRenderer: ({ content }: { content: string }) => <div data-testid="md-preview">{content}</div>,
+vi.mock('@/fm/react/file-manager', () => ({
+  FileManager: ({ client, initialMount, readOnly }: { client: { baseUrl: string }, initialMount: string, readOnly?: boolean }) => (
+    <div data-testid="fm">{`fm ${client.baseUrl} ${initialMount} ${readOnly ? 'read-only' : 'editable'}`}</div>
+  ),
 }))
 vi.mock('@/hooks/use-kanban', () => ({
   useProjects: () => ({ data: [{ id: 'p1', name: 'Proj', directory: '/w/proj' }, { id: 'p2', name: 'Other', directory: '/w/other' }] }),
@@ -58,9 +58,6 @@ vi.mock('@/hooks/use-skills', () => ({
   useCancelSkillsOperation: () => ({ mutate: vi.fn() }),
   useCheckSkillUpdates: () => ({ mutate: mocks.check, isPending: false }),
   useUploadSkills: () => ({ mutate: mocks.upload, isPending: false, error: null, reset: vi.fn(), data: undefined }),
-  useSkillFiles: () => ({ data: mocks.files }),
-  useSkillFile: () => ({ data: { path: 'SKILL.md', content: '---\nname: x\n---\nbody', binary: false } }),
-  useSaveSkillFile: () => ({ mutate: mocks.save, isPending: false }),
   useCreateSkill: () => ({ mutate: mocks.create, isPending: false, error: null, reset: vi.fn() }),
   useCopySkill: () => ({ mutate: mocks.copy, isPending: false, error: null, reset: vi.fn() }),
   useDeleteSkill: () => ({ mutate: mocks.remove, isPending: false, error: mocks.removeError, reset: vi.fn() }),
@@ -91,10 +88,12 @@ function answerChecks() {
 }
 
 function renderPage() {
+  const queryClient = new QueryClient()
   return render(
     <MemoryRouter>
       <SkillsPage />
     </MemoryRouter>,
+    { wrapper: ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider> },
   )
 }
 
@@ -121,13 +120,11 @@ describe('skills page', () => {
     expect(screen.getByRole('button', { name: /claude-only/ })).toBeInTheDocument()
   })
 
-  it('opens an installed skill read-only and offers a local copy', async () => {
+  it('opens an installed skill read-only and offers a local copy', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /pma/ }))
-    expect(await screen.findByLabelText('editor')).toHaveAttribute('readonly')
-    expect(screen.getByText(/read-only/i)).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('editor'), { target: { value: 'x' } })
-    expect(screen.queryByRole('button', { name: 'Save file' })).toBeNull()
+    expect(screen.getByText('fm /api/skills/fm/global global-agents~pma read-only')).toBeInTheDocument()
+    expect(screen.getByText(/Installed by the skills CLI/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy to local skill' }))
@@ -139,18 +136,10 @@ describe('skills page', () => {
     )
   })
 
-  it('edits and saves a local skill file, like the workspace editor', async () => {
+  it('opens a local skill editable in the file manager', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /local-notes/ }))
-    // Save only appears once there is something to save
-    expect(screen.queryByRole('button', { name: 'Save file' })).toBeNull()
-    fireEvent.change(await screen.findByLabelText('editor'), { target: { value: 'changed' } })
-    expect(screen.getByText('Modified')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Save file' }))
-    expect(mocks.save).toHaveBeenCalledWith(
-      expect.objectContaining({ location: 'global-agents', name: 'local-notes', path: 'SKILL.md', content: 'changed' }),
-      expect.anything(),
-    )
+    expect(screen.getByText('fm /api/skills/fm/global global-agents~local-notes editable')).toBeInTheDocument()
   })
 
   it('shows either the list or the open skill on a small screen', async () => {
@@ -159,12 +148,12 @@ describe('skills page', () => {
     expect(screen.queryByText('Select a skill to view its files')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: /local-notes/ }))
-    expect(await screen.findByLabelText('editor')).toBeInTheDocument()
+    expect(screen.getByTestId('fm')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /claude-only/ })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to list' }))
     expect(screen.getByRole('button', { name: /claude-only/ })).toBeInTheDocument()
-    expect(screen.queryByLabelText('editor')).toBeNull()
+    expect(screen.queryByTestId('fm')).toBeNull()
   })
 
   it('shows the list and the open skill side by side on a large screen', () => {
@@ -174,17 +163,15 @@ describe('skills page', () => {
     expect(screen.queryByRole('button', { name: 'Back to list' })).toBeNull()
   })
 
-  it('does not carry an unsaved edit into the same-named skill of another project', async () => {
+  it('opens a project skill on the file manager of the picked project', async () => {
     mocks.skills = [skill({ name: 'deploy', location: 'project-agents', scope: 'project' })]
     renderPage()
     await pickProject('Proj')
     fireEvent.click(screen.getByRole('button', { name: /deploy/ }))
-    fireEvent.change(await screen.findByLabelText('editor'), { target: { value: 'draft for Proj' } })
-    expect(screen.getByText('Modified')).toBeInTheDocument()
+    expect(screen.getByText('fm /api/skills/fm/p1 project-agents~deploy editable')).toBeInTheDocument()
 
     await pickProject('Other')
-    expect(screen.getByLabelText('editor')).not.toHaveValue('draft for Proj')
-    expect(screen.queryByText('Modified')).toBeNull()
+    expect(screen.getByText('fm /api/skills/fm/p2 project-agents~deploy editable')).toBeInTheDocument()
   })
 
   it('creates a skill', () => {
@@ -253,82 +240,6 @@ describe('skills page groups', () => {
     expect(screen.queryByRole('button', { name: /local-notes/ })).toBeNull()
     fireEvent.click(header)
     expect(screen.getByRole('button', { name: /local-notes/ })).toBeInTheDocument()
-  })
-})
-
-describe('skills page file tree', () => {
-  beforeEach(async () => {
-    mocks.skills = [skill({ name: 'local-notes' })]
-    mocks.files = [
-      { path: 'SKILL.md', type: 'file', size: 10 },
-      { path: 'references', type: 'dir', size: 0 },
-      { path: 'references/api.md', type: 'file', size: 5 },
-      { path: 'references/guide.md', type: 'file', size: 5 },
-    ]
-    await i18n.changeLanguage('en')
-  })
-
-  it('shows files as a folder tree that collapses', () => {
-    renderPage()
-    fireEvent.click(screen.getByRole('button', { name: /local-notes/ }))
-    const tree = screen.getByRole('navigation', { name: 'Files' })
-    const folder = within(tree).getByRole('button', { name: 'references' })
-    expect(folder).toHaveAttribute('aria-expanded', 'true')
-    // Rows show the file name, not the whole path
-    expect(within(tree).getByRole('button', { name: 'api.md' })).toBeInTheDocument()
-    fireEvent.click(folder)
-    expect(folder).toHaveAttribute('aria-expanded', 'false')
-    expect(within(tree).queryByRole('button', { name: 'api.md' })).toBeNull()
-    expect(within(tree).getByRole('button', { name: 'SKILL.md' })).toBeInTheDocument()
-  })
-
-  it('hides and shows the tree beside the file on a large screen', async () => {
-    renderPage()
-    fireEvent.click(screen.getByRole('button', { name: /local-notes/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'File tree' }))
-    expect(screen.queryByRole('navigation', { name: 'Files' })).toBeNull()
-    expect(await screen.findByLabelText('editor')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'File tree' }))
-    expect(screen.getByRole('navigation', { name: 'Files' })).toBeInTheDocument()
-  })
-
-  it('takes turns with the file at full width on a small screen, as in the workspace', async () => {
-    mocks.isMobile = true
-    renderPage()
-    fireEvent.click(screen.getByRole('button', { name: /local-notes/ }))
-    // SKILL.md opens first, so the file is shown and the tree is closed
-    const editor = await screen.findByLabelText('editor')
-    expect(editor.closest('.hidden')).toBeNull()
-    expect(screen.queryByRole('navigation', { name: 'Files' })).toBeNull()
-
-    // The file stays mounted (keeping its undo history) but is hidden behind the tree
-    fireEvent.click(screen.getByRole('button', { name: 'File tree' }))
-    const tree = screen.getByRole('navigation', { name: 'Files' })
-    expect(screen.getByLabelText('editor').closest('.hidden')).not.toBeNull()
-
-    // Picking a file closes the tree again
-    fireEvent.click(within(tree).getByRole('button', { name: 'api.md' }))
-    expect(screen.queryByRole('navigation', { name: 'Files' })).toBeNull()
-    expect(screen.getByLabelText('editor').closest('.hidden')).toBeNull()
-  })
-})
-
-describe('skills page Markdown preview', () => {
-  beforeEach(async () => {
-    mocks.skills = [skill({ name: 'local-notes' })]
-    mocks.files = [{ path: 'SKILL.md', type: 'file', size: 10 }]
-    await i18n.changeLanguage('en')
-  })
-
-  it('switches a Markdown file between source and rendered preview, as in the workspace', async () => {
-    renderPage()
-    fireEvent.click(screen.getByRole('button', { name: /local-notes/ }))
-    expect(await screen.findByLabelText('editor')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
-    expect(screen.getByTestId('md-preview')).toHaveTextContent('body')
-    expect(screen.queryByLabelText('editor')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Source' }))
-    expect(await screen.findByLabelText('editor')).toBeInTheDocument()
   })
 })
 
@@ -584,6 +495,17 @@ describe('skills page update checks', () => {
   })
 })
 
+/** A drop as react-dropzone reads it: files plus their items and the `Files` type. */
+function dropData(files: File[]) {
+  return {
+    dataTransfer: {
+      files,
+      items: files.map(file => ({ kind: 'file', type: file.type, getAsFile: () => file })),
+      types: ['Files'],
+    },
+  }
+}
+
 describe('skills page upload', () => {
   beforeEach(async () => {
     mocks.upload.mockReset()
@@ -591,20 +513,35 @@ describe('skills page upload', () => {
     await i18n.changeLanguage('en')
   })
 
-  it('uploads a dropped file to the global scope', () => {
+  it('uploads a dropped file to the global scope', async () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Upload skill' }))
     const file = new File(['---\nname: x\n---'], 'x.md', { type: 'text/markdown' })
-    fireEvent.drop(screen.getByTestId('skill-dropzone'), { dataTransfer: { files: [file] } })
-    expect(mocks.upload).toHaveBeenCalledWith({ file, scope: 'global' }, expect.anything())
+    fireEvent.drop(screen.getByTestId('skill-dropzone'), dropData([file]))
+    await waitFor(() => expect(mocks.upload).toHaveBeenCalledWith({ file, scope: 'global' }, expect.anything()))
   })
 
-  it('refuses files that are not .zip, .skill or .md', () => {
+  it('uploads a .skill archive whatever its MIME type', async () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Upload skill' }))
-    fireEvent.drop(screen.getByTestId('skill-dropzone'), { dataTransfer: { files: [new File(['x'], 'notes.txt')] } })
+    const file = new File(['x'], 'pack.skill', { type: 'application/octet-stream' })
+    fireEvent.drop(screen.getByTestId('skill-dropzone'), dropData([file]))
+    await waitFor(() => expect(mocks.upload).toHaveBeenCalledWith({ file, scope: 'global' }, expect.anything()))
+  })
+
+  it('refuses files that are not .zip, .skill or .md', async () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Upload skill' }))
+    fireEvent.drop(screen.getByTestId('skill-dropzone'), dropData([new File(['x'], 'notes.txt', { type: 'text/plain' })]))
+    await waitFor(() => expect(screen.getAllByText(/\.zip, \.skill or \.md/).length).toBeGreaterThan(0))
     expect(mocks.upload).not.toHaveBeenCalled()
-    expect(screen.getAllByText(/\.zip, \.skill or \.md/).length).toBeGreaterThan(0)
+  })
+
+  it('offers only skill files in the picker', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Upload skill' }))
+    const input = screen.getByTestId('skill-dropzone').querySelector('input[type="file"]')!
+    expect(input.getAttribute('accept')).toContain('.skill')
   })
 })
 

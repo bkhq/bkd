@@ -553,18 +553,6 @@ export const SkillListSchema = z.object({
   cliAvailable: z.boolean(),
 }).openapi('SkillList')
 
-export const SkillFileEntrySchema = z.object({
-  path: z.string(),
-  type: z.enum(['file', 'dir']),
-  size: z.number().int(),
-}).openapi('SkillFileEntry')
-
-export const SkillFileSchema = z.object({
-  path: z.string(),
-  content: z.string(),
-  binary: z.boolean(),
-}).openapi('SkillFile')
-
 const skillName = z.string().min(1).max(64)
 
 export const SkillParamsSchema = z.object({
@@ -581,16 +569,6 @@ export const SkillUpdatesQuerySchema = SkillProjectQuerySchema.extend({
   location: SkillLocationSchema.optional(),
   name: skillName.optional(),
 })
-
-export const SkillFileQuerySchema = SkillProjectQuerySchema.extend({
-  path: z.string().min(1).max(1000),
-})
-
-export const SaveSkillFileSchema = z.object({
-  path: z.string().min(1).max(1000),
-  content: z.string().max(1024 * 1024),
-  projectId: z.string().min(1).max(100).optional(),
-}).openapi('SaveSkillFile')
 
 export const CreateSkillSchema = z.object({
   scope: z.enum(['global', 'project']),

@@ -175,3 +175,25 @@ describe('content headers', () => {
     expect(res.headers.get('Content-Security-Policy')).toContain('frame-ancestors \'none\'')
   })
 })
+
+describe('review', () => {
+  test('lists files that differ from HEAD, untracked ones included', async () => {
+    const git = (...args: string[]) => {
+      const proc = Bun.spawnSync(['git', '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd: worktree })
+      if (proc.exitCode !== 0) throw new Error(proc.stderr.toString())
+    }
+    git('init', '-q')
+    git('add', 'wt.txt')
+    git('commit', '-q', '-m', 'base')
+    writeFileSync(join(worktree, 'wt.txt'), 'worktree file, edited')
+    writeFileSync(join(worktree, 'new.txt'), 'new')
+
+    const res = await fm(`/m/wt-${issueId}/changes`)
+    expect(res.status).toBe(200)
+    const { changes } = await json<{ changes: { path: string, status: string }[] }>(res)
+    expect(changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: '/wt.txt', status: 'modified' }),
+      expect.objectContaining({ path: '/new.txt', status: 'untracked' }),
+    ]))
+  })
+})

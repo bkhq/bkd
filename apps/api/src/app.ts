@@ -16,6 +16,7 @@ import decisionsRoutes from './routes/decisions'
 import messagesRoutes from './routes/messages'
 import notesRoutes from './routes/notes'
 import skillsRoutes from './routes/skills'
+import skillsFmRoute from './routes/skills-fm'
 import terminalRoute from './routes/terminal'
 import { VERSION } from './version'
 import { runtimeConfig } from './runtime-config'
@@ -75,7 +76,7 @@ app.use(httpLogger())
 app.use('/api/*', async (c, next) => {
   // File manager writes and upload parts PUT raw bytes; a cross-site PUT always
   // preflights, so only its POST / PATCH bodies need the JSON gate
-  const fmRawBytes = c.req.method === 'PUT' && c.req.path.startsWith('/api/fm/')
+  const fmRawBytes = c.req.method === 'PUT' && /^\/api\/(?:skills\/)?fm\//.test(c.req.path)
   if (['POST', 'PUT', 'PATCH'].includes(c.req.method) && c.req.raw.body !== null && !fmRawBytes) {
     const mediaType = c.req.header('content-type')?.split(';')[0]?.trim().toLowerCase()
     const acceptsMultipart = /^\/api\/projects\/[^/]+\/issues(?:\/[^/]+\/follow-up)?\/?$/.test(c.req.path)
@@ -129,6 +130,7 @@ app.route('/api/engines', engineRoutes)
 app.route('/api/events', eventRoutes)
 app.route('/api/settings', settingsRoutes)
 app.route('/api/notes', notesRoutes)
+app.route('/api/skills/fm/:projectId', skillsFmRoute)
 app.route('/api/skills', skillsRoutes)
 app.route('/api/messages', messagesRoutes)
 app.route('/api/decisions', decisionsRoutes)

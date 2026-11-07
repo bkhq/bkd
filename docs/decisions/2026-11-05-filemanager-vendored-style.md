@@ -7,9 +7,3 @@
 upgraded by re-copying and reviewing the diff. They keep upstream style (double quotes,
 semicolons), so ESLint ignores `src/fm/**`; reformatting would bury every upgrade diff in
 style noise. Local fixes go upstream first; BKD-specific behaviour lives outside `src/fm`.
-
-## Local patches (to upstream)
-
-- 2026-11-06 — `react/media-stage.tsx`: drag with the mouse to pan a zoomed image, and the click
-  that ends a drag keeps the zoom (upstream resets to fit, and a zoomed image can only be moved by
-  scrolling). Re-apply on re-copy until upstream has it.

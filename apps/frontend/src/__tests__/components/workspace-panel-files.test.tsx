@@ -15,7 +15,6 @@ vi.mock('@/hooks/use-changes-summary', () => ({ useChangesSummary: () => null })
 vi.mock('@/components/files/WorkspaceFiles', () => ({
   WorkspaceFiles: ({ projectId, issueId }: { projectId: string, issueId: string }) => <div>{`file manager ${projectId}/${issueId}`}</div>,
 }))
-vi.mock('@/components/issue-detail/DiffPanel', () => ({ DiffChanges: () => null }))
 
 function renderPanel() {
   return render(<WorkspacePanel projectId="p1" issueId="i1" width={400} onWidthChange={() => {}} />)
@@ -24,7 +23,7 @@ function renderPanel() {
 describe('workspace panel Files tab', () => {
   beforeEach(async () => {
     mocks.changes = { isLoading: true, isError: false, data: undefined, refetch: vi.fn() }
-    useWorkspacePanelStore.setState({ isOpen: true, tabs: ['files'], activeTab: 'files' })
+    useWorkspacePanelStore.setState({ isOpen: true })
     await i18n.changeLanguage('en')
   })
 
@@ -46,6 +45,12 @@ describe('workspace panel Files tab', () => {
     expect(screen.getByText(/has no worktree yet, or it was cleaned up/)).toBeInTheDocument()
   })
 
+  it('keeps the panel width when the Files tab shows', () => {
+    useWorkspacePanelStore.setState({ width: 400 })
+    renderPanel()
+    expect(useWorkspacePanelStore.getState().width).toBe(400)
+  })
+
   it('shows an error with retry when the workspace cannot be resolved', () => {
     mocks.changes = { isLoading: false, isError: true, data: undefined, refetch: vi.fn() }
     renderPanel()
@@ -55,10 +60,25 @@ describe('workspace panel Files tab', () => {
   })
 })
 
+describe('workspace panel layout', () => {
+  beforeEach(async () => {
+    mocks.changes = { isLoading: false, isError: false, data: { root: '/wt/i1', gitRepo: true, files: [] }, refetch: vi.fn() }
+    useWorkspacePanelStore.setState({ isOpen: true, isMaximized: false })
+    await i18n.changeLanguage('en')
+  })
+
+  it('is one file manager with no tabs: changes are reviewed inside it', () => {
+    renderPanel()
+    expect(screen.getByText('file manager p1/i1')).toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.queryByRole('tab')).toBeNull()
+  })
+})
+
 describe('workspace panel hide control', () => {
   beforeEach(async () => {
     mocks.changes = { isLoading: true, isError: false, data: undefined, refetch: vi.fn() }
-    useWorkspacePanelStore.setState({ isOpen: true, tabs: ['files'], activeTab: 'files', isMaximized: false })
+    useWorkspacePanelStore.setState({ isOpen: true, isMaximized: false })
     await i18n.changeLanguage('en')
   })
 

@@ -155,12 +155,9 @@ export function ChatInput({
     isDragOver,
     previewFile,
     setPreviewFile,
-    fileInputRef,
     handlePaste,
-    handleDragOver,
-    handleDragLeave,
-    handleDrop,
-    handleFileSelect,
+    getRootProps,
+    getInputProps,
     openPicker,
     reset: resetAttachments,
   } = attach
@@ -460,9 +457,7 @@ export function ChatInput({
             'border-primary/50 bg-primary/[0.03] ring-2 ring-primary/20' :
             'border-border/60'
         }`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        {...getRootProps()}
       >
         {/* Resize handle */}
         <div
@@ -597,13 +592,7 @@ export function ChatInput({
         <AttachmentChips files={attachedFiles} onPreview={setPreviewFile} onRemove={attach.removeFile} />
 
         {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={handleFileSelect}
-        />
+        <input {...getInputProps()} />
 
         {/* Toolbar */}
         <div className="flex items-center justify-between px-2 pb-2 pt-0.5">

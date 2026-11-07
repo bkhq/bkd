@@ -16,12 +16,13 @@ vi.mock('@/fm/client/hooks', async () => ({
   useMounts: () => mocks.mounts,
 }))
 vi.mock('@/fm/react/file-manager', () => ({
-  FileManager: ({ client, initialMount, sidebar }: {
+  FileManager: ({ client, initialMount, sidebar, plugins }: {
     client: { baseUrl: string }
     initialMount: string
     sidebar: { hidden: string[] }
+    plugins: { id: string }[]
   }) => (
-    <div>
+    <div data-plugins={plugins.map(p => p.id).join(',')}>
       <p>{`fm ${client.baseUrl} ${initialMount}`}</p>
       <p>{`hidden ${sidebar.hidden.join(',')}`}</p>
     </div>
@@ -64,6 +65,11 @@ describe('workspaceFiles', () => {
   it('opens on the project directory for an issue without a worktree', () => {
     renderFiles(new QueryClient(), 'i2')
     expect(screen.getByText('fm /api/fm/p1 project')).toBeInTheDocument()
+  })
+
+  it('shows Markdown previews and git-change reviews', () => {
+    renderFiles(new QueryClient(), 'i1')
+    expect(screen.getByText('fm /api/fm/p1 wt-i1').closest('div')).toHaveAttribute('data-plugins', 'markdown,review')
   })
 
   it('waits for the mounts before choosing one', () => {

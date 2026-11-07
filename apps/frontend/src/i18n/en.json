@@ -358,7 +358,6 @@
     "delete": "Delete",
     "deleteTitle": "Delete skill",
     "deleteConfirm": "Move \"{{name}}\" to the trash ({{trash}})? Its link in .claude/skills is removed too, and agents stop seeing it right away. It cannot be restored from this page; to get it back, move its folder out of the trash directory on the server.",
-    "files": "Files",
     "source": "Source",
     "install": "Install skill",
     "installTitle": "Install skills",
@@ -731,22 +730,13 @@
     "Done": "Done"
   },
   "fileBrowser": {
-    "modified": "Modified",
-    "binaryFile": "Binary file, cannot preview",
     "title": "File Manager",
     "close": "Close file browser",
     "resizePanel": "Resize file browser",
-    "viewSource": "Source",
-    "viewRendered": "Preview",
     "copyPath": "Copy path",
-    "saving": "Saving...",
-    "fileTree": "File tree",
     "copyRelativePath": "Copy relative path",
     "pathCopied": "Path copied",
-    "resizeTree": "Resize file tree",
-    "saveFile": "Save file",
-    "wordWrap": "Wrap lines",
-    "truncatedReadOnly": "This file is too large and only partly shown, so it is read-only."
+    "resizeTree": "Resize file tree"
   },
   "processManager": {
     "title": "Processes",
@@ -912,22 +902,11 @@
   },
   "workspace": {
     "files": "Files",
-    "review": "Review",
-    "closeTab": "Close {{name}} tab",
     "showPanel": "Show side panel",
     "hidePanel": "Hide side panel",
     "resizePanel": "Resize side panel",
     "maximizePanel": "Maximize workspace",
     "restorePanel": "Restore workspace",
-    "open": {
-      "files": "Open workspace files",
-      "review": "Open review"
-    },
-    "openHint": {
-      "files": "Browse and edit files in the workspace",
-      "review": "See the code changes in the workspace"
-    },
-    "addTab": "Open a tab",
     "rootLoadFailed": "Couldn't resolve this issue's workspace.",
     "retry": "Retry",
     "worktreeMissing": "This issue has no worktree yet, or it was cleaned up. Running the issue creates it; until then the file browser stays unavailable so the main checkout is not edited by mistake."

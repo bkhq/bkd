@@ -16,11 +16,8 @@ import {
   createSkill,
   deleteSkill,
   getSkill,
-  listSkillFiles,
   listSkills,
-  readSkillFile,
   SkillError,
-  writeSkillFile,
 } from '@/skills/service'
 
 const skillsRoutes = createOpenAPIRouter()
@@ -117,46 +114,6 @@ skillsRoutes.openapi(R.cancelSkillsOperationRoute, async (c) => {
   const { id } = c.req.valid('param')
   if (!cancelSkillsOperation(id)) return c.json({ success: false as const, error: 'No such running operation' }, 404 as const)
   return c.json({ success: true as const, data: { id } }, 200 as const)
-})
-
-// GET /api/skills/:location/:name/files
-skillsRoutes.openapi(R.listSkillFilesRoute, async (c) => {
-  try {
-    const { location, name } = c.req.valid('param')
-    const { projectId } = c.req.valid('query')
-    const dir = await projectDir(projectId, location.startsWith('project'))
-    const skill = await getSkill(location, name, dir)
-    return c.json({ success: true as const, data: await listSkillFiles(skill) }, 200 as const)
-  } catch (err) {
-    return fail(c, err, 'list_files') as never
-  }
-})
-
-// GET /api/skills/:location/:name/file?path=
-skillsRoutes.openapi(R.readSkillFileRoute, async (c) => {
-  try {
-    const { location, name } = c.req.valid('param')
-    const { projectId, path } = c.req.valid('query')
-    const dir = await projectDir(projectId, location.startsWith('project'))
-    const skill = await getSkill(location, name, dir)
-    return c.json({ success: true as const, data: await readSkillFile(skill, path) }, 200 as const)
-  } catch (err) {
-    return fail(c, err, 'read_file') as never
-  }
-})
-
-// PUT /api/skills/:location/:name/file
-skillsRoutes.openapi(R.saveSkillFileRoute, async (c) => {
-  try {
-    const { location, name } = c.req.valid('param')
-    const { projectId, path, content } = c.req.valid('json')
-    const dir = await projectDir(projectId, location.startsWith('project'))
-    const skill = await getSkill(location, name, dir)
-    await writeSkillFile(skill, path, content)
-    return c.json({ success: true as const, data: { path, content, binary: false } }, 200 as const)
-  } catch (err) {
-    return fail(c, err, 'save_file') as never
-  }
 })
 
 // POST /api/skills

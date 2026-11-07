@@ -18,5 +18,8 @@
     "ui": "@/components/ui",
     "lib": "@/lib",
     "hooks": "@/hooks"
+  },
+  "registries": {
+    "@bkhq": "https://bkhq.github.io/filemanager/next/r/{name}.json"
   }
 }

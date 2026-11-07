@@ -62,6 +62,8 @@ export default antfu({
     'unicorn/no-new-array': 'off',
     'style/multiline-ternary': 'off',
     'style/operator-linebreak': 'off',
+    // New in @antfu/eslint-config 10: would reflow ~4k array / ternary sites
+    'antfu/reasonable-newline': 'off',
     'react-hooks-extra/no-direct-set-state-in-use-effect': 'off',
     'react/naming-convention-ref-name': 'off',
     'react/dom-no-dangerously-set-innerhtml': 'off',

@@ -2,6 +2,7 @@ import { cn } from 'cn'
 import { Upload } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { useDropzone } from 'react-dropzone'
 import { useTranslation } from 'react-i18next'
 import {
   AlertDialog,
@@ -349,6 +350,8 @@ export function UninstallSkillDialog({ open, onOpenChange, skill, projectId, onD
 }
 
 const UPLOAD_TYPES = /\.(zip|skill|md)$/i
+// Extensions match whatever MIME type the browser reports (a .skill usually has none)
+const UPLOAD_ACCEPT = { 'application/zip': ['.zip', '.skill'], 'text/markdown': ['.md'] }
 
 /** Drop or pick a .zip / .skill / .md file; reports what was added and what already existed. */
 export function UploadSkillDialog({ open, onOpenChange, projectId, onUploaded }: {
@@ -359,9 +362,7 @@ export function UploadSkillDialog({ open, onOpenChange, projectId, onUploaded }:
 }) {
   const { t } = useTranslation()
   const upload = useUploadSkills()
-  const inputRef = useRef<HTMLInputElement>(null)
   const [scope, setScope] = useState<'global' | 'project'>('global')
-  const [dragging, setDragging] = useState(false)
   const [rejected, setRejected] = useState(false)
   const effectiveScope = projectId ? scope : 'global'
   const result = upload.data
@@ -382,6 +383,14 @@ export function UploadSkillDialog({ open, onOpenChange, projectId, onUploaded }:
       } },
     )
   }
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    accept: UPLOAD_ACCEPT,
+    multiple: false,
+    disabled: upload.isPending,
+    onDropAccepted: files => send(files[0]),
+    onDropRejected: () => setRejected(true),
+  })
 
   // Every way of closing goes through here, so the next opening shows no old result
   const handleOpenChange = (next: boolean) => {
@@ -410,40 +419,21 @@ export function UploadSkillDialog({ open, onOpenChange, projectId, onUploaded }:
               </div>
             )
           : null}
-        <button
-          type="button"
+        <div
           data-testid="skill-dropzone"
-          disabled={upload.isPending}
-          onClick={() => inputRef.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault()
-            setDragging(true)
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault()
-            setDragging(false)
-            send(e.dataTransfer.files[0])
-          }}
-          className={cn(
-            'flex h-44 w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed text-sm text-muted-foreground transition-colors',
-            dragging ? 'border-primary bg-primary/5' : 'border-border hover:border-foreground/30',
-          )}
+          {...getRootProps({
+            className: cn(
+              'flex h-44 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed text-sm text-muted-foreground transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              isDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-foreground/30',
+              upload.isPending && 'cursor-default opacity-60',
+            ),
+          })}
         >
+          <input {...getInputProps()} />
           <Upload className="h-6 w-6" />
           <span>{upload.isPending ? t('skills.uploading') : t('skills.dropHint')}</span>
           <span className="text-xs">{t('skills.browse')}</span>
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".zip,.skill,.md"
-          className="hidden"
-          onChange={(e) => {
-            send(e.target.files?.[0])
-            e.target.value = ''
-          }}
-        />
+        </div>
         {rejected ? <p className="text-sm text-destructive">{t('skills.unsupportedFile')}</p> : null}
         {upload.error ? <p className="text-sm text-destructive">{upload.error.message}</p> : null}
         {result

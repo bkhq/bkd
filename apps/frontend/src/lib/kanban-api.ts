@@ -27,8 +27,6 @@ import type {
   ProbeResult,
   Project,
   ProjectProcessesResponse,
-  SkillFile,
-  SkillFileEntry,
   SkillInfo,
   SkillLocation,
   SkillsOperation,
@@ -648,12 +646,6 @@ export const kanbanApi = {
   // Skills
   getSkills: (projectId?: string) =>
     get<{ skills: SkillInfo[], cliAvailable: boolean }>(`/api/skills${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
-  getSkillFiles: (location: SkillLocation, name: string, projectId?: string) =>
-    get<SkillFileEntry[]>(`/api/skills/${location}/${encodeURIComponent(name)}/files${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
-  getSkillFile: (location: SkillLocation, name: string, path: string, projectId?: string) =>
-    get<SkillFile>(`/api/skills/${location}/${encodeURIComponent(name)}/file?${new URLSearchParams({ path, ...(projectId ? { projectId } : {}) })}`),
-  saveSkillFile: (location: SkillLocation, name: string, data: { path: string, content: string, projectId?: string }) =>
-    put<SkillFile>(`/api/skills/${location}/${encodeURIComponent(name)}/file`, data),
   createSkill: (data: { scope: 'global' | 'project', name: string, description: string, projectId?: string }) =>
     post<SkillInfo>('/api/skills', data),
   copySkill: (location: SkillLocation, name: string, data: { name: string, projectId?: string }) =>

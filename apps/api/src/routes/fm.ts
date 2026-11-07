@@ -60,12 +60,12 @@ async function crossMove(from: string, to: string): Promise<void> {
 }
 
 /**
- * A project directory as an fm driver: the trash and upload-session folders the
- * router keeps on the mount are redirected to `data/fm/<hash>/`.
+ * A directory as an fm driver: the trash and upload-session folders the router
+ * keeps on the mount are redirected to `data/fm/<hash>/`. `git` adds ignore marks and review.
  */
-export function workspaceDriver(root: string): FmDriver {
+export function workspaceDriver(root: string, { git = true }: { git?: boolean } = {}): FmDriver {
   const side = dataDirFor(root)
-  const main = localDriver({ root, gitIgnore: true, uploadDir: join(side, 'parts') })
+  const main = localDriver({ root, gitIgnore: git, gitChanges: git, uploadDir: join(side, 'parts') })
   const hidden = localDriver({ root: side })
   const pick = (path: string) => (isHidden(path) ? hidden : main)
   const ensureSide = () => mkdir(side, { recursive: true })
@@ -139,7 +139,7 @@ export async function projectMounts(projectId: string): Promise<FmMount[]> {
 
 /** fm routes that return file bytes (previews, downloads) rather than JSON. */
 export function isFmContentPath(path: string): boolean {
-  return /^\/api\/fm\/[^/]+\/m\/[^/]+\/(?:read|thumb|zip\/read)$/.test(path)
+  return /^\/api\/(?:skills\/)?fm\/[^/]+\/m\/[^/]+\/(?:read|thumb|zip\/read)$/.test(path)
 }
 
 /**

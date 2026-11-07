@@ -47,9 +47,7 @@ export function ChatArea({
   const isMobile = useIsMobile()
   const panelOpen = useWorkspacePanelStore(s => s.isOpen)
   const panelMaximized = useWorkspacePanelStore(s => s.isOpen && s.isMaximized && !isMobile)
-  const reviewOpen = useWorkspacePanelStore(s => s.isOpen && s.activeTab === 'review')
   const togglePanel = useWorkspacePanelStore(s => s.togglePanel)
-  const toggleTab = useWorkspacePanelStore(s => s.toggleTab)
   const toggleMaximized = useWorkspacePanelStore(s => s.toggleMaximized)
 
   // Width transition window for maximize/restore
@@ -208,9 +206,9 @@ export function ChatArea({
           projectId={projectId}
           issueId={issueId}
           issue={issue}
-          showDiff={reviewOpen}
-          onToggleDiff={() => toggleTab('review')}
-          onToggleFiles={() => toggleTab('files')}
+          showDiff={panelOpen}
+          onToggleDiff={togglePanel}
+          onToggleFiles={togglePanel}
           scrollRef={scrollRef}
           onAfterDelete={handleAfterDelete}
         />
