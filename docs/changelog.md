@@ -1334,3 +1334,9 @@ Re-copied the vendored file manager from `bkhq/filemanager` `86d4883` (was `b679
 `media-stage.tsx` drag patch, which is dropped, and adds the `react-zoom-pan-pinch` dependency: upstream's
 `registry.json` leaves it out of `fm-react`. `main` is merged into `feat/filemanager-rollout`; the vendored fm
 conflicts resolved to the newer upstream copy.
+
+## 2026-11-07 09:33 [BUG-P1]
+
+The diff views threw `CompileError: WebAssembly.Module()` on load. `@pierre/diffs` 1.6 pulls in `@pierre/highlights`,
+which compiles its embedded WASM at module load, and the CSP `script-src` did not allow it. Added `'wasm-unsafe-eval'`
+to `script-src`; it permits WebAssembly compilation only, not JS `eval`.

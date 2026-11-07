@@ -18,7 +18,7 @@ describe('Content-Security-Policy (SEC-019)', () => {
     const csp = res.headers.get('content-security-policy')
     expect(csp).toBeTruthy()
     expect(csp).toContain('default-src \'self\'')
-    expect(csp).toContain('script-src \'self\' \'unsafe-inline\'')
+    expect(csp).toContain('script-src \'self\' \'unsafe-inline\' \'wasm-unsafe-eval\'')
     expect(csp).toContain('style-src \'self\' \'unsafe-inline\'')
     expect(csp).toContain('img-src \'self\' data: blob:')
     expect(csp).toContain('connect-src \'self\'')
