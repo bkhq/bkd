@@ -13,7 +13,7 @@ import { ChangeBadge } from "./change-badge";
 import { CHANGE_STYLE } from "./changes";
 import { setDownloadUrl } from "./drop";
 import { DRAG_TYPE, EntryIcon } from "./file-list";
-import { groupMountsByDriver } from "./mount-visibility";
+import { groupMountsByDriver, groupMountsBySpace } from "./mount-visibility";
 
 /** What a tree row stands for when it is right-clicked: a mount root or an entry. */
 export interface FmTreeTarget {
@@ -75,13 +75,14 @@ const MOUNT_TYPE = "application/x-fm-mount";
 
 /** One visible row of the flattened tree. */
 type Row
-  = | { kind: "group"; key: string; depth: number; driver: string; open: boolean }
+  = | { kind: "group"; key: string; depth: number; driver: string; open: boolean; label?: string }
     | { kind: "section"; key: string; depth: number; section: FmTreeSection; open: boolean }
     /** Drive or folder that only groups the entries of a host list. */
     | { kind: "node"; key: string; depth: number; label: string; icon: "drive" | "lock" | "folder"; open: boolean }
     | { kind: "mount"; key: string; depth: number; info: FmMountInfo; open: boolean }
     /** `where` (drive and parent folder) is set on rows inside a host list. */
-    | { kind: "dir"; key: string; depth: number; entry: FmEntry; open: boolean; where?: string }
+    /** `leaf`: listed and holds no subfolders (folders-only trees). */
+    | { kind: "dir"; key: string; depth: number; entry: FmEntry; open: boolean; where?: string; leaf?: boolean }
     | { kind: "file"; key: string; depth: number; entry: FmEntry; where?: string; open?: ((entry: FmEntry) => void) | undefined }
     | { kind: "trash"; key: string; depth: number; mount: string };
 
@@ -193,7 +194,8 @@ export function FileTree(props: TreeProps & {
   mounts: FmMountInfo[];
   readOnlyLabel: string;
   trashLabel: string;
-  group?: "none" | "driver" | undefined;
+  /** `space`: mounts under their host `group`, ungrouped ones at the top level. */
+  group?: "none" | "driver" | "space" | undefined;
   groupLabel: (driver: string) => string;
   manageLabel: string;
   /** Leaves the Manage drives button out when unset. */
@@ -204,6 +206,8 @@ export function FileTree(props: TreeProps & {
   revealTick?: number;
   /** Host lists (starred, recent) above the drives. */
   sections?: readonly FmTreeSection[] | undefined;
+  /** Drive rows list folders only; a listed folder without subfolders shows no chevron. */
+  foldersOnly?: boolean | undefined;
   /** `false` leaves the drives and "Manage drives" out, so only the sections remain. */
   drives?: boolean | undefined;
 }) {
@@ -245,6 +249,9 @@ export function FileTree(props: TreeProps & {
         return false;
       }
       const isOpen = t.expanded.has(key);
+      const listed = !prefix && props.foldersOnly
+        ? listings.get(key)
+        : undefined;
       rows.push({
         kind: "dir",
         key: prefix + key,
@@ -252,6 +259,12 @@ export function FileTree(props: TreeProps & {
         entry,
         open: isOpen,
         ...where,
+        // A loaded listing wins over the driver's hint, which may be stale.
+        ...(props.foldersOnly && !prefix && (listed
+          ? !(filterEntries?.(entry.mount, listed, entry.path) ?? listed).some(e => e.kind === "dir")
+          : entry.hasSubfolders === false)
+          ? { leaf: true }
+          : {}),
       });
       return isOpen;
     };
@@ -259,6 +272,8 @@ export function FileTree(props: TreeProps & {
       open.push({ mount, path });
       const entries = listings.get(treeKey(mount, path)) ?? [];
       for (const entry of filterEntries?.(mount, entries, path) ?? entries) {
+        if (props.foldersOnly && entry.kind !== "dir")
+          continue;
         if (pushEntry(entry, depth, prefix))
           folder(mount, entry.path, depth + 1, prefix);
       }
@@ -380,7 +395,27 @@ export function FileTree(props: TreeProps & {
     }
     if (props.drives === false)
       return { rows, open };
-    if (props.group === "driver") {
+    if (props.group === "space") {
+      for (const m of props.mounts) {
+        if (m.group === undefined)
+          mountRows(m, 0);
+      }
+      for (const g of groupMountsBySpace(props.mounts)) {
+        const id = `space:${g.group}`;
+        const isOpen = !closedGroups.has(id);
+        rows.push({
+          kind: "group",
+          key: `group:${id}`,
+          depth: 0,
+          driver: id,
+          label: g.group,
+          open: isOpen,
+        });
+        if (isOpen)
+          g.mounts.forEach(m => mountRows(m, 1));
+      }
+    }
+    else if (props.group === "driver") {
       for (const g of groupMountsByDriver(props.mounts)) {
         const isOpen = !closedGroups.has(g.driver);
         rows.push({
@@ -403,6 +438,7 @@ export function FileTree(props: TreeProps & {
     t.expanded,
     props.group,
     props.drives,
+    props.foldersOnly,
     props.mounts,
     sections,
     filterEntries,
@@ -525,7 +561,7 @@ export function FileTree(props: TreeProps & {
     const active = isActive(row);
     switch (row.kind) {
       case "group": {
-        const label = props.groupLabel(row.driver);
+        const label = row.label ?? props.groupLabel(row.driver);
         return (
           <Item key={row.key} row={at} label={label} active={false} expanded={row.open}>
             <Button variant="ghost" size="sm" className={ROW} onClick={() => setOpen(row, !row.open)}>
@@ -605,7 +641,9 @@ export function FileTree(props: TreeProps & {
               ? `${entry.name}, ${row.where}`
               : entry.name}
             active={active}
-            expanded={row.open}
+            expanded={row.leaf
+              ? undefined
+              : row.open}
             at={entry}
             drag={entry.caps.move || entry.caps.copy
               ? { mount: entry.mount, path: entry.path }
@@ -622,7 +660,9 @@ export function FileTree(props: TreeProps & {
                 t.onNavigate(entry.mount, entry.path);
               }}
             >
-              {chevron(row.open)}
+              {row.leaf
+                ? <span className="size-4 shrink-0" />
+                : chevron(row.open)}
               <FolderIcon className="text-sky-500" />
               <span className="truncate">{entry.name}</span>
               <ChangeBadge dir={t.changesOf?.(entry.mount)?.dirs.has(entry.path)} />

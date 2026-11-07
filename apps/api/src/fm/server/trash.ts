@@ -1,5 +1,5 @@
 import type { FmTrashItem } from "../core/schema";
-import type { FmChangeContext, FmDriver } from "./driver";
+import type { FmChangeContext, FmDriver, FmDriverTrash } from "./driver";
 import { FmError, isFmError } from "../core/errors";
 import { assertName } from "../core/path";
 import { readAll } from "./driver";
@@ -8,13 +8,6 @@ import { readAll } from "./driver";
 export const TRASH_DIR = "/.fm-trash";
 
 type Meta = Omit<FmTrashItem, "id" | "expiresAt">;
-
-const DAY_MS = 86_400_000;
-
-/** When `item` expires under a retention of `days`. */
-export function expiresAt(item: FmTrashItem, days: number): string {
-  return new Date(Date.parse(item.deletedAt) + days * DAY_MS).toISOString();
-}
 
 const metaPath = (id: string) => `${TRASH_DIR}/${id}.json`;
 
@@ -87,16 +80,29 @@ export async function dropTrashItem(d: FmDriver, id: string, ctx?: FmChangeConte
   await d.remove(metaPath(id));
 }
 
-/** Deletes items older than `days` (best effort, per item) and returns the remaining ones and the count removed. */
-export async function purgeExpiredItems(d: FmDriver, days: number, now = Date.now()): Promise<{ kept: FmTrashItem[]; purged: number }> {
-  const kept: FmTrashItem[] = [];
-  let purged = 0;
-  for (const item of await listTrash(d)) {
-    if (Date.parse(expiresAt(item, days)) > now) {
-      kept.push(item);
-      continue;
-    }
-    await dropTrashItem(d, item.id).then(() => purged++, () => kept.push(item));
-  }
-  return { kept, purged };
+/** The router's trash for drivers without their own: entries move into `/.fm-trash`. */
+export function folderTrash(d: FmDriver): FmDriverTrash {
+  const toItem = (i: FmTrashItem) => ({
+    id: i.id,
+    path: i.path,
+    name: i.name,
+    kind: i.kind,
+    size: i.size,
+    deletedAt: Date.parse(i.deletedAt),
+  });
+  return {
+    remove: (path, ctx) => moveToTrash(d, path, ctx),
+    list: async () => (await listTrash(d)).map(toItem),
+    get: async id => toItem(await getTrashItem(d, id)),
+    async restore(id, to, ctx) {
+      const item = await getTrashItem(d, id);
+      const entry = await d.move(trashedPath(item), to, ctx);
+      await dropTrashItem(d, id, ctx);
+      return entry;
+    },
+    async purge(id, ctx) {
+      await getTrashItem(d, id);
+      await dropTrashItem(d, id, ctx);
+    },
+  };
 }

@@ -185,6 +185,57 @@ export function runDriverContract(label: string, make: () => Promise<FmDriverFix
       expect(await names(d, "/")).toEqual([]);
     });
 
+    const itTrash = (name: string, fn: () => Promise<void>) => it(name, async () => {
+      if (d.trash)
+        await fn();
+    });
+
+    itTrash("trash: removes into it, lists, gets, restores and purges", async () => {
+      const t = d.trash!;
+      await d.write("/bin/a.txt", enc.encode("a"));
+      await d.write("/bin/dir/b.txt", enc.encode("b"));
+      const a = await t.remove("/bin/a.txt");
+      const dir = await t.remove("/bin/dir");
+      await expect(d.stat("/bin/a.txt")).rejects.toThrow();
+      expect(await names(d, "/bin")).toEqual([]);
+      const listed = await t.list();
+      expect(listed.map(i => i.id).sort()).toEqual([a, dir].sort());
+      expect(await t.get(dir)).toMatchObject({
+        id: dir,
+        path: "/bin/dir",
+        name: "dir",
+        kind: "dir",
+      });
+      expect(await t.get(a)).toMatchObject({
+        path: "/bin/a.txt",
+        name: "a.txt",
+        kind: "file",
+        size: 1,
+      });
+      expect((await t.restore(dir, "/bin/dir")).kind).toBe("dir");
+      expect(dec.decode(await readAll((await d.read("/bin/dir/b.txt")).body))).toBe("b");
+      // Restoring next to a new file of the same name goes where the router says.
+      await d.write("/bin/a.txt", enc.encode("new"));
+      expect((await t.restore(a, "/bin/a (1).txt")).path).toBe("/bin/a (1).txt");
+      expect(await t.list()).toEqual([]);
+      const gone = await t.remove("/bin/a.txt");
+      await t.purge(gone);
+      expect(await t.list()).toEqual([]);
+    });
+
+    itTrash("trash: unknown ids are NOT_FOUND", async () => {
+      await expect(d.trash!.get("nope")).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await expect(d.trash!.purge("nope")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+
+    it("reports subfolder hints that match the children, when it gives them", async () => {
+      await d.write("/hint/files/a.txt", enc.encode("a"));
+      await d.write("/hint/nested/deep/b.txt", enc.encode("b"));
+      const by = Object.fromEntries((await d.list("/hint")).map(e => [e.name, e.hasSubfolders]));
+      expect(by.files === undefined || by.files === false).toBe(true);
+      expect(by.nested === undefined || by.nested === true).toBe(true);
+    });
+
     it("rejects reading a directory as a file", async () => {
       await d.write("/dir/f.txt", enc.encode("f"));
       await expectCode(d.read("/dir"), "IS_A_DIR");

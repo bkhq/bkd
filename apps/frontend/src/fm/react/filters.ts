@@ -20,11 +20,32 @@ export interface FmListFilters {
   /** Empty: every type. */
   types: readonly FmFilterKind[];
   modified: FmModifiedRange;
+  /** Host column values to keep, by column id (`entry.extra` key); an empty list keeps all. */
+  extra?: Readonly<Record<string, readonly string[]>>;
 }
 
 export const NO_FILTERS: FmListFilters = { types: [], modified: "any" };
 
-export const hasFilters = (f: FmListFilters) => f.types.length > 0 || f.modified !== "any";
+const hasExtra = (f: FmListFilters) => Object.values(f.extra ?? {}).some(v => v.length > 0);
+
+export const hasFilters = (f: FmListFilters) => f.types.length > 0 || f.modified !== "any" || hasExtra(f);
+
+type FmExtraValue = string | number | boolean | null;
+
+/** A column value as text; missing and null read as empty. */
+function columnText(e: { extra?: Readonly<Record<string, FmExtraValue>> | undefined }, id: string) {
+  const v = e.extra?.[id];
+  return v === undefined || v === null
+    ? ""
+    : String(v);
+}
+
+/** Distinct non-empty values of a host column, sorted, for its filter menu. */
+export function columnValues(entries: readonly { extra?: Readonly<Record<string, FmExtraValue>> | undefined }[], id: string): string[] {
+  return [
+    ...new Set(entries.map(e => columnText(e, id)).filter(Boolean)),
+  ].sort((a, b) => a.localeCompare(b));
+}
 
 const DOCUMENT = /\.(?:pdf|docx?|odt|rtf|pptx?|odp|pages|key)$/i;
 const SHEET = /\.(?:csv|tsv|xlsx?|ods|numbers)$/i;
@@ -65,7 +86,7 @@ export function modifiedSince(range: FmModifiedRange, now = new Date()): Date | 
 }
 
 /** Entries matching `f`; the same array when nothing is filtered. `keepFolders` lets folders through (tree). */
-export function applyFilters<T extends { kind: "file" | "dir"; name: string; mime?: string | undefined; mtime: string }>(
+export function applyFilters<T extends { kind: "file" | "dir"; name: string; mime?: string | undefined; mtime: string; extra?: Readonly<Record<string, FmExtraValue>> | undefined }>(
   entries: readonly T[],
   f: FmListFilters,
   o: { now?: Date; keepFolders?: boolean } = {},
@@ -78,8 +99,26 @@ export function applyFilters<T extends { kind: "file" | "dir"; name: string; mim
       return true;
     if (f.types.length && !f.types.includes(filterKindOf(e)))
       return false;
+    for (const [id, values] of Object.entries(f.extra ?? {})) {
+      if (values.length && !values.includes(columnText(e, id)))
+        return false;
+    }
     return since === undefined || Date.parse(e.mtime) >= since;
   });
+}
+
+function parseExtra(raw: unknown): Pick<FmListFilters, "extra"> {
+  if (!raw || typeof raw !== "object")
+    return {};
+  const extra = Object.fromEntries(Object.entries(raw)
+    .filter((kv): kv is [string, unknown[]] => Array.isArray(kv[1]))
+    .map(([id, values]) => [
+      id,
+      values.filter((x): x is string => typeof x === "string"),
+    ]));
+  return Object.keys(extra).length
+    ? { extra }
+    : {};
 }
 
 /** Stored filters (JSON), dropping unknown values; anything unreadable is no filter. */
@@ -91,6 +130,7 @@ export function parseFilters(raw: string | null): FmListFilters {
         ? FILTER_KINDS.filter(k => v.types!.includes(k))
         : [],
       modified: MODIFIED_RANGES.find(r => r === v?.modified) ?? "any",
+      ...parseExtra(v?.extra),
     };
   }
   catch {

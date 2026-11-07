@@ -1316,3 +1316,13 @@ Dependencies on their latest releases: `@antfu/eslint-config` 9.5.1 -> 10.0.0, `
 rebuild). `@antfu/eslint-config` 10 adds `antfu/reasonable-newline`, which would reflow ~4,100 array and ternary
 sites; it is off in `eslint.config.js` to keep the existing style. The root `typescript` stays on 6.x:
 typescript-eslint 8.72.1 still requires `typescript <6.1.0`.
+
+## 2026-11-06 10:30 [progress]
+
+Re-copied the vendored file manager from `bkhq/filemanager` `b6790c4` (was `8d95a43`). `<FileManager />` is split
+into shared state hooks and `manager-*` parts. Two upstream changes matter here: optional driver-owned trash, and
+"Manage drives" now shows only when more than one drive is visible. BKD's `workspaceDriver` still uses the router's
+folder trash, redirected to `data/fm/<hash>/`; `localDriver` has no trash of its own. `trash-cleanup` now calls the
+router's `purgeExpired(mount)`, which replaces the removed `purgeExpiredItems`. `WorkspaceFiles` hides every drive
+except the one it opens on (the issue's worktree, else the project), so the sidebar shows only that drive and no
+"Manage drives".

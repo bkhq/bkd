@@ -2,6 +2,7 @@ import type { DragEvent, MouseEvent, ReactNode, PointerEvent as ReactPointerEven
 import type { FmClient } from "../client/client";
 import type { FmEntry, FmSortKey } from "../core/schema";
 import type { FmChangeIndex } from "./changes";
+import type { FmColumn } from "./columns";
 import type { FmLabels } from "./labels";
 import type { FmFileKind, FmSelection, FmSelectMode } from "./state";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -22,6 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { dirname } from "../core/path";
 import { ChangeBadge } from "./change-badge";
 import { CHANGE_STYLE } from "./changes";
+import { columnContent } from "./columns";
 import { setDownloadUrl } from "./drop";
 import { viewportRef } from "./scroll";
 import { formatSize, kindOf } from "./state";
@@ -80,6 +82,8 @@ export interface FileListProps {
   thumbnails?: boolean;
   /** Review decorations: status of changed entries, dots on folders holding changes. */
   changes?: FmChangeIndex | undefined;
+  /** Host columns between name and size (list view). */
+  columns?: readonly FmColumn[] | undefined;
 }
 
 function modeOf(e: MouseEvent): FmSelectMode {
@@ -174,6 +178,11 @@ function ListRow({ p, entry, top }: { p: FileListProps; entry: FmEntry; top: num
       </span>
       <ChangeBadge change={p.changes?.byPath.get(entry.path)} dir={entry.kind === "dir" && p.changes?.dirs.has(entry.path)} />
       {p.showParent && <span className="max-w-[40%] min-w-0 truncate text-xs text-muted-foreground" role="gridcell">{dirname(entry.path)}</span>}
+      {p.columns?.map(c => (
+        <span key={c.id} className="shrink-0 truncate text-xs text-muted-foreground" style={{ width: c.width ?? 120 }} role="gridcell" data-fm-column={c.id}>
+          {columnContent(c, entry)}
+        </span>
+      ))}
       <span className="w-24 shrink-0 text-right text-xs text-muted-foreground tabular-nums" role="gridcell">
         {entry.kind === "file"
           ? formatSize(entry.size)
@@ -237,6 +246,7 @@ function SortHeader({ p }: { p: FileListProps }) {
     <div className="flex h-8 shrink-0 items-center gap-3 border-b px-3 text-xs text-muted-foreground" role="row">
       <span className="size-4" />
       {cell("name", p.labels.name, "min-w-0 flex-1")}
+      {p.columns?.map(c => <span key={c.id} className="shrink-0 truncate" style={{ width: c.width ?? 120 }}>{c.label}</span>)}
       {cell("size", p.labels.size, "w-24 justify-end")}
       {cell("mtime", p.labels.modified, cn("w-40 justify-end", p.compact && "hidden"))}
     </div>

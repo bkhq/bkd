@@ -1,4 +1,4 @@
-import type { FmCaps, FmEntryKind, FmSearchMode } from "../core/schema";
+import type { FmCaps, FmEntryExtra, FmEntryKind, FmSearchMode } from "../core/schema";
 
 /** An entry as seen by a driver: mount-relative path, no caller caps. */
 export interface FmDriverEntry {
@@ -12,6 +12,12 @@ export interface FmDriverEntry {
   mime?: string;
   /** Matched by an ignore rule such as .gitignore; set only by drivers that know. */
   ignored?: boolean;
+  /** Stable id from drivers that have one; it survives renames and moves. */
+  id?: string;
+  /** Host data shown by the UI (owner, shared …). */
+  extra?: FmEntryExtra;
+  /** Folders only: whether it holds folders; leave unset when finding out is not cheap. */
+  hasSubfolders?: boolean;
 }
 
 export interface FmByteRange {
@@ -124,6 +130,37 @@ export interface FmMultipart {
  * - `search` is optional; without it the router walks the tree with `list`.
  * - `multipart` is optional; see `FmMultipart`.
  */
+/** An entry in a driver's own trash. */
+export interface FmDriverTrashItem {
+  id: string;
+  /** Original path. */
+  path: string;
+  name: string;
+  kind: FmEntryKind;
+  size: number;
+  /** Epoch milliseconds. */
+  deletedAt: number;
+  /** Epoch milliseconds, when the driver purges on its own schedule. */
+  expiresAt?: number;
+}
+
+/**
+ * A trash the backend keeps itself (a database marking rows deleted). Without it the router
+ * moves deleted entries into a hidden `/.fm-trash` folder through the ordinary calls.
+ */
+export interface FmDriverTrash {
+  /** Moves `path` to the trash and returns the item id. */
+  remove: (path: string, ctx?: FmChangeContext) => Promise<string>;
+  /** Newest first. */
+  list: () => Promise<FmDriverTrashItem[]>;
+  /** NOT_FOUND for unknown ids. */
+  get: (id: string) => Promise<FmDriverTrashItem>;
+  /** Puts the item back at `to`, a free path the router picked under the original folder. */
+  restore: (id: string, to: string, ctx?: FmChangeContext) => Promise<FmDriverEntry>;
+  /** Deletes the item for good; NOT_FOUND for unknown ids. */
+  purge: (id: string, ctx?: FmChangeContext) => Promise<void>;
+}
+
 export interface FmDriver {
   readonly name: string;
   /** Actions this backend supports at all. */
@@ -146,6 +183,8 @@ export interface FmDriver {
   multipart?: FmMultipart;
   /** Changes against a baseline (review / diff), e.g. git status of a work tree. */
   changes?: FmChanges;
+  /** Optional; the backend's own trash, used instead of the router's `/.fm-trash` folder. */
+  trash?: FmDriverTrash;
 }
 
 export async function readAll(body: ReadableStream<Uint8Array> | Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
