@@ -27,7 +27,7 @@ const app = new OpenAPIHono()
 const appHeaders = secureHeaders({
   contentSecurityPolicy: {
     defaultSrc: ['\'self\''],
-    scriptSrc: ['\'self\'', '\'unsafe-inline\''],
+    scriptSrc: ['\'self\'', '\'unsafe-inline\'', '\'wasm-unsafe-eval\''],
     styleSrc: ['\'self\'', '\'unsafe-inline\''],
     imgSrc: ['\'self\'', 'data:', 'blob:'],
     connectSrc: ['\'self\''],
