@@ -54,7 +54,7 @@ export function PreviewDialog({ entry, siblings, client, labels, editable, previ
     <>
       <Dialog open onOpenChange={o => !o && guard(onClose)}>
         <DialogContent className="flex h-[85vh] flex-col gap-0 p-0 sm:max-w-5xl" onKeyDown={onKeyDown}>
-          <DialogHeader className="flex-row items-center gap-2 border-b py-2 pr-12 pl-4">
+          <DialogHeader className="flex-row items-center gap-1.5 border-b py-2 pr-12 pl-4">
             <DialogTitle className="min-w-0 flex-1 truncate">{entry.name}</DialogTitle>
             <div ref={setActions} className="flex items-center gap-2" />
             {onDownload && <IconButton label={labels.download} onClick={() => onDownload(entry)}><DownloadIcon /></IconButton>}

@@ -57,6 +57,7 @@
     "react-i18next": "^17.0.16",
     "react-resizable-panels": "^4.17.0",
     "react-router-dom": "^7.18.4",
+    "react-zoom-pan-pinch": "^4.2.0",
     "shiki": "^4.5.0",
     "sonner": "^2.0.8",
     "streamdown": "^2.7.0",

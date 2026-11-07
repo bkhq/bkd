@@ -1326,3 +1326,11 @@ folder trash, redirected to `data/fm/<hash>/`; `localDriver` has no trash of its
 router's `purgeExpired(mount)`, which replaces the removed `purgeExpiredItems`. `WorkspaceFiles` hides every drive
 except the one it opens on (the issue's worktree, else the project), so the sidebar shows only that drive and no
 "Manage drives".
+
+## 2026-11-07 04:30 [progress]
+
+Re-copied the vendored file manager from `bkhq/filemanager` `86d4883` (was `b6790c4`). The image preview now uses
+`react-zoom-pan-pinch` for drag to pan, wheel or double-click to zoom, and pinch on touch. That replaces BKD's local
+`media-stage.tsx` drag patch, which is dropped, and adds the `react-zoom-pan-pinch` dependency: upstream's
+`registry.json` leaves it out of `fm-react`. `main` is merged into `feat/filemanager-rollout`; the vendored fm
+conflicts resolved to the newer upstream copy.
