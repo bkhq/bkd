@@ -30,6 +30,7 @@ export async function skillMounts(scope: string): Promise<FmMount[]> {
       driver: workspaceDriver(root, { git: false }),
       readOnly: skill.managed || (skill.scope === 'project' && !projectWritable),
       trash: { retentionDays: TRASH_RETENTION_DAYS },
+      absoluteRoot: root,
     })
   }
   return mounts

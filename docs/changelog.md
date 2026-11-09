@@ -1340,3 +1340,11 @@ conflicts resolved to the newer upstream copy.
 The diff views threw `CompileError: WebAssembly.Module()` on load. `@pierre/diffs` 1.6 pulls in `@pierre/highlights`,
 which compiles its embedded WASM at module load, and the CSP `script-src` did not allow it. Added `'wasm-unsafe-eval'`
 to `script-src`; it permits WebAssembly compilation only, not JS `eval`.
+
+## 2026-11-09 03:30 [progress]
+
+Re-copied the vendored file manager from `bkhq/filemanager` `38b9f10` (was `86d4883`). Upstream adds full-screen
+preview and review dialogs, zooms images to real size with stage-wide pan and a minimap, shares the shell UI between
+the drive and workspace views, and declares the `react-zoom-pan-pinch` dependency in its registry. "Copy path" now
+copies the real absolute path and only shows when a mount sets `absoluteRoot`, next to a new "Copy relative path".
+BKD sets `absoluteRoot` on the project, worktree, and skill mounts; those directories are already visible in BKD.

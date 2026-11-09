@@ -63,6 +63,11 @@ describe('mounts', () => {
     expect(body.mounts[1]!.label).toContain('Worktree issue')
   })
 
+  test('reveals each mount\'s real directory for "Copy path"', async () => {
+    const body = await json<{ mounts: Array<{ absoluteRoot?: string }> }>(await fm('/mounts'))
+    expect(body.mounts.map(m => m.absoluteRoot)).toEqual([projectDir, worktree])
+  })
+
   test('serves nothing for a project outside the workspace (SEC-007)', async () => {
     const res = await app.request(`http://localhost/api/fm/${outsideProjectId}/mounts`)
     expect((await json<{ mounts: unknown[] }>(res)).mounts).toEqual([])

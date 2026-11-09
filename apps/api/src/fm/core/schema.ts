@@ -97,6 +97,8 @@ export const mountInfoSchema = z.object({
   trashRetentionDays: z.number().int().positive().optional(),
   /** Host grouping of spaces (personal, team, shared with me …). */
   group: z.string().optional(),
+  /** Real directory behind the mount, when the host chooses to reveal it. */
+  absoluteRoot: z.string().optional(),
   /** Bytes used, and the limit when there is one. */
   quota: z.object({
     used: z.number().nonnegative(),

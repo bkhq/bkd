@@ -10,7 +10,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { fmKeys, useUsage } from "../client/hooks";
-import { dirname } from "../core/path";
+import { absolutePath, dirname, relativePath } from "../core/path";
 import { columnContent } from "./columns";
 import { EntryIcon } from "./file-list";
 import { IconButton } from "./icon-button";
@@ -26,9 +26,11 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** Side panel with the properties of one entry; folders show their total size. */
-export function DetailsPanel({ entry, mountLabel, client, labels, overlay, onClose, columns, tabs }: {
+export function DetailsPanel({ entry, mountLabel, absoluteRoot, client, labels, overlay, onClose, columns, tabs }: {
   entry: FmEntry;
   mountLabel: string;
+  /** Real directory behind the mount, when the host reveals it. */
+  absoluteRoot?: string | undefined;
   client: FmClient;
   labels: FmLabels;
   /** Float above the list (narrow layouts) instead of taking a column. */
@@ -56,7 +58,9 @@ export function DetailsPanel({ entry, mountLabel, client, labels, overlay, onClo
   });
 
   const copyPath = () => {
-    void navigator.clipboard?.writeText(entry.path).then(() => setCopied(true));
+    void navigator.clipboard?.writeText(absoluteRoot === undefined
+      ? relativePath(entry.path)
+      : absolutePath(absoluteRoot, entry.path)).then(() => setCopied(true));
   };
 
   return (
@@ -127,7 +131,9 @@ export function DetailsPanel({ entry, mountLabel, client, labels, overlay, onClo
                     <CopyIcon />
                     {copied
                       ? labels.copied
-                      : labels.copyPath}
+                      : absoluteRoot === undefined
+                        ? labels.copyRelativePath
+                        : labels.copyPath}
                   </Button>
                 </div>
               </dl>

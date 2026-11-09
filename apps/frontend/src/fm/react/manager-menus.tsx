@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/context-menu";
 
 import { fmKeys } from "../client/hooks";
+import { absolutePath, relativePath } from "../core/path";
 import { KEYS } from "./manager-shared";
 import { kindOf } from "./state";
 import { tidyMenu } from "./tidy-menu";
@@ -51,6 +52,7 @@ export function createMenus(props: FileManagerProps, v: FmViewState, l: FmListin
     path,
     inTrash,
     labels,
+    mounts,
     qc,
     features,
     mount,
@@ -132,6 +134,7 @@ export function createMenus(props: FileManagerProps, v: FmViewState, l: FmListin
     const one = targets.length === 1
       ? targets[0]
       : undefined;
+    const root = one && mounts.data?.find(m => m.id === one.mount)?.absoluteRoot;
     const custom = [
       ...(props.actions ?? []),
       ...(props.plugins ?? []).flatMap(p => p.actions ?? []),
@@ -171,7 +174,15 @@ export function createMenus(props: FileManagerProps, v: FmViewState, l: FmListin
       one && menuItem("copyContents", labels.copyContents, <ClipboardCopyIcon />, () => void copyContents(one), {
         show: features.download && !inTrash && one.kind === "file" && kindOf(one) === "text" && one.size <= 1024 * 1024,
       }),
-      one && menuItem("copyPath", labels.copyPath, <ClipboardCopyIcon />, () => void copyText(one.path, labels.pathCopied), { show: !inTrash }),
+      <ContextMenuSeparator key="paths" />,
+      one && root !== undefined && menuItem("copyPath", labels.copyPath, <ClipboardCopyIcon />, () => void copyText(absolutePath(root, one.path), labels.pathCopied), {
+        show: !inTrash,
+        shortcut: KEYS.copyPath,
+      }),
+      one && menuItem("copyRelativePath", labels.copyRelativePath, <ClipboardCopyIcon />, () => void copyText(relativePath(one.path), labels.pathCopied), {
+        show: !inTrash,
+        shortcut: KEYS.copyRelativePath,
+      }),
       one && menuItem("copyName", labels.copyName, <ClipboardCopyIcon />, () => void copyText(one.name, labels.nameCopied), { show: !inTrash }),
       <ContextMenuSeparator key="s2" />,
       one && menuItem("rename", labels.rename, <PencilIcon />, () => setDialog({ kind: "rename", entry: one }), {

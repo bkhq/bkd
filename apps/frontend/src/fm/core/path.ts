@@ -55,3 +55,16 @@ export function nextFreeName(name: string, n: number): string {
     : "";
   return `${stem.replace(/ \(\d+\)$/, "")} (${n})${ext}`;
 }
+
+/** Real path of a mount path under the host's `absoluteRoot`. */
+export function absolutePath(root: string, path: string): string {
+  const base = root.replace(/\/+$/, "");
+  return path === "/"
+    ? base || "/"
+    : `${base}${path}`;
+}
+
+/** A mount path as a relative one: no leading slash, `.` for the root. */
+export function relativePath(path: string): string {
+  return path.slice(1) || ".";
+}

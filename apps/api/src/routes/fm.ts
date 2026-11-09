@@ -121,17 +121,19 @@ export async function projectMounts(projectId: string): Promise<FmMount[]> {
   if (!(await isDir(root)) || !(await insideWorkspace(root))) return []
 
   const trash = { retentionDays: TRASH_RETENTION_DAYS }
-  const mounts: FmMount[] = [{ id: 'project', label: project.name, driver: workspaceDriver(root), trash }]
+  const mounts: FmMount[] = [{ id: 'project', label: project.name, driver: workspaceDriver(root), trash, absoluteRoot: root }]
   const worktrees = await readdir(join(WORKTREE_BASE, project.id), { withFileTypes: true }).catch(() => [])
   for (const dirent of worktrees) {
     if (!dirent.isDirectory()) continue
     const issue = await getProjectOwnedIssue(project.id, dirent.name)
     if (!issue) continue
+    const dir = join(WORKTREE_BASE, project.id, issue.id)
     mounts.push({
       id: `wt-${issue.id}`,
       label: `#${issue.issueNumber} ${issue.title}`,
-      driver: workspaceDriver(join(WORKTREE_BASE, project.id, issue.id)),
+      driver: workspaceDriver(dir),
       trash,
+      absoluteRoot: dir,
     })
   }
   return mounts

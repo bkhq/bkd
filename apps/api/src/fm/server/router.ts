@@ -60,6 +60,8 @@ export interface FmMount {
   uploads?: boolean;
   /** Host grouping of spaces in the drive tree ("Personal", "Shared with me" …). */
   group?: string;
+  /** Real directory behind the mount, for "Copy path". Sent to the browser, so set it only where users may see it. */
+  absoluteRoot?: string;
   /** Usage of the space in bytes, shown by the drive; resolve it per request with the mounts. */
   quota?: { used: number; total?: number };
 }
@@ -638,6 +640,9 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
           ...(mount.group === undefined
             ? {}
             : { group: mount.group }),
+          ...(mount.absoluteRoot === undefined
+            ? {}
+            : { absoluteRoot: mount.absoluteRoot }),
           ...(mount.quota === undefined
             ? {}
             : {

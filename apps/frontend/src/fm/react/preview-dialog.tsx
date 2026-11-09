@@ -3,9 +3,11 @@ import type { FmClient } from "../client/client";
 import type { FmEntry } from "../core/schema";
 import type { FmLabels } from "./labels";
 import type { FmPreviewer } from "./preview-registry";
+import { cn } from "cn";
 import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon } from "lucide-react";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { MaximizeButton, MAXIMIZED_DIALOG } from "./dialog-maximize";
 import { clearDraft } from "./drafts";
 import { IconButton } from "./icon-button";
 import { DiscardChangesDialog, PreviewBody } from "./preview-pane";
@@ -27,6 +29,7 @@ export function PreviewDialog({ entry, siblings, client, labels, editable, previ
 }) {
   const [actions, setActions] = useState<HTMLElement | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [maximized, setMaximized] = useState(false);
   const [pending, setPending] = useState<() => void>();
 
   const guard = (fn: () => void) => (dirty
@@ -53,7 +56,7 @@ export function PreviewDialog({ entry, siblings, client, labels, editable, previ
   return (
     <>
       <Dialog open onOpenChange={o => !o && guard(onClose)}>
-        <DialogContent className="flex h-[85vh] flex-col gap-0 p-0 sm:max-w-5xl" onKeyDown={onKeyDown}>
+        <DialogContent className={cn("flex flex-col gap-0 p-0 transition-none", maximized ? MAXIMIZED_DIALOG : "h-[85vh] sm:max-w-5xl")} onKeyDown={onKeyDown}>
           <DialogHeader className="flex-row items-center gap-1.5 border-b py-2 pr-12 pl-4">
             <DialogTitle className="min-w-0 flex-1 truncate">{entry.name}</DialogTitle>
             <div ref={setActions} className="flex items-center gap-2" />
@@ -64,6 +67,7 @@ export function PreviewDialog({ entry, siblings, client, labels, editable, previ
                 <IconButton label={labels.next} disabled={!next} onClick={() => go(next)}><ChevronRightIcon /></IconButton>
               </>
             )}
+            <MaximizeButton maximized={maximized} labels={labels} onToggle={() => setMaximized(!maximized)} />
           </DialogHeader>
           <div className="min-h-0 flex-1">
             <PreviewBody entry={entry} client={client} labels={labels} editable={editable} previewers={previewers} actions={actions} onDirtyChange={setDirty} />

@@ -15,7 +15,7 @@ import { useDropzone } from "react-dropzone";
 
 import { fmKeys, useFmMutations, useTrash } from "../client/hooks";
 import { createUploadQueue, xhrTransport } from "../client/upload";
-import { dirname, joinPath } from "../core/path";
+import { absolutePath, dirname, joinPath, relativePath } from "../core/path";
 import { clearDrafts } from "./drafts";
 import { filesFromDropzone, filesFromInput } from "./drop";
 import { maskEntry } from "./features";
@@ -503,6 +503,16 @@ export function useCommands(props: FileManagerProps, v: FmViewState, l: FmListin
     const one = selected.length === 1
       ? selected[0]
       : undefined;
+    // By code: Option changes `e.key` on macOS.
+    if (mod && e.altKey && e.code === "KeyC") {
+      const root = one && mounts.data?.find(m => m.id === one.mount)?.absoluteRoot;
+      if (one && e.shiftKey)
+        void copyText(relativePath(one.path), labels.pathCopied);
+      else if (one && root !== undefined)
+        void copyText(absolutePath(root, one.path), labels.pathCopied);
+      e.preventDefault();
+      return;
+    }
     switch (e.key) {
       case "ArrowDown":
       case "ArrowRight":

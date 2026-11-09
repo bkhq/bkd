@@ -2,22 +2,12 @@
 export interface FmMediaView {
   rotate: 0 | 90 | 180 | 270;
   flip: boolean;
-  /** `undefined` = fit into the stage. */
-  zoom?: number | undefined;
 }
 
 export const INITIAL_VIEW: FmMediaView = { rotate: 0, flip: false };
 
-const MIN_ZOOM = 0.05;
-const MAX_ZOOM = 8;
-export const ZOOM_STEP = 1.25;
-
 export function rotateBy(view: FmMediaView, degrees: 90 | -90): FmMediaView {
   return { ...view, rotate: ((view.rotate + degrees + 360) % 360) as FmMediaView["rotate"] };
-}
-
-export function clampZoom(zoom: number): number {
-  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
 }
 
 export interface FmSize {
@@ -25,8 +15,8 @@ export interface FmSize {
   height: number;
 }
 
-/** Scale and on-screen box of `natural` after rotation; fit never upscales. */
-export function layoutOf(natural: FmSize, stage: FmSize, view: FmMediaView): FmSize & { scale: number; fit: number } {
+/** Fitted on-screen box of `natural` after rotation, and its scale; fit never upscales. */
+export function layoutOf(natural: FmSize, stage: FmSize, view: FmMediaView): FmSize & { fit: number } {
   const turned = view.rotate % 180 !== 0;
   const w = turned
     ? natural.height
@@ -35,11 +25,55 @@ export function layoutOf(natural: FmSize, stage: FmSize, view: FmMediaView): FmS
     ? natural.width
     : natural.height;
   const fit = Math.min(1, stage.width / w, stage.height / h);
-  const scale = view.zoom ?? fit;
   return {
-    width: w * scale,
-    height: h * scale,
-    scale,
+    width: w * fit,
+    height: h * fit,
     fit,
   };
+}
+
+/** Zoom ceiling relative to the fitted size: 4x fit, and at least 4x the real size. */
+export function maxZoomOf(fit: number): number {
+  return Math.max(4, 4 / fit);
+}
+
+export interface FmPanZoom {
+  scale: number;
+  positionX: number;
+  positionY: number;
+}
+
+/** Zooms by `factor` around `at` (viewport pixels), keeping that point in place; scale stays in [1, max]. */
+export function zoomAround(view: FmPanZoom, factor: number, at: { x: number; y: number }, max: number): FmPanZoom {
+  const scale = Math.min(max, Math.max(1, view.scale * factor));
+  const ratio = scale / view.scale;
+  return {
+    scale,
+    positionX: at.x - (at.x - view.positionX) * ratio,
+    positionY: at.y - (at.y - view.positionY) * ratio,
+  };
+}
+
+function clampAxis(position: number, content: number, viewport: number): number {
+  return content <= viewport
+    ? (viewport - content) / 2
+    : Math.min(0, Math.max(viewport - content, position));
+}
+
+/** Keeps `content` (unscaled size) over the viewport; an axis that fits is centred. */
+export function clampPan(view: FmPanZoom, content: FmSize, viewport: FmSize): FmPanZoom {
+  return {
+    scale: view.scale,
+    positionX: clampAxis(view.positionX, content.width * view.scale, viewport.width),
+    positionY: clampAxis(view.positionY, content.height * view.scale, viewport.height),
+  };
+}
+
+/** The view at `scale` centred on a point given as fractions of the content, within bounds. */
+export function centerOn(at: { x: number; y: number }, scale: number, content: FmSize, viewport: FmSize): FmPanZoom {
+  return clampPan({
+    scale,
+    positionX: viewport.width / 2 - at.x * content.width * scale,
+    positionY: viewport.height / 2 - at.y * content.height * scale,
+  }, content, viewport);
 }

@@ -12,7 +12,7 @@ export interface FmPreviewer {
   priority?: number;
 }
 
-const previewers: FmPreviewer[] = [
+const previewers: readonly FmPreviewer[] = [
   {
     id: "svg",
     match: e => e.kind === "file" && (e.mime === "image/svg+xml" || /\.svg$/i.test(e.name)),
@@ -46,15 +46,7 @@ const previewers: FmPreviewer[] = [
   },
 ];
 
-/** Adds or replaces (by id) a previewer, e.g. a spreadsheet viewer. */
-export function registerPreviewer(p: FmPreviewer): void {
-  const i = previewers.findIndex(x => x.id === p.id);
-  if (i >= 0)
-    previewers.splice(i, 1);
-  previewers.push(p);
-}
-
-/** Best previewer for `entry`; `extra` (from plugins) competes with the registered ones. */
+/** Best previewer for `entry`; `extra` (from plugins) competes with the built-ins. */
 export function findPreviewer(entry: FmEntry, extra: readonly FmPreviewer[] = []): ComponentType<PreviewProps> {
   const match = [
     ...previewers,

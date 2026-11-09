@@ -1,6 +1,7 @@
 import type { FmUploadFile } from "../client/upload";
 import type { FmEntry } from "../core/schema";
 import type { FmListFilters } from "./filters";
+import type { FmController } from "./use-file-manager";
 
 import { useCallback, useEffect, useState } from "react";
 
@@ -125,6 +126,12 @@ export const KEYS = {
   paste: MAC
     ? "⌘V"
     : "Ctrl+V",
+  copyPath: MAC
+    ? "⌥⌘C"
+    : "Ctrl+Alt+C",
+  copyRelativePath: MAC
+    ? "⇧⌥⌘C"
+    : "Ctrl+Shift+Alt+C",
   rename: "F2",
   delete: MAC
     ? "⌦"
@@ -143,4 +150,13 @@ export function useWidth() {
     return () => ro.disconnect();
   }, [el]);
   return [setEl, width] as const;
+}
+
+/** Entry shown in the details panel, if it is open. */
+export function shellDetailsEntry({ detailsOpen, features, inTrash, selected, dir }: FmController): FmEntry | undefined {
+  if (!detailsOpen || !features.details || inTrash)
+    return undefined;
+  return selected.length === 1
+    ? selected[0]
+    : dir;
 }

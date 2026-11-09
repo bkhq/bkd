@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expectSuccess, post } from './helpers'
@@ -62,6 +62,11 @@ describe('mounts', () => {
 
   test('an unknown project serves nothing', async () => {
     expect(await mountIds('nope1234')).toEqual([])
+  })
+
+  test('reveals each skill\'s real directory for "Copy path"', async () => {
+    const { mounts } = (await (await fm('global', '/mounts')).json()) as { mounts: Array<{ id: string, absoluteRoot?: string }> }
+    expect(mounts.find(m => m.id === 'global-agents~notes')?.absoluteRoot).toBe(realpathSync(join(home, '.agents/skills/notes')))
   })
 })
 
