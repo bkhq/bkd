@@ -32,6 +32,7 @@ import {
   EngineModelSchema,
   EngineProfileSchema,
   EngineSettingsSchema,
+  EngineUpdateSchema,
   errorResponse,
   ExecuteIssueResponseSchema,
   ExecuteIssueSchema,
@@ -784,6 +785,33 @@ export const probeEngines = createRoute({
   operationId: 'probeEngines',
   responses: {
     200: successResponse(ProbeResultSchema, 'Probe result'),
+  },
+})
+
+export const startEngineUpdate = createRoute({
+  method: 'post',
+  path: '/{engineType}/update',
+  tags: ['Engines'],
+  summary: 'Update an engine CLI with its own updater',
+  operationId: 'startEngineUpdate',
+  request: { params: z.object({ engineType: z.string().regex(/^[\w.-]{1,64}$/) }) },
+  responses: {
+    202: successResponse(EngineUpdateSchema, 'Update started'),
+    400: errorResponse('Engine has no updater or is not installed'),
+    409: errorResponse('Another update is running'),
+  },
+})
+
+export const getEngineUpdate = createRoute({
+  method: 'get',
+  path: '/updates/{id}',
+  tags: ['Engines'],
+  summary: 'Get an engine CLI update with its output',
+  operationId: 'getEngineUpdate',
+  request: { params: z.object({ id: z.string().min(1).max(64) }) },
+  responses: {
+    200: successResponse(EngineUpdateSchema, 'Update'),
+    404: errorResponse('Update not found'),
   },
 })
 

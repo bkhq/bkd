@@ -691,7 +691,16 @@
     "webhooksEventMessageReplied": "已回复",
     "webhooksEventMessageApplied": "已应用",
     "webhooksEventMessageWithdrawn": "已撤回",
-    "webhooksEventMessageClosed": "已关闭"
+    "webhooksEventMessageClosed": "已关闭",
+    "engineUpdate": {
+      "button": "更新",
+      "title": "更新 {{name}}",
+      "hint": "运行该 CLI 自带的更新命令。正在运行的会话要等进程重启后才会用上新版本。",
+      "running": "正在更新…",
+      "failed": "更新失败",
+      "upToDate": "已是最新版本（v{{version}}）",
+      "close": "关闭"
+    }
   },
   "contextMenu": {
     "pinToTop": "置顶",

@@ -462,6 +462,22 @@ export interface EngineAvailability {
   error?: string
 }
 
+/** Engines whose CLI updates itself with `<cli> update`, offered in Settings. */
+export const UPDATABLE_ENGINES: EngineType[] = ['claude-code', 'codex']
+
+export interface EngineUpdate {
+  id: string
+  engineType: EngineType
+  status: 'running' | 'succeeded' | 'failed'
+  /** Updater output lines, newest last (capped). */
+  output: string[]
+  error: string | null
+  fromVersion: string | null
+  toVersion: string | null
+  startedAt: string
+  finishedAt: string | null
+}
+
 export interface EngineModel {
   id: string
   name: string

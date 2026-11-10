@@ -31,7 +31,7 @@ export type SkillsCliRunner = (args: string[], options: CliRunOptions) => Promis
 // eslint-disable-next-line no-control-regex
 const ANSI = /\x1B\[[0-9;?]*[A-Z]/gi
 
-async function readLines(stream: ReadableStream<Uint8Array>, onLine: (line: string) => void, keep?: string[]): Promise<void> {
+export async function readLines(stream: ReadableStream<Uint8Array>, onLine: (line: string) => void, keep?: string[]): Promise<void> {
   const decoder = new TextDecoder()
   let buffer = ''
   const flush = (part: string) => {

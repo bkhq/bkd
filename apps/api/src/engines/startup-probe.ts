@@ -319,6 +319,13 @@ export async function forceProbeEngines(): Promise<ProbeResult> {
   return { engines, models, duration }
 }
 
+/** Record a new version for one engine without a live probe. */
+export async function setEngineVersion(engineType: EngineType, version: string): Promise<void> {
+  const { engines, models } = await getEngineDiscovery()
+  const next = engines.map(e => (e.engineType === engineType ? { ...e, version } : e))
+  await Promise.all([writeToCache(next, models), saveProbeResults(next, models)])
+}
+
 /**
  * Get cached models for a specific engine type. Falls back to live query.
  */

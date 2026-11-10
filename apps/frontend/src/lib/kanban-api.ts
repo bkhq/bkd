@@ -1,3 +1,4 @@
+import type { EngineUpdate } from '@bkd/shared'
 import type {
   ApiResponse,
   BusyAction,
@@ -477,6 +478,9 @@ export const kanbanApi = {
       data,
     ),
   probeEngines: () => post<ProbeResult>('/api/engines/probe', {}),
+  startEngineUpdate: (engineType: string) =>
+    post<EngineUpdate>(`/api/engines/${encodeURIComponent(engineType)}/update`, {}),
+  getEngineUpdate: (id: string) => get<EngineUpdate>(`/api/engines/updates/${encodeURIComponent(id)}`),
   getVirtualEngines: () => get<VirtualEngine[]>('/api/engines/virtual'),
   setVirtualEngines: (engines: VirtualEngine[]) =>
     put<VirtualEngine[]>('/api/engines/virtual', { engines }),

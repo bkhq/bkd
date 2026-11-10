@@ -606,6 +606,18 @@ export const SkillsOperationSchema = z.object({
   finishedAt: z.string().nullable(),
 }).openapi('SkillsOperation')
 
+export const EngineUpdateSchema = z.object({
+  id: z.string(),
+  engineType: z.string(),
+  status: z.enum(['running', 'succeeded', 'failed']),
+  output: z.array(z.string()),
+  error: z.string().nullable(),
+  fromVersion: z.string().nullable(),
+  toVersion: z.string().nullable(),
+  startedAt: z.string(),
+  finishedAt: z.string().nullable(),
+}).openapi('EngineUpdate')
+
 export const StartSkillsOperationSchema = z.object({
   op: z.enum(['preview', 'add', 'update', 'remove']),
   scope: z.enum(['global', 'project']),

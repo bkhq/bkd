@@ -10,6 +10,7 @@ export const queryKeys = {
   engineAvailability: () => ['engines', 'availability'] as const,
   engineProfiles: () => ['engines', 'profiles'] as const,
   engineSettings: () => ['engines', 'settings'] as const,
+  engineUpdate: (id: string) => ['engines', 'update', id] as const,
   virtualEngines: () => ['engines', 'virtual'] as const,
   claudeUsage: () => ['engines', 'claude', 'usage'] as const,
   codexUsage: () => ['engines', 'codex', 'usage'] as const,
@@ -608,6 +609,30 @@ export function useProbeEngines() {
       queryClient.invalidateQueries({ queryKey: queryKeys.engineSettings() })
     },
   })
+}
+
+export function useStartEngineUpdate() {
+  return useMutation({
+    mutationFn: (engineType: string) => kanbanApi.startEngineUpdate(engineType),
+  })
+}
+
+/** Polls an engine CLI update until it ends, then refreshes the engine's version. */
+export function useEngineUpdate(id: string | undefined) {
+  const queryClient = useQueryClient()
+  const query = useQuery({
+    queryKey: queryKeys.engineUpdate(id ?? ''),
+    queryFn: () => kanbanApi.getEngineUpdate(id!),
+    enabled: !!id,
+    refetchInterval: q => (q.state.data?.status === 'running' ? 1000 : false),
+  })
+  const status = query.data?.status
+  useEffect(() => {
+    if (status && status !== 'running') {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.engineAvailability() })
+    }
+  }, [status, queryClient])
+  return query
 }
 
 export function useVirtualEngines(enabled = false) {

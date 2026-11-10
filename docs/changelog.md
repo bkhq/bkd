@@ -1348,3 +1348,12 @@ preview and review dialogs, zooms images to real size with stage-wide pan and a 
 the drive and workspace views, and declares the `react-zoom-pan-pinch` dependency in its registry. "Copy path" now
 copies the real absolute path and only shows when a mount sets `absoluteRoot`, next to a new "Copy relative path".
 BKD sets `absoluteRoot` on the project, worktree, and skill mounts; those directories are already visible in BKD.
+
+## 2026-11-10 12:30 [progress]
+
+Settings -> Models: Claude Code and Codex cards get an "Update" button that runs the CLI's own updater
+(`<binary> update`) and shows its output (`POST /api/engines/:engineType/update`, `GET /api/engines/updates/:id`).
+One update runs at a time, with a 10-minute timeout and no cancel. Afterwards only `<binary> --version` runs and the
+new version is written into the stored engine discovery; no full probe, so Claude's OAuth credential is not touched.
+The list of updatable engines is `UPDATABLE_ENGINES` in `@bkd/shared`, not a method on the executor as the plan
+first said: the test registry swaps in a mock Codex executor, and both sides need the list.

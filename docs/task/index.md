@@ -192,3 +192,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261105-1053-adopt-filemanager Replace the file browser with bkhq/filemanager**](20261105-1053-adopt-filemanager.md) `P1`
 - [ ] [**20261106-0600-dev-hot-reload-pid-lock Dev API exits on hot reload: the pid lock treats its own pid as another instance**](20261106-0600-dev-hot-reload-pid-lock.md) `P2`
 - [x] [**20261106-0745-filemanager-rollout Roll bkhq/filemanager out across BKD's file UI**](20261106-0745-filemanager-rollout.md) `P1`
+- [x] [**20261110-1217-agent-cli-update Update agent CLIs (claude, codex) from Settings**](20261110-1217-agent-cli-update.md) `P2`

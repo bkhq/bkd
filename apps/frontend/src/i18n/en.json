@@ -693,7 +693,16 @@
     "webhooksEventMessageReplied": "Replied",
     "webhooksEventMessageApplied": "Applied",
     "webhooksEventMessageWithdrawn": "Withdrawn",
-    "webhooksEventMessageClosed": "Closed"
+    "webhooksEventMessageClosed": "Closed",
+    "engineUpdate": {
+      "button": "Update",
+      "title": "Update {{name}}",
+      "hint": "Runs the CLI's own updater. Running sessions keep the old version until their process restarts.",
+      "running": "Updating…",
+      "failed": "Update failed",
+      "upToDate": "Already up to date (v{{version}})",
+      "close": "Close"
+    }
   },
   "contextMenu": {
     "pinToTop": "Pin to top",

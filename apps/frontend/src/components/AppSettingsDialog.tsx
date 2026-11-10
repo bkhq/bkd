@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DirectoryPicker } from '@/components/DirectoryPicker'
 import { EngineIcon } from '@/components/EngineIcons'
+import { EngineUpdateButton } from '@/components/settings/EngineUpdate'
 import { UsageSection } from '@/components/settings/UsageSection'
 import { WebhookSection } from '@/components/settings/WebhookSection'
 import { Badge } from '@/components/ui/badge'
@@ -89,6 +90,7 @@ import { formatFileSize } from '@/lib/format'
 import { cn } from 'cn'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import type { EngineAvailability, EngineModel, EngineProfile, VirtualEngine } from '@/types/kanban'
+import { UPDATABLE_ENGINES } from '@bkd/shared'
 
 const THEME_OPTIONS = [
   { id: 'system' as const, labelKey: 'theme.system' },
@@ -1521,93 +1523,102 @@ function EngineCard({
 
   return (
     <div className="rounded-lg border overflow-hidden">
-      <button
-        type="button"
-        onClick={() => hasModels && setExpanded(v => !v)}
-        className={cn(
-          'flex items-center gap-3 w-full px-3 py-2.5 text-left transition-colors',
-          hasModels && 'hover:bg-accent/50 cursor-pointer',
-          !hasModels && 'cursor-default',
-        )}
-      >
-        <EngineIcon
-          engineType={engine.engineType}
-          className="size-4 text-muted-foreground shrink-0"
-        />
-        <div className="flex-1 min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-sm font-medium">
-              {profile?.name ?? engine.engineType}
-            </span>
-            {engine.version && (
-              <Badge variant="outline" className="shrink-0">
-                v
-                {engine.version}
-              </Badge>
+      <div className="flex items-center">
+        <button
+          type="button"
+          onClick={() => hasModels && setExpanded(v => !v)}
+          className={cn(
+            'flex items-center gap-3 flex-1 min-w-0 px-3 py-2.5 text-left transition-colors',
+            hasModels && 'hover:bg-accent/50 cursor-pointer',
+            !hasModels && 'cursor-default',
+          )}
+        >
+          <EngineIcon
+            engineType={engine.engineType}
+            className="size-4 text-muted-foreground shrink-0"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-sm font-medium">
+                {profile?.name ?? engine.engineType}
+              </span>
+              {engine.version && (
+                <Badge variant="outline" className="shrink-0">
+                  v
+                  {engine.version}
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
+              {t(`createIssue.engineDesc.${engine.engineType}`, '') ?
+                  (
+                    <>
+                      <span className="truncate">{t(`createIssue.engineDesc.${engine.engineType}`)}</span>
+                      {(selectedModelName || hasModels) && <span className="text-muted-foreground/50">·</span>}
+                    </>
+                  ) :
+                null}
+              {selectedModelName ? <span className="truncate">{selectedModelName}</span> : null}
+              {selectedModelName && hasModels ?
+                  (
+                    <span className="text-muted-foreground/50">·</span>
+                  ) :
+                null}
+              {hasModels ?
+                  (
+                    <span className="shrink-0">
+                      {visibleCount < models.length
+                        ? `${visibleCount}/${models.length}`
+                        : t('settings.models', { count: models.length })}
+                    </span>
+                  ) :
+                null}
+            </div>
+            {engine.binaryPath && (
+              <div className="mt-0.5 truncate text-[11px] font-mono text-muted-foreground/60">
+                {engine.binaryPath}
+              </div>
             )}
           </div>
-          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
-            {t(`createIssue.engineDesc.${engine.engineType}`, '') ?
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+            {engine.installed ?
                 (
                   <>
-                    <span className="truncate">{t(`createIssue.engineDesc.${engine.engineType}`)}</span>
-                    {(selectedModelName || hasModels) && <span className="text-muted-foreground/50">·</span>}
+                    <StatusBadge ok label={t('settings.engineInstalled')} />
+                    {engine.authStatus === 'authenticated' ?
+                        (
+                          <StatusBadge ok label={t('settings.engineAuthenticated')} />
+                        ) :
+                      engine.authStatus === 'unauthenticated' ?
+                          (
+                            <StatusBadge ok={false} label={t('settings.engineUnauthenticated')} />
+                          ) :
+                        null}
                   </>
                 ) :
-              null}
-            {selectedModelName ? <span className="truncate">{selectedModelName}</span> : null}
-            {selectedModelName && hasModels ?
                 (
-                  <span className="text-muted-foreground/50">·</span>
-                ) :
-              null}
+                  <StatusBadge ok={false} label={t('settings.engineNotInstalled')} />
+                )}
             {hasModels ?
                 (
-                  <span className="shrink-0">
-                    {visibleCount < models.length
-                      ? `${visibleCount}/${models.length}`
-                      : t('settings.models', { count: models.length })}
-                  </span>
+                  <ChevronDown
+                    className={cn(
+                      'h-3.5 w-3.5 text-muted-foreground transition-transform',
+                      expanded && 'rotate-180',
+                    )}
+                  />
                 ) :
               null}
           </div>
-          {engine.binaryPath && (
-            <div className="mt-0.5 truncate text-[11px] font-mono text-muted-foreground/60">
-              {engine.binaryPath}
-            </div>
-          )}
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
-          {engine.installed ?
-              (
-                <>
-                  <StatusBadge ok label={t('settings.engineInstalled')} />
-                  {engine.authStatus === 'authenticated' ?
-                      (
-                        <StatusBadge ok label={t('settings.engineAuthenticated')} />
-                      ) :
-                    engine.authStatus === 'unauthenticated' ?
-                        (
-                          <StatusBadge ok={false} label={t('settings.engineUnauthenticated')} />
-                        ) :
-                      null}
-                </>
-              ) :
-              (
-                <StatusBadge ok={false} label={t('settings.engineNotInstalled')} />
-              )}
-          {hasModels ?
-              (
-                <ChevronDown
-                  className={cn(
-                    'h-3.5 w-3.5 text-muted-foreground transition-transform',
-                    expanded && 'rotate-180',
-                  )}
-                />
-              ) :
-            null}
-        </div>
-      </button>
+        </button>
+        {engine.installed && UPDATABLE_ENGINES.includes(engine.engineType)
+          ? (
+              <div className="shrink-0 pr-2">
+                <EngineUpdateButton engineType={engine.engineType} name={profile?.name ?? engine.engineType} />
+              </div>
+            )
+          : null}
+      </div>
 
       {expanded && hasModels
         ? (

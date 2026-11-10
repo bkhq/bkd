@@ -11,6 +11,7 @@ import {
   setEngineDefaultModel,
   setEngineHiddenModels,
 } from '@/db/helpers'
+import { CliUpdateError, getEngineUpdate, startEngineUpdate } from '@/engines/cli-update'
 import { engineRegistry } from '@/engines/executors'
 import { getClaudeUsage } from '@/engines/executors/claude/usage'
 import { getCodexUsage } from '@/engines/executors/codex/usage'
@@ -183,6 +184,24 @@ engines.openapi(R.probeEngines, async (c) => {
   clearVirtualModelCache()
   const result = await forceProbeEngines()
   return c.json({ success: true as const, data: result }, 200)
+})
+
+// POST /api/engines/:engineType/update — Run the engine CLI's own updater
+engines.openapi(R.startEngineUpdate, async (c) => {
+  try {
+    const op = await startEngineUpdate(c.req.valid('param').engineType as EngineType)
+    return c.json({ success: true as const, data: op }, 202 as const)
+  } catch (err) {
+    if (err instanceof CliUpdateError) return c.json({ success: false as const, error: err.message }, err.status)
+    throw err
+  }
+})
+
+// GET /api/engines/updates/:id
+engines.openapi(R.getEngineUpdate, async (c) => {
+  const op = getEngineUpdate(c.req.valid('param').id)
+  if (!op) return c.json({ success: false as const, error: 'Update not found' }, 404 as const)
+  return c.json({ success: true as const, data: op }, 200 as const)
 })
 
 export default engines
