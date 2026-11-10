@@ -55,22 +55,6 @@ async function readFromCache(): Promise<EngineDiscovery | null> {
 }
 
 /**
- * Overlay engines whose model catalogs are static in-code (claude-code) with
- * the registry's current list. Cached/DB probe data may predate catalog
- * changes shipped with an upgrade; the in-code list is always authoritative.
- */
-async function withFreshStaticModels(discovery: EngineDiscovery): Promise<EngineDiscovery> {
-  if (!('claude-code' in discovery.models)) return discovery
-  return {
-    ...discovery,
-    models: {
-      ...discovery.models,
-      'claude-code': await engineRegistry.getModels('claude-code'),
-    },
-  }
-}
-
-/**
  * True when a cached entry points at a binary that no longer exists — e.g. the
  * CLI moved between installs. Spawning it would fail with ENOENT, so the cache
  * has to be discarded before its TTL instead of serving a dead path.
@@ -249,7 +233,7 @@ export function __resetProbeInFlightForTests(): void {
 export async function getEngineDiscovery(): Promise<EngineDiscovery> {
   // 1. Memory cache
   const cached = await readFromCache()
-  if (cached && !probeBinariesMissing(cached.engines)) return withFreshStaticModels(cached)
+  if (cached && !probeBinariesMissing(cached.engines)) return cached
 
   // 2. DB (permanent — re-probed only on demand, see getProbeResults)
   const dbData = await getProbeResults()
@@ -262,7 +246,7 @@ export async function getEngineDiscovery(): Promise<EngineDiscovery> {
       'probe_loaded_from_db',
     )
     await writeToCache(dbData.engines, dbData.models)
-    return withFreshStaticModels(dbData)
+    return dbData
   }
 
   // 3. Live probe (deduped: concurrent callers share the same in-flight probe)
@@ -330,10 +314,6 @@ export async function setEngineVersion(engineType: EngineType, version: string):
  * Get cached models for a specific engine type. Falls back to live query.
  */
 export async function getEngineModels(engineType: EngineType): Promise<EngineModel[]> {
-  // claude-code's catalog is static in-code and always authoritative —
-  // cached probe data may predate catalog changes shipped with an upgrade.
-  if (engineType === 'claude-code') return engineRegistry.getModels(engineType)
-
   const cached = await cacheGet<EngineModel[]>(`${CACHE_KEY_MODELS_PREFIX}${engineType}`)
   if (cached) return cached
 

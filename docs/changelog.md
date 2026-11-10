@@ -1357,3 +1357,12 @@ One update runs at a time, with a 10-minute timeout and no cancel. Afterwards on
 new version is written into the stored engine discovery; no full probe, so Claude's OAuth credential is not touched.
 The list of updatable engines is `UPDATABLE_ENGINES` in `@bkd/shared`, not a method on the executor as the plan
 first said: the test registry swaps in a mock Codex executor, and both sides need the list.
+
+## 2026-11-10 12:40 [progress]
+
+`claude-code` models are no longer hardcoded: the probe asks the CLI with a stream-json `initialize` control request
+(no prompt, no tokens) and maps its `models` to full IDs, marking the CLI's `default` model as default and adding a
+`[1m]` variant for each Opus, Sonnet and Fable model. The list is cached in memory and DB like other engines' and
+refreshes on a re-probe; the static overlay is gone. The default model now follows the CLI's account default instead
+of the fixed `claude-sonnet-5-5`. An unreachable CLI yields an empty list, so the requested model passes through.
+Task: 20261110-1220-claude-dynamic-models.

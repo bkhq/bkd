@@ -91,3 +91,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261105-1053-adopt-filemanager Replace the file browser with bkhq/filemanager**](20261105-1053-adopt-filemanager.md) `2026-11-05`
 - [x] [**20261106-0745-filemanager-rollout Roll bkhq/filemanager out across BKD's file UI**](20261106-0745-filemanager-rollout.md) `2026-11-06`
 - [x] [**20261110-1217-agent-cli-update Update agent CLIs (claude, codex) from Settings**](20261110-1217-agent-cli-update.md) `2026-11-10`
+- [x] [**20261110-1220-claude-dynamic-models Fetch the claude-code model list from the CLI**](20261110-1220-claude-dynamic-models.md) `2026-11-10`

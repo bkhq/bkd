@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { ulid } from 'ulid'
 import { CommandBuilder } from '@/engines/command'
 import { safeEnv } from '@/engines/safe-env'
 import { resolveCommand, runCommand, spawnNode } from '@/engines/spawn'
@@ -132,34 +133,106 @@ function resolveBaseCmd(): string {
   return _cachedBaseCmd
 }
 
-// Known Claude models — Claude Code CLI has no `models` subcommand
-// [1m] variants use 1 million context token window
-const CLAUDE_MODELS: EngineModel[] = [
-  { id: 'claude-fable-5-1', name: 'Claude Fable 5.1', isDefault: false },
-  {
-    id: 'claude-fable-5-1[1m]',
-    name: 'Claude Fable 5.1 (1M)',
-    isDefault: false,
-  },
-  { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', isDefault: false },
-  {
-    id: 'claude-opus-5-5[1m]',
-    name: 'Claude Opus 5.5 (1M)',
-    isDefault: false,
-  },
-  { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5', isDefault: true },
-  {
-    id: 'claude-sonnet-5-5[1m]',
-    name: 'Claude Sonnet 5.5 (1M)',
-    isDefault: false,
-  },
-  { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', isDefault: false },
-  {
-    id: 'claude-sonnet-5[1m]',
-    name: 'Claude Sonnet 5 (1M)',
-    isDefault: false,
-  },
-]
+const MODELS_QUERY_TIMEOUT_MS = 10_000
+const ONE_M_MODEL = /^claude-(?:opus|sonnet|fable)-/
+
+function str(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined
+}
+
+/**
+ * Map the `models` of the CLI's `initialize` response to engine models: full
+ * IDs, deduplicated, the `default` entry's model marked default, and a `[1m]`
+ * variant after each Opus/Sonnet/Fable model.
+ */
+export function mapInitModels(raw: unknown): EngineModel[] {
+  if (!Array.isArray(raw)) return []
+  const entries = raw.filter((m): m is Record<string, unknown> => !!m && typeof m === 'object')
+  const idOf = (m: Record<string, unknown>) => str(m.resolvedModel) ?? str(m.value)
+  const defaultEntry = entries.find(m => m.value === 'default')
+  const defaultId = defaultEntry ? idOf(defaultEntry) : undefined
+
+  const models: EngineModel[] = []
+  const seen = new Set<string>()
+  for (const m of entries) {
+    const id = idOf(m)
+    if (m === defaultEntry || !id || seen.has(id)) continue
+    seen.add(id)
+    const name = str(m.displayName) ?? id
+    const description = str(m.description)
+    const model: EngineModel = { id, name, ...(description && { description }), isDefault: id === defaultId }
+    models.push(model)
+    if (ONE_M_MODEL.test(id)) {
+      models.push({ ...model, id: `${id}[1m]`, name: `${name} (1M)`, isDefault: false })
+    }
+  }
+  if (defaultId && !seen.has(defaultId)) {
+    models.unshift({ id: defaultId, name: defaultId, isDefault: true })
+  }
+  return models
+}
+
+/** Ask the CLI for its model list via the stream-json `initialize` control request. */
+async function queryCliModels(binaryPath: string): Promise<EngineModel[]> {
+  const resolved = await CommandBuilder.create(binaryPath)
+    .params(['-p', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json'])
+    .env('NPM_CONFIG_LOGLEVEL', 'error')
+    .resolve()
+  const proc = spawnNode([resolved.resolvedPath, ...resolved.args], {
+    stdin: 'pipe',
+    stdout: 'pipe',
+    stderr: 'ignore',
+    env: safeEnv(resolved.env, 'claude-code'),
+  })
+  const kill = () => {
+    try {
+      proc.kill()
+    } catch {
+      /* already dead */
+    }
+  }
+  const killTimer = setTimeout(kill, MODELS_QUERY_TIMEOUT_MS)
+
+  try {
+    const requestId = ulid()
+    proc.stdin.write(`${JSON.stringify({
+      type: 'control_request',
+      request_id: requestId,
+      request: { subtype: 'initialize' },
+    })}\n`)
+
+    const reader = (proc.stdout as ReadableStream<Uint8Array>).getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let newlineIdx: number
+      while ((newlineIdx = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, newlineIdx).trim()
+        buffer = buffer.slice(newlineIdx + 1)
+        if (!line.includes(requestId)) continue
+        try {
+          const data = JSON.parse(line) as {
+            type?: string
+            response?: { request_id?: string, response?: { models?: unknown } }
+          }
+          if (data.type === 'control_response' && data.response?.request_id === requestId) {
+            reader.releaseLock()
+            return mapInitModels(data.response.response?.models)
+          }
+        } catch {
+          // Not JSON — skip
+        }
+      }
+    }
+    return []
+  } finally {
+    clearTimeout(killTimer)
+    kill()
+  }
+}
 
 export class ClaudeCodeExecutor implements EngineExecutor {
   readonly engineType = 'claude-code' as const
@@ -266,9 +339,19 @@ export class ClaudeCodeExecutor implements EngineExecutor {
   }
 
   async getModels(): Promise<EngineModel[]> {
-    // Claude Code CLI has no `models` subcommand.
-    // Return known models statically.
-    return CLAUDE_MODELS
+    const binaryPath = resolveBinaryOnly()
+    if (!binaryPath) return []
+    try {
+      const models = await queryCliModels(binaryPath)
+      if (models.length === 0) logger.warn('claude_models_unavailable')
+      return models
+    } catch (error) {
+      logger.warn(
+        { error: error instanceof Error ? error.message : String(error) },
+        'claude_models_query_failed',
+      )
+      return []
+    }
   }
 
   private defaultNormalizer = new ClaudeLogNormalizer()

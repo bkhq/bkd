@@ -193,3 +193,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [ ] [**20261106-0600-dev-hot-reload-pid-lock Dev API exits on hot reload: the pid lock treats its own pid as another instance**](20261106-0600-dev-hot-reload-pid-lock.md) `P2`
 - [x] [**20261106-0745-filemanager-rollout Roll bkhq/filemanager out across BKD's file UI**](20261106-0745-filemanager-rollout.md) `P1`
 - [x] [**20261110-1217-agent-cli-update Update agent CLIs (claude, codex) from Settings**](20261110-1217-agent-cli-update.md) `P2`
+- [x] [**20261110-1220-claude-dynamic-models Fetch the claude-code model list from the CLI**](20261110-1220-claude-dynamic-models.md) `P2`
