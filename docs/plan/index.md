@@ -92,3 +92,5 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261106-0745-filemanager-rollout Roll bkhq/filemanager out across BKD's file UI**](20261106-0745-filemanager-rollout.md) `2026-11-06`
 - [x] [**20261110-1217-agent-cli-update Update agent CLIs (claude, codex) from Settings**](20261110-1217-agent-cli-update.md) `2026-11-10`
 - [x] [**20261110-1220-claude-dynamic-models Fetch the claude-code model list from the CLI**](20261110-1220-claude-dynamic-models.md) `2026-11-10`
+- [x] [**20261110-1254-same-base-engine-switch-effort Switch between engines sharing a base engine, and pass effort**](20261110-1254-same-base-engine-switch-effort.md) `2026-11-10`
+- [x] [**20261110-1259-model-configs Per-model edit dialogs and custom models in Settings**](20261110-1259-model-configs.md) `2026-11-10`

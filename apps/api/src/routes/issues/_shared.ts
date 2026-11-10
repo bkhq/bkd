@@ -1,4 +1,4 @@
-import type { FollowUpSender } from '@bkd/shared'
+import type { EffortLevel, FollowUpSender } from '@bkd/shared'
 import { mkdir, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -41,6 +41,7 @@ export function serializeIssue(row: IssueRow) {
     prompt: row.prompt ?? null,
     externalSessionId: row.externalSessionId ?? null,
     model: row.model ?? null,
+    effort: (row.effort as EffortLevel | null) ?? null,
     totalInputTokens: row.totalInputTokens ?? 0,
     totalOutputTokens: row.totalOutputTokens ?? 0,
     totalCostUsd: row.totalCostUsd ?? '0',

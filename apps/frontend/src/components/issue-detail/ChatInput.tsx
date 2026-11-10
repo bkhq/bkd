@@ -32,17 +32,23 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
 import { useFileAttachments } from '@/hooks/use-file-attachments'
-import { useClearIssueSession, useEngineAvailability, useEngineProfiles, useEngineSettings, useFollowUpIssue, useUpdateIssue } from '@/hooks/use-kanban'
+import { useClearIssueSession, useEngineAvailability, useEngineProfiles, useEngineSettings, useFollowUpIssue, useUpdateIssue, useVirtualEngines } from '@/hooks/use-kanban'
 import { formatModelName } from '@/lib/format'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
-import type { BusyAction, EngineModel, SessionStatus } from '@/types/kanban'
+import { EFFORT_LEVELS } from '@bkd/shared'
+import type { BusyAction, EffortLevel, EngineModel, SessionStatus } from '@/types/kanban'
+
+type EffortOption = EffortLevel | 'auto'
+const EFFORT_OPTIONS: EffortOption[] = ['auto', ...EFFORT_LEVELS]
 
 const MODE_OPTIONS = ['auto', 'ask'] as const
 type ModeOption = (typeof MODE_OPTIONS)[number]
@@ -64,7 +70,9 @@ export function ChatInput({
   onToggleFiles,
   scrollRef,
   engineType,
+  baseEngine,
   model,
+  effort,
   sessionStatus,
   statusId,
   isThinking = false,
@@ -82,8 +90,12 @@ export function ChatInput({
   /** Toggles the files view; without it the button opens the file browser drawer. */
   onToggleFiles?: () => void
   scrollRef?: React.RefObject<HTMLDivElement | null>
+  /** The issue's engine: a virtual engine id or a real engine type. */
   engineType?: string
+  /** The issue's real engine; engines sharing it can be switched to. */
+  baseEngine?: string
   model?: string
+  effort?: EffortLevel | null
   sessionStatus?: SessionStatus | null
   statusId?: string
   isThinking?: boolean
@@ -186,30 +198,64 @@ export function ChatInput({
   const deletions = changesSummary?.deletions ?? 0
   const toggleFileBrowserDrawer = useFileBrowserStore(s => s.toggleDrawer)
 
-  // Fetch models for current engine, filtering out hidden ones
+  // Models of every engine sharing the issue's base engine, hidden ones filtered out
   const { data: discovery } = useEngineAvailability(!!engineType)
   const { data: engineSettings } = useEngineSettings(!!engineType)
-  const models = useMemo(() => {
+  const { data: virtualEngines } = useVirtualEngines(!!engineType)
+  const engineGroups = useMemo(() => {
     if (!engineType) return []
-    const all = discovery?.models[engineType] ?? []
-    const hidden = new Set(engineSettings?.engines[engineType]?.hiddenModels ?? [])
-    return hidden.size > 0 ? all.filter(m => !hidden.has(m.id)) : all
-  }, [engineType, discovery, engineSettings])
+    const base = baseEngine ?? engineType
+    const ids = [base, ...(virtualEngines ?? []).filter(v => v.baseEngine === base).map(v => v.id)]
+    if (!ids.includes(engineType)) ids.push(engineType)
+    return ids.map((id) => {
+      const all = discovery?.models[id] ?? []
+      const hidden = new Set(engineSettings?.engines[id]?.hiddenModels ?? [])
+      return { engineId: id, models: hidden.size > 0 ? all.filter(m => !hidden.has(m.id)) : all }
+    }).filter(g => g.models.length > 0)
+  }, [engineType, baseEngine, virtualEngines, discovery, engineSettings])
+  const [selectedEngine, setSelectedEngine] = useState(engineType || '')
   const [selectedModel, setSelectedModel] = useState(model || '')
-  // Sync selectedModel when issue changes (model prop changes)
+  const [selectedEffort, setSelectedEffort] = useState<EffortOption>(effort ?? 'auto')
+  // Sync selections when the issue changes
+  useEffect(() => {
+    setSelectedEngine(engineType || '')
+  }, [engineType])
   useEffect(() => {
     setSelectedModel(model || '')
   }, [model])
+  useEffect(() => {
+    setSelectedEffort(effort ?? 'auto')
+  }, [effort])
   const updateIssue = useUpdateIssue(projectId ?? '')
-  // Outside working the model is saved right away; a working issue takes it with the next message.
-  const handleModelChange = (value: string) => {
+  // Outside working a pick is saved right away; a working issue takes it with the next message.
+  const handleModelChange = (engineId: string, value: string) => {
+    setSelectedEngine(engineId)
     setSelectedModel(value)
-    if (!issueId || statusId === 'working' || value === (model || '')) return
-    updateIssue.mutate({ id: issueId, model: value }, { onError: () => setSelectedModel(model || '') })
+    if (!issueId || statusId === 'working') return
+    if (engineId === (engineType || '') && value === (model || '')) return
+    updateIssue.mutate(
+      { id: issueId, model: value, ...(engineId !== engineType ? { engineType: engineId } : {}) },
+      {
+        onError: () => {
+          setSelectedEngine(engineType || '')
+          setSelectedModel(model || '')
+        },
+      },
+    )
   }
+  const handleEffortChange = (value: EffortOption) => {
+    setSelectedEffort(value)
+    if (!issueId || statusId === 'working' || value === (effort ?? 'auto')) return
+    updateIssue.mutate(
+      { id: issueId, effort: value === 'auto' ? null : value },
+      { onError: () => setSelectedEffort(effort ?? 'auto') },
+    )
+  }
+  const showEffort = (baseEngine ?? engineType) === 'claude-code'
   const [mode, setMode] = useState<ModeOption>('auto')
   const [busyAction, setBusyAction] = useState<BusyAction>('queue')
   const activeModel = selectedModel || model || ''
+  const activeEngine = selectedEngine || engineType || ''
   const isSessionActive = sessionStatus === 'running' || sessionStatus === 'pending'
   const effectiveBusyAction: BusyAction | undefined = isSessionActive ?
     isThinking ?
@@ -310,6 +356,8 @@ export function ChatInput({
         issueId,
         prompt,
         model: activeModel || undefined,
+        engineType: activeEngine && activeEngine !== engineType ? activeEngine : undefined,
+        effort: selectedEffort !== (effort ?? 'auto') ? selectedEffort : undefined,
         permissionMode: toPermissionMode(mode),
         busyAction: effectiveBusyAction,
         files: filesToSend.length > 0 ? filesToSend : undefined,
@@ -517,10 +565,16 @@ export function ChatInput({
                 ) :
               null}
             <ModeSelect value={mode} onChange={setMode} />
-            {models.length > 0 ?
+            {showEffort ?
+                (
+                  <EffortSelect value={selectedEffort} onChange={handleEffortChange} disabled={isSessionActive} />
+                ) :
+              null}
+            {engineGroups.length > 0 ?
                 (
                   <ModelSelect
-                    models={models}
+                    groups={engineGroups}
+                    engineId={activeEngine}
                     value={activeModel}
                     onChange={handleModelChange}
                     disabled={isSessionActive}
@@ -597,7 +651,7 @@ export function ChatInput({
         {/* Toolbar */}
         <div className="flex items-center justify-between px-2 pb-2 pt-0.5">
           <div className="flex items-center gap-0.5">
-            {engineType ? <EngineInfo engineType={engineType} /> : null}
+            {activeEngine ? <EngineInfo engineType={activeEngine} /> : null}
             <Button
               variant="ghost"
               size="icon"
@@ -728,13 +782,17 @@ function BusyActionSelect({
 // ─── EngineInfo ──────────────────────────────────────────────────────────────
 // Replaced custom popover with shadcn Popover
 
-function EngineInfo({ engineType }: { engineType: string }) {
+function useEngineName(engineType: string): string {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
   // Virtual engines have no i18n label; fall back to their configured name.
   const { data: profiles } = useEngineProfiles(true)
   const profileName = profiles?.find(p => p.engineType === engineType)?.name
-  const engineName = t(`createIssue.engineLabel.${engineType}`, profileName ?? engineType)
+  return t(`createIssue.engineLabel.${engineType}`, profileName ?? engineType)
+}
+
+function EngineInfo({ engineType }: { engineType: string }) {
+  const [open, setOpen] = useState(false)
+  const engineName = useEngineName(engineType)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -752,20 +810,27 @@ function EngineInfo({ engineType }: { engineType: string }) {
 }
 
 // ─── ModelSelect ─────────────────────────────────────────────────────────────
-// Replaced custom dropdown with shadcn DropdownMenu
+// Models grouped by engine; engines share the issue's base engine.
+
+interface EngineGroup {
+  engineId: string
+  models: EngineModel[]
+}
 
 function ModelSelect({
-  models,
+  groups,
+  engineId,
   value,
   onChange,
   disabled = false,
 }: {
-  models: EngineModel[]
+  groups: EngineGroup[]
+  engineId: string
   value: string
-  onChange: (v: string) => void
+  onChange: (engineId: string, model: string) => void
   disabled?: boolean
 }) {
-  const current = models.find(m => m.id === value)
+  const current = groups.find(g => g.engineId === engineId)?.models.find(m => m.id === value)
   const displayName = current ? formatModelName(current.name || current.id) : formatModelName(value)
 
   return (
@@ -783,15 +848,76 @@ function ModelSelect({
         <span className="truncate max-w-[140px]">{displayName}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="top" className="min-w-[180px] max-h-[320px] overflow-y-auto text-xs">
-        {models.map(m => (
-          <DropdownMenuItem
-            key={m.id}
-            onSelect={() => onChange(m.id)}
-            className={m.id === value ? 'bg-primary/10 text-primary font-medium' : ''}
-          >
-            {formatModelName(m.name || m.id)}
-          </DropdownMenuItem>
+        {groups.map(g => (
+          <DropdownMenuGroup key={g.engineId}>
+            {groups.length > 1 ? <EngineGroupLabel engineId={g.engineId} /> : null}
+            {g.models.map(m => (
+              <DropdownMenuItem
+                key={`${g.engineId}:${m.id}`}
+                onSelect={() => onChange(g.engineId, m.id)}
+                className={g.engineId === engineId && m.id === value ? 'bg-primary/10 text-primary font-medium' : ''}
+              >
+                {formatModelName(m.name || m.id)}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
         ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function EngineGroupLabel({ engineId }: { engineId: string }) {
+  const engineName = useEngineName(engineId)
+  return (
+    <DropdownMenuLabel className="flex items-center gap-1.5 text-[11px]">
+      <EngineIcon engineType={engineId} className="h-3 w-3 shrink-0" />
+      {engineName}
+    </DropdownMenuLabel>
+  )
+}
+
+// ─── EffortSelect ────────────────────────────────────────────────────────────
+
+function EffortSelect({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: EffortOption
+  onChange: (v: EffortOption) => void
+  disabled?: boolean
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={(
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            title={t('chat.effort')}
+            className="h-6 px-2 text-xs text-muted-foreground gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+          />
+        )}
+      >
+        {t(`chat.effortLevel.${value}`)}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="top" className="min-w-[120px] text-xs">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-[11px]">{t('chat.effort')}</DropdownMenuLabel>
+          {EFFORT_OPTIONS.map(o => (
+            <DropdownMenuItem
+              key={o}
+              onSelect={() => onChange(o)}
+              className={o === value ? 'bg-primary/10 text-primary font-medium' : ''}
+            >
+              {t(`chat.effortLevel.${o}`)}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

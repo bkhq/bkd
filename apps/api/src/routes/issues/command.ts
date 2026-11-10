@@ -120,6 +120,7 @@ command.openapi(R.executeIssue, async (c) => {
         prompt: basePrompt,
         workingDir: effectiveWorkingDir,
         model: body.model ?? virtual?.model,
+        effort: body.effort === 'auto' ? null : body.effort,
         permissionMode: body.permissionMode,
         envVars,
       })

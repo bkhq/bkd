@@ -58,6 +58,8 @@ export interface ManagedProcess {
   cancelEscalationId?: string
   /** Prevent idle timeout from terminating this process (mirrors issue.keepAlive) */
   keepAlive: boolean
+  /** The issue's engine profile, model or effort changed after spawn; do not reuse for a new turn. */
+  settingsChanged?: boolean
   /** Git repo directory that owns this worktree (needed for `git worktree remove`) */
   worktreeBaseDir?: string
   worktreePath?: string

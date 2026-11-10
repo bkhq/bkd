@@ -15,6 +15,15 @@ export const VirtualEngineSchema = z.object({
   }),
 })
 export const VirtualEnginesSchema = z.array(VirtualEngineSchema)
+export const ModelConfigSchema = z.object({
+  id: z.string().regex(/^[\w.\-:[\]]{1,64}$/),
+  name: z.string().max(100).optional(),
+  baseModel: z.string().max(160).optional(),
+  envVars: EnvironmentSchema.refine(obj => Object.keys(obj).length <= 50, {
+    message: 'Maximum 50 environment variables allowed',
+  }),
+})
+export const ModelConfigsSchema = z.array(ModelConfigSchema).max(200)
 export const DirectorySchema = z.object({ current: z.string(), parent: z.string().nullable(), dirs: z.array(z.string()) })
 export const GitRemoteSchema = z.object({ url: z.string(), remote: z.string() })
 export const PendingMessagesSchema = z.array(z.object({

@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { eventBus } from '@/lib/event-bus'
 import { kanbanApi } from '@/lib/kanban-api'
 import { STALE_TIME } from '@/lib/query-config'
-import type { DeleteLocalSessionsRequest, ExecuteIssueRequest, ImportSessionRequest, Issue, VirtualEngine, WebhookEventType } from '@/types/kanban'
+import type { DeleteLocalSessionsRequest, EffortLevel, ExecuteIssueRequest, ImportSessionRequest, Issue, ModelConfig, VirtualEngine, WebhookEventType } from '@/types/kanban'
 
 export const queryKeys = {
   workspacePath: () => ['settings', 'workspacePath'] as const,
@@ -12,6 +12,7 @@ export const queryKeys = {
   engineSettings: () => ['engines', 'settings'] as const,
   engineUpdate: (id: string) => ['engines', 'update', id] as const,
   virtualEngines: () => ['engines', 'virtual'] as const,
+  modelConfigs: () => ['engines', 'model-configs'] as const,
   claudeUsage: () => ['engines', 'claude', 'usage'] as const,
   codexUsage: () => ['engines', 'codex', 'usage'] as const,
   projects: () => ['projects'] as const,
@@ -312,7 +313,7 @@ export function useCreateIssue(projectId: string) {
 export function useUpdateIssue(projectId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: { id: string } & Partial<Omit<Issue, 'id' | 'createdAt' | 'updatedAt'>>) => {
+    mutationFn: (data: { id: string, engineType?: string } & Partial<Omit<Issue, 'id' | 'createdAt' | 'updatedAt' | 'engineType'>>) => {
       const { id, ...rest } = data
       return kanbanApi.updateIssue(projectId, id, rest)
     },
@@ -416,6 +417,8 @@ export function useFollowUpIssue(projectId: string) {
       issueId: string
       prompt: string
       model?: string
+      engineType?: string
+      effort?: EffortLevel | 'auto'
       permissionMode?: 'auto' | 'supervised' | 'plan'
       busyAction?: 'queue' | 'cancel'
       files?: File[]
@@ -425,6 +428,8 @@ export function useFollowUpIssue(projectId: string) {
         issueId: args.issueId,
         prompt: args.prompt,
         model: args.model,
+        engineType: args.engineType,
+        effort: args.effort,
         permissionMode: args.permissionMode,
         busyAction: args.busyAction,
         files: args.files,
@@ -653,6 +658,28 @@ export function useSetVirtualEngines() {
       // Virtual engines appear in the engine list and profiles, so refresh both.
       queryClient.invalidateQueries({ queryKey: queryKeys.engineAvailability() })
       queryClient.invalidateQueries({ queryKey: queryKeys.engineProfiles() })
+    },
+  })
+}
+
+export function useModelConfigs(enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.modelConfigs(),
+    queryFn: () => kanbanApi.getModelConfigs(),
+    enabled,
+    staleTime: STALE_TIME.CONFIG,
+  })
+}
+
+export function useSetModelConfigs() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ engineType, configs }: { engineType: string, configs: ModelConfig[] }) =>
+      kanbanApi.setModelConfigs(engineType, configs),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.modelConfigs() })
+      // Names and custom models show up in every model list.
+      queryClient.invalidateQueries({ queryKey: queryKeys.engineAvailability() })
     },
   })
 }

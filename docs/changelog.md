@@ -1373,3 +1373,24 @@ Haiku (`claude-haiku-*`), Opus 4.x (`claude-opus-4*`), Opus 5 (`claude-opus-5`),
 Sonnet 5 (`claude-sonnet-5`) and Fable 5 (`claude-fable-5`) are left out of the `claude-code` model list fetched from
 the CLI, as a deny list so new models still show up; Opus 5.5, Sonnet 5.5 and Fable 5.1+ stay. When the CLI's
 default is an excluded model, no model is marked default. Task: 20261110-1220-claude-dynamic-models.
+
+## 2026-11-10 13:15 [progress]
+
+An issue can switch between engines that share its base engine (for example `claude-code` and a virtual engine built
+on it) on a follow-up or through PATCH; the next turn resumes the same session with the new engine's env. A switch to
+another base engine is a 400, and a change while the session runs is a 409. Issues gain a reasoning `effort`
+(`low` / `medium` / `high` / `xhigh` / `max`, migration `0032`), set by execute, follow-up or PATCH and passed to the
+claude-code CLI as `CLAUDE_CODE_EFFORT_LEVEL`, which overrides a virtual engine's own value; other engines ignore it.
+A changed engine, model or effort no longer reuses an idle live process: it is terminated and a new one spawned (this
+also fixes a model change being ignored on a kept-alive process). The chat input's model menu lists the models of all
+engines sharing the base engine, grouped by engine, and claude-code issues get an effort menu.
+Task: 20261110-1254-same-base-engine-switch-effort.
+
+## 2026-11-10 13:15 [progress]
+
+Settings → Models: every model row of a real engine has an edit button that opens a dialog for its display name and
+env vars, and each engine can add custom models (an id, a name, a base model from the detected list, env vars; e.g.
+`CLAUDE_CODE_EFFORT_LEVEL=high` on Fable 5.2). Stored per engine in `engine:modelConfigs`; custom models show up in
+every model picker, run the CLI on their base model, and apply their env vars between project and virtual-engine env.
+Virtual engines are added, edited and removed from a dialog opened on their card; the form below the engine list is
+gone. Task: 20261110-1259-model-configs.

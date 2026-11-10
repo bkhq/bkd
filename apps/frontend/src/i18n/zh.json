@@ -167,6 +167,15 @@
     "modelDefaultHint": "使用系统默认模型"
   },
   "chat": {
+    "effort": "推理级别",
+    "effortLevel": {
+      "auto": "默认推理",
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "xhigh": "超高",
+      "max": "最高"
+    },
     "send": "发送",
     "filesChanged": "{{count}} 个文件已更改",
     "placeholder": "继续处理此任务...",
@@ -562,14 +571,11 @@
     "globalEnvVars": "全局环境变量",
     "globalEnvVarsHint": "这些变量会注入到所有引擎进程中。每行一个，格式为 KEY=VALUE。以 # 开头的行会被忽略。受保护的键（PATH、HOME、API 密钥）无法被覆盖。",
     "globalEnvVarsPlaceholder": "BKD_URL=https://example.com\nCUSTOM_VAR=value\n# 注释会被忽略",
-    "virtualEngines": "虚拟引擎",
     "virtualEnginesHint": "虚拟引擎实际运行 Claude Code，连接第三方 Anthropic 兼容后端。只需设置 名称 + Base URL + Token；模型会从该 provider 的 /v1/models 自动获取并出现在模型选择里。点「重新探测」可刷新。",
-    "virtualEngineAdd": "添加",
     "virtualEngineIdPlaceholder": "id（如 glm-4-6）",
     "virtualEngineNamePlaceholder": "显示名称",
     "virtualEngineBaseUrlPlaceholder": "Base URL（如 https://aigw.example.com）",
     "virtualEngineTokenPlaceholder": "API Token",
-    "virtualEngineAdvanced": "高级（默认模型、额外环境变量）",
     "virtualEngineModelPlaceholder": "回退模型（可选，获取失败时使用）",
     "virtualEngineEnvPlaceholder": "EXTRA_VAR=value\n# 每行一个 KEY=VALUE",
     "worktreeAutoCleanup": "自动清理工作区",
@@ -700,6 +706,32 @@
       "failed": "更新失败",
       "upToDate": "已是最新版本（v{{version}}）",
       "close": "关闭"
+    },
+    "modelEdit": {
+      "editTitle": "编辑模型",
+      "addTitle": "添加模型",
+      "addButton": "添加模型",
+      "id": "模型 ID",
+      "idChangeWarning": "使用旧 ID 的 issue 会退回默认模型。",
+      "baseModel": "底层模型",
+      "name": "显示名称",
+      "namePlaceholder": "默认使用 ID",
+      "envVars": "环境变量",
+      "envHint": "每行一个 KEY=VALUE，issue 使用该模型执行时生效。",
+      "delete": "删除",
+      "reset": "重置",
+      "customBadge": "自定义"
+    },
+    "virtualEngineEdit": {
+      "editTitle": "编辑虚拟引擎",
+      "addTitle": "添加虚拟引擎",
+      "addButton": "虚拟引擎",
+      "id": "ID",
+      "name": "显示名称",
+      "idChangeWarning": "使用旧 ID 的 issue 和项目将找不到这个引擎。",
+      "model": "回退模型",
+      "envVars": "额外环境变量",
+      "delete": "删除"
     }
   },
   "contextMenu": {

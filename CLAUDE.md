@@ -89,6 +89,10 @@ Statuses are hardcoded constants in `config.ts` (`todo`, `working`, `review`, `d
 
 Issue create resolves engine/model by precedence: explicit request value → per-project default (`projects.defaultEngine`/`defaultModel`) → global default (`appSettings`) → `claude-code` fallback. An engine with no registered executor is coerced to `claude-code`.
 
+Model configs (`engines/model-configs.ts`, `appSettings` key `engine:modelConfigs`, `GET /api/engines/model-configs`, `PUT /api/engines/:engineType/model-configs`) are per real engine: an entry without `baseModel` renames a detected model and adds env vars; one with `baseModel` is a custom model (its id must not be a detected id) that runs the CLI on `baseModel`. `getEngineModels()` and `/api/engines/available` merge them into the model list (`custom: true`); `resolveExecutionModel()` maps a custom id to its `baseModel`, and `resolveModelEnvVars()` feeds `resolveExecEnvVars()`: project env < model env < virtual-engine env. Settings → Models edits them per model in `components/settings/ModelEditDialog.tsx`; virtual engines are edited in `VirtualEngineDialog.tsx`.
+
+After the first run, a follow-up or issue PATCH may switch `engineType` only between engines sharing the issue's base engine (the real engine and its virtual engines; `resolveEngineSwitch()` in `engines/virtual-engines.ts`): it rewrites `engineProfileId` and the next turn resumes the same session. `issues.effort` (`low`…`max`, set by execute / follow-up / PATCH, `'auto'` or `null` clears it) reaches the claude-code CLI as `CLAUDE_CODE_EFFORT_LEVEL`, overriding a virtual engine's value; other engines ignore it. Changing engine, model or effort while running is a 409, and marks a live idle process `settingsChanged` so the next follow-up replaces it instead of reusing it.
+
 API response envelope: `{ success: true, data: T } | { success: false, error: string }`
 
 #### API Routes

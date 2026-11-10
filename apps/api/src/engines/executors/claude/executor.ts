@@ -556,6 +556,10 @@ export class ClaudeCodeExecutor implements EngineExecutor {
     if (env.vars) {
       builder.envs(env.vars)
     }
+    // The CLI reads this over --effort, so it also overrides a virtual engine's value.
+    if (options.effort) {
+      builder.env('CLAUDE_CODE_EFFORT_LEVEL', options.effort)
+    }
 
     return builder
   }

@@ -12,6 +12,7 @@ import {
   Gauge,
   Info,
   Loader2,
+  Pencil,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -26,6 +27,10 @@ import { useTranslation } from 'react-i18next'
 import { DirectoryPicker } from '@/components/DirectoryPicker'
 import { EngineIcon } from '@/components/EngineIcons'
 import { EngineUpdateButton } from '@/components/settings/EngineUpdate'
+import type { ModelEditTarget } from '@/components/settings/ModelEditDialog'
+import { ModelEditDialog } from '@/components/settings/ModelEditDialog'
+import type { VirtualEngineTarget } from '@/components/settings/VirtualEngineDialog'
+import { VirtualEngineDialog } from '@/components/settings/VirtualEngineDialog'
 import { UsageSection } from '@/components/settings/UsageSection'
 import { WebhookSection } from '@/components/settings/WebhookSection'
 import { Badge } from '@/components/ui/badge'
@@ -56,6 +61,7 @@ import {
   useGlobalEnvVars,
   useLogPageSize,
   useMaxConcurrentExecutions,
+  useModelConfigs,
   useProbeEngines,
   useRequestRollback,
   useRequestUpgrade,
@@ -68,7 +74,6 @@ import {
   useSetLogPageSize,
   useSetMaxConcurrentExecutions,
   useSetSkipPermissions,
-  useSetVirtualEngines,
   useSetWorktreeAutoCleanup,
   useSkipPermissions,
   useSystemInfo,
@@ -86,10 +91,11 @@ import {
 } from '@/hooks/use-kanban'
 import { useTheme } from '@/hooks/use-theme'
 import { LANGUAGES } from '@/lib/constants'
+import { envVarsToText, textToEnvVars } from '@/lib/env-vars'
 import { formatFileSize } from '@/lib/format'
 import { cn } from 'cn'
 import { useViewModeStore } from '@/stores/view-mode-store'
-import type { EngineAvailability, EngineModel, EngineProfile, VirtualEngine } from '@/types/kanban'
+import type { EngineAvailability, EngineModel, EngineProfile } from '@/types/kanban'
 import { UPDATABLE_ENGINES } from '@bkd/shared'
 
 const THEME_OPTIONS = [
@@ -409,26 +415,6 @@ function GeneralSection({ open }: { open: boolean }) {
       <GlobalEnvVarsSection open={open} />
     </div>
   )
-}
-
-function envVarsToText(vars: Record<string, string>): string {
-  return Object.entries(vars)
-    .map(([k, v]) => `${k}=${v}`)
-    .join('\n')
-}
-
-function textToEnvVars(text: string): Record<string, string> {
-  const result: Record<string, string> = {}
-  for (const line of text.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
-    const eqIdx = trimmed.indexOf('=')
-    if (eqIdx <= 0) continue
-    const key = trimmed.slice(0, eqIdx).trim()
-    const val = trimmed.slice(eqIdx + 1).trim()
-    if (key) result[key] = val
-  }
-  return result
 }
 
 function GlobalEnvVarsSection({ open }: { open: boolean }) {
@@ -949,6 +935,11 @@ function ModelsSection({ open }: { open: boolean }) {
   const updateDefaultEngine = useUpdateDefaultEngine()
   const probe = useProbeEngines()
   const showNoAvailableEngines = !enginesLoading && availableEngines.length === 0
+  const { data: virtualEngines } = useVirtualEngines(open)
+  const { data: modelConfigs } = useModelConfigs(open)
+  const virtualIds = useMemo(() => new Set(virtualEngines?.map(v => v.id)), [virtualEngines])
+  const [modelTarget, setModelTarget] = useState<ModelEditTarget | null>(null)
+  const [virtualTarget, setVirtualTarget] = useState<VirtualEngineTarget | null>(null)
 
   return (
     <div className="space-y-4">
@@ -988,10 +979,16 @@ function ModelsSection({ open }: { open: boolean }) {
 
       <div className="flex items-center justify-between">
         <Label>{t('settings.engines')}</Label>
-        <Button onClick={() => probe.mutate()} variant="ghost" size="sm" disabled={probe.isPending}>
-          <RefreshCw className={cn('size-3', probe.isPending && 'animate-spin')} />
-          {probe.isPending ? t('settings.probing') : t('settings.probe')}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button onClick={() => setVirtualTarget({ engineId: null })} variant="ghost" size="sm">
+            <Plus className="size-3" />
+            {t('settings.virtualEngineEdit.addButton')}
+          </Button>
+          <Button onClick={() => probe.mutate()} variant="ghost" size="sm" disabled={probe.isPending}>
+            <RefreshCw className={cn('size-3', probe.isPending && 'animate-spin')} />
+            {probe.isPending ? t('settings.probing') : t('settings.probe')}
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -1013,12 +1010,18 @@ function ModelsSection({ open }: { open: boolean }) {
                   const profile = profiles?.find(p => p.engineType === engine.engineType)
                   const engineModels = models?.[engine.engineType] ?? []
                   const engineSetting = engineSettings?.engines[engine.engineType]
+                  const engineName = profile?.name ?? engine.engineType
+                  const isVirtual = virtualIds.has(engine.engineType)
                   return (
                     <EngineCard
                       key={engine.engineType}
                       engine={engine}
                       profile={profile}
                       models={engineModels}
+                      onEditEngine={isVirtual ? () => setVirtualTarget({ engineId: engine.engineType }) : undefined}
+                      onEditModel={isVirtual
+                        ? undefined
+                        : modelId => setModelTarget({ engineType: engine.engineType, engineName, modelId })}
                       savedDefault={engineSetting?.defaultModel}
                       hiddenModels={engineSetting?.hiddenModels ?? []}
                       onChangeDefault={modelId =>
@@ -1037,164 +1040,18 @@ function ModelsSection({ open }: { open: boolean }) {
               )}
       </div>
 
-      <VirtualEnginesSection open={open} />
+      <ModelEditDialog
+        target={modelTarget}
+        models={modelTarget ? (models?.[modelTarget.engineType] ?? []) : []}
+        configs={modelTarget ? (modelConfigs?.[modelTarget.engineType] ?? []) : []}
+        onClose={() => setModelTarget(null)}
+      />
+      <VirtualEngineDialog
+        target={virtualTarget}
+        engines={virtualEngines ?? []}
+        onClose={() => setVirtualTarget(null)}
+      />
     </div>
-  )
-}
-
-interface VirtualEngineDraft {
-  id: string
-  name: string
-  baseUrl: string
-  authToken: string
-  model: string
-  envText: string
-}
-
-function toDraft(ve: VirtualEngine): VirtualEngineDraft {
-  return {
-    id: ve.id,
-    name: ve.name,
-    baseUrl: ve.baseUrl ?? '',
-    authToken: ve.authToken ?? '',
-    model: ve.model ?? '',
-    envText: envVarsToText(ve.envVars),
-  }
-}
-
-function VirtualEnginesSection({ open }: { open: boolean }) {
-  const { t } = useTranslation()
-  const { data: virtualEngines } = useVirtualEngines(open)
-  const setVirtualEngines = useSetVirtualEngines()
-  const [drafts, setDrafts] = useState<VirtualEngineDraft[]>([])
-  const loaded = useRef(false)
-
-  useEffect(() => {
-    if (virtualEngines && !loaded.current) {
-      setDrafts(virtualEngines.map(toDraft))
-      loaded.current = true
-    }
-  }, [virtualEngines])
-
-  useEffect(() => {
-    if (!open) loaded.current = false
-  }, [open])
-
-  const update = (idx: number, patch: Partial<VirtualEngineDraft>) => {
-    setDrafts(prev => prev.map((d, i) => (i === idx ? { ...d, ...patch } : d)))
-  }
-  const addDraft = () => {
-    setDrafts(prev => [...prev, { id: '', name: '', baseUrl: '', authToken: '', model: '', envText: '' }])
-  }
-  const removeDraft = (idx: number) => {
-    setDrafts(prev => prev.filter((_, i) => i !== idx))
-  }
-
-  const handleSave = () => {
-    const payload: VirtualEngine[] = drafts.map(d => ({
-      id: d.id.trim(),
-      name: d.name.trim(),
-      baseEngine: 'claude-code',
-      baseUrl: d.baseUrl.trim() || undefined,
-      authToken: d.authToken.trim() || undefined,
-      model: d.model.trim() || undefined,
-      envVars: textToEnvVars(d.envText),
-    }))
-    setVirtualEngines.mutate(payload, {
-      onSuccess: data => setDrafts(data.map(toDraft)),
-    })
-  }
-
-  return (
-    <Field>
-      <div className="flex items-center justify-between">
-        <Label>{t('settings.virtualEngines')}</Label>
-        <Button variant="ghost" size="sm" onClick={addDraft}>
-          <Plus className="size-3" />
-          {t('settings.virtualEngineAdd')}
-        </Button>
-      </div>
-      <p className="text-[11px] text-muted-foreground">{t('settings.virtualEnginesHint')}</p>
-
-      <div className="flex flex-col gap-3 mt-1">
-        {drafts.map((d, idx) => (
-          <div key={idx} className="rounded-md border px-3 py-2.5 space-y-2">
-            <div className="flex items-center gap-2">
-              <Input
-                value={d.id}
-                onChange={e => update(idx, { id: e.target.value })}
-                placeholder={t('settings.virtualEngineIdPlaceholder')}
-                className="h-7 text-xs font-mono"
-              />
-              <Input
-                value={d.name}
-                onChange={e => update(idx, { name: e.target.value })}
-                placeholder={t('settings.virtualEngineNamePlaceholder')}
-                className="h-7 text-xs"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => removeDraft(idx)}
-                className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-              >
-                <Trash2 className="size-3" />
-              </Button>
-            </div>
-            <Input
-              value={d.baseUrl}
-              onChange={e => update(idx, { baseUrl: e.target.value })}
-              placeholder={t('settings.virtualEngineBaseUrlPlaceholder')}
-              className="h-7 text-xs font-mono"
-            />
-            <Input
-              type="password"
-              value={d.authToken}
-              onChange={e => update(idx, { authToken: e.target.value })}
-              placeholder={t('settings.virtualEngineTokenPlaceholder')}
-              className="h-7 text-xs font-mono"
-            />
-            <details className="group">
-              <summary className="cursor-pointer text-[11px] text-muted-foreground select-none">
-                {t('settings.virtualEngineAdvanced')}
-              </summary>
-              <div className="mt-2 space-y-2">
-                <Input
-                  value={d.model}
-                  onChange={e => update(idx, { model: e.target.value })}
-                  placeholder={t('settings.virtualEngineModelPlaceholder')}
-                  className="h-7 text-xs font-mono"
-                />
-                <Textarea
-                  className="font-mono text-xs"
-                  rows={3}
-                  value={d.envText}
-                  onChange={e => update(idx, { envText: e.target.value })}
-                  placeholder={t('settings.virtualEngineEnvPlaceholder')}
-                />
-              </div>
-            </details>
-          </div>
-        ))}
-      </div>
-
-      {setVirtualEngines.isError ?
-          (
-            <p className="text-[11px] text-destructive">
-              {setVirtualEngines.error instanceof Error ? setVirtualEngines.error.message : t('common.error')}
-            </p>
-          ) :
-        null}
-
-      <div className="flex justify-end mt-1">
-        <Button size="sm" onClick={handleSave} disabled={setVirtualEngines.isPending}>
-          {setVirtualEngines.isPending
-            ? <Loader2 className="size-3 animate-spin mr-1" />
-            : <Check className="size-3 mr-1" />}
-          {t('common.save')}
-        </Button>
-      </div>
-    </Field>
   )
 }
 
@@ -1493,6 +1350,8 @@ function EngineCard({
   hiddenModels,
   onChangeDefault,
   onChangeHiddenModels,
+  onEditEngine,
+  onEditModel,
 }: {
   engine: EngineAvailability
   profile?: EngineProfile
@@ -1501,6 +1360,10 @@ function EngineCard({
   hiddenModels: string[]
   onChangeDefault: (modelId: string) => void
   onChangeHiddenModels: (hiddenModels: string[]) => void
+  /** Virtual engines: open the engine's edit dialog. */
+  onEditEngine?: () => void
+  /** Real engines: edit a model, or add a custom one with `null`. */
+  onEditModel?: (modelId: string | null) => void
 }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
@@ -1618,6 +1481,22 @@ function EngineCard({
               </div>
             )
           : null}
+        {onEditEngine
+          ? (
+              <div className="shrink-0 pr-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={onEditEngine}
+                  aria-label={t('common.edit')}
+                  title={t('common.edit')}
+                >
+                  <Pencil className="size-3" />
+                </Button>
+              </div>
+            )
+          : null}
       </div>
 
       {expanded && hasModels
@@ -1652,6 +1531,13 @@ function EngineCard({
                     >
                       {m.name}
                     </span>
+                    {m.custom
+                      ? (
+                          <span className="shrink-0 text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted">
+                            {t('settings.modelEdit.customBadge')}
+                          </span>
+                        )
+                      : null}
                     {isDefault
                       ? (
                           <span className="shrink-0 text-[10px] text-primary font-medium px-1.5 py-0.5 rounded bg-primary/10">
@@ -1669,9 +1555,37 @@ function EngineCard({
                               </button>
                             )
                           : null}
+                    {onEditModel
+                      ? (
+                          <button
+                            type="button"
+                            onClick={() => onEditModel(m.id)}
+                            aria-label={t('common.edit')}
+                            title={t('common.edit')}
+                            className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+                          >
+                            <Pencil className="size-3" />
+                          </button>
+                        )
+                      : null}
                   </div>
                 )
               })}
+
+              {onEditModel
+                ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEditModel(null)}
+                      className="mt-1 self-start text-xs"
+                    >
+                      <Plus className="size-3" />
+                      {t('settings.modelEdit.addButton')}
+                    </Button>
+                  )
+                : null}
 
               {engine.binaryPath && (
                 <div className="mt-1 truncate border-t pt-1.5 text-[10px] font-mono text-muted-foreground/50">

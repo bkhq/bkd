@@ -1,4 +1,5 @@
 import { ProcessManager } from '@/engines/process-manager'
+import type { EffortLevel } from '@bkd/shared'
 import type { EngineType, PermissionPolicy } from '@/engines/types'
 import { logger } from '@/logger'
 import { AUTO_CLEANUP_DELAY_MS, GC_INTERVAL_MS, MAX_CONCURRENT_EXECUTIONS } from './constants'
@@ -107,6 +108,7 @@ export class IssueEngine {
       prompt: string
       workingDir?: string
       model?: string
+      effort?: EffortLevel | null
       permissionMode?: PermissionPolicy
       envVars?: Record<string, string>
       displayPrompt?: string
@@ -243,6 +245,12 @@ export class IssueEngine {
   updateKeepAlive(issueId: string, keepAlive: boolean): void {
     const active = this.ctx.pm.getFirstActiveInGroup(issueId)?.meta
     if (active) active.keepAlive = keepAlive
+  }
+
+  /** Make the next turn spawn a new process instead of reusing a live one spawned with old settings. */
+  markSettingsChanged(issueId: string): void {
+    const active = this.ctx.pm.getFirstActiveInGroup(issueId)?.meta
+    if (active) active.settingsChanged = true
   }
 
   async cancelAll(): Promise<void> {

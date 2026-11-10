@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { findProject } from '@/db/helpers'
 import { issues as issuesTable } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
+import { resolveEngineSwitch } from '@/engines/virtual-engines'
 import { emitIssueUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
@@ -200,8 +201,23 @@ update.openapi(R.updateIssue, async (c) => {
   if (body.model !== undefined && body.model !== existing.model && existing.statusId === 'working') {
     return c.json({ success: false, error: 'Cannot change model while the issue is working' }, 409 as const)
   }
+  let engineProfileId: string | null | undefined
+  if (body.engineType !== undefined) {
+    const resolved = await resolveEngineSwitch(existing.engineType, body.engineType)
+    if (!resolved.ok) return c.json({ success: false, error: resolved.error }, 400 as const)
+    if (resolved.engineProfileId !== existing.engineProfileId) engineProfileId = resolved.engineProfileId
+  }
+  const effortChanged = body.effort !== undefined && body.effort !== existing.effort
+  if ((engineProfileId !== undefined || effortChanged) && existing.statusId === 'working') {
+    return c.json({ success: false, error: 'Cannot change engine or effort while the issue is working' }, 409 as const)
+  }
   const updates: Record<string, unknown> = {}
   if (body.model !== undefined) updates.model = body.model
+  if (engineProfileId !== undefined) updates.engineProfileId = engineProfileId
+  if (effortChanged) updates.effort = body.effort
+  if (engineProfileId !== undefined || effortChanged || (body.model !== undefined && body.model !== existing.model)) {
+    issueEngine.markSettingsChanged(issueId)
+  }
   if (body.title !== undefined) updates.title = body.title
   if (body.tags !== undefined) updates.tag = serializeTags(body.tags)
   if (body.statusId !== undefined) {

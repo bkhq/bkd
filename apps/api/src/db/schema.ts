@@ -73,6 +73,8 @@ export const issues = sqliteTable(
     // Last permission mode chosen for the issue ('auto' | 'supervised' | 'plan');
     // null = engine default. Read by turns that carry no request of their own.
     permissionMode: text('permission_mode'),
+    // Reasoning effort ('low' ... 'max'); null = CLI default.
+    effort: text('effort'),
     totalInputTokens: integer('total_input_tokens').notNull().default(0),
     totalOutputTokens: integer('total_output_tokens').notNull().default(0),
     totalCostUsd: text('total_cost_usd').notNull().default('0'),

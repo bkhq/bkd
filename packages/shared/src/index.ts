@@ -35,6 +35,9 @@ export interface CategorizedCommands {
 export type PermissionMode = 'auto' | 'supervised' | 'plan'
 export type BusyAction = 'queue' | 'cancel'
 export type SessionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+/** Reasoning effort passed to the claude-code CLI; other engines ignore it. */
+export const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+export type EffortLevel = typeof EFFORT_LEVELS[number]
 
 export interface Issue {
   id: string
@@ -54,6 +57,8 @@ export interface Issue {
   prompt: string | null
   externalSessionId: string | null
   model: string | null
+  /** Reasoning effort; null = the CLI's (or virtual engine's) default. */
+  effort: EffortLevel | null
   totalInputTokens: number
   totalOutputTokens: number
   totalCostUsd: string
@@ -482,6 +487,20 @@ export interface EngineModel {
   id: string
   name: string
   isDefault?: boolean
+  /** A user-defined model (see ModelConfig.baseModel), not reported by the engine. */
+  custom?: boolean
+}
+
+/**
+ * Per-model settings for a real engine. Without `baseModel` it overlays the
+ * detected model with the same id; with `baseModel` it defines a custom model
+ * that runs the engine with that model id.
+ */
+export interface ModelConfig {
+  id: string
+  name?: string
+  baseModel?: string
+  envVars: Record<string, string>
 }
 
 export interface EngineDiscoveryResult {

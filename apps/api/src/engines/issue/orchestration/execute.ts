@@ -13,7 +13,8 @@ import { getPermissionOptions, issueEnvVars, resolveExecEnvVars } from '@/engine
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
 import { ensureWorktree } from '@/engines/issue/utils/worktree'
-import { resolveExecutionModel } from '@/engines/model-resolver'
+import { resolveExecutionModel, resolveModelEnvVars } from '@/engines/model-resolver'
+import type { EffortLevel } from '@bkd/shared'
 import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
 import { ROOT_DIR } from '@/root'
@@ -28,6 +29,8 @@ export async function executeIssue(
     prompt: string
     workingDir?: string
     model?: string
+    /** Effort to persist and use; undefined keeps the stored one. */
+    effort?: EffortLevel | null
     permissionMode?: PermissionPolicy
     envVars?: Record<string, string>
     displayPrompt?: string
@@ -61,6 +64,7 @@ export async function executeIssue(
     // engine's default model for the spawn. DB keeps the raw selection.
     const rawModel = opts.model === 'auto' ? undefined : opts.model
     const model = await resolveExecutionModel(opts.engineType, opts.model, effectiveProfileId)
+    const effort = opts.effort !== undefined ? opts.effort : issue.sessionFields.effort
     await updateIssueSession(issueId, {
       engineType: opts.engineType,
       sessionStatus: 'running',
@@ -68,6 +72,7 @@ export async function executeIssue(
       model: rawModel ?? undefined,
       ...(opts.permissionMode ? { permissionMode: opts.permissionMode } : {}),
       ...(opts.engineProfileId !== undefined ? { engineProfileId: opts.engineProfileId } : {}),
+      ...(opts.effort !== undefined ? { effort: opts.effort } : {}),
     })
 
     const baseDir = opts.workingDir ?? ROOT_DIR
@@ -82,7 +87,11 @@ export async function executeIssue(
     const executionId = crypto.randomUUID()
 
     // Merge virtual-engine preset env vars (if this issue runs a virtual engine).
-    const envVars = await resolveExecEnvVars(effectiveProfileId, opts.envVars)
+    const envVars = await resolveExecEnvVars(
+      effectiveProfileId,
+      opts.envVars,
+      await resolveModelEnvVars(opts.engineType, opts.model, effectiveProfileId),
+    )
 
     const normalizer = createLogNormalizer(executor)
     let spawned: SpawnedProcess | undefined
@@ -98,6 +107,7 @@ export async function executeIssue(
           workingDir,
           prompt: opts.prompt,
           model,
+          effort: effort ?? undefined,
           permissionMode: permOptions.permissionMode,
           externalSessionId,
         },

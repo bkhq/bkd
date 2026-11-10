@@ -1,7 +1,7 @@
-import { VirtualEngineSchema, VirtualEnginesSchema } from '@/openapi/extra-schemas'
+import { ModelConfigsSchema, VirtualEngineSchema, VirtualEnginesSchema } from '@/openapi/extra-schemas'
 import { errorResponse, successResponse } from '@/openapi/schemas'
 import { createRoute } from '@hono/zod-openapi'
-import type { VirtualEngine } from '@bkd/shared'
+import type { ModelConfig, VirtualEngine } from '@bkd/shared'
 import * as z from 'zod'
 import {
   getAllEngineDefaultModels,
@@ -16,7 +16,8 @@ import { engineRegistry } from '@/engines/executors'
 import { getClaudeUsage } from '@/engines/executors/claude/usage'
 import { getCodexUsage } from '@/engines/executors/codex/usage'
 import type { EngineType } from '@/engines/types'
-import { forceProbeEngines, getEngineDiscovery, getEngineModels } from '@/engines/startup-probe'
+import { applyModelConfigs, getAllModelConfigs, ModelConfigError, setModelConfigs } from '@/engines/model-configs'
+import { forceProbeEngines, getDetectedEngineModels, getEngineDiscovery, getEngineModels } from '@/engines/startup-probe'
 import { BUILT_IN_PROFILES } from '@/engines/types'
 import {
   clearVirtualModelCache,
@@ -37,7 +38,15 @@ const engines = createOpenAPIRouter()
 // Virtual engines are appended on top of the base discovery (not cached with it).
 engines.openapi(R.getAvailableEngines, async (c) => {
   const base = await getEngineDiscovery()
-  const { engines, models } = await decorateDiscoveryWithVirtual(base)
+  const configs = await getAllModelConfigs()
+  const withConfigs = {
+    ...base,
+    models: Object.fromEntries(Object.entries(base.models).map(([type, list]) => [
+      type,
+      applyModelConfigs(list, configs[type] ?? []),
+    ])),
+  }
+  const { engines, models } = await decorateDiscoveryWithVirtual(withConfigs)
   return c.json({ success: true as const, data: { engines, models } }, 200)
 })
 
@@ -107,6 +116,61 @@ engines.openapi(createRoute({
       { success: false as const, error: error instanceof Error ? error.message : 'Invalid virtual engines' },
       400,
     )
+  }
+})
+
+// --- Model configs (per-model name/env overrides and custom models of real engines) ---
+
+const modelConfigResponses = {
+  400: errorResponse('Invalid request'),
+  404: errorResponse('Not found'),
+  403: errorResponse('Forbidden'),
+  409: errorResponse('Conflict'),
+  415: errorResponse('Unsupported media type'),
+  500: errorResponse('Internal error'),
+}
+
+// GET /api/engines/model-configs — Model configs of every engine, keyed by engine type
+engines.openapi(createRoute({
+  method: 'get',
+  path: '/model-configs',
+  tags: ['Engines'],
+  operationId: 'getEngineModelConfigs',
+  responses: {
+    200: successResponse(z.record(z.string(), ModelConfigsSchema), 'Success'),
+    ...modelConfigResponses,
+  },
+}), async (c) => {
+  return c.json({ success: true as const, data: await getAllModelConfigs() }, 200)
+})
+
+// PUT /api/engines/:engineType/model-configs — Replace one real engine's model configs
+engines.openapi(createRoute({
+  method: 'put',
+  path: '/{engineType}/model-configs',
+  tags: ['Engines'],
+  operationId: 'putEngineModelConfigs',
+  request: {
+    params: z.object({ engineType: z.string() }),
+    body: { required: true, content: { 'application/json': { schema: z.object({ configs: ModelConfigsSchema }) } } },
+  },
+  responses: {
+    200: successResponse(ModelConfigsSchema, 'Success'),
+    ...modelConfigResponses,
+  },
+}), async (c) => {
+  const { engineType } = c.req.valid('param')
+  if (!engineRegistry.get(engineType as EngineType)) {
+    return c.json({ success: false as const, error: `Unknown engine type: ${engineType}` }, 400)
+  }
+  const { configs } = c.req.valid('json')
+  try {
+    const detected = await getDetectedEngineModels(engineType as EngineType)
+    const saved = await setModelConfigs(engineType, configs as ModelConfig[], detected.map(m => m.id))
+    return c.json({ success: true as const, data: saved }, 200)
+  } catch (error) {
+    if (error instanceof ModelConfigError) return c.json({ success: false as const, error: error.message }, 400)
+    throw error
   }
 })
 

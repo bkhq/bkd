@@ -1,3 +1,4 @@
+import type { EffortLevel } from '@bkd/shared'
 import type { Subprocess } from '@/engines/spawn'
 
 // ---------- Enums / Literal Unions ----------
@@ -124,6 +125,7 @@ export interface EngineModel {
   name: string
   description?: string
   isDefault?: boolean
+  custom?: boolean
 }
 
 // Engine profile configuration
@@ -148,6 +150,8 @@ export interface SpawnOptions {
   env?: Record<string, string>
   agent?: string
   externalSessionId?: string
+  /** Reasoning effort; engines without an effort setting ignore it. */
+  effort?: EffortLevel
 }
 
 // Follow-up options (extends spawn)

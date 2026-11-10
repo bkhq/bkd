@@ -407,7 +407,9 @@ export function ChatBody({
         onToggleFiles={onToggleFiles}
         scrollRef={scrollRef}
         engineType={issue.engineProfileId ?? issue.engineType ?? undefined}
+        baseEngine={issue.engineType ?? undefined}
         model={issue.model ?? undefined}
+        effort={issue.effort}
         sessionStatus={issue.sessionStatus}
         statusId={issue.statusId}
         isThinking={isThinking}

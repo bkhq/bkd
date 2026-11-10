@@ -350,8 +350,9 @@ export const updateIssue = createRoute({
   },
   responses: {
     200: successResponse(IssueSchema, 'Updated issue'),
+    400: errorResponse('Engine does not share the issue\'s base engine'),
     404: errorResponse('Issue not found'),
-    409: errorResponse('Model change while the issue is working'),
+    409: errorResponse('Model, engine or effort change while the issue is working'),
   },
 })
 

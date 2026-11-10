@@ -1,5 +1,6 @@
 import type { EngineModel, EngineType } from '@/engines/types'
 import { logger } from '@/logger'
+import { getModelConfigs } from './model-configs'
 import { getEngineModels } from './startup-probe'
 
 /**
@@ -45,5 +46,30 @@ export async function resolveExecutionModel(
   if (resolved !== (model ?? undefined) && model && model !== 'auto') {
     logger.info({ engineType, requested: model, resolved }, 'model_resolve_switched')
   }
+  if (resolved && models.find(m => m.id === resolved)?.custom) {
+    return (await getModelConfigs(engineType)).find(c => c.id === resolved)?.baseModel ?? resolved
+  }
   return resolved
+}
+
+/**
+ * Env vars configured for the model an execution resolves to (see
+ * resolveExecutionModel). Undefined for virtual engine profiles and for
+ * models without configured env vars.
+ */
+export async function resolveModelEnvVars(
+  engineType: EngineType,
+  model: string | null | undefined,
+  engineProfileId?: string | null,
+): Promise<Record<string, string> | undefined> {
+  if (engineProfileId) return undefined
+  try {
+    const [models, configs] = await Promise.all([getEngineModels(engineType), getModelConfigs(engineType)])
+    const resolved = pickExecutionModel(models, model) ?? model
+    const envVars = configs.find(c => c.id === resolved)?.envVars
+    return envVars && Object.keys(envVars).length > 0 ? envVars : undefined
+  } catch (error) {
+    logger.warn({ engineType, error }, 'model_env_resolve_failed')
+    return undefined
+  }
 }

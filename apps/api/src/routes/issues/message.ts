@@ -1,3 +1,4 @@
+import type { EffortLevel } from '@bkd/shared'
 import { HTTPException } from 'hono/http-exception'
 import { PendingMessagesSchema, RecalledMessageSchema } from '@/openapi/extra-schemas'
 import { AttachmentFollowUpSchema, errorResponse, FollowUpSchema, successResponse } from '@/openapi/schemas'
@@ -8,6 +9,9 @@ import { db } from '@/db'
 import { findProject } from '@/db/helpers'
 import { attachments } from '@/db/schema'
 import { emitIssueLogRemoved } from '@/events/issue-events'
+import { updateIssueSession } from '@/engines/engine-store'
+import { issueEngine } from '@/engines/issue'
+import { resolveEngineSwitch } from '@/engines/virtual-engines'
 import type { SavedFile } from '@/uploads'
 import { discardFiles, receiveAttachments, UploadError } from '@/uploads'
 import { dispatchFollowUp, getProjectOwnedIssue, normalizePrompt } from './_shared'
@@ -40,6 +44,8 @@ async function parseFollowUpBody(c: {
     ok: true
     prompt: string
     model?: string
+    engineType?: string
+    effort?: EffortLevel | 'auto'
     permissionMode?: string
     busyAction?: string
     displayPrompt?: string
@@ -57,7 +63,7 @@ async function parseFollowUpBody(c: {
       if (error instanceof UploadError) return { ok: false, status: error.status, error: error.message }
       throw error
     }
-    const keys = ['prompt', 'model', 'permissionMode', 'busyAction', 'displayPrompt']
+    const keys = ['prompt', 'model', 'engineType', 'effort', 'permissionMode', 'busyAction', 'displayPrompt']
     const raw: Record<string, string> = {}
     for (const [key, value] of upload.fields) {
       if (keys.includes(key) && !(key in raw)) raw[key] = value
@@ -159,15 +165,35 @@ message.post('/:id/follow-up', async (c) => {
     }
   }
 
-  // Reject model changes while the session is actively running
+  // Same-base engine switch (real <-> virtual) resumes the same session
+  let engineProfileId = issue.engineProfileId ?? null
+  if (parsed.engineType) {
+    const resolved = await resolveEngineSwitch(issue.engineType, parsed.engineType)
+    if (!resolved.ok) {
+      await discardFiles(savedFiles)
+      return c.json({ success: false as const, error: resolved.error }, 400)
+    }
+    engineProfileId = resolved.engineProfileId
+  }
+  const effort: EffortLevel | null = parsed.effort === undefined
+    ? (issue.effort as EffortLevel | null)
+    : parsed.effort === 'auto' ? null : parsed.effort
+  const modelChanged = !!parsed.model && parsed.model !== (issue.model ?? '')
+  const settingsChanged = engineProfileId !== (issue.engineProfileId ?? null) || effort !== (issue.effort ?? null)
+
+  // Reject model, engine and effort changes while the session is actively running
   const isActive = issue.sessionStatus === 'running' || issue.sessionStatus === 'pending'
-  if (isActive && parsed.model && parsed.model !== (issue.model ?? '')) {
+  if (isActive && (modelChanged || settingsChanged)) {
     await discardFiles(savedFiles)
     return c.json(
-      { success: false as const, error: 'Cannot change model while session is running. Wait for completion or cancel first.' },
+      { success: false as const, error: 'Cannot change model, engine or effort while session is running. Wait for completion or cancel first.' },
       409,
     )
   }
+  if (settingsChanged) {
+    await updateIssueSession(issueId, { engineProfileId, effort })
+  }
+  if (modelChanged || settingsChanged) issueEngine.markSettingsChanged(issueId)
 
   const attachmentsMeta =
     savedFiles.length > 0 ? { attachments: savedFiles.map(savedFileToMeta) } : {}

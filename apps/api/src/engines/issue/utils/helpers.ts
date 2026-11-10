@@ -81,18 +81,19 @@ export async function getProjectExecContext(projectId: string): Promise<ProjectE
 }
 
 /**
- * Merge a virtual engine's preset env vars over the project env vars.
- * Profile vars win on key conflicts (a virtual engine's purpose is to override
- * the backend target). Returns the project vars unchanged when the issue has no
- * virtual engine.
+ * Merge env vars for an execution: project, then the model's configured vars,
+ * then a virtual engine's preset vars (a virtual engine's purpose is to
+ * override the backend target). Returns the project vars unchanged when there
+ * is nothing to add.
  */
 export async function resolveExecEnvVars(
   engineProfileId: string | null | undefined,
   projectEnvVars?: Record<string, string>,
+  modelEnvVars?: Record<string, string>,
 ): Promise<Record<string, string> | undefined> {
   const profileEnv = await resolveProfileEnvVars(engineProfileId)
-  if (!profileEnv) return projectEnvVars
-  return { ...(projectEnvVars ?? {}), ...profileEnv }
+  if (!profileEnv && !modelEnvVars) return projectEnvVars
+  return { ...(projectEnvVars ?? {}), ...modelEnvVars, ...profileEnv }
 }
 
 /** Engine env vars for an issue: the configured ones plus the issue's own ids, so its agent can name itself as a follow-up sender. */

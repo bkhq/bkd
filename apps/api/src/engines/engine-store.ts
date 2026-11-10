@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { issues as issuesTable } from '@/db/schema'
 import { emitIssueUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
+import type { EffortLevel } from '@bkd/shared'
 import type { EngineType, PermissionPolicy, SessionStatus } from './types'
 
 // ---------- Row type inference ----------
@@ -19,6 +20,7 @@ export interface IssueSessionFields {
   externalSessionId: string | null
   model: string | null
   permissionMode: PermissionPolicy | null
+  effort: EffortLevel | null
 }
 
 export function getIssueSessionFields(row: IssueRow): IssueSessionFields {
@@ -30,6 +32,7 @@ export function getIssueSessionFields(row: IssueRow): IssueSessionFields {
     externalSessionId: row.externalSessionId ?? null,
     model: row.model ?? null,
     permissionMode: (row.permissionMode as PermissionPolicy | null) ?? null,
+    effort: (row.effort as EffortLevel | null) ?? null,
   }
 }
 
@@ -54,6 +57,7 @@ export async function updateIssueSession(
     externalSessionId: string | null
     model: string
     permissionMode: PermissionPolicy
+    effort: EffortLevel | null
   }>,
 ): Promise<IssueRow | undefined> {
   const updates: Record<string, unknown> = {}
@@ -64,6 +68,7 @@ export async function updateIssueSession(
   if (changes.externalSessionId !== undefined) updates.externalSessionId = changes.externalSessionId
   if (changes.model !== undefined) updates.model = changes.model
   if (changes.permissionMode !== undefined) updates.permissionMode = changes.permissionMode
+  if (changes.effort !== undefined) updates.effort = changes.effort
 
   if (Object.keys(updates).length === 0) {
     const [row] = await db

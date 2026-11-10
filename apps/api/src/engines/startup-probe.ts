@@ -3,6 +3,7 @@ import { cacheGet, cacheSet } from '@/cache'
 import { getProbeResults, saveProbeResults, setAppSetting } from '@/db/helpers'
 import { refreshSlashCommandsCacheForEngine, slashCommandsKey } from '@/engines/issue/queries'
 import { logger } from '@/logger'
+import { applyModelConfigs, getModelConfigs } from './model-configs'
 import { ClaudeCodeExecutor, engineRegistry } from './executors'
 import type { EngineAvailability, EngineModel, EngineType } from './types'
 
@@ -311,11 +312,18 @@ export async function setEngineVersion(engineType: EngineType, version: string):
 }
 
 /**
- * Get cached models for a specific engine type. Falls back to live query.
+ * Get the models an engine reports (cached, falling back to a live query),
+ * without the user's model configs.
  */
-export async function getEngineModels(engineType: EngineType): Promise<EngineModel[]> {
+export async function getDetectedEngineModels(engineType: EngineType): Promise<EngineModel[]> {
   const cached = await cacheGet<EngineModel[]>(`${CACHE_KEY_MODELS_PREFIX}${engineType}`)
   if (cached) return cached
 
   return engineRegistry.getModels(engineType)
+}
+
+/** Get an engine's models with the user's model configs applied. */
+export async function getEngineModels(engineType: EngineType): Promise<EngineModel[]> {
+  const [models, configs] = await Promise.all([getDetectedEngineModels(engineType), getModelConfigs(engineType)])
+  return applyModelConfigs(models, configs)
 }

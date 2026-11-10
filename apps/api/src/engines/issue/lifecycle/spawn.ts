@@ -21,7 +21,8 @@ import {
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { getPidFromSubprocess } from '@/engines/issue/utils/pid'
 import { ensureWorktree } from '@/engines/issue/utils/worktree'
-import { resolveExecutionModel } from '@/engines/model-resolver'
+import { resolveExecutionModel, resolveModelEnvVars } from '@/engines/model-resolver'
+import type { EffortLevel } from '@bkd/shared'
 import type { EngineType, PermissionPolicy, SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
 import { monitorCompletion } from './completion-monitor'
@@ -54,6 +55,7 @@ export async function spawnWithSessionFallback(
     prompt: string
     sessionId: string
     model?: string
+    effort?: EffortLevel
     permissionMode: PermissionPolicy
     projectId: string
     envVars?: Record<string, string>
@@ -73,6 +75,7 @@ export async function spawnWithSessionFallback(
         prompt: opts.prompt,
         sessionId: opts.sessionId,
         model: opts.model,
+        effort: opts.effort,
         permissionMode: opts.permissionMode,
       },
       spawnCtx,
@@ -101,6 +104,7 @@ export async function spawnWithSessionFallback(
         workingDir: opts.workingDir,
         prompt: freshPrompt,
         model: opts.model,
+        effort: opts.effort,
         permissionMode: opts.permissionMode,
         externalSessionId,
       },
@@ -123,6 +127,7 @@ export async function spawnFresh(
     workingDir: string
     prompt: string
     model?: string
+    effort?: EffortLevel
     permissionMode: PermissionPolicy
     projectId: string
     envVars?: Record<string, string>
@@ -134,6 +139,7 @@ export async function spawnFresh(
       workingDir: opts.workingDir,
       prompt: opts.prompt,
       model: opts.model,
+      effort: opts.effort,
       permissionMode: opts.permissionMode,
       externalSessionId,
     },
@@ -184,12 +190,17 @@ export async function spawnRetry(
   )
   const executionId = crypto.randomUUID()
   const projCtx = await getProjectExecContext(issue.projectId)
-  const envVars = await resolveExecEnvVars(issue.engineProfileId, projCtx.envVars)
+  const envVars = await resolveExecEnvVars(
+    issue.engineProfileId,
+    projCtx.envVars,
+    await resolveModelEnvVars(engineType, issue.sessionFields.model, issue.engineProfileId),
+  )
 
   const spawnOpts = {
     workingDir,
     prompt: issue.sessionFields.prompt ?? '',
     model: await resolveExecutionModel(engineType, issue.sessionFields.model, issue.engineProfileId),
+    effort: issue.sessionFields.effort ?? undefined,
     permissionMode: permOptions.permissionMode,
     projectId: issue.projectId,
     envVars,
@@ -294,7 +305,11 @@ export async function spawnFollowUpProcess(
     permissionMode ?? issue.sessionFields.permissionMode ?? undefined,
   )
   const projCtx = await getProjectExecContext(issue.projectId)
-  const envVars = await resolveExecEnvVars(issue.engineProfileId, projCtx.envVars)
+  const envVars = await resolveExecEnvVars(
+    issue.engineProfileId,
+    projCtx.envVars,
+    await resolveModelEnvVars(engineType, model ?? issue.sessionFields.model, issue.engineProfileId),
+  )
 
   const normalizer = createLogNormalizer(executor)
   let spawned: SpawnedProcess | undefined
@@ -308,6 +323,7 @@ export async function spawnFollowUpProcess(
       workingDir,
       prompt,
       model: effectiveModel,
+      effort: issue.sessionFields.effort ?? undefined,
       permissionMode: permOptions.permissionMode,
       projectId: issue.projectId,
       envVars,

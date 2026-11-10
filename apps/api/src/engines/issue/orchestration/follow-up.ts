@@ -64,7 +64,9 @@ export async function followUpIssue(
         dispatch(active, { type: 'CLEAR_PENDING_INPUTS' })
       }
     }
-    if (active && !(active.lastInterruptAt && active.turnInFlight)) {
+    // An idle process spawned with old settings is replaced by a new one below.
+    const staleIdle = active?.settingsChanged && !active.turnInFlight
+    if (active && !staleIdle && !(active.lastInterruptAt && active.turnInFlight)) {
       await updateIssueSession(issueId, { sessionStatus: 'running' })
       logger.debug(
         {
@@ -160,6 +162,14 @@ export async function followUpIssue(
           opts,
         )
       }
+    }
+
+    if (active && staleIdle) {
+      logger.debug({ issueId, executionId: active.executionId }, 'issue_followup_replace_stale_process')
+      await ctx.pm.terminate(active.executionId, () => {
+        active.finishedAt = new Date()
+        active.process.subprocess.kill()
+      })
     }
 
     logger.debug({ issueId, engineType, model: effectiveModel }, 'issue_followup_spawn_new_process')

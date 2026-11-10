@@ -20,7 +20,7 @@ import {
 } from '@/engines/issue/utils/helpers'
 import { createLogNormalizer } from '@/engines/issue/utils/normalizer'
 import { ensureWorktree } from '@/engines/issue/utils/worktree'
-import { resolveExecutionModel } from '@/engines/model-resolver'
+import { resolveExecutionModel, resolveModelEnvVars } from '@/engines/model-resolver'
 import type { SpawnedProcess } from '@/engines/types'
 import { logger } from '@/logger'
 
@@ -57,7 +57,11 @@ export async function restartIssue(
     )
     const executionId = crypto.randomUUID()
     const projCtx = await getProjectExecContext(issue.projectId)
-    const envVars = await resolveExecEnvVars(issue.engineProfileId, projCtx.envVars)
+    const envVars = await resolveExecEnvVars(
+      issue.engineProfileId,
+      projCtx.envVars,
+      await resolveModelEnvVars(engineType, issue.sessionFields.model, issue.engineProfileId),
+    )
 
     // Prepend project system prompt only. Pending follow-ups remain queued and
     // will be flushed one-by-one after each turn completes.
@@ -86,6 +90,7 @@ export async function restartIssue(
         workingDir,
         prompt: effectivePrompt,
         model: effectiveModel,
+        effort: issue.sessionFields.effort ?? undefined,
         permissionMode: permOptions.permissionMode,
         projectId: issue.projectId,
         envVars,
@@ -98,6 +103,7 @@ export async function restartIssue(
               prompt: spawnOpts.prompt,
               sessionId: issue.sessionFields.externalSessionId,
               model: spawnOpts.model,
+              effort: spawnOpts.effort,
               permissionMode: spawnOpts.permissionMode,
             },
             {

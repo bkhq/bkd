@@ -10,6 +10,7 @@
  */
 // Patches `.openapi()` onto zod; without it, whichever module loads this file
 // first (e.g. a test importing db helpers) hits an undefined method.
+import { EFFORT_LEVELS } from '@bkd/shared'
 import '@hono/zod-openapi'
 import * as z from 'zod'
 
@@ -145,6 +146,10 @@ export const SortProjectSchema = z.object({
 // ── Issue schemas ──────────────────────────────────────
 
 const statusIdEnum = z.enum(['todo', 'working', 'review', 'done'])
+const engineIdSchema = z.string().regex(/^[\w.\-:]{1,64}$/)
+const effortEnum = z.enum(EFFORT_LEVELS)
+/** 'auto' clears the stored effort. */
+const effortInput = z.enum(['auto', ...EFFORT_LEVELS])
 
 export const IssueSchema = z.object({
   id: z.string(),
@@ -163,6 +168,7 @@ export const IssueSchema = z.object({
   prompt: z.string().nullable(),
   externalSessionId: z.string().nullable(),
   model: z.string().nullable(),
+  effort: effortEnum.nullable(),
   totalInputTokens: z.number().int(),
   totalOutputTokens: z.number().int(),
   totalCostUsd: z.string(),
@@ -192,6 +198,8 @@ export const UpdateIssueSchema = z.object({
   isPinned: z.boolean().optional(),
   keepAlive: z.boolean().optional(),
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional().openapi({ description: 'Rejected with 409 while the issue is working' }),
+  engineType: engineIdSchema.optional().openapi({ description: 'Engine or virtual engine id sharing the issue\'s base engine; rejected with 409 while the issue is working' }),
+  effort: effortEnum.nullable().optional().openapi({ description: 'null clears it; rejected with 409 while the issue is working' }),
 }).openapi('UpdateIssue')
 
 export const BulkUpdateSchema = z.object({
@@ -219,12 +227,15 @@ export const ExecuteIssueSchema = z.object({
   engineType: z.string().regex(/^[\w.\-:]{1,64}$/).openapi({ description: 'engine type or virtual engine id' }),
   prompt: z.string().min(1).max(32768),
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
+  effort: effortInput.optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
 }).openapi('ExecuteIssue')
 
 export const FollowUpSchema = z.object({
   prompt: z.string().min(1).max(32768),
   model: z.string().regex(/^[\w./:\-[\]]{1,160}$/).optional(),
+  engineType: engineIdSchema.optional().openapi({ description: 'Engine or virtual engine id sharing the issue\'s base engine' }),
+  effort: effortInput.optional(),
   permissionMode: z.enum(['auto', 'supervised', 'plan']).optional(),
   busyAction: z.enum(['queue', 'cancel']).optional(),
   displayPrompt: z.string().max(500).optional(),
@@ -334,6 +345,7 @@ export const EngineModelSchema = z.object({
   id: z.string(),
   name: z.string(),
   isDefault: z.boolean().optional(),
+  custom: z.boolean().optional(),
 }).openapi('EngineModel')
 
 export const EngineDiscoveryResultSchema = z.object({

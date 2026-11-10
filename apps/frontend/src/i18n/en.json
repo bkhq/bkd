@@ -167,6 +167,15 @@
     "modelDefaultHint": "Use system default"
   },
   "chat": {
+    "effort": "Effort",
+    "effortLevel": {
+      "auto": "Default effort",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "xhigh": "Extra high",
+      "max": "Max"
+    },
     "send": "Send",
     "filesChanged": "{{count}} files changed",
     "placeholder": "Continue working on this task...",
@@ -563,14 +572,11 @@
     "globalEnvVars": "Global environment variables",
     "globalEnvVarsHint": "These variables are injected into all engine processes. One per line in KEY=VALUE format. Lines starting with # are ignored. Protected keys (PATH, HOME, API keys) cannot be overridden.",
     "globalEnvVarsPlaceholder": "BKD_URL=https://example.com\nCUSTOM_VAR=value\n# Comments are ignored",
-    "virtualEngines": "Virtual engines",
     "virtualEnginesHint": "A virtual engine runs Claude Code against a third-party Anthropic-compatible backend. Set a name + base URL + token; models are fetched from the provider's /v1/models and appear in the model picker. Click \"Probe\" to refresh them.",
-    "virtualEngineAdd": "Add",
     "virtualEngineIdPlaceholder": "id (e.g. glm-4-6)",
     "virtualEngineNamePlaceholder": "Display name",
     "virtualEngineBaseUrlPlaceholder": "Base URL (e.g. https://aigw.example.com)",
     "virtualEngineTokenPlaceholder": "API token",
-    "virtualEngineAdvanced": "Advanced (default model, extra env vars)",
     "virtualEngineModelPlaceholder": "fallback model (optional, used if discovery fails)",
     "virtualEngineEnvPlaceholder": "EXTRA_VAR=value\n# one KEY=VALUE per line",
     "worktreeAutoCleanup": "Auto-cleanup worktrees",
@@ -702,6 +708,32 @@
       "failed": "Update failed",
       "upToDate": "Already up to date (v{{version}})",
       "close": "Close"
+    },
+    "modelEdit": {
+      "editTitle": "Edit model",
+      "addTitle": "Add model",
+      "addButton": "Add model",
+      "id": "Model ID",
+      "idChangeWarning": "Issues that use the old ID will fall back to the default model.",
+      "baseModel": "Base model",
+      "name": "Display name",
+      "namePlaceholder": "Defaults to the ID",
+      "envVars": "Environment variables",
+      "envHint": "One KEY=VALUE per line, applied when an issue runs on this model.",
+      "delete": "Delete",
+      "reset": "Reset",
+      "customBadge": "Custom"
+    },
+    "virtualEngineEdit": {
+      "editTitle": "Edit virtual engine",
+      "addTitle": "Add virtual engine",
+      "addButton": "Virtual engine",
+      "id": "ID",
+      "name": "Display name",
+      "idChangeWarning": "Issues and projects that use the old ID will no longer find this engine.",
+      "model": "Fallback model",
+      "envVars": "Extra environment variables",
+      "delete": "Delete"
     }
   },
   "contextMenu": {

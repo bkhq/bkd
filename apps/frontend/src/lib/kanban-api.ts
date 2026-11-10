@@ -7,6 +7,7 @@ import type {
   CodexUsage,
   DeleteLocalSessionsRequest,
   DeleteLocalSessionsResult,
+  EffortLevel,
   EngineDiscoveryResult,
   EngineProfile,
   EngineSettings,
@@ -23,6 +24,7 @@ import type {
   LocalSessionListResponse,
   LocalSessionPreview,
   Message,
+  ModelConfig,
   Note,
   PermissionMode,
   ProbeResult,
@@ -306,7 +308,12 @@ export const kanbanApi = {
     }
     return post<Issue>(`/api/projects/${projectId}/issues`, rest)
   },
-  updateIssue: (projectId: string, id: string, data: Partial<Issue>) =>
+  /** `engineType` takes an engine or virtual engine id sharing the issue's base engine. */
+  updateIssue: (
+    projectId: string,
+    id: string,
+    data: Partial<Omit<Issue, 'engineType'>> & { engineType?: string },
+  ) =>
     patch<Issue>(`/api/projects/${projectId}/issues/${id}`, data),
   bulkUpdateIssues: (
     projectId: string,
@@ -335,6 +342,8 @@ export const kanbanApi = {
     issueId: string
     prompt: string
     model?: string
+    engineType?: string
+    effort?: EffortLevel | 'auto'
     permissionMode?: PermissionMode
     busyAction?: BusyAction
     files?: File[]
@@ -344,6 +353,8 @@ export const kanbanApi = {
       const fd = new FormData()
       fd.append('prompt', opts.prompt)
       if (opts.model) fd.append('model', opts.model)
+      if (opts.engineType) fd.append('engineType', opts.engineType)
+      if (opts.effort) fd.append('effort', opts.effort)
       if (opts.permissionMode) fd.append('permissionMode', opts.permissionMode)
       if (opts.busyAction) fd.append('busyAction', opts.busyAction)
       if (opts.displayPrompt) fd.append('displayPrompt', opts.displayPrompt)
@@ -358,6 +369,8 @@ export const kanbanApi = {
       {
         prompt: opts.prompt,
         ...(opts.model ? { model: opts.model } : {}),
+        ...(opts.engineType ? { engineType: opts.engineType } : {}),
+        ...(opts.effort ? { effort: opts.effort } : {}),
         ...(opts.permissionMode ? { permissionMode: opts.permissionMode } : {}),
         ...(opts.busyAction ? { busyAction: opts.busyAction } : {}),
         ...(opts.displayPrompt ? { displayPrompt: opts.displayPrompt } : {}),
@@ -484,6 +497,9 @@ export const kanbanApi = {
   getVirtualEngines: () => get<VirtualEngine[]>('/api/engines/virtual'),
   setVirtualEngines: (engines: VirtualEngine[]) =>
     put<VirtualEngine[]>('/api/engines/virtual', { engines }),
+  getModelConfigs: () => get<Record<string, ModelConfig[]>>('/api/engines/model-configs'),
+  setModelConfigs: (engineType: string, configs: ModelConfig[]) =>
+    put<ModelConfig[]>(`/api/engines/${encodeURIComponent(engineType)}/model-configs`, { configs }),
 
   // App Settings
   getSlashCommandSettings: (engine?: string) =>

@@ -75,6 +75,26 @@ export async function getVirtualEngine(id: string): Promise<VirtualEngine | unde
 }
 
 /**
+ * Resolve a requested engine id (real or virtual) for an issue running
+ * `baseEngine`. Only engines with the same base engine are accepted: they run
+ * the same CLI and can resume the issue's session.
+ */
+export async function resolveEngineSwitch(
+  baseEngine: string | null,
+  targetId: string,
+): Promise<{ ok: true, engineProfileId: string | null } | { ok: false, error: string }> {
+  const virtual = await getVirtualEngine(targetId)
+  const targetBase = virtual ? virtual.baseEngine : targetId
+  if (!virtual && !engineRegistry.get(targetId as EngineType)) {
+    return { ok: false, error: `Unknown engine type: ${targetId}` }
+  }
+  if (targetBase !== baseEngine) {
+    return { ok: false, error: `Engine ${targetId} does not share the issue's base engine ${baseEngine}` }
+  }
+  return { ok: true, engineProfileId: virtual ? virtual.id : null }
+}
+
+/**
  * Validate and persist the full virtual-engine list (replace semantics).
  * Throws on the first validation error.
  */
