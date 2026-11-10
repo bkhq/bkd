@@ -167,7 +167,7 @@ Each engine has an executor in `executors/<name>/executor.ts` implementing `Engi
 - **`issue/streams/`** — Stdout consumption via async generator, log classification, stderr drain
 - **`reconciler.ts`** — Safety net: marks stale `running`/`pending` sessions as `failed` on startup; moves orphaned `working` issues to `review`. Runs on startup + every 60s + 1s after each issue settlement.
 - **`startup-probe.ts`** — Engine discovery with 3-tier cache: memory (10 min) → DB (`appSettings`, no expiry) → live probe (15s per-engine timeout, all engines probed in parallel). A probe spawns the engine CLIs — for Claude that includes `claude auth status`, which touches the rotating OAuth credential — so it runs only on demand: first install, a vanished binary, or the settings "probe engines" button (ENG-035). `claude-code`'s models come from the CLI's stream-json `initialize`
-  control response (full IDs, the CLI's `default` marked default, a `[1m]` variant per Opus/Sonnet/Fable model) and are
+  control response (full IDs, Haiku / Opus 4.x / Opus 5 / Sonnet 4.x / Sonnet 5 / Fable 5 left out, the CLI's `default` marked default, a `[1m]` variant per Opus/Sonnet/Fable model) and are
   cached like every other engine's; an empty list makes the resolver pass the requested model through
 
 **Execution flow:**

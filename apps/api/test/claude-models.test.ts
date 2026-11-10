@@ -19,8 +19,6 @@ describe('mapInitModels', () => {
       'claude-opus-5-5',
       'claude-fable-5-2',
       'claude-sonnet-5-5',
-      'claude-haiku-5-5',
-      'claude-haiku-4-5-20251001',
     ])
     expect(base[0]).toEqual({
       id: 'claude-opus-5-5',
@@ -31,7 +29,7 @@ describe('mapInitModels', () => {
     expect(models.filter(m => m.isDefault).map(m => m.id)).toEqual(['claude-opus-5-5'])
   })
 
-  test('adds a [1m] variant after each Opus, Sonnet and Fable model, none for Haiku', () => {
+  test('adds a [1m] variant after each Opus, Sonnet and Fable model', () => {
     const ids = mapInitModels(INIT_MODELS).map(m => m.id)
     expect(ids).toEqual([
       'claude-opus-5-5',
@@ -40,8 +38,6 @@ describe('mapInitModels', () => {
       'claude-fable-5-2[1m]',
       'claude-sonnet-5-5',
       'claude-sonnet-5-5[1m]',
-      'claude-haiku-5-5',
-      'claude-haiku-4-5-20251001',
     ])
     const oneM = mapInitModels(INIT_MODELS).find(m => m.id === 'claude-sonnet-5-5[1m]')
     expect(oneM).toEqual({ id: 'claude-sonnet-5-5[1m]', name: 'Sonnet 5.5 (1M)', description: 'Most efficient for simpler tasks', isDefault: false })
@@ -55,6 +51,43 @@ describe('mapInitModels', () => {
       'opus',
     ])
     expect(models).toEqual([{ id: 'claude-x-1', name: 'claude-x-1', isDefault: false }])
+  })
+
+  test('leaves out Haiku models, even when the CLI default is one', () => {
+    const models = mapInitModels([
+      { value: 'default', resolvedModel: 'claude-haiku-5-5' },
+      { value: 'haiku', resolvedModel: 'claude-haiku-5-5', displayName: 'Haiku 5.5' },
+      { value: 'claude-x-1' },
+    ])
+    expect(models).toEqual([{ id: 'claude-x-1', name: 'claude-x-1', isDefault: false }])
+  })
+
+  test('leaves out Opus 4.x and Opus 5, keeping Opus 5.5', () => {
+    const ids = mapInitModels([
+      { value: 'claude-opus-5', resolvedModel: 'claude-opus-5' },
+      { value: 'claude-opus-4-8', resolvedModel: 'claude-opus-4-8' },
+      { value: 'claude-opus-4-6', resolvedModel: 'claude-opus-4-6' },
+      { value: 'opus', resolvedModel: 'claude-opus-5-5' },
+    ]).map(m => m.id)
+    expect(ids).toEqual(['claude-opus-5-5', 'claude-opus-5-5[1m]'])
+  })
+
+  test('leaves out Sonnet 4.x and Sonnet 5, keeping Sonnet 5.5', () => {
+    const ids = mapInitModels([
+      { value: 'claude-sonnet-5', resolvedModel: 'claude-sonnet-5' },
+      { value: 'claude-sonnet-4-6', resolvedModel: 'claude-sonnet-4-6' },
+      { value: 'sonnet', resolvedModel: 'claude-sonnet-5-5' },
+    ]).map(m => m.id)
+    expect(ids).toEqual(['claude-sonnet-5-5', 'claude-sonnet-5-5[1m]'])
+  })
+
+  test('leaves out Fable 5, keeping Fable 5.1 and 5.2', () => {
+    const ids = mapInitModels([
+      { value: 'fable', resolvedModel: 'claude-fable-5-2' },
+      { value: 'claude-fable-5-1', resolvedModel: 'claude-fable-5-1' },
+      { value: 'claude-fable-5', resolvedModel: 'claude-fable-5' },
+    ]).map(m => m.id)
+    expect(ids).toEqual(['claude-fable-5-2', 'claude-fable-5-2[1m]', 'claude-fable-5-1', 'claude-fable-5-1[1m]'])
   })
 
   test('returns an empty list for a non-array payload', () => {

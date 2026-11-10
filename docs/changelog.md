@@ -1366,3 +1366,10 @@ first said: the test registry swaps in a mock Codex executor, and both sides nee
 refreshes on a re-probe; the static overlay is gone. The default model now follows the CLI's account default instead
 of the fixed `claude-sonnet-5-5`. An unreachable CLI yields an empty list, so the requested model passes through.
 Task: 20261110-1220-claude-dynamic-models.
+
+## 2026-11-10 13:00 [progress]
+
+Haiku (`claude-haiku-*`), Opus 4.x (`claude-opus-4*`), Opus 5 (`claude-opus-5`), Sonnet 4.x (`claude-sonnet-4*`),
+Sonnet 5 (`claude-sonnet-5`) and Fable 5 (`claude-fable-5`) are left out of the `claude-code` model list fetched from
+the CLI, as a deny list so new models still show up; Opus 5.5, Sonnet 5.5 and Fable 5.1+ stay. When the CLI's
+default is an excluded model, no model is marked default. Task: 20261110-1220-claude-dynamic-models.

@@ -135,6 +135,7 @@ function resolveBaseCmd(): string {
 
 const MODELS_QUERY_TIMEOUT_MS = 10_000
 const ONE_M_MODEL = /^claude-(?:opus|sonnet|fable)-/
+const EXCLUDED_MODEL = /^claude-(?:haiku-|opus-4|opus-5$|sonnet-4|sonnet-5$|fable-5$)/
 
 function str(value: unknown): string | undefined {
   return typeof value === 'string' && value ? value : undefined
@@ -142,8 +143,8 @@ function str(value: unknown): string | undefined {
 
 /**
  * Map the `models` of the CLI's `initialize` response to engine models: full
- * IDs, deduplicated, the `default` entry's model marked default, and a `[1m]`
- * variant after each Opus/Sonnet/Fable model.
+ * IDs, deduplicated, `EXCLUDED_MODEL` left out, the `default` entry's model
+ * marked default, and a `[1m]` variant after each Opus/Sonnet/Fable model.
  */
 export function mapInitModels(raw: unknown): EngineModel[] {
   if (!Array.isArray(raw)) return []
@@ -156,7 +157,7 @@ export function mapInitModels(raw: unknown): EngineModel[] {
   const seen = new Set<string>()
   for (const m of entries) {
     const id = idOf(m)
-    if (m === defaultEntry || !id || seen.has(id)) continue
+    if (m === defaultEntry || !id || seen.has(id) || EXCLUDED_MODEL.test(id)) continue
     seen.add(id)
     const name = str(m.displayName) ?? id
     const description = str(m.description)
@@ -166,7 +167,7 @@ export function mapInitModels(raw: unknown): EngineModel[] {
       models.push({ ...model, id: `${id}[1m]`, name: `${name} (1M)`, isDefault: false })
     }
   }
-  if (defaultId && !seen.has(defaultId)) {
+  if (defaultId && !seen.has(defaultId) && !EXCLUDED_MODEL.test(defaultId)) {
     models.unshift({ id: defaultId, name: defaultId, isDefault: true })
   }
   return models
