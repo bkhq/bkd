@@ -26,6 +26,7 @@ import { useFileBrowserStore } from '@/stores/file-browser-store'
 import { usePanelStore } from '@/stores/panel-store'
 import { useProcessManagerStore } from '@/stores/process-manager-store'
 import type { Issue } from '@/types/kanban'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 /** Width bounds for the issue list column, shared with the pages that own its width. */
 export const LIST_MIN_WIDTH = 180
@@ -154,8 +155,8 @@ export function IssueListPanel({
           ) :
         null}
 
-      {/* Grouped issue list */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Grouped issue list; the bar sits above the sticky group headers (z-10) */}
+      <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-scrollbar]]:z-20">
         {issues && STATUSES.map(status => (
           <StatusGroup
             key={status.id}
@@ -175,7 +176,7 @@ export function IssueListPanel({
           excludeIds={filteredIds}
           onNavigate={issueId => navigate(`/projects/${projectId}/issues/${issueId}`)}
         />
-      </div>
+      </ScrollArea>
 
       {/* Resize handle */}
       {onWidthChange && width ?

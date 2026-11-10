@@ -26,6 +26,16 @@ function pointerDown(handle: HTMLElement, clientX: number) {
 }
 
 describe('resizeHandle', () => {
+  it('stacks above panel content that is itself positioned (z-10)', () => {
+    const { handle } = setup()
+    expect(handle).toHaveClass('z-20')
+  })
+
+  it('shows a grip in the middle, like the file manager handles', () => {
+    const { handle } = setup()
+    expect(handle.querySelector('[data-slot="resize-grip"]')).toHaveClass('h-6', 'w-1', 'bg-border')
+  })
+
   it('exposes separator state to assistive technology', () => {
     const { handle } = setup()
     expect(handle).toHaveAttribute('aria-orientation', 'vertical')

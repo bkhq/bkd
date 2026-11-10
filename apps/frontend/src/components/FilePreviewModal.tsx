@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatFileSize } from '@/lib/format'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 /**
  * Either an in-memory File (upload-area chip) or a server-side attachment
@@ -53,32 +54,34 @@ export function FilePreviewModal({ item, onClose }: { item: PreviewItem, onClose
           <DialogTitle className="text-sm font-medium truncate">{name}</DialogTitle>
         </DialogHeader>
 
-        <div className="p-4 overflow-auto max-h-[calc(80vh-56px)]">
-          {imageUrl ?
-              (
-                <img
-                  src={imageUrl}
-                  alt={name}
-                  className="max-w-full max-h-[60vh] rounded-lg object-contain mx-auto"
-                />
-              ) :
-              (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-center w-16 h-16 rounded-xl bg-muted/60 mx-auto">
-                    <FileText className="h-8 w-8 text-muted-foreground/60" />
+        <ScrollArea className="[&>[data-slot=scroll-area-viewport]]:max-h-[calc(80vh-56px)]">
+          <div className="p-4">
+            {imageUrl ?
+                (
+                  <img
+                    src={imageUrl}
+                    alt={name}
+                    className="max-w-full max-h-[60vh] rounded-lg object-contain mx-auto"
+                  />
+                ) :
+                (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-center w-16 h-16 rounded-xl bg-muted/60 mx-auto">
+                      <FileText className="h-8 w-8 text-muted-foreground/60" />
+                    </div>
+                    <div className="text-center space-y-1">
+                      <p className="text-sm font-medium truncate">{name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {mimeType || t('chat.unknownType')}
+                        {' '}
+                        &middot;
+                        {formatFileSize(size)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-center space-y-1">
-                    <p className="text-sm font-medium truncate">{name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {mimeType || t('chat.unknownType')}
-                      {' '}
-                      &middot;
-                      {formatFileSize(size)}
-                    </p>
-                  </div>
-                </div>
-              )}
-        </div>
+                )}
+          </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   )

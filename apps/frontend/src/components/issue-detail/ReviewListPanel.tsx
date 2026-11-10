@@ -7,6 +7,7 @@ import type { Issue } from '@/types/kanban'
 import { ResizeHandle } from '@/components/ui/resize-handle'
 import { STATUS_MAP } from '@/lib/statuses'
 import { IssueRow, LIST_MAX_WIDTH, LIST_MIN_WIDTH, ListGroupHeader } from './IssueListPanel'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 type ReviewIssue = Issue & { projectName: string, projectAlias: string }
 
@@ -104,8 +105,8 @@ export function ReviewListPanel({
         </div>
       </div>
 
-      {/* Grouped issue list by project */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Grouped issue list by project; the bar sits above the sticky group headers (z-10) */}
+      <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-scrollbar]]:z-20">
         {isLoading ?
             (
               <div className="flex items-center justify-center py-8">
@@ -133,7 +134,7 @@ export function ReviewListPanel({
                   />
                 ))
               )}
-      </div>
+      </ScrollArea>
 
       {/* Resize handle */}
       {onWidthChange && width ?

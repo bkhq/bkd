@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label'
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useCancelSkillsOperation, useSkillsOperation, useStartSkillsOperation, useUploadSkills } from '@/hooks/use-skills'
 import type { SkillInfo, SkillsOperation } from '@/types/kanban'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 type Agent = 'claude-code' | 'codex'
 const AGENTS: { id: Agent, label: string }[] = [
@@ -49,10 +50,12 @@ export function OperationLog({ operation }: { operation: SkillsOperation | undef
       </p>
       {operation.output.length > 0
         ? (
-            <pre className="max-h-48 overflow-auto rounded-md bg-muted/50 p-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
-              {operation.output.join('\n')}
-              <div ref={endRef} />
-            </pre>
+            <ScrollArea className="rounded-md bg-muted/50 [&>[data-slot=scroll-area-viewport]]:max-h-48">
+              <pre className="p-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                {operation.output.join('\n')}
+                <div ref={endRef} />
+              </pre>
+            </ScrollArea>
           )
         : null}
     </div>
@@ -118,79 +121,81 @@ export function InstallSkillDialog({ open, onOpenChange, projectId }: {
         <SheetHeader className="border-b border-border/60">
           <SheetTitle>{t('skills.installTitle')}</SheetTitle>
         </SheetHeader>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-          <form
-            className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault(); runPreview()
-            }}
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="skill-source">{t('skills.repository')}</Label>
-              <div className="flex gap-2">
-                <Input id="skill-source" value={source} onChange={e => setSource(e.target.value)} placeholder="owner/repo" disabled={running} />
-                <Button type="submit" variant="outline" disabled={!source.trim() || running}>{t('skills.preview')}</Button>
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="space-y-4 p-4">
+            <form
+              className="space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault(); runPreview()
+              }}
+            >
+              <div className="space-y-1.5">
+                <Label htmlFor="skill-source">{t('skills.repository')}</Label>
+                <div className="flex gap-2">
+                  <Input id="skill-source" value={source} onChange={e => setSource(e.target.value)} placeholder="owner/repo" disabled={running} />
+                  <Button type="submit" variant="outline" disabled={!source.trim() || running}>{t('skills.preview')}</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">{t('skills.repositoryHint')}</p>
               </div>
-              <p className="text-xs text-muted-foreground">{t('skills.repositoryHint')}</p>
-            </div>
-          </form>
+            </form>
 
-          {start.error ? <p className="text-sm text-destructive">{start.error.message}</p> : null}
-          {preview && preview.status !== 'succeeded' ? <OperationLog operation={preview} /> : null}
+            {start.error ? <p className="text-sm text-destructive">{start.error.message}</p> : null}
+            {preview && preview.status !== 'succeeded' ? <OperationLog operation={preview} /> : null}
 
-          {preview?.status === 'succeeded' && !installId
-            ? (
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label>{t('skills.pickSkills')}</Label>
-                    {available.length === 0
-                      ? <p className="text-xs text-muted-foreground">{t('skills.noSkillsInRepo')}</p>
-                      : (
-                          <div className="space-y-1 rounded-md border p-2">
-                            {available.map(s => (
-                              <label key={s.name} className="flex items-start gap-2 rounded px-1 py-1 text-sm hover:bg-accent/50">
-                                <input type="checkbox" className="mt-1" checked={picked.includes(s.name)} onChange={() => setPicked(p => toggle(p, s.name))} aria-label={s.name} />
-                                <span className="min-w-0">
-                                  <span className="font-medium">{s.name}</span>
-                                  {s.description ? <span className="block line-clamp-2 text-xs text-muted-foreground">{s.description}</span> : null}
-                                </span>
-                              </label>
-                            ))}
+            {preview?.status === 'succeeded' && !installId
+              ? (
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label>{t('skills.pickSkills')}</Label>
+                      {available.length === 0
+                        ? <p className="text-xs text-muted-foreground">{t('skills.noSkillsInRepo')}</p>
+                        : (
+                            <div className="space-y-1 rounded-md border p-2">
+                              {available.map(s => (
+                                <label key={s.name} className="flex items-start gap-2 rounded px-1 py-1 text-sm hover:bg-accent/50">
+                                  <input type="checkbox" className="mt-1" checked={picked.includes(s.name)} onChange={() => setPicked(p => toggle(p, s.name))} aria-label={s.name} />
+                                  <span className="min-w-0">
+                                    <span className="font-medium">{s.name}</span>
+                                    {s.description ? <span className="block line-clamp-2 text-xs text-muted-foreground">{s.description}</span> : null}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                    </div>
+                    {projectId
+                      ? (
+                          <div className="space-y-1.5">
+                            <Label>{t('skills.scope')}</Label>
+                            <div className="flex gap-3 text-sm">
+                              {(['global', 'project'] as const).map(value => (
+                                <label key={value} className="flex items-center gap-1.5">
+                                  <input type="radio" name="install-scope" checked={scope === value} onChange={() => setScope(value)} />
+                                  {value === 'global' ? t('skills.scopeGlobal') : t('skills.scopeProject')}
+                                </label>
+                              ))}
+                            </div>
                           </div>
-                        )}
-                  </div>
-                  {projectId
-                    ? (
-                        <div className="space-y-1.5">
-                          <Label>{t('skills.scope')}</Label>
-                          <div className="flex gap-3 text-sm">
-                            {(['global', 'project'] as const).map(value => (
-                              <label key={value} className="flex items-center gap-1.5">
-                                <input type="radio" name="install-scope" checked={scope === value} onChange={() => setScope(value)} />
-                                {value === 'global' ? t('skills.scopeGlobal') : t('skills.scopeProject')}
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    : null}
-                  <div className="space-y-1.5">
-                    <Label>{t('skills.agents')}</Label>
-                    <div className="flex gap-3 text-sm">
-                      {AGENTS.map(a => (
-                        <label key={a.id} className="flex items-center gap-1.5">
-                          <input type="checkbox" checked={agents.includes(a.id)} onChange={() => setAgents(list => toggle(list, a.id))} />
-                          {a.label}
-                        </label>
-                      ))}
+                        )
+                      : null}
+                    <div className="space-y-1.5">
+                      <Label>{t('skills.agents')}</Label>
+                      <div className="flex gap-3 text-sm">
+                        {AGENTS.map(a => (
+                          <label key={a.id} className="flex items-center gap-1.5">
+                            <input type="checkbox" checked={agents.includes(a.id)} onChange={() => setAgents(list => toggle(list, a.id))} />
+                            {a.label}
+                          </label>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            : null}
+                )
+              : null}
 
-          {install ? <OperationLog operation={install} /> : null}
-        </div>
+            {install ? <OperationLog operation={install} /> : null}
+          </div>
+        </ScrollArea>
 
         <SheetFooter className="flex-row justify-end border-t border-border/60">
           {running
@@ -239,15 +244,17 @@ export function UpdateSkillsDialog({ open, onOpenChange, skills, preselected, re
           <DialogTitle>{t('skills.updateTitle')}</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">{t('skills.updatePick')}</p>
-        <div className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2">
-          {skills.map(s => (
-            <label key={s.name} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-accent/50">
-              <input type="checkbox" checked={picked.includes(s.name)} onChange={() => toggle(s.name)} aria-label={s.name} />
-              <span className="min-w-0 flex-1 truncate" title={s.name}>{s.name}</span>
-              {renderStatus(s)}
-            </label>
-          ))}
-        </div>
+        <ScrollArea className="rounded-md border [&>[data-slot=scroll-area-viewport]]:max-h-72">
+          <div className="space-y-1 p-2">
+            {skills.map(s => (
+              <label key={s.name} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-accent/50">
+                <input type="checkbox" checked={picked.includes(s.name)} onChange={() => toggle(s.name)} aria-label={s.name} />
+                <span className="min-w-0 flex-1 truncate" title={s.name}>{s.name}</span>
+                {renderStatus(s)}
+              </label>
+            ))}
+          </div>
+        </ScrollArea>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
           <Button type="button" disabled={!names.length} onClick={() => onConfirm(names)}>

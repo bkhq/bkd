@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button'
 import {
   Command,
   CommandEmpty,
+  CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
@@ -40,6 +41,10 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { useChangesSummary } from '@/hooks/use-changes-summary'
+import { useSkills } from '@/hooks/use-skills'
+import { defaultFilter } from 'cmdk'
+import type { SlashCommandGroup, TaggedCommand } from './slash-command-groups'
+import { commandFromKey, commandKey, groupSlashCommands } from './slash-command-groups'
 import { useFileAttachments } from '@/hooks/use-file-attachments'
 import { useClearIssueSession, useEngineAvailability, useEngineProfiles, useEngineSettings, useFollowUpIssue, useUpdateIssue, useVirtualEngines } from '@/hooks/use-kanban'
 import { formatModelName } from '@/lib/format'
@@ -256,24 +261,14 @@ export function ChatInput({
       busyAction :
     undefined
 
-  // Normalized slash commands only (for CommandPicker button + command detection)
-  const normalizedSlashCommands = useMemo(
-    () => slashCommands.map(cmd => (cmd.startsWith('/') ? cmd : `/${cmd}`)),
-    [slashCommands],
+  // Installed skills (global and this project's) tell skill commands apart from built-ins
+  const { data: skillsData } = useSkills(projectId)
+  const skillNames = useMemo(() => new Set(skillsData?.skills.map(s => s.name)), [skillsData])
+  const commandGroups = useMemo(
+    () => groupSlashCommands(slashCommands, pluginCommands, skillNames),
+    [slashCommands, pluginCommands, skillNames],
   )
-
-  // Build tagged command list with category labels (for inline menu)
-  interface TaggedCommand {
-    value: string
-    category: 'command' | 'plugin'
-  }
-  const allCommands: TaggedCommand[] = useMemo(() => {
-    const norm = (cmd: string) => (cmd.startsWith('/') ? cmd : `/${cmd}`)
-    const items: TaggedCommand[] = []
-    for (const cmd of slashCommands) items.push({ value: norm(cmd), category: 'command' })
-    for (const p of pluginCommands) items.push({ value: norm(p.name), category: 'plugin' })
-    return items
-  }, [slashCommands, pluginCommands])
+  const allCommands = useMemo(() => commandGroups.flatMap(g => g.items), [commandGroups])
 
   // All command values for command detection in handleSend
   const normalizedCommands = useMemo(() => allCommands.map(c => c.value), [allCommands])
@@ -286,10 +281,10 @@ export function ChatInput({
     return trimmed.slice(1).toLowerCase()
   }, [input])
 
-  const filteredCommands = useMemo(() => {
-    if (commandQuery === null || allCommands.length === 0) return [] as TaggedCommand[]
-    if (commandQuery === '') return allCommands
-    return allCommands.filter((item) => {
+  const filteredGroups = useMemo(() => {
+    if (commandQuery === null) return [] as SlashCommandGroup[]
+    if (commandQuery === '') return commandGroups
+    const matches = (item: TaggedCommand) => {
       const target = item.value.toLowerCase()
       let ti = 0
       for (let qi = 0; qi < commandQuery.length; qi++) {
@@ -298,17 +293,25 @@ export function ChatInput({
         ti++
       }
       return true
-    })
-  }, [commandQuery, allCommands])
+    }
+    return commandGroups
+      .map(g => ({ ...g, items: g.items.filter(matches) }))
+      .filter(g => g.items.length > 0)
+  }, [commandQuery, commandGroups])
+  const filteredCommands = useMemo(() => filteredGroups.flatMap(g => g.items), [filteredGroups])
 
   const showCommandMenu = filteredCommands.length > 0
-  const [commandIndex, setCommandIndex] = useState(0)
-  // Reset selection when filtered list changes
-  const prevFilteredRef = useRef(filteredCommands)
-  if (prevFilteredRef.current !== filteredCommands) {
-    prevFilteredRef.current = filteredCommands
-    if (commandIndex !== 0) setCommandIndex(0)
+  // Selected command (cmdk value); back to the first match whenever the list changes
+  const [commandValue, setCommandValue] = useState('')
+  // Compared by content: the command arrays are rebuilt on every render
+  const filteredKeys = filteredGroups.flatMap(g => g.items.map(item => commandKey(g.id, item)))
+  const filteredKey = filteredKeys.join('\n')
+  const [prevFilteredKey, setPrevFilteredKey] = useState(filteredKey)
+  if (prevFilteredKey !== filteredKey) {
+    setPrevFilteredKey(filteredKey)
+    setCommandValue(filteredKeys[0] ?? '')
   }
+  const commandRootRef = useRef<HTMLDivElement>(null)
 
   const normalizedPrompt = normalizePrompt(input)
   const canSend =
@@ -419,24 +422,17 @@ export function ChatInput({
   }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (showCommandMenu) {
-      if (e.key === 'ArrowDown') {
+    if (showCommandMenu && !e.nativeEvent.isComposing) {
+      // The textarea keeps focus; cmdk moves the selection, scrolls it into view and
+      // selects on Enter. Forwarded only while the menu is open, so the keys behave
+      // normally in the textarea otherwise.
+      const forwardKey =
+        e.key === 'ArrowDown' || e.key === 'ArrowUp' ? e.key :
+            (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) || e.key === 'Tab' ? 'Enter' :
+              null
+      if (forwardKey) {
         e.preventDefault()
-        setCommandIndex(i => (i < filteredCommands.length - 1 ? i + 1 : 0))
-        return
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        setCommandIndex(i => (i > 0 ? i - 1 : filteredCommands.length - 1))
-        return
-      }
-      if ((e.key === 'Enter' && !e.metaKey && !e.ctrlKey) || e.key === 'Tab') {
-        e.preventDefault()
-        const item = filteredCommands[commandIndex]
-        if (item) {
-          setInput(resolveCommandInput(item))
-          textareaRef.current?.focus()
-        }
+        commandRootRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: forwardKey, bubbles: true }))
         return
       }
       if (e.key === 'Escape') {
@@ -492,6 +488,36 @@ export function ChatInput({
 
   return (
     <div className="shrink-0 w-full min-w-0 px-2 pb-2 relative z-30">
+      {/* Slash-command menu: floats above the input card so it never changes its height */}
+      {showCommandMenu ?
+          (
+            <div data-slot="command-menu" className="absolute inset-x-2 bottom-full z-50 mb-1 overflow-hidden rounded-lg border border-border/40 shadow-md">
+              <Command ref={commandRootRef} shouldFilter={false} loop value={commandValue} onValueChange={setCommandValue} label={t('chat.commands')}>
+                <CommandList className="max-h-[200px]">
+                  {filteredGroups.map(group => (
+                    <CommandGroup key={group.id} heading={t(`chat.commandGroups.${group.id}`)}>
+                      {group.items.map(item => (
+                        <CommandItem
+                          key={commandKey(group.id, item)}
+                          value={commandKey(group.id, item)}
+                          // Keep focus in the textarea
+                          onMouseDown={e => e.preventDefault()}
+                          onSelect={() => {
+                            setInput(resolveCommandInput(item))
+                            textareaRef.current?.focus()
+                          }}
+                          className="px-3 py-1.5 text-xs"
+                        >
+                          <code className="font-mono">{item.value}</code>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  ))}
+                </CommandList>
+              </Command>
+            </div>
+          ) :
+        null}
       <div
         className={`rounded-xl border bg-card/80 backdrop-blur-sm shadow-sm transition-all duration-200 focus-within:border-border focus-within:shadow-md ${
           isDragOver ?
@@ -571,41 +597,6 @@ export function ChatInput({
             ) :
           null}
 
-        {/* Inline command menu */}
-        {showCommandMenu ?
-            (
-              <div className="mx-2 mt-1 rounded-lg border border-border/40 bg-popover shadow-md overflow-hidden">
-                <div className="max-h-[200px] overflow-y-auto py-1">
-                  {filteredCommands.map((item, i) => (
-                    <button
-                      key={`${item.category}:${item.value}`}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        setInput(resolveCommandInput(item))
-                        textareaRef.current?.focus()
-                      }}
-                      className={`w-full flex items-center gap-2 text-left px-3 py-1.5 text-xs transition-colors ${
-                        i === commandIndex ?
-                          'bg-primary/10 text-primary' :
-                          'text-foreground/80 hover:bg-muted/50'
-                      }`}
-                    >
-                      <code className="font-mono">{item.value}</code>
-                      {item.category === 'plugin' ?
-                          (
-                            <span className="ml-auto text-[10px] text-muted-foreground/60 uppercase tracking-wider">
-                              {t('chat.plugins')}
-                            </span>
-                          ) :
-                        null}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) :
-          null}
-
         {/* Textarea — shadcn Textarea, style overrides to match original */}
         <div className="px-2 py-2">
           <Textarea
@@ -638,10 +629,10 @@ export function ChatInput({
             >
               <Paperclip className="size-4" />
             </Button>
-            {normalizedSlashCommands.length > 0 ?
+            {commandGroups.length > 0 ?
                 (
                   <CommandPicker
-                    commands={normalizedSlashCommands}
+                    groups={commandGroups}
                     onSelect={cmd => selectSlashCommand(cmd)}
                   />
                 ) :
@@ -905,10 +896,10 @@ function EffortSelect({
 // Replaced custom popover + search with shadcn Popover + Command
 
 function CommandPicker({
-  commands,
+  groups,
   onSelect,
 }: {
-  commands: string[]
+  groups: SlashCommandGroup[]
   onSelect: (cmd: string) => void
 }) {
   const { t } = useTranslation()
@@ -920,24 +911,29 @@ function CommandPicker({
         <SlashSquare className="size-4" />
       </PopoverTrigger>
       <PopoverContent side="top" align="start" className="w-[260px] p-0">
-        <Command>
+        {/* Rows are keyed by group too; search only the command text */}
+        <Command filter={(value, search, keywords) => defaultFilter(commandFromKey(value), search, keywords)}>
           <CommandInput placeholder={t('chat.commandSearch')} className="text-xs h-8" />
           <CommandList className="max-h-[240px]">
             <CommandEmpty className="text-xs text-muted-foreground/50 px-3 py-2">
               {t('chat.noCommands')}
             </CommandEmpty>
-            {commands.map(cmd => (
-              <CommandItem
-                key={cmd}
-                value={cmd}
-                onSelect={() => {
-                  onSelect(cmd)
-                  setOpen(false)
-                }}
-                className="text-xs px-3 py-1.5"
-              >
-                <code className="font-mono text-foreground/80">{cmd}</code>
-              </CommandItem>
+            {groups.map(group => (
+              <CommandGroup key={group.id} heading={t(`chat.commandGroups.${group.id}`)}>
+                {group.items.map(item => (
+                  <CommandItem
+                    key={commandKey(group.id, item)}
+                    value={commandKey(group.id, item)}
+                    onSelect={() => {
+                      onSelect(item.value)
+                      setOpen(false)
+                    }}
+                    className="text-xs px-3 py-1.5"
+                  >
+                    <code className="font-mono text-foreground/80">{item.value}</code>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
             ))}
           </CommandList>
         </Command>

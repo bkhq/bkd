@@ -9,6 +9,7 @@ import { useSelectedIssueId } from '@/stores/panel-store'
 import type { Issue } from '@/types/kanban'
 import { KanbanCardSurface } from './KanbanCard'
 import { KanbanColumn } from './KanbanColumn'
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 
 export function KanbanBoard({
   projectId,
@@ -54,18 +55,21 @@ export function KanbanBoard({
       visibleColumns={visibleColumns}
       renderOverlay={issue => <KanbanCardSurface issue={issue} isOverlay />}
     >
-      <div className="flex h-full gap-3 overflow-x-auto p-3 snap-x snap-mandatory md:snap-none">
-        {STATUSES.map(status => (
-          <KanbanColumn
-            key={status.id}
-            status={status}
-            issues={visibleColumns[status.id] ?? []}
-            projectId={projectId}
-            selectedIssueId={selectedIssueId}
-            onCardClick={onCardClick}
-          />
-        ))}
-      </div>
+      <ScrollArea className="h-full [&>[data-slot=scroll-area-viewport]]:snap-x [&>[data-slot=scroll-area-viewport]]:snap-mandatory md:[&>[data-slot=scroll-area-viewport]]:snap-none">
+        <div className="flex h-full gap-3 p-3">
+          {STATUSES.map(status => (
+            <KanbanColumn
+              key={status.id}
+              status={status}
+              issues={visibleColumns[status.id] ?? []}
+              projectId={projectId}
+              selectedIssueId={selectedIssueId}
+              onCardClick={onCardClick}
+            />
+          ))}
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
     </IssueDragProvider>
   )
 }

@@ -8,6 +8,7 @@ const followUpMutate = vi.fn().mockResolvedValue({})
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('@/hooks/use-changes-summary', () => ({ useChangesSummary: () => null }))
+vi.mock('@/hooks/use-skills', () => ({ useSkills: () => ({ data: undefined }) }))
 vi.mock('@/hooks/use-kanban', () => ({
   useFollowUpIssue: () => ({ mutateAsync: followUpMutate, isPending: false }),
   useClearIssueSession: () => ({ mutate: vi.fn(), isPending: false }),

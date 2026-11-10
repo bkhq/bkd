@@ -189,6 +189,17 @@ describe('messages inbox', () => {
     expect(screen.getByText('Other campaign?')).toBeInTheDocument()
   })
 
+  it('labels the unfiltered campaign instead of showing its raw value', () => {
+    renderPage([event({}), event({ id: 'ev2', campaignId: 'camp-2' })])
+    expect(screen.getByLabelText('Campaign')).toHaveTextContent('All campaigns')
+  })
+
+  it('keeps the toolbar outside the scrolling list', () => {
+    renderPage([event({})])
+    expect(screen.getByRole('tablist').closest('[data-slot="scroll-area-viewport"]')).toBeNull()
+    expect(screen.getByText('Merge the storage rewrite now?').closest('[data-slot="scroll-area-viewport"]')).not.toBeNull()
+  })
+
   it('keeps settled events in history without actions', () => {
     renderPage([
       event({ id: 'a', status: 'applied', title: 'Applied one', decision: decided, outcome: 'merged into main' }),

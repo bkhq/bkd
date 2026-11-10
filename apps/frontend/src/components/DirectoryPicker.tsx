@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { kanbanApi } from '@/lib/kanban-api'
 import { isImeComposing } from '@/lib/keyboard'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface DirectoryPickerProps {
   open: boolean
@@ -157,7 +158,7 @@ export function DirectoryPicker({
           )}
 
           {/* Directory listing */}
-          <div className="mb-4 max-h-64 overflow-y-auto rounded-md border">
+          <ScrollArea className="mb-4 rounded-md border [&>[data-slot=scroll-area-viewport]]:max-h-64">
             {loading ?
                 (
                   <div className="flex items-center justify-center py-8">
@@ -198,7 +199,7 @@ export function DirectoryPicker({
                       ))}
                     </div>
                   )}
-          </div>
+          </ScrollArea>
 
           {/* Actions */}
           <div className="flex gap-2">

@@ -53,7 +53,8 @@ export function ResizeHandle({
       aria-valuemax={max}
       tabIndex={0}
       className={cn(
-        'group absolute inset-y-0 z-10 w-2 cursor-col-resize select-none outline-none',
+        // Above positioned panel content such as the file manager's z-10 tree overlay
+        'group absolute inset-y-0 z-20 w-2 cursor-col-resize select-none outline-none',
         edge === 'left' ? 'left-0 -translate-x-1/2' : 'right-0 translate-x-1/2',
         className,
       )}
@@ -91,6 +92,7 @@ export function ResizeHandle({
         }
       }}
     >
+      <div data-slot="resize-grip" className="absolute top-1/2 left-1/2 h-6 w-1 -translate-x-1/2 -translate-y-1/2 rounded-lg bg-border" />
       <div className="absolute inset-y-0 left-1/2 w-1 -translate-x-1/2 rounded-full bg-primary/50 opacity-0 transition-opacity group-hover:opacity-100 group-active:bg-primary group-active:opacity-100" />
     </div>
   )

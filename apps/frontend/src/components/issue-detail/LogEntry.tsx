@@ -352,6 +352,10 @@ export function UserMessageEntry({
   const [preview, setPreview] = useState<PreviewItem | null>(null)
   const [copied, setCopied] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  // Each message can flip between rendered Markdown and its source; until it does, it follows the setting.
+  const renderSetting = useViewModeStore(s => s.renderMarkdown)
+  const [renderOverride, setRenderOverride] = useState<boolean | null>(null)
+  const renderMarkdown = renderOverride ?? renderSetting
 
   const sender = entry.metadata?.sender as FollowUpSender | undefined
   const isPending = entry.metadata?.type === 'pending'
@@ -416,12 +420,13 @@ export function UserMessageEntry({
               <div
                 data-slot="sender-body"
                 className={cn(
-                  'whitespace-pre-wrap break-words text-foreground',
+                  // Typed line breaks stay visible inside Markdown paragraphs
+                  'break-words text-foreground [&_p]:whitespace-pre-wrap',
                   sender?.kind === 'system' ? 'text-[13px] leading-[1.7] text-muted-foreground' : 'text-[14px] leading-[1.75]',
                   foldable && !expanded && 'line-clamp-8',
                 )}
               >
-                {displayContent}
+                <MarkdownContent content={displayContent} render={renderMarkdown} />
               </div>
             ) :
           null}
@@ -477,7 +482,8 @@ export function UserMessageEntry({
             ) :
           null}
       </div>
-      <div className="flex items-center gap-2 mt-1">
+      {/* Left-aligned blocks span the row, so the footer does too and its actions reach the right edge */}
+      <div className={cn('flex items-center gap-2 mt-1', (isPending || sender) && 'self-stretch')}>
         {entry.timestamp ?
             (
               <span className={cn('text-[10px]', MESSAGE_META)}>
@@ -503,7 +509,17 @@ export function UserMessageEntry({
         <span className="ml-auto flex items-center gap-1">
           {displayContent ?
               (
-                <span className="flex items-center">
+                <span className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setRenderOverride(!renderMarkdown)}
+                    className={MESSAGE_ACTION}
+                    aria-label={renderMarkdown ? t('session.viewSource') : t('session.viewMessage')}
+                    title={renderMarkdown ? t('session.viewSource') : t('session.viewMessage')}
+                    aria-pressed={!renderMarkdown}
+                  >
+                    <Code className={cn('h-3.5 w-3.5', !renderMarkdown && 'text-primary')} />
+                  </button>
                   <CopyIconButton label={t('session.copyMessage')} copied={copied} onClick={handleCopy} />
                 </span>
               ) :

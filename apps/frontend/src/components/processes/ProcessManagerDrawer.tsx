@@ -9,6 +9,7 @@ import {
   useProcessManagerStore,
 } from '@/stores/process-manager-store'
 import { ProcessList } from './ProcessList'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 export function ProcessManagerDrawer() {
   const { t } = useTranslation()
@@ -56,27 +57,29 @@ export function ProcessManagerDrawer() {
         />
       )}
     >
-      <div className="flex-1 overflow-auto min-h-0 p-3">
-        {isLoading ?
-            (
-              <div className="flex items-center justify-center py-16">
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              </div>
-            ) :
-          processes.length === 0 ?
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="p-3">
+          {isLoading ?
               (
-                <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-                  <Activity className="h-12 w-12" />
-                  <p className="text-sm font-medium">{t('processManager.noProcesses')}</p>
-                  <p className="text-xs text-center max-w-[240px]">
-                    {t('processManager.noProcessesHint')}
-                  </p>
+                <div className="flex items-center justify-center py-16">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                 </div>
               ) :
-              (
-                <ProcessList processes={processes} />
-              )}
-      </div>
+            processes.length === 0 ?
+                (
+                  <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+                    <Activity className="h-12 w-12" />
+                    <p className="text-sm font-medium">{t('processManager.noProcesses')}</p>
+                    <p className="text-xs text-center max-w-[240px]">
+                      {t('processManager.noProcessesHint')}
+                    </p>
+                  </div>
+                ) :
+                (
+                  <ProcessList processes={processes} />
+                )}
+        </div>
+      </ScrollArea>
     </SidePanel>
   )
 }

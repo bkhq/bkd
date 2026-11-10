@@ -9,14 +9,16 @@ import {
   Trash2,
   TriangleAlert,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ResizeHandle } from '@/components/ui/resize-handle'
 import { SidePanel, SidePanelActions, SidePanelButton } from '@/components/ui/side-panel'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useCreateNote, useDeleteNote, useNotes, useUpdateNote } from '@/hooks/use-notes'
 import { cn } from 'cn'
-import { NOTES_MAX_WIDTH_RATIO, NOTES_MIN_WIDTH, useNotesStore } from '@/stores/notes-store'
+import { NOTES_LIST_MAX_WIDTH, NOTES_LIST_MIN_WIDTH, NOTES_MAX_WIDTH_RATIO, NOTES_MIN_WIDTH, useNotesStore } from '@/stores/notes-store'
 import type { Note } from '@/types/kanban'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 export function NotesDrawer() {
   const { t } = useTranslation()
@@ -24,11 +26,13 @@ export function NotesDrawer() {
     isOpen,
     isFullscreen,
     width,
+    listWidth,
     selectedNoteId,
     close,
     minimize,
     toggleFullscreen,
     setWidth,
+    setListWidth,
     selectNote,
   } = useNotesStore()
   const isMobile = useIsMobile()
@@ -150,14 +154,13 @@ export function NotesDrawer() {
       <div className="flex flex-1 min-h-0">
         {/* Note list */}
         <div
-          className={cn(
-            'shrink-0 border-r border-border flex flex-col',
-            isMobile ? 'flex-1' : 'w-56',
-          )}
+          className={cn('relative shrink-0 border-r border-border flex flex-col', isMobile && 'flex-1')}
+          // Capped so a wide list in a narrow panel cannot squeeze the editor to nothing
+          style={isMobile ? undefined : { width: listWidth, maxWidth: '60%' }}
         >
           {/* Search */}
-          <div className="px-2 py-1.5 border-b border-border/50 shrink-0">
-            <div className="flex items-center gap-1.5 rounded-md bg-muted/40 px-2 py-1">
+          <div className="flex h-10 items-center px-2 border-b border-border shrink-0">
+            <div className="flex flex-1 items-center gap-1.5 rounded-md bg-muted/40 px-2 py-1">
               <Search className="h-3 w-3 text-muted-foreground shrink-0" />
               <input
                 type="text"
@@ -170,7 +173,7 @@ export function NotesDrawer() {
           </div>
 
           {/* List */}
-          <div className="flex-1 overflow-y-auto">
+          <ScrollArea className="min-h-0 flex-1">
             {isLoading ?
                 (
                   <div className="flex items-center justify-center p-6">
@@ -231,7 +234,17 @@ export function NotesDrawer() {
                         <p className="text-xs">{t('notes.empty')}</p>
                       </div>
                     )}
-          </div>
+          </ScrollArea>
+          {!isMobile && (
+            <ResizeHandle
+              edge="right"
+              width={listWidth}
+              onWidthChange={setListWidth}
+              min={NOTES_LIST_MIN_WIDTH}
+              max={NOTES_LIST_MAX_WIDTH}
+              label={t('notes.resizeList')}
+            />
+          )}
         </div>
 
         {/* Editor — hidden on mobile (mobile uses fullscreen editor above) */}
@@ -358,6 +371,18 @@ function NoteListItem({
 /*  Desktop note editor                                                */
 /* ------------------------------------------------------------------ */
 
+/** Grows a textarea to fit its text, so the surrounding ScrollArea does the scrolling. */
+function useAutoHeight(value: string) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [value])
+  return ref
+}
+
 function NoteEditor({
   note,
   onUpdate,
@@ -371,11 +396,12 @@ function NoteEditor({
 }) {
   const { t } = useTranslation()
   const { title, content, handleTitleChange, handleContentChange, lastEdited } = useNoteDraft(note, onUpdate)
+  const contentRef = useAutoHeight(content)
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Editor toolbar */}
-      <div className="flex items-center justify-between px-4 py-1.5 border-b border-border shrink-0">
+      <div className="flex h-10 items-center justify-between px-4 border-b border-border shrink-0">
         <input
           type="text"
           value={title}
@@ -409,12 +435,15 @@ function NoteEditor({
       </div>
 
       {/* Content */}
-      <textarea
-        value={content}
-        onChange={e => handleContentChange(e.target.value)}
-        placeholder={t('notes.contentPlaceholder')}
-        className="flex-1 px-4 py-3 text-sm bg-transparent outline-none resize-none placeholder:text-muted-foreground"
-      />
+      <ScrollArea className="min-h-0 flex-1">
+        <textarea
+          ref={contentRef}
+          value={content}
+          onChange={e => handleContentChange(e.target.value)}
+          placeholder={t('notes.contentPlaceholder')}
+          className="block min-h-full w-full overflow-hidden px-4 py-3 text-sm bg-transparent outline-none resize-none placeholder:text-muted-foreground"
+        />
+      </ScrollArea>
 
       {/* Footer */}
       <div className="flex items-center justify-center px-4 py-1.5 border-t border-border/50 shrink-0">
@@ -445,6 +474,7 @@ function MobileNoteEditor({
 }) {
   const { t } = useTranslation()
   const { title, content, handleTitleChange, handleContentChange, lastEdited } = useNoteDraft(note, onUpdate)
+  const contentRef = useAutoHeight(content)
 
   return (
     <>
@@ -480,21 +510,24 @@ function MobileNoteEditor({
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto px-4">
-        <input
-          type="text"
-          value={title}
-          onChange={e => handleTitleChange(e.target.value)}
-          placeholder={t('notes.titlePlaceholder')}
-          className="text-xl font-medium bg-transparent outline-none placeholder:text-muted-foreground py-2"
-        />
-        <textarea
-          value={content}
-          onChange={e => handleContentChange(e.target.value)}
-          placeholder={t('notes.contentPlaceholder')}
-          className="flex-1 text-sm bg-transparent outline-none resize-none placeholder:text-muted-foreground min-h-[200px]"
-        />
-      </div>
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex min-h-full flex-col px-4">
+          <input
+            type="text"
+            value={title}
+            onChange={e => handleTitleChange(e.target.value)}
+            placeholder={t('notes.titlePlaceholder')}
+            className="text-xl font-medium bg-transparent outline-none placeholder:text-muted-foreground py-2"
+          />
+          <textarea
+            ref={contentRef}
+            value={content}
+            onChange={e => handleContentChange(e.target.value)}
+            placeholder={t('notes.contentPlaceholder')}
+            className="min-h-[200px] shrink-0 grow overflow-hidden text-sm bg-transparent outline-none resize-none placeholder:text-muted-foreground"
+          />
+        </div>
+      </ScrollArea>
 
       <div className="flex items-center justify-center px-4 py-3 border-t border-border shrink-0">
         <span className="text-xs text-muted-foreground">

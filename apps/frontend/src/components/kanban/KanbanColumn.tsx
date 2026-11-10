@@ -7,6 +7,7 @@ import type { StatusDefinition } from '@/lib/statuses'
 import { usePanelStore } from '@/stores/panel-store'
 import type { Issue } from '@/types/kanban'
 import { KanbanCard } from './KanbanCard'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 export function KanbanColumn({
   status,
@@ -59,30 +60,32 @@ export function KanbanColumn({
           : null}
       </header>
 
-      <div ref={setNodeRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pt-px pb-2">
-        <SortableIssues status={status.id} items={issues}>
-          {issue => (
-            <KanbanCard
-              issue={issue}
-              projectId={projectId}
-              isSelected={selectedIssueId === issue.id}
-              onCardClick={onCardClick}
-            />
-          )}
-        </SortableIssues>
-        {issues.length === 0 && slot === null
-          ? (
-              <div
-                className={cn(
-                  'flex flex-1 items-center justify-center rounded-md border border-dashed px-3 py-6 text-center text-xs text-muted-foreground transition-colors',
-                  isTarget ? 'border-foreground/40 bg-background/60' : 'border-border/60',
-                )}
-              >
-                {t('issue.emptyStatusHint')}
-              </div>
-            )
-          : null}
-      </div>
+      <ScrollArea ref={setNodeRef} className="min-h-0 flex-1">
+        <div className="flex min-h-full flex-col gap-2 px-2 pt-px pb-2">
+          <SortableIssues status={status.id} items={issues}>
+            {issue => (
+              <KanbanCard
+                issue={issue}
+                projectId={projectId}
+                isSelected={selectedIssueId === issue.id}
+                onCardClick={onCardClick}
+              />
+            )}
+          </SortableIssues>
+          {issues.length === 0 && slot === null
+            ? (
+                <div
+                  className={cn(
+                    'flex flex-1 items-center justify-center rounded-md border border-dashed px-3 py-6 text-center text-xs text-muted-foreground transition-colors',
+                    isTarget ? 'border-foreground/40 bg-background/60' : 'border-border/60',
+                  )}
+                >
+                  {t('issue.emptyStatusHint')}
+                </div>
+              )
+            : null}
+        </div>
+      </ScrollArea>
     </section>
   )
 }

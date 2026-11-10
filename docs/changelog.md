@@ -1349,6 +1349,30 @@ the drive and workspace views, and declares the `react-zoom-pan-pinch` dependenc
 copies the real absolute path and only shows when a mount sets `absoluteRoot`, next to a new "Copy relative path".
 BKD sets `absoluteRoot` on the project, worktree, and skill mounts; those directories are already visible in BKD.
 
+## 2026-11-10 06:55 [progress]
+
+Completed 20261110-0647-user-message-markdown: sent messages (user, queued, agent/system follow-ups) go through
+`MarkdownContent` like assistant messages, following the global render-Markdown setting with a per-message source
+toggle; typed single line breaks stay visible in rendered paragraphs.
+
+## 2026-11-10 08:10 [progress]
+
+Completed 20261110-0750-scroll-area-non-chat: BKD's vertical scroll containers outside the chat (issue/review lists,
+changes tree, kanban columns, notes, messages, processes, cron/skills/sessions pages, directory picker, webhook
+deliveries, skill operations, file preview, system logs) use the `ScrollArea` base component, unchanged. The chat,
+horizontal-only overflow, textareas, menus, the diff virtualizer and hidden-scrollbar rails stay native.
+
+## 2026-11-10 09:40 [progress]
+
+Follow-up UI polish on the same branch:
+- ScrollArea also covers the kanban column strip (horizontal bar), notes body (auto-height textarea), settings dialogs
+  (one keyed ScrollArea per section; the logs section opts out via `fillItems`), and the project flyout.
+- Resize handles sit at `z-20` with a grip; issue/review list scrollbars sit above their sticky group headers.
+- Messages inbox toolbar stays fixed and wraps instead of switching layouts; zh copy for campaigns is translated.
+- Left-aligned sent messages (agent/system/queued) put their footer actions at the right edge.
+- The slash-command menu is built on cmdk (keyboard selection scrolls into view), floats above the chat input instead
+  of growing it, and is grouped into skills / plugin commands / built-in / plugins, shared with the toolbar picker.
+
 ## 2026-11-10 12:30 [progress]
 
 Settings -> Models: Claude Code and Codex cards get an "Update" button that runs the CLI's own updater
