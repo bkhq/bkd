@@ -65,8 +65,6 @@ function toPermissionMode(mode: ModeOption): 'auto' | 'supervised' {
 export function ChatInput({
   projectId,
   issueId,
-  diffOpen,
-  onToggleDiff,
   scrollRef,
   engineType,
   baseEngine,
@@ -84,8 +82,6 @@ export function ChatInput({
 }: {
   projectId?: string
   issueId?: string
-  diffOpen?: boolean
-  onToggleDiff?: () => void
   scrollRef?: React.RefObject<HTMLDivElement | null>
   /** The issue's engine: a virtual engine id or a real engine type. */
   engineType?: string
@@ -526,30 +522,18 @@ export function ChatInput({
           <button
             type="button"
             onClick={() => projectId && toggleFileBrowserDrawer(projectId, issueId)}
-            className="inline-flex items-center justify-center rounded-lg px-1.5 py-1 text-muted-foreground bg-muted/40 hover:bg-muted/60 transition-all duration-200"
+            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted-foreground bg-muted/40 hover:bg-muted/60 transition-all duration-200"
             title={t('diff.openFiles')}
           >
             <FolderOpen className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={onToggleDiff}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition-all duration-200 ${
-              diffOpen ?
-                'bg-primary/[0.08] ring-1 ring-primary/20 text-foreground' :
-                'bg-muted/40 hover:bg-muted/60 text-muted-foreground'
-            }`}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <span>{t('chat.filesChanged', { count: changedCount })}</span>
-              <span className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-medium">
-                +
-                {additions}
-              </span>
-              <span className="font-mono tabular-nums text-red-600 dark:text-red-400 font-medium">
-                -
-                {deletions}
-              </span>
+            <span>{t('chat.filesChanged', { count: changedCount })}</span>
+            <span className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-medium">
+              +
+              {additions}
+            </span>
+            <span className="font-mono tabular-nums text-red-600 dark:text-red-400 font-medium">
+              -
+              {deletions}
             </span>
           </button>
           <div className="ml-auto flex items-center gap-1">

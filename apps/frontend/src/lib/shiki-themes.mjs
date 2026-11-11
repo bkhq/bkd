@@ -2,7 +2,7 @@
  * Slim replacement for shiki/dist/themes.mjs
  *
  * Only bundles GitHub light/dark themes. The project exclusively uses
- * github-light-default and github-dark-default in DiffPanel and code blocks.
+ * github-light-default and github-dark-default in diffs and code blocks.
  */
 
 const bundledThemesInfo = [

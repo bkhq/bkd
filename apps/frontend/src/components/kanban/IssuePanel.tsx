@@ -1,5 +1,5 @@
 import { Check, Link, Maximize2, X } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { ChatBody } from '@/components/issue-detail/ChatBody'
@@ -7,12 +7,6 @@ import { Button } from '@/components/ui/button'
 import { useIssue, useUpdateIssue } from '@/hooks/use-kanban'
 import { getIssueUrl } from '@/stores/server-store'
 import { isImeComposing } from '@/lib/keyboard'
-
-const LazyDiffPanel = lazy(() =>
-  import('@/components/issue-detail/DiffPanel').then(m => ({
-    default: m.DiffPanel,
-  })),
-)
 
 interface IssuePanelProps {
   projectId: string
@@ -30,7 +24,6 @@ export function IssuePanel({ projectId, issueId, onClose, hideHeaderActions }: I
   const [copied, setCopied] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
-  const [showDiff, setShowDiff] = useState(false)
 
   const { data: issue } = useIssue(projectId, issueId ?? '')
   const effectiveIssue = issue
@@ -175,32 +168,9 @@ export function IssuePanel({ projectId, issueId, onClose, hideHeaderActions }: I
               projectId={projectId}
               issueId={issueId}
               issue={effectiveIssue}
-              showDiff={showDiff}
-              onToggleDiff={() => setShowDiff(v => !v)}
               scrollRef={scrollRef}
               onAfterDelete={onClose}
             />
-          ) :
-        null}
-
-      {/* Diff panel — full-screen overlay within the panel */}
-      {showDiff && issueId ?
-          (
-            <div className="absolute inset-0 z-40 bg-background flex flex-col">
-              <Suspense
-                fallback={(
-                  <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-                    {t('common.loading')}
-                  </div>
-                )}
-              >
-                <LazyDiffPanel
-                  projectId={projectId}
-                  issueId={issueId}
-                  onClose={() => setShowDiff(false)}
-                />
-              </Suspense>
-            </div>
           ) :
         null}
 

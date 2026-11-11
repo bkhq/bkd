@@ -206,8 +206,6 @@ export function ChatArea({
           projectId={projectId}
           issueId={issueId}
           issue={issue}
-          showDiff={panelOpen}
-          onToggleDiff={togglePanel}
           scrollRef={scrollRef}
           onAfterDelete={handleAfterDelete}
         />

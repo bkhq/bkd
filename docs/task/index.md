@@ -196,3 +196,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261110-1220-claude-dynamic-models Fetch the claude-code model list from the CLI**](20261110-1220-claude-dynamic-models.md) `P2`
 - [x] [**20261110-1254-same-base-engine-switch-effort Switch between engines sharing a base engine, and pass effort**](20261110-1254-same-base-engine-switch-effort.md) `P2`
 - [x] [**20261110-1259-model-configs Per-model edit dialogs and custom models in Settings**](20261110-1259-model-configs.md) `P2`
+- [x] [**20261111-1343-merge-changes-button One changes button in the chat input; drop the old diff panel**](20261111-1343-merge-changes-button.md) `P2`

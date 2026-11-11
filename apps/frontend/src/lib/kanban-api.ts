@@ -17,7 +17,6 @@ import type {
   ImportSessionResult,
   Issue,
   IssueChangesResponse,
-  IssueFilePatchResponse,
   IssueLogsResponse,
   IssueSearchHit,
   IssueTurnsResponse,
@@ -465,10 +464,6 @@ export const kanbanApi = {
     get<CategorizedCommands>(`/api/projects/${projectId}/issues/${issueId}/slash-commands`),
   getIssueChanges: (projectId: string, issueId: string) =>
     get<IssueChangesResponse>(`/api/projects/${projectId}/issues/${issueId}/changes`),
-  getIssueFilePatch: (projectId: string, issueId: string, path: string) =>
-    get<IssueFilePatchResponse>(
-      `/api/projects/${projectId}/issues/${issueId}/changes/file?path=${encodeURIComponent(path)}`,
-    ),
 
   // Engines
   getEngineAvailability: () => get<EngineDiscoveryResult>('/api/engines/available'),

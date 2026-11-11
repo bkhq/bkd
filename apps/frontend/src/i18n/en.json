@@ -222,39 +222,7 @@
     "clearSessionAction": "Reset session ID"
   },
   "diff": {
-    "changes": "Changes",
-    "closeDiffPanel": "Close diff panel",
-    "noChanges": "No changes to display",
-    "notGitRepo": "Current project directory is not a Git repository",
-    "loadFailed": "Failed to load file changes",
-    "emptyPatch": "No patch content available for this file",
-    "emptyFile": "No file content available",
-    "truncated": "Patch output is truncated",
-    "copyPath": "Copy file path",
-    "openFiles": "Open file browser",
-    "fileType": {
-      "new": "New",
-      "deleted": "Del",
-      "renamed": "Ren"
-    },
-    "oversized": "Large file",
-    "oversizedMessage": "This file ({{size}}) exceeds 20 MB and diff is skipped to avoid blocking the system.",
-    "oversizedBannerTitle": "Large files detected — review before committing",
-    "oversizedBannerHint": "Consider adding these files to .gitignore to avoid bloating the repository.",
-    "timedOut": "Git operation timed out. The repository may contain very large files or the disk is slow. Try again later.",
-    "viewOptions": "View options",
-    "view": "View",
-    "stacked": "Stacked",
-    "split": "Split",
-    "wordWrap": "Wrap lines",
-    "expandAll": "Expand all",
-    "collapseAll": "Collapse all",
-    "jumpToFile": "Jump to file",
-    "jumpPlaceholder": "Jump to file…",
-    "noMatchingFiles": "No matching files",
-    "fileTree": "File tree",
-    "filterFiles": "Filter files…",
-    "worktreeMissing": "This issue has no worktree yet, or it was cleaned up, so there are no changes to show. Running the issue creates it."
+    "openFiles": "Open file browser"
   },
   "session": {
     "connected": "Connected",
@@ -773,11 +741,7 @@
   "fileBrowser": {
     "title": "File Manager",
     "close": "Close file browser",
-    "resizePanel": "Resize file browser",
-    "copyPath": "Copy path",
-    "copyRelativePath": "Copy relative path",
-    "pathCopied": "Path copied",
-    "resizeTree": "Resize file tree"
+    "resizePanel": "Resize file browser"
   },
   "processManager": {
     "title": "Processes",

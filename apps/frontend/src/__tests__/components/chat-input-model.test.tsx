@@ -134,10 +134,13 @@ describe('chatInput pending edit', () => {
 })
 
 describe('chatInput files button', () => {
-  it('opens the file browser drawer on the issue', () => {
+  it('is one button with the change stats that opens the file browser drawer on the issue', () => {
     useFileBrowserStore.setState({ isOpen: false, projectId: null, issueId: null })
     renderInput('review', 'completed')
-    fireEvent.click(screen.getByTitle('diff.openFiles'))
+    const button = screen.getByTitle('diff.openFiles')
+    expect(button).toHaveTextContent('chat.filesChanged')
+    expect(screen.getAllByRole('button').filter(b => /chat\.filesChanged|diff\.openFiles/.test(`${b.textContent} ${b.title}`))).toHaveLength(1)
+    fireEvent.click(button)
     expect(useFileBrowserStore.getState()).toMatchObject({ isOpen: true, projectId: 'p1', issueId: 'i1' })
   })
 })

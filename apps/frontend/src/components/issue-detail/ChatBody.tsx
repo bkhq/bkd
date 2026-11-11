@@ -143,16 +143,12 @@ export function ChatBody({
   projectId,
   issueId,
   issue,
-  showDiff,
-  onToggleDiff,
   scrollRef: externalScrollRef,
   onAfterDelete,
 }: {
   projectId: string
   issueId: string
   issue: Issue
-  showDiff: boolean
-  onToggleDiff: () => void
   scrollRef?: React.RefObject<HTMLDivElement | null>
   onAfterDelete?: () => void
 }) {
@@ -400,8 +396,6 @@ export function ChatBody({
       <ChatInput
         projectId={projectId}
         issueId={issueId}
-        diffOpen={showDiff}
-        onToggleDiff={onToggleDiff}
         scrollRef={scrollRef}
         engineType={issue.engineProfileId ?? issue.engineType ?? undefined}
         baseEngine={issue.engineType ?? undefined}

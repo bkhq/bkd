@@ -27,8 +27,6 @@ export const queryKeys = {
     ['projects', projectId, 'issues', 'search', q] as const,
   issueTurns: (projectId: string, issueId: string) =>
     ['projects', projectId, 'issues', issueId, 'turns'] as const,
-  issueFilePatch: (projectId: string, issueId: string, path: string) =>
-    ['projects', projectId, 'issues', issueId, 'changes', 'file', path] as const,
   slashCommands: (projectId: string, issueId: string) =>
     ['projects', projectId, 'issues', issueId, 'slash-commands'] as const,
   allProcesses: () => ['processes', 'all'] as const,
@@ -272,20 +270,6 @@ export function useIssueTurns(projectId: string, issueId: string, enabled = true
     queryKey: queryKeys.issueTurns(projectId, issueId),
     queryFn: () => kanbanApi.getIssueTurns(projectId, issueId),
     enabled: !!projectId && !!issueId && enabled,
-    staleTime: STALE_TIME.STANDARD,
-  })
-}
-
-export function useIssueFilePatch(
-  projectId: string,
-  issueId: string,
-  path: string | null,
-  enabled = true,
-) {
-  return useQuery({
-    queryKey: queryKeys.issueFilePatch(projectId, issueId, path ?? ''),
-    queryFn: () => kanbanApi.getIssueFilePatch(projectId, issueId, path ?? ''),
-    enabled: !!projectId && !!issueId && !!path && enabled,
     staleTime: STALE_TIME.STANDARD,
   })
 }

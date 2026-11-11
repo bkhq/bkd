@@ -27,7 +27,6 @@ export type {
   Issue,
   IssueChangedFile,
   IssueChangesResponse,
-  IssueFilePatchResponse,
   IssueLogsResponse,
   IssueSearchHit,
   IssueTurnsResponse,

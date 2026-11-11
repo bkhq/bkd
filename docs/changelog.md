@@ -1412,3 +1412,12 @@ manager's top bar through `headerActions`, so the drawer is the file manager its
 workspace panel and left this drawer with two headers.
 The issue workspace panel's hide button uses the close icon instead of a panel icon, which looked like the file
 manager's own sidebar toggle next to it.
+
+## 2026-11-11 14:10 [progress]
+
+The chat input's two file buttons (folder -> file browser drawer, "N files changed" -> workspace panel on the issue
+page and the old diff panel in the board's issue panel) are one button: folder icon plus the change stats, opening the
+file browser drawer, whose file manager reviews changes too. The old diff view lost its last entry point and is
+deleted: `DiffPanel`, `ChangesTree`, `files/TreePane`, `files/TreeRow`, `diff-view-store`, `tree-pane-store`,
+`lib/path-tree`, `useIssueFilePatch` / `getIssueFilePatch`, their tests, and the `diff.*` (except `diff.openFiles`)
+and old file-browser i18n keys. The backend `GET .../changes/file` route stays. Task: 20261111-1343-merge-changes-button.
