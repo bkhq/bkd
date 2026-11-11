@@ -9,7 +9,7 @@ import { createPortal } from "react-dom";
 import { MiniMap, TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "./icon-button";
-import { centerOn, clampPan, INITIAL_VIEW, layoutOf, maxZoomOf, rotateBy, zoomAround } from "./transform";
+import { centerOn, clampPan, INITIAL_VIEW, layoutOf, maxZoomOf, rotateBy, wheelFactor, zoomAround } from "./transform";
 
 const PAD = 16;
 /** Zoom in / out buttons and keys multiply or divide by this. */
@@ -133,6 +133,27 @@ export function MediaStage({ kind, src, alt, labels, actions }: {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [isImage, root, scale]);
+  // Wheel and trackpad zoom around the pointer by a fixed factor per notch.
+  const wheelRef = useRef<(e: WheelEvent) => void>(() => {});
+  wheelRef.current = (e) => {
+    const t = transformRef.current;
+    const wrapper = t?.instance.wrapperComponent;
+    if (!t || !wrapper || !layout)
+      return;
+    e.preventDefault();
+    const box = wrapper.getBoundingClientRect();
+    const viewport = { width: wrapper.clientWidth, height: wrapper.clientHeight };
+    const at = { x: e.clientX - box.left, y: e.clientY - box.top };
+    const next = clampPan(zoomAround(panZoomRef.current, wheelFactor(e.deltaY, e.deltaMode, viewport.height), at, maxZoom), layout, viewport);
+    void t.setTransform(next.positionX, next.positionY, next.scale, 0);
+  };
+  useEffect(() => {
+    if (!isImage || !root)
+      return;
+    const onWheel = (e: WheelEvent) => wheelRef.current(e);
+    root.addEventListener("wheel", onWheel, { passive: false });
+    return () => root.removeEventListener("wheel", onWheel);
+  }, [isImage, root]);
   const style = layout && natural
     ? {
         position: "absolute" as const,
@@ -215,9 +236,9 @@ export function MediaStage({ kind, src, alt, labels, actions }: {
               <TransformWrapper
                 key={`${view.rotate}:${layout ? "laid-out" : "loading"}`}
                 ref={transformRef}
-                smooth
                 centerOnInit
-                wheel={{ step: 0.08, touchPadDisabled: false }}
+                // The wheel is handled in the effect below: a fixed factor per notch around the pointer.
+                wheel={{ disabled: true }}
                 panning={{ velocityDisabled: false, allowLeftClickPan: true }}
                 trackPadPanning={{ velocityDisabled: false }}
                 keyboard={{

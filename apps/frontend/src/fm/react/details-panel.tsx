@@ -123,7 +123,7 @@ export function DetailsPanel({ entry, mountLabel, absoluteRoot, client, labels, 
                         : labels.loading)
                     : formatSize(entry.size)}
                 </Field>
-                <Field label={labels.modified}>{new Date(entry.mtime).toLocaleString()}</Field>
+                <Field label={labels.modified}>{new Date(entry.mtime).toLocaleString(labels.locale)}</Field>
                 <Field label={labels.location}>{location}</Field>
                 {columns?.map(c => <Field key={c.id} label={c.label}>{columnContent(c, entry) || "—"}</Field>)}
                 <div>

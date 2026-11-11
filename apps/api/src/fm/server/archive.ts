@@ -1,7 +1,9 @@
 import type { FmDriver } from "./driver";
+import type { FmWalkFilter } from "./walk";
 import { Zip, ZipPassThrough } from "fflate";
 import { FmError } from "../core/errors";
 import { basename } from "../core/path";
+import { walk } from "./walk";
 
 export interface FmArchiveLimits {
   maxEntries: number;
@@ -17,44 +19,38 @@ interface Item {
 }
 
 /** Walks `paths` and fails before any byte is sent when the archive would exceed the limits. */
-export async function collect(driver: FmDriver, paths: string[], limits: FmArchiveLimits, skip: (path: string) => boolean): Promise<Item[]> {
+export async function collect(driver: FmDriver, paths: string[], limits: FmArchiveLimits, filter: FmWalkFilter): Promise<Item[]> {
   const items: Item[] = [];
   let bytes = 0;
-  const visit = async (path: string, name: string): Promise<void> => {
-    const e = await driver.stat(path);
+  const roots = await Promise.all(paths.map(p => driver.stat(p)));
+  await walk(driver, roots, filter, (e, root) => {
     if (items.length >= limits.maxEntries)
       throw new FmError("TOO_LARGE", `Archive exceeds ${limits.maxEntries} entries`);
+    const name = (basename(root.path) || "root") + (e.path === root.path
+      ? ""
+      : e.path.slice(root.path === "/"
+          ? 0
+          : root.path.length));
     if (e.kind === "file") {
       bytes += e.size;
       if (bytes > limits.maxBytes)
         throw new FmError("TOO_LARGE", `Archive exceeds ${limits.maxBytes} bytes`);
-      items.push({
-        path,
-        name,
-        dir: false,
-        mtime: e.mtime,
-      });
-      return;
     }
     items.push({
-      path,
-      name: `${name}/`,
-      dir: true,
+      path: e.path,
+      name: e.kind === "dir"
+        ? `${name}/`
+        : name,
+      dir: e.kind === "dir",
       mtime: e.mtime,
     });
-    for (const child of await driver.list(path)) {
-      if (!skip(child.path))
-        await visit(child.path, `${name}/${child.name}`);
-    }
-  };
-  for (const p of paths)
-    await visit(p, basename(p) || "root");
+  });
   return items;
 }
 
 /** Streams an uncompressed zip of `paths`; reads one file at a time with backpressure. */
-export async function zipStream(driver: FmDriver, paths: string[], limits: FmArchiveLimits, skip: (path: string) => boolean = () => false): Promise<ReadableStream<Uint8Array>> {
-  const items = await collect(driver, paths, limits, skip);
+export async function zipStream(driver: FmDriver, paths: string[], limits: FmArchiveLimits, filter: FmWalkFilter): Promise<ReadableStream<Uint8Array>> {
+  const items = await collect(driver, paths, limits, filter);
   let index = 0;
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   let current: ZipPassThrough | undefined;

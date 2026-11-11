@@ -1,6 +1,7 @@
 import type { FmUploadFile } from "../client/upload";
 import type { FmEntry } from "../core/schema";
 import type { FmListFilters } from "./filters";
+import type { FmShortcutId } from "./shortcuts";
 import type { FmController } from "./use-file-manager";
 
 import { useCallback, useEffect, useState } from "react";
@@ -8,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { dirname } from "../core/path";
 import { NO_FILTERS, parseFilters } from "./filters";
 import { parseHidden } from "./mount-visibility";
+import { shortcutText } from "./shortcuts";
 /** A folder that an action targets instead of the current one. */
 export interface FmFolderRef {
   mount: string;
@@ -21,6 +23,7 @@ export type FmDialogState
     | { kind: "newFile"; to?: FmFolderRef }
     | { kind: "emptyTrash" }
     | { kind: "manageDrives" }
+    | { kind: "shortcuts" }
     | { kind: "uploadConflict"; files: FmUploadFile[]; clashes: Set<string>; to: FmFolderRef }
     | undefined;
 
@@ -112,30 +115,17 @@ export function readLast(key: string) {
 export const NARROW = 640;
 
 export const MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
-/** Shortcut labels shown in context menus; they mirror the list's key handler. */
+const key = (id: FmShortcutId) => shortcutText(id, MAC);
+/** Shortcut labels shown in context menus, from the shortcut catalog. */
 export const KEYS = {
-  open: MAC
-    ? "↩"
-    : "Enter",
-  copy: MAC
-    ? "⌘C"
-    : "Ctrl+C",
-  cut: MAC
-    ? "⌘X"
-    : "Ctrl+X",
-  paste: MAC
-    ? "⌘V"
-    : "Ctrl+V",
-  copyPath: MAC
-    ? "⌥⌘C"
-    : "Ctrl+Alt+C",
-  copyRelativePath: MAC
-    ? "⇧⌥⌘C"
-    : "Ctrl+Shift+Alt+C",
-  rename: "F2",
-  delete: MAC
-    ? "⌦"
-    : "Del",
+  open: key("open"),
+  copy: key("copy"),
+  cut: key("cut"),
+  paste: key("paste"),
+  copyPath: key("copyPath"),
+  copyRelativePath: key("copyRelativePath"),
+  rename: key("rename"),
+  delete: key("delete"),
 };
 
 /** Width of an element, tracked with ResizeObserver (0 until measured). */

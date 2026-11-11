@@ -3,7 +3,7 @@ import type { FmClient } from "./client";
 import { createStore } from "zustand/vanilla";
 import { FmApiError } from "./client";
 
-export type FmUploadStatus = "queued" | "uploading" | "done" | "error" | "canceled";
+export type FmUploadStatus = "queued" | "uploading" | "paused" | "done" | "error" | "canceled";
 
 export interface FmUploadTask {
   id: string;
@@ -39,7 +39,18 @@ export type FmPartTransport = (url: string, body: Blob, headers: Record<string, 
 export interface FmUploadState {
   tasks: FmUploadTask[];
   enqueue: (mount: string, dir: string, files: FmUploadFile[]) => void;
+  /** Stops the upload and aborts its server session. */
   cancel: (id: string) => void;
+  /**
+   * Holds a queued or running upload. A running session upload stops its part
+   * requests but keeps the server session, so `resume` sends only the missing
+   * parts; a single-PUT upload starts over on resume.
+   */
+  pause: (id: string) => void;
+  /** Queues a paused upload again. */
+  resume: (id: string) => void;
+  pauseAll: () => void;
+  resumeAll: () => void;
   clearFinished: () => void;
 }
 
@@ -89,6 +100,8 @@ export interface FmUploadQueueOptions {
   /** Whether a mount accepts upload sessions (`FmMountInfo.uploadSessions`); default all. */
   sessions?: (mount: string) => boolean;
   partTransport?: FmPartTransport;
+  /** Parts of one session upload sent at the same time. Default 3. */
+  partConcurrency?: number;
   /** Retries per part. Default 3. */
   retries?: number;
   /** Base retry backoff, doubled per attempt. Default 500. */
@@ -117,10 +130,14 @@ function wait(ms: number, signal: AbortSignal) {
   });
 }
 
+/** Abort reason that marks a pause rather than a cancel. */
+const PAUSED = new DOMException("Paused", "AbortError");
+
 export function createUploadQueue(opts: FmUploadQueueOptions) {
   const concurrency = opts.concurrency ?? 3;
   const threshold = opts.sessionThreshold ?? 16 * 1024 * 1024;
   const partTransport = opts.partTransport ?? xhrPartTransport;
+  const partConcurrency = opts.partConcurrency ?? 3;
   const retries = opts.retries ?? 3;
   const retryDelayMs = opts.retryDelayMs ?? 500;
   const storage = "storage" in opts
@@ -150,18 +167,60 @@ export function createUploadQueue(opts: FmUploadQueueOptions) {
   };
   const files = new Map<string, Blob>();
   const controllers = new Map<string, AbortController>();
+  /** Server sessions of started tasks, so a resume works without `storage`. */
+  const sessions = new Map<string, { id: string; key: string }>();
+  /** Byte progress not yet written to the store, flushed once per frame. */
+  const progressed = new Map<string, number>();
+  let flushScheduled = false;
   let seq = 0;
 
   const store = createStore<FmUploadState>()((set, get) => {
-    const patch = (id: string, p: Partial<FmUploadTask>) =>
+    /** Writes a task now, folding in its pending progress so the last value is kept. */
+    const patch = (id: string, p: Partial<FmUploadTask>) => {
+      const loaded = progressed.get(id);
+      progressed.delete(id);
       set(s => ({
         tasks: s.tasks.map(t => (t.id === id
           ? {
               ...t,
+              ...(loaded === undefined
+                ? {}
+                : { loaded }),
               ...p,
             }
           : t)),
       }));
+    };
+
+    function flushProgress() {
+      flushScheduled = false;
+      if (progressed.size === 0)
+        return;
+      const due = new Map(progressed);
+      progressed.clear();
+      if (!get().tasks.some(t => t.status === "uploading" && due.has(t.id)))
+        return;
+      set(s => ({
+        tasks: s.tasks.map(t => (t.status === "uploading" && due.has(t.id)
+          ? {
+              ...t,
+              loaded: due.get(t.id)!,
+            }
+          : t)),
+      }));
+    }
+
+    /** Records byte progress; all tasks share one store write per animation frame (or 100 ms). */
+    function progress(id: string, loaded: number) {
+      progressed.set(id, loaded);
+      if (flushScheduled)
+        return;
+      flushScheduled = true;
+      if (typeof globalThis.requestAnimationFrame === "function")
+        globalThis.requestAnimationFrame(flushProgress);
+      else
+        setTimeout(flushProgress, 100);
+    }
 
     function pump() {
       const { tasks } = get();
@@ -182,7 +241,7 @@ export function createUploadQueue(opts: FmUploadQueueOptions) {
       let id: string | undefined;
       try {
         let session: FmUploadSession | undefined;
-        const saved = remembered.get(key);
+        const saved = sessions.get(task.id)?.id ?? remembered.get(key);
         if (saved) {
           session = await client.getUpload(task.mount, saved).catch(() => undefined);
           if (!session)
@@ -196,7 +255,10 @@ export function createUploadQueue(opts: FmUploadQueueOptions) {
           });
           remembered.set(key, session.id);
         }
-        id = session.id;
+        const sid = session.id;
+        id = sid;
+        sessions.set(task.id, { id: sid, key });
+        let current = session;
         signal.throwIfAborted();
         patch(task.id, { path: session.path });
 
@@ -206,45 +268,82 @@ export function createUploadQueue(opts: FmUploadQueueOptions) {
           Math.min(n * partSize, file.size),
         ] as const;
         const received = new Set(session.received);
+        const missing: number[] = [];
         let done = 0;
-        for (const n of received) {
+        for (let n = 1; n <= parts; n++) {
           const [start, end] = range(n);
-          done += end - start;
+          if (received.has(n))
+            done += end - start;
+          else
+            missing.push(n);
         }
         patch(task.id, { loaded: done });
-        for (let n = 1; n <= parts; n++) {
-          if (received.has(n))
-            continue;
+
+        // Bytes sent by the parts in flight; progress = finished parts + these.
+        const inflight = new Map<number, number>();
+        const report = () => {
+          let loaded = done;
+          for (const n of inflight.values())
+            loaded += n;
+          progress(task.id, loaded);
+        };
+        // A part that runs out of retries stops its siblings.
+        const failed = new AbortController();
+        const partSignal = AbortSignal.any([signal, failed.signal]);
+
+        const sendPart = async (n: number) => {
           const [start, end] = range(n);
           const body = file.slice(start, end);
           for (let attempt = 0; ; attempt++) {
-            const chunked = session.mode === "chunked";
+            const chunked = current.mode === "chunked";
             const url = chunked
-              ? client.uploadPartUrl(task.mount, id, n)
-              : session.urls?.[n - 1] ?? "";
+              ? client.uploadPartUrl(task.mount, sid, n)
+              : current.urls?.[n - 1] ?? "";
             try {
               await partTransport(url, body, chunked
                 ? client.headers()
-                : {}, loaded => patch(task.id, { loaded: done + loaded }), signal);
+                : {}, (loaded) => {
+                inflight.set(n, loaded);
+                report();
+              }, partSignal);
               break;
             }
             catch (err) {
-              if (signal.aborted || attempt >= retries)
+              inflight.delete(n);
+              if (partSignal.aborted || attempt >= retries)
                 throw err;
               // Presigned URLs may have expired; fetch fresh ones.
               if (!chunked && err instanceof FmApiError && err.status === 403)
-                session = await client.getUpload(task.mount, id);
-              await wait(retryDelayMs * 2 ** attempt, signal);
+                current = await client.getUpload(task.mount, sid);
+              await wait(retryDelayMs * 2 ** attempt, partSignal);
             }
           }
+          inflight.delete(n);
           done += end - start;
-          patch(task.id, { loaded: done });
-        }
-        await client.completeUpload(task.mount, id, { message: task.message });
+          report();
+        };
+
+        let next = 0;
+        let failure: { err: unknown } | undefined;
+        const worker = async () => {
+          while (next < missing.length && !partSignal.aborted)
+            await sendPart(missing[next++]!);
+        };
+        await Promise.all(Array.from({
+          length: Math.min(partConcurrency, missing.length),
+        }, () => worker().catch((err) => {
+          failure ??= { err };
+          failed.abort(err);
+        })));
+        signal.throwIfAborted();
+        if (failure)
+          throw failure.err;
+        await client.completeUpload(task.mount, sid, { message: task.message });
         remembered.remove(key);
       }
       catch (err) {
-        if (signal.aborted) {
+        // A pause keeps the server session for resume; a cancel drops it.
+        if (signal.aborted && signal.reason !== PAUSED) {
           if (id)
             void client.abortUpload(task.mount, id).catch(() => {});
           remembered.remove(key);
@@ -256,19 +355,29 @@ export function createUploadQueue(opts: FmUploadQueueOptions) {
     async function run(task: FmUploadTask) {
       const controller = new AbortController();
       controllers.set(task.id, controller);
-      patch(task.id, { status: "uploading" });
+      const file = files.get(task.id)!;
+      const session = !!opts.client && file.size >= threshold && (opts.sessions?.(task.mount) ?? true);
+      // A single PUT cannot continue; a resumed one starts from zero.
+      patch(task.id, session
+        ? { status: "uploading" }
+        : { status: "uploading", loaded: 0 });
+      let paused = false;
       try {
-        const file = files.get(task.id)!;
-        if (opts.client && file.size >= threshold && (opts.sessions?.(task.mount) ?? true))
-          await runSession(opts.client, task, file, controller.signal);
+        if (session)
+          await runSession(opts.client!, task, file, controller.signal);
         else
-          await opts.transport(task, file, loaded => patch(task.id, { loaded }), controller.signal);
+          await opts.transport(task, file, loaded => progress(task.id, loaded), controller.signal);
         patch(task.id, { status: "done", loaded: task.size });
         opts.onUploaded?.(get().tasks.find(t => t.id === task.id) ?? task);
       }
       catch (err) {
         if (controller.signal.aborted) {
-          patch(task.id, { status: "canceled" });
+          paused = controller.signal.reason === PAUSED;
+          patch(task.id, {
+            status: paused
+              ? "paused"
+              : "canceled",
+          });
         }
         else {
           patch(task.id, {
@@ -280,10 +389,29 @@ export function createUploadQueue(opts: FmUploadQueueOptions) {
         }
       }
       finally {
-        controllers.delete(task.id);
-        files.delete(task.id);
+        if (controllers.get(task.id) === controller)
+          controllers.delete(task.id);
+        if (!paused) {
+          files.delete(task.id);
+          sessions.delete(task.id);
+        }
         pump();
       }
+    }
+
+    function pause(id: string) {
+      const task = get().tasks.find(t => t.id === id);
+      if (task?.status === "queued")
+        patch(id, { status: "paused" });
+      else if (task?.status === "uploading")
+        controllers.get(id)?.abort(PAUSED);
+    }
+
+    function resume(id: string) {
+      if (get().tasks.find(t => t.id === id)?.status !== "paused")
+        return;
+      patch(id, { status: "queued" });
+      pump();
     }
 
     return {
@@ -319,14 +447,37 @@ export function createUploadQueue(opts: FmUploadQueueOptions) {
       },
       cancel: (id) => {
         const task = get().tasks.find(t => t.id === id);
-        if (task?.status === "queued") {
+        if (task?.status === "queued" || task?.status === "paused") {
           files.delete(id);
+          const session = sessions.get(id);
+          sessions.delete(id);
+          if (session && opts.client) {
+            void opts.client.abortUpload(task.mount, session.id).catch(() => {});
+            remembered.remove(session.key);
+          }
           patch(id, { status: "canceled" });
         }
         controllers.get(id)?.abort();
       },
+      pause,
+      resume,
+      pauseAll: () => {
+        for (const t of get().tasks)
+          pause(t.id);
+      },
+      resumeAll: () => {
+        set(s => ({
+          tasks: s.tasks.map(t => (t.status === "paused"
+            ? {
+                ...t,
+                status: "queued",
+              }
+            : t)),
+        }));
+        pump();
+      },
       clearFinished: () => set(s => ({
-        tasks: s.tasks.filter(t => t.status === "queued" || t.status === "uploading"),
+        tasks: s.tasks.filter(t => t.status === "queued" || t.status === "uploading" || t.status === "paused"),
       })),
     };
   });
@@ -334,3 +485,31 @@ export function createUploadQueue(opts: FmUploadQueueOptions) {
 }
 
 export type FmUploadQueue = ReturnType<typeof createUploadQueue>;
+
+/**
+ * Asks before leaving the page while any upload is queued or running (paused
+ * ones do not count). The `beforeunload` listener is only attached while needed.
+ * Returns a function that detaches it.
+ */
+export function guardUploadsOnUnload(queue: FmUploadQueue, target: Pick<EventTarget, "addEventListener" | "removeEventListener"> = globalThis) {
+  const onBeforeUnload = (e: Event) => e.preventDefault();
+  let attached = false;
+  const sync = (tasks: FmUploadTask[]) => {
+    const busy = tasks.some(t => t.status === "queued" || t.status === "uploading");
+    if (busy === attached)
+      return;
+    attached = busy;
+    if (busy)
+      target.addEventListener("beforeunload", onBeforeUnload);
+    else
+      target.removeEventListener("beforeunload", onBeforeUnload);
+  };
+  sync(queue.getState().tasks);
+  const unsubscribe = queue.subscribe(s => sync(s.tasks));
+  return () => {
+    unsubscribe();
+    if (attached)
+      target.removeEventListener("beforeunload", onBeforeUnload);
+    attached = false;
+  };
+}

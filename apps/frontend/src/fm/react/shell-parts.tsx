@@ -5,6 +5,7 @@ import type { FmFileAction } from "./plugins";
 import type { FmController } from "./use-file-manager";
 import { cn } from "cn";
 import {
+  ChevronDownIcon,
   CopyIcon,
   DownloadIcon,
   FolderUpIcon,
@@ -12,7 +13,6 @@ import {
   ListIcon,
   PencilIcon,
   ScissorsIcon,
-  SearchIcon,
   Trash2Icon,
   UploadIcon,
   XIcon,
@@ -27,14 +27,19 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { DetailsPanel } from "./details-panel";
 import { IconButton } from "./icon-button";
+import { PathBar } from "./path-bar";
+import { EMPTY_SELECTION } from "./state";
 import { TrashView } from "./trash-view";
 
 interface PartProps {
@@ -180,87 +185,87 @@ export function UploadMenuItems({ fm }: PartProps) {
   );
 }
 
-/** `root` replaces the link or page of the first crumb. */
+/** Path of the current folder: each step opens a picker of its folder. `root` replaces the mount step. The trash keeps plain crumbs. */
 export function ShellBreadcrumb({ fm, root, className }: PartProps & { root?: ReactNode | undefined; className?: string | undefined }) {
-  const { path, inTrash, mount, currentMount, navigate, labels } = fm;
-  const crumbs = path === "/"
-    ? []
-    : path.slice(1).split("/");
+  const { client, path, inTrash, mount, currentMount, shownMounts, filter, navigate, open, labels } = fm;
+  if (!inTrash || !mount) {
+    return (
+      <PathBar
+        client={client}
+        mounts={shownMounts ?? []}
+        mount={mount ?? ""}
+        path={path}
+        labels={labels}
+        filter={filter}
+        root={root}
+        className={className}
+        onOpenFile={open}
+        onOpenFolder={open}
+      />
+    );
+  }
   return (
     <Breadcrumb className={cn("min-w-0 flex-1 px-1", className)}>
       <BreadcrumbList className="flex-nowrap overflow-hidden">
         <BreadcrumbItem>
-          {root ?? (crumbs.length || inTrash
-            ? <BreadcrumbLink render={<button type="button" onClick={() => mount && navigate(mount, "/")} />}>{currentMount?.label}</BreadcrumbLink>
-            : <BreadcrumbPage>{currentMount?.label}</BreadcrumbPage>)}
+          {root ?? <BreadcrumbLink render={<button type="button" onClick={() => navigate(mount, "/")} />}>{currentMount?.label}</BreadcrumbLink>}
         </BreadcrumbItem>
-        {inTrash && (
-          <>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{labels.trash}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </>
-        )}
-        {!inTrash && crumbs.map((name, i) => {
-          const target = `/${crumbs.slice(0, i + 1).join("/")}`;
-          return [
-            <BreadcrumbSeparator key={`s-${target}`} />,
-            <BreadcrumbItem key={target} className="min-w-0">
-              {i === crumbs.length - 1
-                ? <BreadcrumbPage className="truncate">{name}</BreadcrumbPage>
-                : <BreadcrumbLink className="truncate" render={<button type="button" onClick={() => mount && navigate(mount, target)} />}>{name}</BreadcrumbLink>}
-            </BreadcrumbItem>,
-          ];
-        })}
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+          <BreadcrumbPage>{labels.trash}</BreadcrumbPage>
+        </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
   );
 }
 
-/** `children` sit between the input and the scope buttons. */
+/** `children` sit after the input. The scope menu leads the input; a clear button ends it while there is a query. */
 export function ShellSearch({ fm, width, children }: PartProps & { width: string; children?: ReactNode }) {
   const { narrow, query, changeQuery, searchScope, setSearchScope, labels } = fm;
+  const scopeLabel = (s: typeof searchScope) => s === "folder"
+    ? labels.searchHere
+    : labels.searchBelow;
   return (
-    <div className={cn("relative flex items-center gap-1", narrow && "order-last basis-full")}>
-      <SearchIcon className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-      <Input
-        type="search"
-        aria-label={labels.search}
-        placeholder={labels.search}
-        className={cn("h-7 pl-7 text-xs md:text-xs", narrow
-          ? "w-full"
-          : width)}
-        value={query}
-        onChange={e => changeQuery(e.target.value)}
-        onKeyDown={e => e.key === "Escape" && changeQuery("")}
-      />
+    <div className={cn("flex items-center gap-1", narrow && "order-last basis-full")}>
+      <InputGroup className={cn("h-7", narrow
+        ? "w-full"
+        : width)}
+      >
+        <InputGroupAddon className="py-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<InputGroupButton size="xs" variant="secondary" className="h-5 px-1.5 text-xs" />}>
+              {scopeLabel(searchScope)}
+              <ChevronDownIcon />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-auto min-w-0">
+              {(["folder", "below"] as const).map(s => <DropdownMenuItem key={s} className="text-xs" onClick={() => setSearchScope(s)}>{scopeLabel(s)}</DropdownMenuItem>)}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </InputGroupAddon>
+        <InputGroupInput
+          type="search"
+          aria-label={labels.search}
+          placeholder={labels.searchPlaceholder}
+          className="h-full text-xs md:text-xs [&::-webkit-search-cancel-button]:appearance-none"
+          value={query}
+          onChange={e => changeQuery(e.target.value)}
+          onKeyDown={e => e.key === "Escape" && changeQuery("")}
+        />
+        {query && (
+          <InputGroupAddon align="inline-end" className="py-0">
+            <InputGroupButton size="icon-xs" aria-label={labels.clearSearch} title={labels.clearSearch} onClick={() => changeQuery("")}>
+              <XIcon />
+            </InputGroupButton>
+          </InputGroupAddon>
+        )}
+      </InputGroup>
       {children}
-      {query.trim() && (
-        <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label={labels.search}>
-          {(["folder", "below"] as const).map(s => (
-            <Button
-              key={s}
-              size="xs"
-              variant={searchScope === s
-                ? "secondary"
-                : "ghost"}
-              aria-pressed={searchScope === s}
-              onClick={() => setSearchScope(s)}
-            >
-              {s === "folder"
-                ? labels.searchHere
-                : labels.searchBelow}
-            </Button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
 
 /** Buttons acting on the selection; `actions` come before delete. */
-export function SelectionActions({ fm, actions = [] }: PartProps & { actions?: FmFileAction[] }) {
+export function SelectionActions({ fm, actions = [] }: PartProps & { actions?: FmFileAction[] | undefined }) {
   const { selected, features, labels, download, copyToClipboard, setDialog, runAction, requestDelete } = fm;
   return (
     <>
@@ -269,7 +274,25 @@ export function SelectionActions({ fm, actions = [] }: PartProps & { actions?: F
       {selected.every(s => s.caps.move) && <IconButton label={labels.cut} onClick={() => copyToClipboard("cut", selected)}><ScissorsIcon /></IconButton>}
       {selected.length === 1 && selected[0]!.caps.rename && <IconButton label={labels.rename} onClick={() => setDialog({ kind: "rename", entry: selected[0]! })}><PencilIcon /></IconButton>}
       {actions.map(a => <IconButton key={a.id} label={a.label} onClick={() => runAction(a, selected)}>{a.icon}</IconButton>)}
-      {selected.every(s => s.caps.delete) && <IconButton label={labels.delete} onClick={() => requestDelete(selected.map(s => s.path))}><Trash2Icon /></IconButton>}
+      {selected.every(s => s.caps.delete) && <IconButton label={labels.delete} className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => requestDelete(selected.map(s => s.path))}><Trash2Icon /></IconButton>}
     </>
+  );
+}
+
+/** Bulk actions floating at the bottom centre of the listing, above the undo notice. */
+export function FloatingSelectionBar({ fm, actions }: PartProps & { actions?: FmFileAction[] | undefined }) {
+  const { selected, notice, setRawSelection, labels } = fm;
+  return (
+    <div
+      className={cn("absolute left-1/2 z-10 flex max-w-[calc(100%-1.5rem)] w-max -translate-x-1/2 flex-wrap items-center gap-1 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg", notice
+        ? "bottom-14"
+        : "bottom-3")}
+      role="toolbar"
+      aria-label={labels.selected(selected.length)}
+    >
+      <IconButton label={labels.cancel} onClick={() => setRawSelection(EMPTY_SELECTION)}><XIcon /></IconButton>
+      <span className="px-1 text-sm whitespace-nowrap">{labels.selected(selected.length)}</span>
+      <SelectionActions fm={fm} actions={actions} />
+    </div>
   );
 }

@@ -77,3 +77,17 @@ export function centerOn(at: { x: number; y: number }, scale: number, content: F
     positionY: viewport.height / 2 - at.y * content.height * scale,
   }, content, viewport);
 }
+
+/** Wheel pixels per notch; one notch zooms by `NOTCH_ZOOM`. */
+const NOTCH_PX = 100;
+const NOTCH_ZOOM = 1.2;
+
+/** Zoom factor of one wheel event: lines (16px) and pages become pixels, capped at one notch. */
+export function wheelFactor(deltaY: number, deltaMode: number, pageHeight: number): number {
+  const px = deltaY * (deltaMode === 1
+    ? 16
+    : deltaMode === 2
+      ? pageHeight
+      : 1);
+  return NOTCH_ZOOM ** (-Math.max(-NOTCH_PX, Math.min(NOTCH_PX, px)) / NOTCH_PX);
+}

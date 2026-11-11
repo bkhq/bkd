@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
@@ -128,11 +129,10 @@ export function ManageDrivesDialog({ mounts, hidden, current, labels, onChange, 
         <div className="grid gap-2">
           {mounts.map(m => (
             <label key={m.id} className="flex items-center gap-2 text-sm has-disabled:opacity-60">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={m.id === current || !hidden.includes(m.id)}
                 disabled={m.id === current}
-                onChange={e => onChange(e.target.checked
+                onCheckedChange={on => onChange(on
                   ? hidden.filter(id => id !== m.id)
                   : [...hidden, m.id])}
               />

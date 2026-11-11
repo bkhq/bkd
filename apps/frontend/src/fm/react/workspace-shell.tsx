@@ -6,12 +6,15 @@ import {
   ArrowUpIcon,
   ChevronDownIcon,
   ClipboardPasteIcon,
+  EllipsisIcon,
   FilePlusIcon,
   FileSearchIcon,
   FilterIcon,
   FolderOpenIcon,
   FolderPlusIcon,
   InfoIcon,
+  LayoutGridIcon,
+  ListIcon,
   PanelLeftIcon,
   RefreshCwIcon,
   SettingsIcon,
@@ -28,6 +31,7 @@ import {
 } from "@/components/ui/context-menu";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -46,7 +50,7 @@ import { basename, dirname } from "../core/path";
 import { EntryIcon } from "./file-list";
 import { FilterChips, FilterMenuItems } from "./filter-menu";
 import { hasFilters } from "./filters";
-import { IconButton } from "./icon-button";
+import { IconButton, RefreshButton } from "./icon-button";
 import { ManagerList } from "./manager-list";
 import { shellDetailsEntry } from "./manager-shared";
 import { MenuScroll } from "./menu-scroll";
@@ -56,6 +60,7 @@ import { PreviewBody } from "./preview-pane";
 import { ReviewView } from "./review-dialog";
 import {
   EmptyTrashButton,
+  FloatingSelectionBar,
   SelectionActions,
   ShellBreadcrumb,
   ShellDetails,
@@ -130,7 +135,11 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
     blankMenu,
     columns,
     columnValues,
+    view,
+    setView,
   } = fm;
+  // Without the sidebar the listing takes the drive look.
+  const roomy = !split && !pick;
   const uploadMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger render={<IconButton label={labels.upload} />}><UploadIcon /></DropdownMenuTrigger>
@@ -140,14 +149,12 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
     </DropdownMenu>
   );
   const refreshButton = (
-    <IconButton
+    <RefreshButton
       label={labels.refresh}
-      onClick={() => void qc.invalidateQueries({
+      onRefresh={() => qc.invalidateQueries({
         queryKey: fmKeys.all(client),
       })}
-    >
-      <RefreshCwIcon />
-    </IconButton>
+    />
   );
 
   const detailsEntry = shellDetailsEntry(fm);
@@ -167,6 +174,15 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
       ? { storage: localStorage }
       : {}),
   });
+
+  // Narrow containers fold the folder toolbar into one "More" menu so it shares the path row.
+  const folded = narrow && !inTrash && !explorer && !(selected.length > 0 && !roomy);
+
+  // Host controls go in the bar at the manager's top-right corner: the explorer row while a
+  // narrow manager shows only the tree, the main header otherwise. Never in pick mode.
+  const hostActions = props.headerActions != null && !pick
+    ? <div className="ml-auto flex shrink-0 items-center gap-0.5">{props.headerActions}</div>
+    : undefined;
 
   // Tree toolbar and folder tree; a side panel, or a full-size view on narrow containers.
 
@@ -210,7 +226,9 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                       {/* Narrow: the toolbar wraps below the breadcrumb instead of squeezing it. */}
                       <ShellBreadcrumb
                         fm={fm}
-                        className={narrow ? "basis-[calc(100%-2.5rem)]" : undefined}
+                        className={narrow && !folded
+                          ? "basis-[calc(100%-2.5rem)]"
+                          : undefined}
                         root={!split && shownMounts
                           ? (
                               <DropdownMenu>
@@ -234,9 +252,11 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                                         ))
                                       : shownMounts.map(m => <DropdownMenuRadioItem key={m.id} value={m.id} closeOnClick>{m.label}</DropdownMenuRadioItem>)}
                                   </DropdownMenuRadioGroup>
+                                  {treeSections.length > 0 && <DropdownMenuSeparator />}
                                   {treeSections.map(sec => (
                                     <DropdownMenuSub key={sec.id}>
-                                      <DropdownMenuSubTrigger>
+                                      {/* Muted tree icons take the menu colour here; accent colours stay. */}
+                                      <DropdownMenuSubTrigger className="[&_svg.text-muted-foreground]:text-current">
                                         {sec.icon}
                                         {sec.label}
                                       </DropdownMenuSubTrigger>
@@ -252,7 +272,6 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                                       </DropdownMenuSubContent>
                                     </DropdownMenuSub>
                                   ))}
-                                  {treeSections.length > 0 && <DropdownMenuSeparator />}
                                   {currentMount?.trash && features.trash && (
                                     <>
                                       <DropdownMenuSeparator />
@@ -284,7 +303,7 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                     <EmptyTrashButton fm={fm} />
                   )
                 : features.search && !explorer && (
-                  <ShellSearch fm={fm} width="w-48">
+                  <ShellSearch fm={fm} width="w-64">
                     {canQuickOpen && <IconButton label={labels.quickOpen} onClick={() => setQuickOpen(true)}><FileSearchIcon /></IconButton>}
                   </ShellSearch>
                 )}
@@ -297,7 +316,7 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                         <div ref={setPaneActions} className="flex items-center gap-1" />
                       </div>
                     )
-                  : selected.length > 0
+                  : selected.length > 0 && !roomy
                     ? (
                         <div className="flex items-center gap-1" role="toolbar" aria-label={labels.selected(selected.length)}>
                           <span className="px-2 text-xs text-muted-foreground">{labels.selected(selected.length)}</span>
@@ -305,45 +324,113 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                           <IconButton label={labels.cancel} onClick={() => setRawSelection(EMPTY_SELECTION)}><XIcon /></IconButton>
                         </div>
                       )
-                    : (
-                        <div className="flex items-center gap-1" role="toolbar">
-                          {canPaste && (
-                            <Button size="sm" variant="ghost" onClick={paste}>
-                              <ClipboardPasteIcon />
-                              {labels.paste}
-                            </Button>
-                          )}
-                          {canMkdir && <IconButton label={labels.newFolder} onClick={() => setDialog({ kind: "mkdir" })}><FolderPlusIcon /></IconButton>}
-                          {canNewFile && <IconButton label={labels.newFile} onClick={() => setDialog({ kind: "newFile" })}><FilePlusIcon /></IconButton>}
-                          {canUpload && uploadMenu}
+                    : folded
+                      ? (
                           <DropdownMenu>
-                            <DropdownMenuTrigger render={<IconButton label={labels.filter} aria-pressed={hasFilters(filters)} />}><FilterIcon /></DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48">
-                              <FilterMenuItems filters={filters} onChange={changeFilters} labels={labels} columns={columns} values={columnValues} />
+                            <DropdownMenuTrigger render={<IconButton label={labels.more} aria-pressed={hasFilters(filters)} />}><EllipsisIcon /></DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                              {canPaste && (
+                                <DropdownMenuItem onClick={paste}>
+                                  <ClipboardPasteIcon />
+                                  {labels.paste}
+                                </DropdownMenuItem>
+                              )}
+                              {canMkdir && (
+                                <DropdownMenuItem onClick={() => setDialog({ kind: "mkdir" })}>
+                                  <FolderPlusIcon />
+                                  {labels.newFolder}
+                                </DropdownMenuItem>
+                              )}
+                              {canNewFile && (
+                                <DropdownMenuItem onClick={() => setDialog({ kind: "newFile" })}>
+                                  <FilePlusIcon />
+                                  {labels.newFile}
+                                </DropdownMenuItem>
+                              )}
+                              {canUpload && <UploadMenuItems fm={fm} />}
+                              {(canPaste || canMkdir || canNewFile || canUpload) && <DropdownMenuSeparator />}
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger>
+                                  <FilterIcon />
+                                  {labels.filter}
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent className="w-48">
+                                  <FilterMenuItems filters={filters} onChange={changeFilters} labels={labels} columns={columns} values={columnValues} />
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger>
+                                  <ArrowUpDownIcon />
+                                  {labels.sortBy}
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent className="w-40">
+                                  <SortMenuItems fm={fm} />
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
+                              <DropdownMenuItem onClick={() => setView(view === "list"
+                                ? "grid"
+                                : "list")}
+                              >
+                                {view === "list"
+                                  ? <LayoutGridIcon />
+                                  : <ListIcon />}
+                                {view === "list"
+                                  ? labels.gridView
+                                  : labels.listView}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => void qc.invalidateQueries({
+                                queryKey: fmKeys.all(client),
+                              })}
+                              >
+                                <RefreshCwIcon />
+                                {labels.refresh}
+                              </DropdownMenuItem>
+                              {features.details && (
+                                <DropdownMenuCheckboxItem closeOnClick checked={detailsOpen} onCheckedChange={setDetailsOpen}>
+                                  {labels.details}
+                                </DropdownMenuCheckboxItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
-                          <DropdownMenu>
-                            {narrow
-                              ? <DropdownMenuTrigger render={<IconButton label={labels.sortBy} />}><ArrowUpDownIcon /></DropdownMenuTrigger>
-                              : <DropdownMenuTrigger render={<Button size="sm" variant="ghost" />}>{labels.sortBy}</DropdownMenuTrigger>}
-                            <DropdownMenuContent align="end" className="w-40">
-                              <SortMenuItems fm={fm} />
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                          <ViewToggle fm={fm} />
-                          {refreshButton}
-                        </div>
-                      )}
+                        )
+                      : (
+                          <div className="flex items-center gap-1" role="toolbar">
+                            {canPaste && (
+                              <Button size="sm" variant="ghost" onClick={paste}>
+                                <ClipboardPasteIcon />
+                                {labels.paste}
+                              </Button>
+                            )}
+                            {canMkdir && <IconButton label={labels.newFolder} onClick={() => setDialog({ kind: "mkdir" })}><FolderPlusIcon /></IconButton>}
+                            {canNewFile && <IconButton label={labels.newFile} onClick={() => setDialog({ kind: "newFile" })}><FilePlusIcon /></IconButton>}
+                            {canUpload && uploadMenu}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger render={<IconButton label={labels.filter} aria-pressed={hasFilters(filters)} />}><FilterIcon /></DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48">
+                                <FilterMenuItems filters={filters} onChange={changeFilters} labels={labels} columns={columns} values={columnValues} />
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger render={<IconButton label={labels.sortBy} />}><ArrowUpDownIcon /></DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40">
+                                <SortMenuItems fm={fm} />
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            <ViewToggle fm={fm} />
+                            {refreshButton}
+                          </div>
+                        )}
               {!narrow && (
                 <IconButton label={split ? labels.hideSidebar : labels.showSidebar} aria-pressed={split} onClick={() => setLayout(split ? "single" : "split")}>
                   <PanelLeftIcon />
                 </IconButton>
               )}
-              {!inTrash && features.details && (
+              {!inTrash && !folded && features.details && (
                 <IconButton label={labels.details} aria-pressed={detailsOpen} onClick={() => setDetailsOpen(!detailsOpen)}>
                   <InfoIcon />
                 </IconButton>
               )}
+              {!treeOnly && hostActions}
             </header>
 
             {!explorer && !inTrash && <FilterChips filters={filters} onChange={changeFilters} labels={labels} columns={columns} />}
@@ -419,8 +506,10 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                           </ContextMenu>
                         ))
                 : (
-                    <ManagerList fm={fm} />
+                    <ManagerList fm={fm} roomy={roomy} />
                   )}
+
+            {roomy && !explorer && !inTrash && selected.length > 0 && <FloatingSelectionBar fm={fm} />}
 
             {pick && (() => {
               const total = selected.reduce((n, e) => n + e.size, 0);
@@ -447,7 +536,7 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
         )}
       </ResizablePanelGroup>
 
-      {treeOnly && <div className="absolute inset-0 z-10 flex flex-col bg-background"><WorkspaceTreePane props={props} fm={fm} /></div>}
+      {treeOnly && <div className="absolute inset-0 z-10 flex flex-col bg-background"><WorkspaceTreePane props={props} fm={fm} actions={hostActions} /></div>}
 
       {detailsEntry && narrow && (
         <ShellDetails fm={fm} props={props} entry={detailsEntry} overlay />

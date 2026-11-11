@@ -441,7 +441,12 @@ export function localDriver(opts: FmLocalDriverOptions): FmDriver {
     }
   };
 
-  /** Applies the `write` target checks and creates parents; returns the absolute target. */
+  /**
+   * Applies the `write` target checks and creates parents; returns the absolute target.
+   * `exclusive` is enforced again atomically by `commitWrite` (the hard link fails with
+   * EEXIST). `ifMatch` is best effort: it is checked here and the file is renamed into place
+   * later, so a writer landing in between can be overwritten.
+   */
   const prepareWrite = async (path: string, o: FmWriteOptions) => {
     const a = await abs(path);
     const current = await stat(a, { bigint: true }).catch(() => undefined);
@@ -592,23 +597,29 @@ export function localDriver(opts: FmLocalDriverOptions): FmDriver {
       catch (err) {
         return mapError(err, path);
       }
-      const out: FmDriverEntry[] = [];
-      for (const d of dirents) {
-        if (opts.showHidden === false && d.name.startsWith("."))
-          continue;
-        const childPath = path === "/"
-          ? `/${d.name}`
-          : `${path}/${d.name}`;
-        const a = join(dir, d.name);
-        try {
-          if (d.isSymbolicLink() && !inside(await realpath(a), rr))
-            continue;
-          out.push(await statAbs(childPath, a));
-        }
-        catch {
-          // Dangling symlinks and entries removed mid-listing are skipped.
-        }
+      const visible = opts.showHidden === false
+        ? dirents.filter(d => !d.name.startsWith("."))
+        : dirents;
+      // Stats a few entries at a time, keeping the readdir order.
+      const stated: (FmDriverEntry | undefined)[] = [];
+      for (let i = 0; i < visible.length; i += 32) {
+        stated.push(...await Promise.all(visible.slice(i, i + 32).map(async (d) => {
+          const childPath = path === "/"
+            ? `/${d.name}`
+            : `${path}/${d.name}`;
+          const a = join(dir, d.name);
+          try {
+            if (d.isSymbolicLink() && !inside(await realpath(a), rr))
+              return undefined;
+            return await statAbs(childPath, a);
+          }
+          catch {
+            // Dangling symlinks and entries removed mid-listing are skipped.
+            return undefined;
+          }
+        })));
       }
+      const out = stated.filter(e => e !== undefined);
       // Folder hints, a few directories at a time.
       const dirs = out.filter(e => e.kind === "dir");
       for (let i = 0; i < dirs.length; i += 32) {

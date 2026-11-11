@@ -130,6 +130,23 @@ export function runDriverContract(label: string, make: () => Promise<FmDriverFix
       await expectCode(d.write("/x.txt", enc.encode("2"), { exclusive: true }), "EXISTS");
     });
 
+    it("lets exactly one of concurrent exclusive writes win", async () => {
+      const results = await Promise.allSettled([0, 1, 2, 3, 4].map(i =>
+        d.write("/race.txt", enc.encode(`w${i}`), { exclusive: true })));
+      const won = results.flatMap((r, i) => r.status === "fulfilled"
+        ? [i]
+        : []);
+      expect(won).toHaveLength(1);
+      expect(results.flatMap(r => r.status === "rejected"
+        ? [
+            isFmError(r.reason)
+              ? r.reason.code
+              : r.reason,
+          ]
+        : [])).toEqual(["EXISTS", "EXISTS", "EXISTS", "EXISTS"]);
+      expect(await text(d, "/race.txt")).toBe(`w${won[0]}`);
+    });
+
     itEmptyDirs("creates empty directories that show up in listings", async () => {
       const e = await d.mkdir("/empty");
       expect(e.kind).toBe("dir");

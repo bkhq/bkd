@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { FileManagerProps } from "./file-manager";
 import type { FmController } from "./use-file-manager";
 import {
@@ -10,7 +11,6 @@ import {
   FolderPlusIcon,
   FolderUpIcon,
   GitCompareIcon,
-  RefreshCwIcon,
   UploadIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -28,12 +28,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { fmKeys } from "../client/hooks";
 import { FilterChips, FilterMenuItems } from "./filter-menu";
-import { IconButton } from "./icon-button";
+import { IconButton, RefreshButton } from "./icon-button";
 import { onPathKeys } from "./manager-shared";
 import { ManagerTree } from "./manager-tree";
 
-/** Explorer header and folder tree of the workspace shell. */
-export function WorkspaceTreePane({ props, fm }: { props: FileManagerProps; fm: FmController }) {
+/** Explorer header and folder tree of the workspace shell; `actions` (host controls) end the explorer row. */
+export function WorkspaceTreePane({ props, fm, actions }: { props: FileManagerProps; fm: FmController; actions?: ReactNode }) {
   const {
     client,
     setExpanded,
@@ -79,11 +79,11 @@ export function WorkspaceTreePane({ props, fm }: { props: FileManagerProps; fm: 
   // its ancestors open and the tree scrolls the row into view once it is loaded.
   const [revealTick, setRevealTick] = useState(0);
   const refreshTree = () => {
-    void qc.invalidateQueries({
+    const done = qc.invalidateQueries({
       queryKey: fmKeys.all(client),
     });
     if (!mount)
-      return;
+      return done;
     const target = selected.length === 1
       ? selected[0]!.path
       : path;
@@ -92,6 +92,7 @@ export function WorkspaceTreePane({ props, fm }: { props: FileManagerProps; fm: 
       ...onPathKeys(mount, target, inTrash),
     ]));
     setRevealTick(t => t + 1);
+    return done;
   };
   return (
     <>
@@ -108,7 +109,7 @@ export function WorkspaceTreePane({ props, fm }: { props: FileManagerProps; fm: 
           >
             {canNewFile && <IconButton label={labels.newFile} onClick={() => setDialog({ kind: "newFile" })}><FilePlusIcon /></IconButton>}
             {canMkdir && <IconButton label={labels.newFolder} onClick={() => setDialog({ kind: "mkdir" })}><FolderPlusIcon /></IconButton>}
-            <IconButton label={labels.refresh} onClick={refreshTree}><RefreshCwIcon /></IconButton>
+            <RefreshButton label={labels.refresh} onRefresh={refreshTree} />
             <IconButton label={labels.collapseAll} onClick={collapseAll}><ChevronsDownUpIcon /></IconButton>
           </div>
           <DropdownMenu>
@@ -179,6 +180,7 @@ export function WorkspaceTreePane({ props, fm }: { props: FileManagerProps; fm: 
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          {actions}
         </div>
       )}
       {explorer && <FilterChips filters={filters} onChange={changeFilters} labels={labels} columns={columns} />}

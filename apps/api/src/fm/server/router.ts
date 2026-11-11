@@ -2,6 +2,7 @@ import type { Context, Env } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { FmAction, FmCaps, FmConflict, FmEntry, FmMountInfo, FmOpResult, FmTrashItem, FmUploadMode, FmUploadSession, FmUsage } from "../core/schema";
 import type { FmChangeContext, FmDriver, FmDriverEntry, FmDriverTrash, FmDriverTrashItem, FmUploadPart, FmWriteOptions } from "./driver";
+import type { FmWalkFilter } from "./walk";
 import { Hono } from "hono";
 import { describeRoute, resolver, validator } from "hono-openapi";
 import { z } from "zod";
@@ -34,6 +35,7 @@ import { collect, zipStream } from "./archive";
 import { readAll } from "./driver";
 import { inlineType, mimeOf } from "./mime";
 import { folderTrash, TRASH_DIR } from "./trash";
+import { walk } from "./walk";
 import { openZipEntry, readZipEntries } from "./zip";
 
 export interface FmMount {
@@ -127,6 +129,8 @@ export interface FmLimits {
   uploadSessionTtlMs: number;
   /** Largest source image the thumbnail hook is given. */
   thumbnailMaxBytes: number;
+  /** Max thumbnail hooks running at once per router; further requests wait in order. */
+  thumbnailConcurrency: number;
 }
 
 /** Widths `/thumb` serves. */
@@ -153,14 +157,25 @@ export const DEFAULT_LIMITS: FmLimits = {
   maxSessionUploadBytes: 10 * 1024 * 1024 * 1024,
   uploadSessionTtlMs: 24 * 60 * 60 * 1000,
   thumbnailMaxBytes: 32 * 1024 * 1024,
+  thumbnailConcurrency: 4,
 };
 
 export interface FmRouterOptions<E extends Env> {
-  /** Mounts visible to the current request (resolve per user / project here). */
+  /**
+   * Mounts visible to the current request (resolve per user / project here).
+   * Listing snapshots, and so cheap paging, need the same driver instance
+   * across requests: create drivers once and return them here. A fresh driver
+   * per request still works but re-lists the folder on every page.
+   */
   mounts: (c: Context<E>) => FmMount[] | Promise<FmMount[]>;
   /**
-   * Allowed actions for `path` and everything below it. Listings apply a
-   * directory's caps to its children. Missing `read` answers 404.
+   * Allowed actions for `path`, called per path; missing `read` answers 404.
+   * Listings apply a directory's caps to its children. Recursive operations
+   * (archive, usage, search, copy, cross-mount move) call it for every
+   * directory they descend into: archive, usage and search skip a subtree
+   * whose directory lacks `read`; copy and cross-mount move fail with
+   * FORBIDDEN when the source holds such a subtree. Same-mount move, rename
+   * and delete check only the top path.
    */
   authorize?: (c: Context<E>, target: { mount: FmMount; path: string }) => FmCaps | Promise<FmCaps>;
   limits?: Partial<FmLimits>;
@@ -195,6 +210,23 @@ type EventDraft = Omit<FmChangeEvent, "ok" | "error">;
 
 type ItemOutcome = Pick<FmOpResult, "entry" | "trashId">;
 
+/** One sorted, filtered listing that later pages of the same query are served from. */
+interface ListSnapshot {
+  id: string;
+  /** The query parameters that shape the listing (all but cursor and limit). */
+  key: string;
+  mount: string;
+  driver: FmDriver;
+  expires: number;
+  self: FmDriverEntry;
+  all: FmDriverEntry[];
+  ignored: number;
+}
+
+/** How long later pages are served from a listing; changes made outside the router show up after this. */
+const LIST_SNAPSHOT_TTL_MS = 5000;
+const LIST_SNAPSHOTS_MAX = 64;
+
 interface Target {
   mount: FmMount;
   path: string;
@@ -203,6 +235,9 @@ interface Target {
 
 /** Hidden per-mount folder: `<id>.json` holds an upload session, `<id>/<n>` its parts when the driver has no multipart. */
 const UPLOADS_DIR = "/.fm-uploads";
+
+/** Free names a `rename` write tries while concurrent writers keep taking them. */
+const RENAME_ATTEMPTS = 10;
 
 interface UploadRecord {
   id: string;
@@ -358,10 +393,12 @@ function rangeOf(header: string | undefined, size: number): { start: number; end
   return { start, end };
 }
 
-function limitStream(body: ReadableStream<Uint8Array>, max: number): ReadableStream<Uint8Array> {
+/** Caps `body` at `max` bytes; `onRead` runs on the first chunk the consumer pulls. */
+function limitStream(body: ReadableStream<Uint8Array>, max: number, onRead?: () => void): ReadableStream<Uint8Array> {
   let seen = 0;
   return body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
+      onRead?.();
       seen += chunk.byteLength;
       if (seen > max)
         controller.error(new FmError("TOO_LARGE", `Upload exceeds ${max} bytes`));
@@ -375,6 +412,42 @@ function contentDisposition(type: "inline" | "attachment", name: string) {
   return `${type}; filename="${name.replace(/[^\x20-\x7E]|["\\]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 }
 
+/** Lets at most `size` holders in at once; waiters get a slot in FIFO order. */
+function semaphore(size: number) {
+  let free = size;
+  const waiters: Array<() => void> = [];
+  return {
+    /** Waits for a slot; rejects without taking one when `signal` aborts first. */
+    async acquire(signal: AbortSignal): Promise<void> {
+      signal.throwIfAborted();
+      if (free > 0) {
+        free--;
+        return;
+      }
+      await new Promise<void>((resolve, reject) => {
+        const wake = () => resolve();
+        waiters.push(wake);
+        // An abort after the wake-up is too late: the slot is already ours.
+        signal.addEventListener("abort", () => {
+          const i = waiters.indexOf(wake);
+          if (i >= 0) {
+            waiters.splice(i, 1);
+            reject(signal.reason);
+          }
+        }, { once: true });
+      });
+    },
+    /** Hands the slot to the next waiter, or frees it. */
+    release() {
+      const next = waiters.shift();
+      if (next)
+        next();
+      else
+        free++;
+    },
+  };
+}
+
 /** Builds the file manager API. Mount it with `app.route("/api/fm", createFmRouter(...))`. */
 export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>): Hono<E> {
   const limits: FmLimits = {
@@ -382,6 +455,7 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
     ...options.limits,
   };
   const app = new Hono<E>();
+  const thumbnails = semaphore(limits.thumbnailConcurrency);
 
   const mountCaps = (m: FmMount) => intersectCaps(m.driver.caps, m.readOnly ? READ_ONLY_CAPS : ALL_CAPS);
 
@@ -418,6 +492,33 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
       throw new FmError("FORBIDDEN", `Not allowed: ${action}`);
     return { mount, path, caps };
   };
+
+  /** Caps of any path on `mount` as `resolve` computes them, cached per path for one request. */
+  const capsReader = (c: unknown, mount: FmMount) => {
+    const granted = new Map<string, FmCaps>();
+    return async (path: string) => {
+      let caps = granted.get(path);
+      if (!caps) {
+        caps = intersectCaps(mountCaps(mount), options.authorize
+          ? await options.authorize(host(c), { mount, path })
+          : ALL_CAPS);
+        granted.set(path, caps);
+      }
+      return caps;
+    };
+  };
+
+  /** Leaves hidden folders out of a walk, and folders without `read` (or fails with FORBIDDEN when `strict`). */
+  const walkFilter = (mount: FmMount, capsOf: (path: string) => Promise<FmCaps>, strict = false): FmWalkFilter => ({
+    skip: e => hidden(mount, e.path),
+    enter: async (dir) => {
+      if ((await capsOf(dir.path)).read)
+        return true;
+      if (strict)
+        throw new FmError("FORBIDDEN", "Not allowed: read every folder of the source");
+      return false;
+    },
+  });
 
   const toEntry = (t: Target, e: FmDriverEntry): FmEntry => {
     const mime = e.kind === "file"
@@ -483,14 +584,36 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
     }
   };
 
+  /**
+   * Sorted, filtered listings that later pages of the same query are served from, so paging a
+   * folder lists it once. Mutations through the router drop the snapshots of their mounts; a
+   * generation per mount keeps a listing that raced a mutation from being stored.
+   */
+  const snapshots = new Map<string, ListSnapshot>();
+  const generations = new Map<string, number>();
+  const invalidate = (...mountIds: (string | undefined)[]) => {
+    for (const id of mountIds) {
+      if (id === undefined)
+        continue;
+      generations.set(id, (generations.get(id) ?? 0) + 1);
+      for (const [key, snap] of snapshots) {
+        if (snap.mount === id)
+          snapshots.delete(key);
+      }
+    }
+  };
+
   /** Runs one mutation and emits its event; `fn` may refine the draft. Errors are rethrown. */
   const track = async <T>(c: unknown, event: EventDraft, fn: () => Promise<T>): Promise<T> => {
     try {
       const out = await fn();
+      invalidate(event.mount, event.toMount);
       await emit(c, { ...event, ok: true });
       return out;
     }
     catch (e) {
+      // A failed mutation may still have changed something.
+      invalidate(event.mount, event.toMount);
       if (e instanceof FmError) {
         await emit(c, {
           ...event,
@@ -537,6 +660,26 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
     throw new FmError("EXISTS", `No free name for ${name}`);
   };
 
+  /**
+   * Writes with `write` to `target`, or with `rename` to a free name for it. Callers write
+   * exclusively unless `overwrite`, so a name a concurrent writer takes after `destination`
+   * picked it is never overwritten: `rename` then tries the next free name, a bounded number
+   * of times, while `resendable` says the body can be written again. A conflict found only
+   * after the body was consumed (the conditional write itself lost the race) stays EXISTS.
+   */
+  const writeFree = async (d: FmDriver, target: string, conflict: FmConflict, write: (path: string) => Promise<FmDriverEntry>, resendable = () => true) => {
+    for (let attempt = 1; ; attempt++) {
+      const path = await destination(d, dirname(target), basename(target), conflict);
+      try {
+        return { path, entry: await write(path) };
+      }
+      catch (e) {
+        if (conflict !== "rename" || !isFmError(e, "EXISTS") || attempt >= RENAME_ATTEMPTS || !resendable())
+          throw e;
+      }
+    }
+  };
+
   /** Copies or moves `path` into `dest` on another mount, streaming one file at a time. */
   const transfer = async (c: unknown, op: "move" | "copy", mountId: string, path: string, dest: Target, conflict: FmConflict, event: EventDraft): Promise<ItemOutcome> => {
     const src = await resolve(c, mountId, path, op);
@@ -549,7 +692,7 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
     const items = await collect(from, [src.path], {
       maxEntries: limits.archiveMaxEntries,
       maxBytes: limits.archiveMaxBytes,
-    }, p => hidden(src.mount, p));
+    }, walkFilter(src.mount, capsReader(c, src.mount), true));
     const to = await destination(into, dest.path, basename(src.path), conflict);
     assertVisible(dest.mount, to);
     if (conflict !== "rename" && await exists(into, to)) {
@@ -674,13 +817,13 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
   app.get("/m/:mount/list", describeRoute({
     tags: [TAG],
     summary: "List a directory",
-    description: "Directories first, then sorted by `sort`. `cursor` is an opaque offset. `hidden=0` drops dot entries, `ignored=0` drops entries the driver marks ignored; `ignored` counts those before filtering.",
+    description: "Directories first, then sorted by `sort`. `cursor` is opaque: later pages are served from a snapshot of the first page's listing for a few seconds, and mutations through this API drop it. `hidden=0` drops dot entries, `ignored=0` drops entries the driver marks ignored; `ignored` counts those before filtering.",
     responses: {
       200: ok(listResultSchema, "Listing"),
       ...ERRORS,
     },
   }), v("query", pathQuery.extend({
-    cursor: z.string().regex(/^\d+$/).optional(),
+    cursor: z.string().regex(/^(?:[\da-f-]{36}\.)?\d+$/).optional(),
     limit: z.coerce.number().int().min(1).max(1000).default(200),
     sort: sortKeySchema.default("name"),
     order: z.enum(["asc", "desc"]).default("asc"),
@@ -690,41 +833,83 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
   })), async (c) => {
     const q = c.req.valid("query");
     const t = await resolve(c, c.req.param("mount"), q.path);
-    const self = await t.mount.driver.stat(t.path);
-    if (self.kind !== "dir")
-      throw new FmError("NOT_A_DIR", "Not a directory");
-    const needle = q.q?.trim().toLocaleLowerCase();
-    const raw = (await t.mount.driver.list(t.path)).filter(e => !hidden(t.mount, e.path));
-    const ignored = raw.filter(e => e.ignored === true).length;
-    const all = raw.filter(e => (q.hidden === "1" || !e.name.startsWith("."))
-      && (q.ignored === "1" || e.ignored !== true)
-      && (!needle || e.name.toLocaleLowerCase().includes(needle)));
-    if (all.length > limits.maxListEntries)
-      throw new FmError("TOO_LARGE", `Directory has more than ${limits.maxListEntries} entries`);
-    const dir = q.order === "asc"
-      ? 1
-      : -1;
-    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-    all.sort((a, b) => {
-      if (a.kind !== b.kind) {
-        return a.kind === "dir"
-          ? -1
-          : 1;
+    const key = JSON.stringify([
+      t.mount.id,
+      t.path,
+      q.sort,
+      q.order,
+      q.q ?? "",
+      q.hidden,
+      q.ignored,
+    ]);
+    // Numeric cursors predate snapshots and always re-list.
+    const [snapId, at] = q.cursor?.includes(".")
+      ? q.cursor.split(".") as [string, string]
+      : [undefined, q.cursor ?? "0"];
+    const now = Date.now();
+    let snap = snapId === undefined
+      ? undefined
+      : snapshots.get(snapId);
+    // The driver check stops a cursor from serving one storage's listing to
+    // another mount with the same id; drivers built per request never hit.
+    if (snap && (snap.key !== key || snap.driver !== t.mount.driver || snap.expires <= now))
+      snap = undefined;
+    if (!snap) {
+      const generation = generations.get(t.mount.id) ?? 0;
+      const self = await t.mount.driver.stat(t.path);
+      if (self.kind !== "dir")
+        throw new FmError("NOT_A_DIR", "Not a directory");
+      const needle = q.q?.trim().toLocaleLowerCase();
+      const raw = (await t.mount.driver.list(t.path)).filter(e => !hidden(t.mount, e.path));
+      const ignored = raw.filter(e => e.ignored === true).length;
+      const all = raw.filter(e => (q.hidden === "1" || !e.name.startsWith("."))
+        && (q.ignored === "1" || e.ignored !== true)
+        && (!needle || e.name.toLocaleLowerCase().includes(needle)));
+      if (all.length > limits.maxListEntries)
+        throw new FmError("TOO_LARGE", `Directory has more than ${limits.maxListEntries} entries`);
+      const dir = q.order === "asc"
+        ? 1
+        : -1;
+      const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+      all.sort((a, b) => {
+        if (a.kind !== b.kind) {
+          return a.kind === "dir"
+            ? -1
+            : 1;
+        }
+        const primary = q.sort === "name"
+          ? collator.compare(a.name, b.name)
+          : (q.sort === "size"
+              ? a.size - b.size
+              : a.mtime - b.mtime);
+        return (primary || collator.compare(a.name, b.name)) * dir;
+      });
+      snap = {
+        id: crypto.randomUUID(),
+        key,
+        mount: t.mount.id,
+        driver: t.mount.driver,
+        expires: Date.now() + LIST_SNAPSHOT_TTL_MS,
+        self,
+        all,
+        ignored,
+      };
+      if ((generations.get(t.mount.id) ?? 0) === generation) {
+        for (const [id, old] of snapshots) {
+          if (old.expires <= now || snapshots.size >= LIST_SNAPSHOTS_MAX)
+            snapshots.delete(id);
+        }
+        snapshots.set(snap.id, snap);
       }
-      const primary = q.sort === "name"
-        ? collator.compare(a.name, b.name)
-        : (q.sort === "size"
-            ? a.size - b.size
-            : a.mtime - b.mtime);
-      return (primary || collator.compare(a.name, b.name)) * dir;
-    });
-    const offset = Number(q.cursor ?? 0);
+    }
+    const { all, ignored } = snap;
+    const offset = Number(at);
     const items = all.slice(offset, offset + q.limit).map(e => toEntry(t, e));
     const next = offset + q.limit < all.length
-      ? String(offset + q.limit)
+      ? `${snap.id}.${offset + q.limit}`
       : undefined;
     return c.json({
-      entry: toEntry(t, self),
+      entry: toEntry(t, snap.self),
       items,
       total: all.length,
       ...(next
@@ -939,11 +1124,18 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
     });
     if (c.req.header("if-none-match") === etag)
       return new Response(null, { status: 304, headers });
-    const thumb = await options.thumbnail(host(c), {
-      entry: e,
-      width,
-      read: async () => (await d.read(t.path)).body,
-    });
+    await thumbnails.acquire(c.req.raw.signal);
+    let thumb: Awaited<ReturnType<FmThumbnailHook<E>>>;
+    try {
+      thumb = await options.thumbnail(host(c), {
+        entry: e,
+        width,
+        read: async () => (await d.read(t.path)).body,
+      });
+    }
+    finally {
+      thumbnails.release();
+    }
     if (!thumb)
       throw none();
     headers.set("Content-Type", thumb.type);
@@ -953,7 +1145,7 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
   app.put("/m/:mount/write", describeRoute({
     tags: [TAG],
     summary: "Write a file",
-    description: "Raw request body. `If-Match` guards overwrites; `conflict` decides what happens when the file exists.",
+    description: "Raw request body. `If-Match` guards overwrites; `conflict` decides what happens when the file exists. With `rename`, a file created concurrently under the same name gets 409 if it is only detected after the body was sent.",
     responses: {
       200: ok(entrySchema, "Written entry"),
       412: err("ETag mismatch"),
@@ -981,22 +1173,26 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
         throw new FmError("TOO_LARGE", `Upload exceeds ${limits.maxUploadBytes} bytes`);
       const ifMatch = c.req.header("if-match")?.replace(/^W\//, "").replace(/"/g, "");
       const d = t.mount.driver;
-      const path = await destination(d, dirname(t.path), basename(t.path), q.conflict);
+      // Drivers check the target before reading the body, so the usual conflict leaves it
+      // unread and `rename` can send it again under the next free name.
+      let read = false;
       const body = c.req.raw.body
-        ? limitStream(c.req.raw.body, limits.maxUploadBytes)
+        ? limitStream(c.req.raw.body, limits.maxUploadBytes, () => {
+            read = true;
+          })
         : new Uint8Array();
-      const written = await d.write(path, body, {
+      const { path, entry: written } = await writeFree(d, t.path, q.conflict, p => d.write(p, body, {
         ...changeCtx(c),
         ...(ifMatch
           ? { ifMatch }
           : {}),
-        ...(q.conflict === "fail"
-          ? { exclusive: true }
-          : {}),
+        ...(q.conflict === "overwrite"
+          ? {}
+          : { exclusive: true }),
         ...(contentLength === undefined
           ? {}
           : { size: length }),
-      });
+      }), () => !read && !(body instanceof ReadableStream && body.locked));
       event.path = path;
       return c.json(toEntry(t, written));
     });
@@ -1092,6 +1288,9 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
           const d = src.mount.driver;
           if (src.path === "/" || isWithin(dest.path, src.path))
             throw new FmError("INVALID", "Cannot move or copy a directory into itself");
+          // A copy exposes the whole source, so every folder in it must be readable.
+          if (req.op === "copy" && options.authorize)
+            await walk(d, [await d.stat(src.path)], walkFilter(src.mount, capsReader(c, src.mount), true), () => {});
           let to = await destination(d, dest.path, basename(src.path), req.conflict);
           if (to === src.path) {
             if (req.op === "move") {
@@ -1145,7 +1344,7 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
     const body = await zipStream(first.mount.driver, targets.map(t => t.path), {
       maxEntries: limits.archiveMaxEntries,
       maxBytes: limits.archiveMaxBytes,
-    }, p => hidden(first.mount, p));
+    }, walkFilter(first.mount, capsReader(c, first.mount)));
     const name = `${targets.length === 1
       ? (basename(first.path) || first.mount.label)
       : first.mount.label}.zip`;
@@ -1177,26 +1376,22 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
     const root = await d.stat(t.path);
     if (root.kind === "file")
       return c.json({ ...usage, bytes: root.size, files: 1 });
-    const queue = [t.path];
     let seen = 0;
-    while (queue.length > 0 && !usage.truncated) {
-      for (const e of await d.list(queue.shift()!)) {
-        if (hidden(t.mount, e.path))
-          continue;
-        if (++seen > limits.archiveMaxEntries) {
-          usage.truncated = true;
-          break;
-        }
-        if (e.kind === "dir") {
-          usage.dirs++;
-          queue.push(e.path);
-        }
-        else {
-          usage.files++;
-          usage.bytes += e.size;
-        }
+    await walk(d, [root], walkFilter(t.mount, capsReader(c, t.mount)), (e) => {
+      if (e === root)
+        return;
+      if (++seen > limits.archiveMaxEntries) {
+        usage.truncated = true;
+        return false;
       }
-    }
+      if (e.kind === "dir") {
+        usage.dirs++;
+      }
+      else {
+        usage.files++;
+        usage.bytes += e.size;
+      }
+    });
     return c.json(usage);
   });
 
@@ -1218,25 +1413,29 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
     const q = c.req.valid("query");
     const t = await resolve(c, c.req.param("mount"), q.path);
     const d = t.mount.driver;
-    if ((await d.stat(t.path)).kind !== "dir")
+    const root = await d.stat(t.path);
+    if (root.kind !== "dir")
       throw new FmError("NOT_A_DIR", "Not a directory");
-    const granted = new Map<string, FmCaps>();
-    const capsOf = async (path: string) => {
-      let caps = granted.get(path);
-      if (!caps) {
-        caps = intersectCaps(mountCaps(t.mount), options.authorize
-          ? await options.authorize(host(c), { mount: t.mount, path })
-          : ALL_CAPS);
-        granted.set(path, caps);
-      }
-      return caps;
-    };
+    const capsOf = capsReader(c, t.mount);
     const fuzzy = q.mode === "fuzzy";
     const relative = (path: string) => (t.path === "/"
       ? path
       : path.slice(t.path.length));
     const dropped = (e: FmDriverEntry) => (q.hidden === "0" && e.path.split("/").some(s => s.startsWith(".")))
       || (q.ignored === "0" && e.ignored === true);
+    /** Caps of `path`, or undefined when it or a folder between `t.path` and it lacks `read`. */
+    const visibleCaps = async (path: string) => {
+      let dir = t.path;
+      for (const name of relative(path).split("/").filter(Boolean).slice(0, -1)) {
+        dir = joinPath(dir, name);
+        if (!(await capsOf(dir)).read)
+          return undefined;
+      }
+      const caps = await capsOf(path);
+      return caps.read
+        ? caps
+        : undefined;
+    };
     let truncated = false;
     let candidates = await d.search?.(t.path, q.q, {
       limit: q.limit,
@@ -1247,35 +1446,35 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
       truncated = candidates.length >= q.limit;
     }
     else {
-      candidates = [];
+      const found: FmDriverEntry[] = [];
+      candidates = found;
       const needle = q.q.toLocaleLowerCase();
-      const queue = [t.path];
+      const filter = walkFilter(t.mount, capsOf);
       let seen = 0;
-      while (queue.length > 0 && !truncated) {
-        for (const e of await d.list(queue.shift()!)) {
-          if (hidden(t.mount, e.path) || dropped(e))
-            continue;
-          // Fuzzy mode ranks afterwards, so it keeps every match within the budget.
-          if ((!fuzzy && candidates.length >= q.limit) || ++seen > limits.archiveMaxEntries) {
-            truncated = true;
-            break;
-          }
-          if (fuzzy
-            ? fuzzyScore(q.q, relative(e.path)) !== null
-            : e.name.toLocaleLowerCase().includes(needle)) {
-            candidates.push(e);
-          }
-          if (e.kind === "dir" && (await capsOf(e.path)).read)
-            queue.push(e.path);
+      await walk(d, [root], {
+        ...filter,
+        skip: e => filter.skip(e) || dropped(e),
+      }, (e) => {
+        if (e === root)
+          return;
+        // Fuzzy mode ranks afterwards, so it keeps every match within the budget.
+        if ((!fuzzy && found.length >= q.limit) || ++seen > limits.archiveMaxEntries) {
+          truncated = true;
+          return false;
         }
-      }
+        if (fuzzy
+          ? fuzzyScore(q.q, relative(e.path)) !== null
+          : e.name.toLocaleLowerCase().includes(needle)) {
+          found.push(e);
+        }
+      });
     }
     const items: FmEntry[] = [];
     for (const e of candidates) {
       if (hidden(t.mount, e.path) || dropped(e))
         continue;
-      const caps = await capsOf(e.path);
-      if (caps.read)
+      const caps = await visibleCaps(e.path);
+      if (caps)
         items.push(toEntry({ ...t, caps }, e));
     }
     if (fuzzy) {
@@ -1433,22 +1632,29 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
     return session;
   };
 
-  /** Drops up to 100 expired sessions; best effort. */
-  const sweepUploads = async (d: FmDriver) => {
-    const entries = await d.list(UPLOADS_DIR).catch(() => []);
+  /** When each mount was last swept, by mount id. */
+  const sweptAt = new Map<string, number>();
+
+  /**
+   * Reads up to 100 session records, oldest first, and drops the expired
+   * ones; at most once a minute per mount. Keyed by mount id, not driver,
+   * since hosts may build a driver per request; this assumes a mount id maps
+   * to one storage per host. Best effort.
+   */
+  const sweepUploads = async (mountId: string, d: FmDriver) => {
     const now = Date.now();
-    let dropped = 0;
-    for (const e of entries) {
-      if (dropped >= 100)
-        break;
-      if (e.kind !== "file" || !e.name.endsWith(".json"))
-        continue;
+    if (now - (sweptAt.get(mountId) ?? -Infinity) < 60_000)
+      return;
+    sweptAt.set(mountId, now);
+    const records = (await d.list(UPLOADS_DIR).catch(() => []))
+      .filter(e => e.kind === "file" && e.name.endsWith(".json"))
+      .sort((a, b) => a.mtime - b.mtime)
+      .slice(0, 100);
+    for (const e of records) {
       try {
         const rec = await readRecord(d, e.name.slice(0, -".json".length));
-        if (rec.expiresAt < now) {
-          dropped++;
+        if (rec.expiresAt < now)
           await discardUpload(d, rec);
-        }
       }
       catch {}
     }
@@ -1462,7 +1668,7 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
   app.post("/m/:mount/uploads", describeRoute({
     tags: [TAG],
     summary: "Start an upload session",
-    description: "Resumable upload of `size` bytes in `parts` parts. The target path is fixed now; `rename` picks a free name.",
+    description: "Resumable upload of `size` bytes in `parts` parts. The target path is fixed now; `rename` picks a free name, and picks again on completion if another writer took it meanwhile (not for driver multipart uploads).",
     responses: {
       201: ok(uploadSessionSchema, "Upload session"),
       413: err("Too large"),
@@ -1478,7 +1684,7 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
     if (body.size > limits.maxSessionUploadBytes)
       throw new FmError("TOO_LARGE", `Upload exceeds ${limits.maxSessionUploadBytes} bytes`);
     const d = t.mount.driver;
-    await sweepUploads(d);
+    await sweepUploads(t.mount.id, d);
     const target = await destination(d, dirname(t.path), basename(t.path), body.conflict);
     if (body.conflict === "fail" && await exists(d, target))
       throw new FmError("EXISTS", "Already exists");
@@ -1594,6 +1800,7 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
           : { exclusive: true }),
       };
       let written: FmDriverEntry;
+      let path = rec.path;
       try {
         const parts = await storedParts(d, rec);
         for (let n = 1; n <= rec.parts; n++) {
@@ -1601,10 +1808,15 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
             throw new FmError("INVALID", `Missing part ${n}`);
         }
         if (rec.uploadId && d.multipart) {
+          // A driver multipart upload is bound to its key: a name taken meanwhile fails with EXISTS.
           written = await d.multipart.complete(rec.path, rec.uploadId, parts, opts);
         }
         else {
-          written = await d.write(rec.path, joinParts(d, rec), opts);
+          ({ path, entry: written } = await writeFree(d, rec.path, rec.conflict, async (p) => {
+            if (p !== rec.path)
+              await resolve(c, mount, p, "write");
+            return d.write(p, joinParts(d, rec), opts);
+          }));
           await d.remove(partsDir(rec.id)).catch(() => {});
         }
       }
@@ -1614,6 +1826,7 @@ export function createFmRouter<E extends Env = Env>(options: FmRouterOptions<E>)
         throw e;
       }
       await d.remove(recordPath(rec.id)).catch(() => {});
+      event.path = path;
       return c.json(toEntry(t, written));
     });
   });

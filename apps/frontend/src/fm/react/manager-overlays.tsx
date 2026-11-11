@@ -13,12 +13,13 @@ import { ConfirmDeleteDialog, ManageDrivesDialog, NameDialog, UploadConflictDial
 import { clearDraft } from "./drafts";
 import { maskEntry } from "./features";
 import { IconButton } from "./icon-button";
-import { topName } from "./manager-shared";
+import { MAC, topName } from "./manager-shared";
 import { visibleMounts } from "./mount-visibility";
 import { PreviewDialog } from "./preview-dialog";
 import { DiscardChangesDialog } from "./preview-pane";
 import { QuickOpen } from "./quick-open";
 import { ReviewDialog } from "./review-dialog";
+import { ShortcutsDialog } from "./shortcuts-dialog";
 import { UploadPanel } from "./upload-panel";
 
 export function ManagerOverlays({ fm }: { fm: FmController }) {
@@ -288,6 +289,7 @@ export function ManagerOverlays({ fm }: { fm: FmController }) {
           }}
         />
       )}
+      {dialog?.kind === "shortcuts" && <ShortcutsDialog labels={labels} mac={MAC} onClose={() => setDialog(undefined)} />}
       {changeMessage.asking && <ChangeMessageDialog asking={changeMessage.asking} labels={labels} />}
     </>
   );

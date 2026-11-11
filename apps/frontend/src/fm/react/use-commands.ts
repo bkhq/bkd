@@ -14,13 +14,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 
 import { fmKeys, useFmMutations, useTrash } from "../client/hooks";
-import { createUploadQueue, xhrTransport } from "../client/upload";
+import { createUploadQueue, guardUploadsOnUnload, xhrTransport } from "../client/upload";
 import { absolutePath, dirname, joinPath, relativePath } from "../core/path";
 import { clearDrafts } from "./drafts";
 import { filesFromDropzone, filesFromInput } from "./drop";
 import { maskEntry } from "./features";
 import { readLast, topName, triggerDownload } from "./manager-shared";
 import { visibleMounts } from "./mount-visibility";
+import { opensShortcuts } from "./shortcuts";
 import { EMPTY_SELECTION, prune, select, step } from "./state";
 import { undoFor } from "./undo";
 
@@ -107,6 +108,8 @@ export function useCommands(props: FileManagerProps, v: FmViewState, l: FmListin
     sessions: m => mountsRef.current?.find(x => x.id === m)?.uploadSessions !== false,
     onUploaded: task => onUploadedRef.current(task),
   }));
+  // Leaving the page would drop queued and running uploads.
+  useEffect(() => guardUploadsOnUnload(queue), [queue]);
 
   const shownError = error ?? (pendingHere ? undefined : listing.error?.message) ?? (below
     ? search.error?.message
@@ -496,6 +499,11 @@ export function useCommands(props: FileManagerProps, v: FmViewState, l: FmListin
     if (mod && e.key.toLowerCase() === "p" && canQuickOpen && !dialog && !preview && !quickOpen) {
       e.preventDefault();
       setQuickOpen(true);
+      return;
+    }
+    if (opensShortcuts(e, !!dialog || !!preview || quickOpen)) {
+      e.preventDefault();
+      setDialog({ kind: "shortcuts" });
       return;
     }
     if (inTrash || dialog || preview || (e.target as HTMLElement).closest("input, textarea, [contenteditable]"))

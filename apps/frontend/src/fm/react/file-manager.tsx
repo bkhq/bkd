@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { FmClient } from "../client/client";
 import type { FmEntry } from "../core/schema";
 import type { FmChangeMessageOptions } from "./change-message";
@@ -69,6 +70,13 @@ export interface FileManagerProps {
   columns?: FmColumn[];
   /** Host tabs of the details panel (versions, shares, activity …). */
   detailTabs?: FmDetailTab[];
+  /**
+   * Host controls (panel maximize, close …) shown at the right end of the bar that touches
+   * the manager's top-right corner: the main pane header, or the explorer row while a narrow
+   * manager shows the folder tree. Always visible, not part of the hover toolbar; ignored in
+   * pick mode.
+   */
+  headerActions?: ReactNode;
   /**
    * Pick mode, used by `FilePicker`: files are selected and confirmed instead of previewed.
    * @internal

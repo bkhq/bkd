@@ -1,4 +1,5 @@
 import type { FmController } from "./use-file-manager";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +13,7 @@ import { NO_FILTERS } from "./filters";
 import { EMPTY_SELECTION } from "./state";
 
 /** The folder listing with its context menus. */
-export function ManagerList({ fm }: { fm: FmController }) {
+export function ManagerList({ fm, roomy }: { fm: FmController; roomy?: boolean }) {
   const {
     client,
     query,
@@ -42,8 +43,9 @@ export function ManagerList({ fm }: { fm: FmController }) {
     blankMenu,
     columns,
   } = fm;
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChange={setMenuOpen}>
       <ContextMenuTrigger
         render={<div className="flex min-h-0 flex-1 flex-col" />}
         onContextMenu={(e) => {
@@ -54,6 +56,8 @@ export function ManagerList({ fm }: { fm: FmController }) {
         <FileList
           columns={columns}
           compact={narrow}
+          roomy={roomy}
+          menuOpen={menuOpen}
           entries={entries}
           view={view}
           selection={selection}

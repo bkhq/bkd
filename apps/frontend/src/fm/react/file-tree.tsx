@@ -14,6 +14,7 @@ import { CHANGE_STYLE } from "./changes";
 import { setDownloadUrl } from "./drop";
 import { DRAG_TYPE, EntryIcon } from "./file-list";
 import { groupMountsByDriver, groupMountsBySpace } from "./mount-visibility";
+import { springDrag, springKey } from "./spring-load";
 
 /** What a tree row stands for when it is right-clicked: a mount root or an entry. */
 export interface FmTreeTarget {
@@ -102,7 +103,7 @@ function FolderLoader({ t, mount, path, onEntries }: { t: TreeProps; mount: stri
 }
 
 /** Tree item wrapper: accessible name / state, drag source and an optional drop target. */
-function Item({ row, at, label, active, expanded, title, drag, onDrop, onContextMenu, children }: {
+function Item({ row, at, label, active, expanded, title, drag, onDrop, onSpring, onContextMenu, children }: {
   row: { depth: number; index: number; start: number };
   /** Entry or mount root the row stands for (`data-tree-path` / `data-tree-mount`, for tests and hosts). */
   at?: { mount: string; path: string } | undefined;
@@ -113,10 +114,17 @@ function Item({ row, at, label, active, expanded, title, drag, onDrop, onContext
   /** Makes the row draggable as this entry (files also carry a desktop download). */
   drag?: { mount: string; path: string; entry?: FmEntry; client?: FmClient } | undefined;
   onDrop?: ((paths: string[], from: string | undefined) => void) | undefined;
+  /** Opens the folder when a drag rests on the row (spring-loaded folders); requires `at`. */
+  onSpring?: (() => void) | undefined;
   onContextMenu?: (() => void) | undefined;
   children: ReactNode;
 }) {
   const [over, setOver] = useState(false);
+  const key = at && springKey(at.mount, at.path);
+  useEffect(() => () => {
+    if (key)
+      springDrag.leave(key);
+  }, [key]);
   const accepts = (e: DragEvent) => !!onDrop && e.dataTransfer.types.includes(DRAG_TYPE);
   return (
     <div
@@ -137,19 +145,30 @@ function Item({ row, at, label, active, expanded, title, drag, onDrop, onContext
         e.stopPropagation();
         e.dataTransfer.setData(DRAG_TYPE, JSON.stringify([drag.path]));
         e.dataTransfer.setData(MOUNT_TYPE, drag.mount);
+        springDrag.start([
+          springKey(drag.mount, drag.path),
+        ]);
         if (drag.entry && drag.client)
           setDownloadUrl(e.dataTransfer, drag.client, drag.entry);
         e.dataTransfer.effectAllowed = "copyMove";
       })}
+      onDragEnd={springDrag.end}
       onDragOver={(e) => {
+        if (onSpring && key)
+          springDrag.over(e.dataTransfer.types, DRAG_TYPE, key, onSpring);
         if (!accepts(e))
           return;
         e.preventDefault();
         setOver(true);
       }}
-      onDragLeave={() => setOver(false)}
+      onDragLeave={(e) => {
+        setOver(false);
+        if (key && !e.currentTarget.contains(e.relatedTarget as Node | null))
+          springDrag.leave(key);
+      }}
       onDrop={(e) => {
         setOver(false);
+        springDrag.end();
         if (!accepts(e))
           return;
         e.preventDefault();
@@ -611,6 +630,12 @@ export function FileTree(props: TreeProps & {
               ? props.readOnlyLabel
               : undefined}
             onDrop={dropOn(t, info.id, "/", !readOnly)}
+            onSpring={readOnly
+              ? undefined
+              : () => {
+                  setOpen(row, true);
+                  t.onNavigate(info.id, "/");
+                }}
             onContextMenu={() => t.onContextTarget?.({ mount: info.id })}
           >
             <Button
@@ -649,6 +674,12 @@ export function FileTree(props: TreeProps & {
               ? { mount: entry.mount, path: entry.path }
               : undefined}
             onDrop={dropOn(t, entry.mount, entry.path, entry.caps.write)}
+            onSpring={entry.caps.write
+              ? () => {
+                  setOpen(row, true);
+                  t.onNavigate(entry.mount, entry.path);
+                }
+              : undefined}
             onContextMenu={() => t.onContextTarget?.({ mount: entry.mount, entry })}
           >
             <Button

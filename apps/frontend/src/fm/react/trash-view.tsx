@@ -197,7 +197,7 @@ export function TrashView({ mount, mountLabel, retentionDays, client, labels, on
                             ? ""
                             : dirname(item.path)}`}
                         </td>
-                        <td className="px-3 py-1 text-muted-foreground">{new Date(item.deletedAt).toLocaleString()}</td>
+                        <td className="px-3 py-1 text-muted-foreground">{new Date(item.deletedAt).toLocaleString(labels.locale)}</td>
                         {showExpiry && (
                           <td className="px-3 py-1 text-muted-foreground">
                             {left === undefined

@@ -1,6 +1,6 @@
 import type { FmUploadQueue } from "../client/upload";
 import type { FmLabels } from "./labels";
-import { CheckIcon, XIcon } from "lucide-react";
+import { CheckIcon, PauseIcon, PlayIcon, XIcon } from "lucide-react";
 import { useStore } from "zustand";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -10,7 +10,7 @@ import { MenuScroll } from "./menu-scroll";
 /** Floating panel listing in-flight and finished uploads. */
 export function UploadPanel({ queue, labels }: { queue: FmUploadQueue; labels: FmLabels }) {
   const tasks = useStore(queue, s => s.tasks);
-  const { cancel, clearFinished } = queue.getState();
+  const { cancel, pause, resume, clearFinished } = queue.getState();
   if (tasks.length === 0)
     return null;
   return (
@@ -25,21 +25,35 @@ export function UploadPanel({ queue, labels }: { queue: FmUploadQueue; labels: F
             <li key={t.id} className="flex items-center gap-2 py-1" data-status={t.status}>
               <div className="min-w-0 flex-1">
                 <div className="truncate" title={t.path}>{t.name}</div>
-                {t.status === "uploading" && (
+                {(t.status === "uploading" || t.status === "paused") && (
                   <Progress value={t.size
                     ? (t.loaded / t.size) * 100
                     : 0}
                   />
                 )}
                 {t.status === "error" && <div className="truncate text-destructive" title={t.error}>{t.error}</div>}
+                {t.status === "paused" && <div className="text-muted-foreground">{labels.uploadPaused}</div>}
                 {t.status === "canceled" && <div className="text-muted-foreground">{labels.cancel}</div>}
               </div>
               {t.status === "done"
                 ? <CheckIcon className="size-4 text-emerald-500" />
-                : (t.status === "queued" || t.status === "uploading") && (
-                    <IconButton size="icon-xs" label={labels.cancel} onClick={() => cancel(t.id)}>
-                      <XIcon />
-                    </IconButton>
+                : (t.status === "queued" || t.status === "uploading" || t.status === "paused") && (
+                    <>
+                      {t.status === "paused"
+                        ? (
+                            <IconButton size="icon-xs" label={labels.resumeUpload} onClick={() => resume(t.id)}>
+                              <PlayIcon />
+                            </IconButton>
+                          )
+                        : (
+                            <IconButton size="icon-xs" label={labels.pauseUpload} onClick={() => pause(t.id)}>
+                              <PauseIcon />
+                            </IconButton>
+                          )}
+                      <IconButton size="icon-xs" label={labels.cancel} onClick={() => cancel(t.id)}>
+                        <XIcon />
+                      </IconButton>
+                    </>
                   )}
             </li>
           ))}
