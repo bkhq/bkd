@@ -1,4 +1,3 @@
-import { FolderOpen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SidePanel, SidePanelActions } from '@/components/ui/side-panel'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -39,28 +38,23 @@ export function FileBrowserDrawer() {
       resizeLabel={t('fileBrowser.resizePanel')}
       fullscreen={isMobile || isFullscreen}
       onClose={close}
-      title={(
-        <>
-          <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <span className="truncate text-xs font-medium text-muted-foreground">
-            {t('fileBrowser.title')}
-          </span>
-        </>
-      )}
-      actions={(
-        <SidePanelActions
-          onMinimize={minimize}
-          minimizeLabel={t('terminal.minimize')}
-          isFullscreen={isFullscreen}
-          onToggleFullscreen={isMobile ? undefined : toggleFullscreen}
-          fullscreenLabel={t('terminal.maximize')}
-          restoreLabel={t('terminal.back')}
-          onClose={close}
-          closeLabel={t('fileBrowser.close')}
-        />
-      )}
     >
-      <WorkspaceFiles projectId={projectId} issueId={issueId} />
+      <WorkspaceFiles
+        projectId={projectId}
+        issueId={issueId}
+        headerActions={(
+          <SidePanelActions
+            onMinimize={minimize}
+            minimizeLabel={t('terminal.minimize')}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={isMobile ? undefined : toggleFullscreen}
+            fullscreenLabel={t('terminal.maximize')}
+            restoreLabel={t('terminal.back')}
+            onClose={close}
+            closeLabel={t('fileBrowser.close')}
+          />
+        )}
+      />
     </SidePanel>
   )
 }

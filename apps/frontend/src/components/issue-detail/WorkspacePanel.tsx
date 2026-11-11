@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2, PanelRight } from 'lucide-react'
+import { Maximize2, Minimize2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { WorkspaceFiles } from '@/components/files/WorkspaceFiles'
 import { ResizeHandle } from '@/components/ui/resize-handle'
@@ -45,7 +45,7 @@ export function WorkspacePanel({
           onClick={toggleMaximized}
         />
       )}
-      <SidePanelButton icon={PanelRight} label={t('workspace.hidePanel')} onClick={hide} />
+      <SidePanelButton icon={X} label={t('workspace.hidePanel')} onClick={hide} />
     </>
   )
 

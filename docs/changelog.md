@@ -1404,3 +1404,11 @@ hide-panel go into the file manager's top bar through `headerActions`, and the c
 shows only while the panel is closed. The unused `workspace.files` i18n key is removed. The chat input's folder button
 opens the file browser drawer, as the board and issue list do, instead of the workspace panel; the changed-files
 button still toggles the panel.
+
+## 2026-11-11 05:10 [progress]
+
+The file browser drawer drops its own "File manager" title bar too: minimize, fullscreen and close go into the file
+manager's top bar through `headerActions`, so the drawer is the file manager itself. v0.3.38 changed only the issue
+workspace panel and left this drawer with two headers.
+The issue workspace panel's hide button uses the close icon instead of a panel icon, which looked like the file
+manager's own sidebar toggle next to it.
