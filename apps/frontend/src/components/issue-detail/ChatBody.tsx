@@ -145,7 +145,6 @@ export function ChatBody({
   issue,
   showDiff,
   onToggleDiff,
-  onToggleFiles,
   scrollRef: externalScrollRef,
   onAfterDelete,
 }: {
@@ -154,7 +153,6 @@ export function ChatBody({
   issue: Issue
   showDiff: boolean
   onToggleDiff: () => void
-  onToggleFiles?: () => void
   scrollRef?: React.RefObject<HTMLDivElement | null>
   onAfterDelete?: () => void
 }) {
@@ -404,7 +402,6 @@ export function ChatBody({
         issueId={issueId}
         diffOpen={showDiff}
         onToggleDiff={onToggleDiff}
-        onToggleFiles={onToggleFiles}
         scrollRef={scrollRef}
         engineType={issue.engineProfileId ?? issue.engineType ?? undefined}
         baseEngine={issue.engineType ?? undefined}

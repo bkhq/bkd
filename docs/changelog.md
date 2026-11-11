@@ -1394,3 +1394,13 @@ env vars, and each engine can add custom models (an id, a name, a base model fro
 every model picker, run the CLI on their base model, and apply their env vars between project and virtual-engine env.
 Virtual engines are added, edited and removed from a dialog opened on their card; the form below the engine list is
 gone. Task: 20261110-1259-model-configs.
+
+## 2026-11-11 03:30 [progress]
+
+Re-copied the vendored file manager from `bkhq/filemanager` `92bfee0` (was `38b9f10`), including upstream's audit
+fixes (authorization, S3, listings, uploads, previews), keyboard shortcuts, spring-loaded folders and the new
+`headerActions` prop. The issue workspace panel drops its own "Workspace files" title bar: maximize / restore and
+hide-panel go into the file manager's top bar through `headerActions`, and the chat area's floating panel toggle now
+shows only while the panel is closed. The unused `workspace.files` i18n key is removed. The chat input's folder button
+opens the file browser drawer, as the board and issue list do, instead of the workspace panel; the changed-files
+button still toggles the panel.

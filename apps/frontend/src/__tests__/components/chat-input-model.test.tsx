@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChatInput } from '@/components/issue-detail/ChatInput'
+import { useFileBrowserStore } from '@/stores/file-browser-store'
 
 const updateMutate = vi.fn()
 const followUpMutate = vi.fn().mockResolvedValue({})
@@ -129,5 +130,14 @@ describe('chatInput pending edit', () => {
     expect(screen.getByRole('textbox')).toHaveValue('edit me')
     expect(screen.getByText('image.png')).toBeInTheDocument()
     expect(onConsumed).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('chatInput files button', () => {
+  it('opens the file browser drawer on the issue', () => {
+    useFileBrowserStore.setState({ isOpen: false, projectId: null, issueId: null })
+    renderInput('review', 'completed')
+    fireEvent.click(screen.getByTitle('diff.openFiles'))
+    expect(useFileBrowserStore.getState()).toMatchObject({ isOpen: true, projectId: 'p1', issueId: 'i1' })
   })
 })

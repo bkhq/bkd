@@ -67,7 +67,6 @@ export function ChatInput({
   issueId,
   diffOpen,
   onToggleDiff,
-  onToggleFiles,
   scrollRef,
   engineType,
   baseEngine,
@@ -87,8 +86,6 @@ export function ChatInput({
   issueId?: string
   diffOpen?: boolean
   onToggleDiff?: () => void
-  /** Toggles the files view; without it the button opens the file browser drawer. */
-  onToggleFiles?: () => void
   scrollRef?: React.RefObject<HTMLDivElement | null>
   /** The issue's engine: a virtual engine id or a real engine type. */
   engineType?: string
@@ -528,10 +525,7 @@ export function ChatInput({
         <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border/30">
           <button
             type="button"
-            onClick={() => {
-              if (onToggleFiles) onToggleFiles()
-              else if (projectId) toggleFileBrowserDrawer(projectId, issueId)
-            }}
+            onClick={() => projectId && toggleFileBrowserDrawer(projectId, issueId)}
             className="inline-flex items-center justify-center rounded-lg px-1.5 py-1 text-muted-foreground bg-muted/40 hover:bg-muted/60 transition-all duration-200"
             title={t('diff.openFiles')}
           >

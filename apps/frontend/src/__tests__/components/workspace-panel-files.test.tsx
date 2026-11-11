@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '@/i18n'
 import { WorkspacePanel } from '@/components/issue-detail/WorkspacePanel'
@@ -13,7 +14,12 @@ vi.mock('@/hooks/use-kanban', () => ({
 }))
 vi.mock('@/hooks/use-changes-summary', () => ({ useChangesSummary: () => null }))
 vi.mock('@/components/files/WorkspaceFiles', () => ({
-  WorkspaceFiles: ({ projectId, issueId }: { projectId: string, issueId: string }) => <div>{`file manager ${projectId}/${issueId}`}</div>,
+  WorkspaceFiles: ({ projectId, issueId, headerActions }: { projectId: string, issueId: string, headerActions?: ReactNode }) => (
+    <div>
+      <p>{`file manager ${projectId}/${issueId}`}</p>
+      <div data-testid="fm-header">{headerActions}</div>
+    </div>
+  ),
 }))
 
 function renderPanel() {
@@ -82,12 +88,20 @@ describe('workspace panel hide control', () => {
     await i18n.changeLanguage('en')
   })
 
-  it('leaves hiding the inline panel to the chat area\'s fixed toggle', () => {
+  it('shows its controls without a file manager to hold them', () => {
     renderPanel()
-    // The toggle stays in one place whether the panel is open or closed, so the
-    // inline panel must not render a second one that would appear and vanish.
-    expect(screen.queryByRole('button', { name: 'Hide side panel' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Maximize workspace' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide side panel' })).toBeInTheDocument()
+  })
+
+  it('puts its controls in the file manager\'s top bar instead of a title bar of its own', () => {
+    mocks.changes = { isLoading: false, isError: false, data: { root: '/wt/i1', gitRepo: true, files: [] }, refetch: vi.fn() }
+    renderPanel()
+    expect(screen.queryByText('Files')).toBeNull()
+    const header = within(screen.getByTestId('fm-header'))
+    expect(header.getByRole('button', { name: 'Maximize workspace' })).toBeInTheDocument()
+    fireEvent.click(header.getByRole('button', { name: 'Hide side panel' }))
+    expect(useWorkspacePanelStore.getState().isOpen).toBe(false)
   })
 
   it('keeps its own hide button in fullscreen, where nothing else can close it', () => {

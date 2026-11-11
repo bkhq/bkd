@@ -208,7 +208,6 @@ export function ChatArea({
           issue={issue}
           showDiff={panelOpen}
           onToggleDiff={togglePanel}
-          onToggleFiles={togglePanel}
           scrollRef={scrollRef}
           onAfterDelete={handleAfterDelete}
         />
@@ -289,16 +288,15 @@ export function ChatArea({
           )
         : null}
 
-      {/* One toggle for both states, pinned to the top-right corner above the
-          panel, so opening or closing never moves it. */}
-      {!isMobile && (
+      {/* Shows the closed panel; once open, the panel's top bar carries its own hide button */}
+      {!isMobile && !panelOpen && (
         <Button
           variant="ghost"
           size="icon"
           className="absolute right-3 top-2 z-[60] h-7 w-7 text-muted-foreground hover:text-foreground transition-colors"
           onClick={togglePanel}
-          aria-label={panelOpen ? t('workspace.hidePanel') : t('workspace.showPanel')}
-          title={panelOpen ? t('workspace.hidePanel') : t('workspace.showPanel')}
+          aria-label={t('workspace.showPanel')}
+          title={t('workspace.showPanel')}
         >
           <PanelRight className="h-4 w-4" />
         </Button>

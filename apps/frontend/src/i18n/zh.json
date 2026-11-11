@@ -940,7 +940,6 @@
     "closeConfirm": "消息将直接结束，不会通知代理。等待它的工作会保持阻塞，直到代理下次检查。"
   },
   "workspace": {
-    "files": "工作区文件",
     "showPanel": "显示侧边栏",
     "hidePanel": "隐藏侧边栏",
     "resizePanel": "调整侧边栏宽度",

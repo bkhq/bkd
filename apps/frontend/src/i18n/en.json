@@ -942,7 +942,6 @@
     "closeConfirm": "It ends without notifying the agent. Work waiting on it stays blocked until the agent checks again."
   },
   "workspace": {
-    "files": "Files",
     "showPanel": "Show side panel",
     "hidePanel": "Hide side panel",
     "resizePanel": "Resize side panel",

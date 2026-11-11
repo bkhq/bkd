@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
 import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createFmClient } from '@/fm/client/client'
@@ -17,7 +18,12 @@ const plugins = [markdownPlugin(), reviewPlugin()]
  * project directory (with one drive fm drops "Manage drives"), and refreshes
  * its listings when an issue's changes settle.
  */
-export function WorkspaceFiles({ projectId, issueId }: { projectId: string, issueId?: string | null }) {
+export function WorkspaceFiles({ projectId, issueId, headerActions }: {
+  projectId: string
+  issueId?: string | null
+  /** Host controls for the manager's top bar. */
+  headerActions?: ReactNode
+}) {
   const { i18n } = useTranslation()
   const queryClient = useQueryClient()
   const client = useMemo(() => createFmClient({ baseUrl: `/api/fm/${projectId}` }), [projectId])
@@ -42,6 +48,7 @@ export function WorkspaceFiles({ projectId, issueId }: { projectId: string, issu
       initialMount={initialMount}
       plugins={plugins}
       sidebar={{ hidden }}
+      headerActions={headerActions}
       storageKey="bkd-fm"
       className="flex-1 rounded-none border-0"
     />
