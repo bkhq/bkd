@@ -50,6 +50,8 @@ describe('engine update', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Update' }))
     expect(screen.getByText('v2.1.300 → v2.1.322')).toBeInTheDocument()
     expect(screen.getByText(/Successfully updated/)).toBeInTheDocument()
+    // The output scrolls in the ScrollArea base component
+    expect(screen.getByText(/Successfully updated/).closest('[data-slot="scroll-area-viewport"]')).not.toBeNull()
   })
 
   it('shows the error when it fails', () => {
