@@ -65,7 +65,7 @@ describe('ClaudeLogNormalizer', () => {
       expect(entries[1]!.toolDetail?.isResult).toBe(false)
     })
 
-    test('assistant image block → assistant-message carrying metadata.imageData (ENG-019)', () => {
+    test('assistant image block → assistant-message carrying metadata.imageData', () => {
       const entries = parseAll(
         normalizer,
         line({
@@ -947,7 +947,7 @@ describe('ClaudeLogNormalizer', () => {
     })
 
     // task_started / task_progress / task_notification now carry subagent
-    // attribution — see claude-subagent.test.ts (ENG-031).
+    // attribution — see claude-subagent.test.ts.
     test('streaming telemetry subtypes with no content are suppressed', () => {
       for (const subtype of ['thinking_tokens', 'task_updated', 'hook_started', 'api_retry']) {
         const result = normalizer.parse(line({ type: 'system', subtype }))
@@ -976,7 +976,7 @@ describe('ClaudeLogNormalizer', () => {
 
     // `status` carries the CLI's spinner label as its whole payload. One
     // `requesting` lands per API request, so a long turn buries the chat in
-    // them — see ENG-033.
+    // them.
     test('the activity indicator is suppressed', () => {
       for (const status of ['requesting', 'status']) {
         expect(normalizer.parse(line({ type: 'system', subtype: 'status', status }))).toBeNull()

@@ -8,8 +8,8 @@ import { createTestIssue, createTestProject, expectSuccess, get, waitFor } from 
  * The Claude executor's getAvailability() shells out to `claude --version` and
  * `claude auth status --json`, and the latter touches the rotating OAuth
  * credential. Running that per execution — concurrently, up to the execution
- * limit — races the refresh and can invalidate the session for every process
- * (ENG-034). Availability belongs to the cached engine probe, nowhere else.
+ * limit — races the refresh and can invalidate the session for every process.
+ * Availability belongs to the cached engine probe, nowhere else.
  */
 import './setup'
 

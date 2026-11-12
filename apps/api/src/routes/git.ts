@@ -38,7 +38,7 @@ git.openapi(createRoute({
   const { directory } = c.req.valid('json')
   const dir = resolve(directory)
 
-  // SEC-030: Validate directory is within workspace root
+  // Validate directory is within workspace root
   if (!await isInsideWorkspace(dir)) {
     return c.json({ success: false as const, error: 'Directory is outside the configured workspace' }, 403)
   }

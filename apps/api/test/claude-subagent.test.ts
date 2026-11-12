@@ -4,7 +4,7 @@ import type { NormalizedLogEntry } from '@/engines/types'
 import './setup'
 
 /**
- * Claude subagent observability (ENG-031).
+ * Claude subagent observability.
  *
  * Envelope shapes below were captured from a real
  * `claude -p --output-format=stream-json --verbose --forward-subagent-text`

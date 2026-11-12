@@ -20,8 +20,8 @@
  *    whose schema is ahead of its `__drizzle_migrations` watermark (the
  *    real-world "stuck chain" case) still converges.
  *
- * This is robust to both the ENG-009 migration-history re-alignment (file
- * content changed) and a non-monotonic journal `when` (ENG-010), neither of
+ * This is robust to both a re-aligned migration history (file
+ * content changed) and a non-monotonic journal `when`, neither of
  * which can be handled by hash- or timestamp-watermark matching.
  */
 import { Database } from 'bun:sqlite'

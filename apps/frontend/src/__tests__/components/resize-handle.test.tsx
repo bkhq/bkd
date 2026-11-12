@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ResizeHandle } from '@/components/ui/resize-handle'
 
-/** Shared panel resize handle (UI-004). */
+/** Shared panel resize handle. */
 
 function setup(props: Partial<Parameters<typeof ResizeHandle>[0]> = {}) {
   const onWidthChange = vi.fn()

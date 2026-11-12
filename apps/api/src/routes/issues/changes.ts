@@ -106,7 +106,7 @@ changes.openapi(createRoute({
   const path = c.req.query('path')?.trim()
   if (!path) return c.json({ success: false as const, error: 'Missing path' }, 400)
 
-  // SEC-019: Validate path against injection
+  // Validate path against injection
   if (path.startsWith('-')) {
     return c.json({ success: false as const, error: 'Invalid path: must not start with -' }, 400)
   }
@@ -132,7 +132,7 @@ changes.openapi(createRoute({
     }, 200)
   }
 
-  // SEC-019: Validate path is inside working directory on ALL code paths
+  // Validate path is inside working directory on ALL code paths
   if (!isPathInsideRoot(root, path)) {
     return c.json({ success: false as const, error: 'Invalid path' }, 400)
   }
@@ -205,7 +205,7 @@ changes.openapi(createRoute({
     }
 
     const oldPath = file.previousPath ?? path
-    // SEC-019: Validate previousPath too
+    // Validate previousPath too
     if (oldPath.startsWith('-') || oldPath.includes(':')) {
       return c.json({ success: false as const, error: 'Invalid path' }, 400)
     }

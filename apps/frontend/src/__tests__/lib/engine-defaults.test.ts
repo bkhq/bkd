@@ -8,7 +8,7 @@ describe('resolveDefaultEngine', () => {
     expect(resolveDefaultEngine('codex', 'claude-code', 'claude-code', installed)).toBe('codex')
   })
 
-  it('uses the project default when the user made no selection (ENG-012)', () => {
+  it('uses the project default when the user made no selection', () => {
     expect(resolveDefaultEngine('', 'codex', 'claude-code', installed)).toBe('codex')
   })
 

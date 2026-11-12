@@ -59,7 +59,7 @@ filesystem.openapi(createRoute({
   const raw = c.req.query('path') || resolvedRoot || process.cwd()
   const current = resolve(raw)
 
-  // SEC-022: Restrict to workspace root (unless root is '/')
+  // Restrict to workspace root (unless root is '/')
   if (resolvedRoot && resolvedRoot !== '/' && !isInsideRoot(current, resolvedRoot)) {
     return c.json({ success: false as const, error: 'Path is outside the configured workspace' }, 403)
   }
@@ -117,14 +117,14 @@ filesystem.openapi(createRoute({
 }), async (c) => {
   const { path: parentPath, name } = c.req.valid('json')
 
-  // SEC-022: Validate name is a simple basename (no path traversal)
+  // Validate name is a simple basename (no path traversal)
   if (name !== basename(name) || name === '.' || name === '..') {
     return c.json({ success: false as const, error: 'Invalid directory name' }, 400)
   }
 
   const target = resolve(parentPath, name)
 
-  // SEC-022: Restrict to workspace root
+  // Restrict to workspace root
   const workspaceRoot = await getAppSetting('workspace:defaultPath')
   if (workspaceRoot && workspaceRoot !== '/') {
     const resolvedRoot = resolve(workspaceRoot)

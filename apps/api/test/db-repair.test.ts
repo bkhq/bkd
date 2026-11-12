@@ -147,7 +147,7 @@ describe('repairDatabase', () => {
   })
 
   test('never re-runs a re-aligned destructive prefix migration', () => {
-    // Mirrors the ENG-010 /app/bkd case: the prefix already ran an OLD
+    // The prefix already ran an OLD
     // destructive migration (dropped `priority`, added `tag`), the migration
     // file content has since been re-aligned, and __drizzle_migrations
     // records the prefix with stale hashes. A hash-based repair would

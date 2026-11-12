@@ -50,62 +50,62 @@ Each task is a single line linking to its detail file. All detailed information 
 - [d] [**ENG-006 Allow unresolved webhook hostnames on save**](ENG-006.md) `P1`
 - [d] [**ENG-007 Remove claude-code-sdk engine**](ENG-007.md) `P2`
 - [d] [**ENG-008 Add per-project default engine and model**](ENG-008.md) `P2`
-- [x] [**ENG-009 Guard drizzle migration/snapshot consistency**](ENG-009.md) `P3`
+- [d] [**ENG-009 Guard drizzle migration/snapshot consistency**](ENG-009.md) `P3`
 - [d] [**UI-001 Enable session pin in the issue list panel**](UI-001.md) `P2`
 - [d] [**CLI-001 Add a `fix-db` CLI command to the main bkd entry**](CLI-001.md) `P1`
 - [d] [**CLI-002 Make launcher --fix-db reuse the shared repair implementation**](CLI-002.md) `P2`
-- [x] [**ENG-010 Fix non-monotonic migration journal (0020) + harden fix-db**](ENG-010.md) `P0`
-- [x] [**ENG-011 Generic schema safety-net (snapshot-driven self-heal)**](ENG-011.md) `P1`
-- [x] [**ENG-012 Create dialog ignores project-level default engine**](ENG-012.md) `P1`
+- [d] [**ENG-010 Fix non-monotonic migration journal (0020) + harden fix-db**](ENG-010.md) `P0`
+- [d] [**ENG-011 Generic schema safety-net (snapshot-driven self-heal)**](ENG-011.md) `P1`
+- [d] [**ENG-012 Create dialog ignores project-level default engine**](ENG-012.md) `P1`
 - [d] [**UI-002 Support attachments and image paste in create-issue dialog**](UI-002.md) `P1`
 - [d] [**CRON-001 Expose manual pause/resume for cron jobs in the UI**](CRON-001.md) `P2`
 - [d] [**ENG-013 Add virtual engines (claude-code + preset env vars)**](ENG-013.md) `P2`
 - [d] [**DEV-001 Consolidate dev env onto a single root .env (nsl dev)**](DEV-001.md) `P2`
 - [d] [**ENG-014 Virtual engines: dynamic model discovery via provider /v1/models**](ENG-014.md) `P2`
-- [x] [**ENG-015 Virtual engines: accept virtual ids in engine settings routes**](ENG-015.md) `P2`
-- [x] [**ENG-016 Fix: startup schema self-heal never fires (computeMissing detects 0 tables)**](ENG-016.md) `P1`
-- [x] [**ENG-017 Fix PID-lock false "another instance running" on PID reuse**](ENG-017.md) `P1`
-- [x] [**ENG-018 Extract base64 image data-URIs from engine messages to attachments**](ENG-018.md) `P1`
-- [x] [**ENG-019 Normalize assistant image content blocks (Bifrost) to attachments**](ENG-019.md) `P1`
+- [d] [**ENG-015 Virtual engines: accept virtual ids in engine settings routes**](ENG-015.md) `P2`
+- [d] [**ENG-016 Fix: startup schema self-heal never fires (computeMissing detects 0 tables)**](ENG-016.md) `P1`
+- [d] [**ENG-017 Fix PID-lock false "another instance running" on PID reuse**](ENG-017.md) `P1`
+- [d] [**ENG-018 Extract base64 image data-URIs from engine messages to attachments**](ENG-018.md) `P1`
+- [d] [**ENG-019 Normalize assistant image content blocks (Bifrost) to attachments**](ENG-019.md) `P1`
 - [d] [**UI-003 Use nanoid id as the only resource identifier in URLs and API**](UI-003.md) `P2`
 - [d] [**ENG-020 Add Claude subscription usage panel in settings**](ENG-020.md) `P2`
 - [d] [**DEV-002 Upgrade all workspace dependencies to latest**](DEV-002.md) `P2`
 - [d] [**DEV-003 Replace @nsio/nsl with @dotns/nsl**](DEV-003.md) `P3`
 - [d] [**ENG-021 Show model-scoped (Fable) usage windows in settings usage panel**](ENG-021.md) `P2`
-- [x] [**ENG-022 Fix per-issue token/cost totals parsing (Claude + Codex)**](ENG-022.md) `P1`
-- [x] [**ENG-023 Align Codex executor with app-server 0.144.x protocol schema**](ENG-023.md) `P1`
-- [x] [**ENG-024 Display per-issue token usage totals**](ENG-024.md) `P1`
+- [d] [**ENG-022 Fix per-issue token/cost totals parsing (Claude + Codex)**](ENG-022.md) `P1`
+- [d] [**ENG-023 Align Codex executor with app-server 0.144.x protocol schema**](ENG-023.md) `P1`
+- [d] [**ENG-024 Display per-issue token usage totals**](ENG-024.md) `P1`
 - [d] [**ENG-025 Resolve auto/unknown model to engine default at execution time**](ENG-025.md) `P1`
-- [x] [**ENG-026 Show live context-window usage for claude-code issues**](ENG-026.md) `P2`
+- [d] [**ENG-026 Show live context-window usage for claude-code issues**](ENG-026.md) `P2`
 - [d] [**ENG-027 Codex follow-up loses thread config on thread/resume**](ENG-027.md) `P0`
-- [x] [**ENG-028 Codex protocol conformance gaps (0.144.x)**](ENG-028.md) `P1`
-- [x] [**ENG-029 Engine probe cache never expires (stale Codex model catalog)**](ENG-029.md) `P1`
-- [x] [**ENG-030 Claude auth status is wrong on macOS; stale binary paths survive in cache**](ENG-030.md) `P2`
+- [d] [**ENG-028 Codex protocol conformance gaps (0.144.x)**](ENG-028.md) `P1`
+- [d] [**ENG-029 Engine probe cache never expires (stale Codex model catalog)**](ENG-029.md) `P1`
+- [d] [**ENG-030 Claude auth status is wrong on macOS; stale binary paths survive in cache**](ENG-030.md) `P2`
 - [d] [**CRON-002 Add persistent cron job deletion to the UI**](CRON-002.md) `P1`
 - [d] [**CRON-003 Add one-click cron history cleanup**](CRON-003.md) `P1`
-- [x] [**ENG-031 Observe Claude subagent activity in issue chat**](ENG-031.md) `P1`
-- [x] [**SES-001 Scan local engine sessions and import them as issues**](SES-001.md) `P1`
-- [x] [**SES-002 Hide managed sessions and add a session detail view**](SES-002.md) `P2`
+- [d] [**ENG-031 Observe Claude subagent activity in issue chat**](ENG-031.md) `P1`
+- [d] [**SES-001 Scan local engine sessions and import them as issues**](SES-001.md) `P1`
+- [d] [**SES-002 Hide managed sessions and add a session detail view**](SES-002.md) `P2`
 - [d] [**REL-002 Publish lode-compatible signed release assets**](REL-002.md) `P1`
 - [d] [**REL-003 Replace the self-upgrade subsystem with the lode SDK**](REL-003.md) `P1`
 - [d] [**REL-004 Add a lode migration script and deployment guide**](REL-004.md) `P1`
 - [d] [**SES-003 Make the session detail panel a resizable drawer**](SES-003.md) `P2`
-- [x] [**UI-004 Unify the panel resize handle**](UI-004.md) `P2`
+- [d] [**UI-004 Unify the panel resize handle**](UI-004.md) `P2`
 - [d] [**UI-005 Unify duplicated display formatters**](UI-005.md) `P2`
-- [x] [**UI-006 Extract a shared side panel shell**](UI-006.md) `P2`
-- [x] [**ENG-032 Fix subagent activity never reaching the chat**](ENG-032.md) `P0`
+- [d] [**UI-006 Extract a shared side panel shell**](UI-006.md) `P2`
+- [d] [**ENG-032 Fix subagent activity never reaching the chat**](ENG-032.md) `P0`
 - [d] [**CI-001 Clear the Node 20 deprecation warning in CI**](CI-001.md) `P3`
 - [d] [**CI-002 Make the Typecheck job pass on main**](CI-002.md) `P1`
 - [d] [**CI-003 Gate releases on CI**](CI-003.md) `P1`
 - [d] [**DOC-001 Bring the READMEs back in line with the lode install**](DOC-001.md) `P1`
 - [d] [**DOC-002 Serve lode.toml from the repository instead of every release**](DOC-002.md) `P3`
-- [x] [**ENG-033 Stop rendering the CLI activity indicator as chat messages**](ENG-033.md) `P2`
+- [d] [**ENG-033 Stop rendering the CLI activity indicator as chat messages**](ENG-033.md) `P2`
 - [d] [**DOC-003 Drop the remaining doc assets from releases**](DOC-003.md) `P3`
 - [d] [**SES-004 Delete local sessions from the scan list**](SES-004.md) `P2`
 - [d] [**REL-005 Close the release window where latest has no assets**](REL-005.md) `P0`
-- [x] [**ENG-034 Stop probing the Claude CLI on every execution**](ENG-034.md) `P1`
-- [x] [**ENG-035 Probe engines on demand only, never on a timer**](ENG-035.md) `P1`
-- [x] [**ENG-036 Turn settlement misreads subagent and background-task signals**](ENG-036.md) `P1`
+- [d] [**ENG-034 Stop probing the Claude CLI on every execution**](ENG-034.md) `P1`
+- [d] [**ENG-035 Probe engines on demand only, never on a timer**](ENG-035.md) `P1`
+- [d] [**ENG-036 Turn settlement misreads subagent and background-task signals**](ENG-036.md) `P1`
 - [d] [**UI-007 Upload files from the file browser**](UI-007.md) `P2`
 - [d] [**CRON-004 Stop serving soft-deleted cron jobs over the API**](CRON-004.md) `P1`
 - [d] [**ENG-037 Show Codex subscription usage in the settings usage panel**](ENG-037.md) `P2`
@@ -113,7 +113,7 @@ Each task is a single line linking to its detail file. All detailed information 
 - [d] [**20260910-0528-uploads-root-dir Resolve data paths from a single DATA_DIR**](20260910-0528-uploads-root-dir.md) `P1`
 - [d] [**20260910-0555-dedupe-issue-log-dir Deduplicate the ISSUE_LOG_DIR constant**](20260910-0555-dedupe-issue-log-dir.md) `P3`
 - [d] [**20260910-0724-drop-fable-5 Drop Claude Fable 5 from the model catalog**](20260910-0724-drop-fable-5.md) `P2`
-- [x] [**20260912-1920-project-tags Tag and filter projects by tag**](20260912-1920-project-tags.md) `P2`
+- [d] [**20260912-1920-project-tags Tag and filter projects by tag**](20260912-1920-project-tags.md) `P2`
 
 - [d] [**20260912-2116-message-list-rendering Investigate message list stutter and overlapping rows**](20260912-2116-message-list-rendering.md) `P1`
 

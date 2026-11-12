@@ -11,7 +11,7 @@ import type { NormalizedLogEntry } from '@/engines/types'
 import './setup'
 
 /**
- * Background-task turn settlement (ENG-036).
+ * Background-task turn settlement.
  *
  * The fixture is the decision-relevant subset of a real
  * `claude -p --output-format=stream-json --verbose --input-format stream-json

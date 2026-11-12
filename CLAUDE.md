@@ -66,7 +66,7 @@ bun scripts/migrate-to-lode.ts --root /opt/bkd --apply --prune
 - **Database**: SQLite via `bun:sqlite` + Drizzle ORM (WAL mode, 64 MB cache, 256 MB mmap)
   - Schema in `db/schema.ts`. All tables share `commonFields` (`createdAt`, `updatedAt`, `isDeleted` soft delete)
   - Projects/issues use `shortId()` (nanoid 8-char), logs use `id()` (ULID)
-  - Migrations in `apps/api/drizzle/`, auto-applied on startup. Runtime applies them in `meta/_journal.json` order, tracked per-DB in `__drizzle_migrations` (snapshots are never read at runtime). Rules: never edit or reorder a shipped migration (drizzle keys applied state by file hash); only append new ones via `bun run db:generate`; always commit the schema change, generated `.sql`, `meta/<n>_snapshot.json`, and `_journal.json` together. CI (`Migrations` job) fails if `db:generate` yields uncommitted changes. Intermediate snapshots `0001,0005,0012,0014–0019` are missing — accepted (archival-only; the diff base re-aligned at `0020`, see ENG-009)
+  - Migrations in `apps/api/drizzle/`, auto-applied on startup. Runtime applies them in `meta/_journal.json` order, tracked per-DB in `__drizzle_migrations` (snapshots are never read at runtime). Rules: never edit or reorder a shipped migration (drizzle keys applied state by file hash); only append new ones via `bun run db:generate`; always commit the schema change, generated `.sql`, `meta/<n>_snapshot.json`, and `_journal.json` together. CI (`Migrations` job) fails if `db:generate` yields uncommitted changes. Intermediate snapshots `0001,0005,0012,0014–0019` are missing — accepted (archival-only; the diff base re-aligned at `0020`)
 - **Logging**: pino (`logger.ts`) to stdout and `data/logs/bkd.log`, which rotates at 50 MB and keeps 5 rotated files (`log-rotation.ts`)
 - **Caching**: in-process LRU+TTL Map-based cache (`cache.ts`, max 500 entries)
 - **Static serving**: `APP_DIR/public/` when running from a package, `apps/frontend/dist/` in dev
@@ -147,7 +147,7 @@ The most complex subsystem — bridges API routes and CLI-based AI agents.
 - `claude-code` — `stream-json` protocol (streaming JSON over stdout, process exits after each turn).
   Requires a CLI new enough to accept `--forward-subagent-text` (verified on 2.1.231); BKD passes it
   unconditionally so subagent turns reach the chat, and an older CLI fails to start rather than
-  silently hiding subagent activity (ENG-032)
+  silently hiding subagent activity
 - `codex` — `json-rpc` protocol (JSONL JSON-RPC over stdio, process **stays alive** between turns)
 - `grok` — Grok Build CLI, `stream-json` protocol (`grok -p --output-format streaming-messages-json`, one prompt per
   process, exits after the turn). Follow-up resumes with `-r <sessionId>`; cancel is SIGTERM so the CLI saves the
@@ -167,10 +167,10 @@ Each engine has an executor in `executors/<name>/executor.ts` implementing `Engi
 - **`issue/engine.ts`** — `IssueEngine` singleton facade. Per-issue serial lock prevents concurrent operations. Manages entry counters, turn indexes, log/state callbacks. Public API: `executeIssue`, `followUpIssue`, `restartIssue`, `cancelIssue`, etc.
 - **`issue/orchestration/`** — `execute.ts`, `follow-up.ts`, `restart.ts`, `cancel.ts`
 - **`issue/lifecycle/`** — Spawn with session fallback, completion monitoring (auto-retry on failure, pending message coalescence), settlement
-  - Settlement waits on background tasks: while the CLI's `background_tasks_changed` set is non-empty, a `result` does not settle the issue, because the CLI runs another turn once a task reports back. The hold is capped at 10 min, and a turn that reopens on a live process reverts the automatic move to `review` (ENG-036)
+  - Settlement waits on background tasks: while the CLI's `background_tasks_changed` set is non-empty, a `result` does not settle the issue, because the CLI runs another turn once a task reports back. The hold is capped at 10 min, and a turn that reopens on a live process reverts the automatic move to `review`
 - **`issue/streams/`** — Stdout consumption via async generator, log classification, stderr drain
 - **`reconciler.ts`** — Safety net: marks stale `running`/`pending` sessions as `failed` on startup; moves orphaned `working` issues to `review`. Runs on startup + every 60s + 1s after each issue settlement.
-- **`startup-probe.ts`** — Engine discovery with 3-tier cache: memory (10 min) → DB (`appSettings`, no expiry) → live probe (15s per-engine timeout, all engines probed in parallel). A probe spawns the engine CLIs — for Claude that includes `claude auth status`, which touches the rotating OAuth credential — so it runs only on demand: first install, a vanished binary, or the settings "probe engines" button (ENG-035). `claude-code`'s models come from the CLI's stream-json `initialize`
+- **`startup-probe.ts`** — Engine discovery with 3-tier cache: memory (10 min) → DB (`appSettings`, no expiry) → live probe (15s per-engine timeout, all engines probed in parallel). A probe spawns the engine CLIs — for Claude that includes `claude auth status`, which touches the rotating OAuth credential — so it runs only on demand: first install, a vanished binary, or the settings "probe engines" button. `claude-code`'s models come from the CLI's stream-json `initialize`
   control response (full IDs, Haiku / Opus 4.x / Opus 5 / Sonnet 4.x / Sonnet 5 / Fable 5 left out, the CLI's `default` marked default, a `[1m]` variant per Opus/Sonnet/Fable model) and are
   cached like every other engine's; an empty list makes the resolver pass the requested model through
 

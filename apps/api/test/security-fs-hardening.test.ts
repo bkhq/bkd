@@ -8,9 +8,7 @@ import './setup'
 
 /**
  * Security hardening tests for file system and git routes.
- * Covers SEC-007, SEC-030.
- * Note: symlink verification (SEC-008, SEC-009) was removed to support
- * worktrees and other legitimate symlink use cases.
+ * Covers the workspace boundary of the file manager mounts and of `/api/git/detect-remote`.
  */
 
 const tmpBase = resolve('/tmp', `bkd-sec-test-${process.pid}`)
@@ -44,7 +42,7 @@ afterAll(async () => {
   await cacheDel('app_setting:workspace:defaultPath')
 })
 
-describe('SEC-030: /api/git/detect-remote workspace validation', () => {
+describe('/api/git/detect-remote workspace validation', () => {
   test('rejects directory outside workspace', async () => {
     const result = await post<unknown>('/api/git/detect-remote', {
       directory: outsideDir,

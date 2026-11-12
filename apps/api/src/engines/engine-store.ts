@@ -124,7 +124,7 @@ export async function autoMoveToReview(issueId: string): Promise<boolean> {
 
 /**
  * Undo an automatic move to review when the engine turns out not to be done
- * (ENG-036: the CLI starts another turn after a background task reports back).
+ * (the CLI starts another turn after a background task reports back).
  *
  * Only reverses `review` — a status the user has since changed is left alone.
  */

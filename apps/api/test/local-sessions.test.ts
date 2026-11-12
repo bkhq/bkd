@@ -8,7 +8,7 @@ import { deleteLocalSession } from '@/sessions'
 import { listCodexSessions, readCodexSession } from '@/sessions/codex'
 import './setup'
 
-/** Local session scanning (SES-001). Fixtures mirror the real on-disk layouts. */
+/** Local session scanning. Fixtures mirror the real on-disk layouts. */
 
 const ROOT = join(tmpdir(), `bkd-sessions-test-${process.pid}`)
 const CLAUDE_ROOT = join(ROOT, 'claude', 'projects')

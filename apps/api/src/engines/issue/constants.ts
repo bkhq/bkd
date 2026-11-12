@@ -17,7 +17,7 @@ export const STALL_LIVENESS_GRACE_MS = 2 * 60 * 1000 // 2 minutes — wait for C
 export const STALL_INTERRUPT_GRACE_MS = 2 * 60 * 1000 // 2 minutes — kill process if no response after interrupt
 export const CANCEL_RESPONSE_TIMEOUT_MS = 5_000 // 5s — wait for turn completion after each interrupt retry
 export const CANCEL_MAX_RETRIES = 3 // send interrupt up to 3 times before hard kill (worst case: 3 × 5s = 15s)
-// Background-task settlement hold (ENG-036). A CLI that is running background
+// Background-task settlement hold. A CLI that is running background
 // tasks emits a `result` for the current turn and then, once a task reports
 // back, starts another turn on the same process. Settling on the first result
 // drops the issue into 'review' while the engine is still working.

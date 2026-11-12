@@ -49,7 +49,7 @@ describe('POST /api/projects/:projectId/issues', () => {
     expect(data.projectId).toBe(projectId)
     expect(data.issueNumber).toBeGreaterThan(0)
     expect(data.id).toBeTruthy()
-    // Token totals must be serialized (ENG-024)
+    // Token totals must be serialized
     expect(data.totalInputTokens).toBe(0)
     expect(data.totalOutputTokens).toBe(0)
     expect(data.totalCostUsd).toBe('0')

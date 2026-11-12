@@ -210,7 +210,7 @@ export async function startIssueExecution(
   if (project.directory) {
     const resolvedDir = resolve(project.directory)
 
-    // SEC-016: Validate directory is within workspace root
+    // Validate directory is within workspace root
     if (!await isInsideWorkspace(resolvedDir)) {
       return { ok: false, status: 403, error: 'Project directory is outside the configured workspace' }
     }
@@ -380,7 +380,7 @@ export function triggerIssueExecution(
       if (projectDirectory) {
         const resolvedDir = resolve(projectDirectory)
 
-        // SEC-016: Validate directory is within workspace root
+        // Validate directory is within workspace root
         if (!await isInsideWorkspace(resolvedDir)) {
           logger.warn({ issueId, resolvedDir }, 'auto_execute_workdir_outside_workspace')
           throw new Error('Project directory is outside the configured workspace')

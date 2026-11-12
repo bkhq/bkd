@@ -38,7 +38,7 @@ export function handleTurnCompleted(
 
   // Background tasks outlive the turn that started them: the CLI reports this
   // turn complete, then runs another one on the same process once a task
-  // reports back (ENG-036). Withhold the completion until the set drains,
+  // reports back. Withhold the completion until the set drains,
   // otherwise the issue lands in 'review' while the engine is still working.
   // A cancel is the user saying they are done waiting — settle it even with
   // tasks still live, or the interrupt would hang until the hold cap.

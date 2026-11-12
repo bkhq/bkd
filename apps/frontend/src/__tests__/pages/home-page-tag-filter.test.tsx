@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import i18n from '@/i18n'
 import HomePage from '@/pages/HomePage'
 
-/** Dashboard tag filter (20260912-1920-project-tags). */
+/** Dashboard tag filter. */
 
 const projects = [
   { id: 'p1', name: 'Alpha', sortOrder: 'a0', tags: ['work'] },

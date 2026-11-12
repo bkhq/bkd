@@ -58,7 +58,7 @@ describe('GET /api/filesystem/dirs', () => {
     const result = await get<unknown>(
       '/api/filesystem/dirs?path=/nonexistent/path/should/not/exist',
     )
-    // SEC-022: Paths outside workspace root are rejected with 403
+    // Paths outside workspace root are rejected with 403
     expect([200, 403]).toContain(result.status)
   })
 

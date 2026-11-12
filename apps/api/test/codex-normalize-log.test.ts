@@ -614,7 +614,7 @@ describe('CodexExecutor.normalizeLog', () => {
   })
 
   // ------------------------------------------------------------------
-  // 16. Items added in 0.144.x (ENG-028)
+  // 16. Items added in 0.144.x
   // ------------------------------------------------------------------
   describe('sub-agent / hook / sleep items', () => {
     test('subAgentActivity returns system-message with agent path and kind', () => {
@@ -664,7 +664,7 @@ describe('CodexExecutor.normalizeLog', () => {
 })
 
 // ------------------------------------------------------------------
-// Stateful token usage tracking (ENG-022) + protocol alignment (ENG-023)
+// Stateful token usage tracking + protocol alignment
 // ------------------------------------------------------------------
 describe('CodexLogNormalizer token usage (stateful)', () => {
   function feed(

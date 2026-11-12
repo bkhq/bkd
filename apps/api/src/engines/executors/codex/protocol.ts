@@ -44,7 +44,7 @@ const SERVER_REQUEST_RESPONSES: Record<
 /**
  * Client capabilities sent with `initialize`. Field names must match
  * `InitializeCapabilities` in the generated schema — unknown keys (such as the
- * snake_case `experimental_api` used before ENG-028) are silently dropped by
+ * snake_case `experimental_api`) are silently dropped by
  * the server, leaving the experimental API disabled.
  */
 export const INITIALIZE_CAPABILITIES = { experimentalApi: true } as const

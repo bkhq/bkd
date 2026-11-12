@@ -1560,3 +1560,15 @@ lines are `[d]`.
 - `20261013-0726-workspace-side-panel` closed as superseded by the file manager rollout.
 - `PLAN-015` and `CRON-003` (cron history cleanup, shipped in v0.3.40) detail files deleted.
 
+## 2026-11-13 00:10 [decision]
+
+Tracking IDs are out of the code. Comments and test titles cited task and audit IDs (`ENG-NNN`, `SEC-NNN`,
+`SES-NNN`, `UI-NNN`, one timestamped task id) in 64 places, against the rule that a comment describes what the code
+does and carries no task or plan reference. Each now states the behaviour alone. The same `ENG` references are
+gone from `CLAUDE.md`; `SEC-NNN` remains in `docs/api/` and `CLAUDE.md`, where it points at
+`docs/audit/security-audit.md`.
+
+With nothing citing them, the 27 completed task files kept on 2026-11-12 are deleted (`ENG-009` – `ENG-012`,
+`ENG-015` – `ENG-019`, `ENG-022` – `ENG-024`, `ENG-026`, `ENG-028` – `ENG-036`, `SES-001`, `SES-002`, `UI-004`,
+`UI-006`, `20260912-1920-project-tags`); their index lines are `[d]`. `docs/task/` now holds the index only.
+

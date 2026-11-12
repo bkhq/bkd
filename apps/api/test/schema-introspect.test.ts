@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { expectedSchemaTables } from '@/db/schema-introspect'
 
 /**
- * Guards ENG-016: the startup schema self-heal depends on this introspection
+ * The startup schema self-heal depends on this introspection
  * actually finding tables/columns. The previous `._` accessor returned 0
  * tables under drizzle-orm 0.45.2, silently disabling the safety net.
  */

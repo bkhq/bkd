@@ -90,7 +90,7 @@ describe('attachment serving', () => {
     expect(await res.text()).toBe('legacy')
   })
 
-  test('rejects a stored name that escapes the upload directory (SEC-025)', async () => {
+  test('rejects a stored name that escapes the upload directory', async () => {
     const attachmentId = insertAttachment({
       storedName: '../../../etc/passwd',
       storagePath: 'data/uploads/../../../etc/passwd',

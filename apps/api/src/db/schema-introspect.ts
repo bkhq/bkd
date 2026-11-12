@@ -5,7 +5,7 @@
  *
  * Uses the documented drizzle API (`is` + `getTableConfig`) rather than the
  * internal `._` accessor, which is `undefined` in drizzle-orm 0.45.2 and made
- * the startup schema self-heal a no-op (ENG-016).
+ * the startup schema self-heal a no-op.
  */
 import { is } from 'drizzle-orm'
 import { getTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core'

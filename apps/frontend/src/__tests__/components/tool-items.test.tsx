@@ -5,7 +5,7 @@ import { ToolGroupMessage } from '@/components/issue-detail/ToolItems'
 import i18n from '@/i18n'
 import { useViewModeStore } from '@/stores/view-mode-store'
 
-/** Subagent thread rendering (ENG-032). */
+/** Subagent thread rendering. */
 
 vi.mock('@/hooks/use-theme', () => ({ useTheme: () => ({ resolved: 'light' }) }))
 

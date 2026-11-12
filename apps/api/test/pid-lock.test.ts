@@ -2,9 +2,8 @@ import { describe, expect, spyOn, test } from 'bun:test'
 import { acquirePidLock, getProcessStartTime, isLockHolderAlive, releasePidLock } from '@/pid-lock'
 
 /**
- * Guards ENG-017: the lock holder is identified by the (pid, starttime) pair so
- * a recycled PID is not mistaken for a live BKD instance (which previously
- * blocked startup with a false "another instance running").
+ * The lock holder is identified by the (pid, starttime) pair, so a recycled
+ * PID is not mistaken for a live BKD instance.
  */
 describe('pid-lock holder detection', () => {
   test('getProcessStartTime returns a numeric tick for the current process', () => {

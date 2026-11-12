@@ -210,7 +210,7 @@ export function IssueDetail({
 
 /**
  * Live context-window water level — claude-code issues only (the engine is
- * the only one reporting per-call usage over stream-json; see ENG-026).
+ * the only one reporting per-call usage over stream-json).
  * Initial value comes from the issue row; SSE `context-usage` events overlay.
  */
 function ContextUsageMeter({ issue }: { issue: Issue }) {

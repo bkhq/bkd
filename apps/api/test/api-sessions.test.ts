@@ -7,7 +7,7 @@ import { cacheDelByPrefix } from '@/cache'
 import { createTestProject, expectError, expectSuccess, get, post } from './helpers'
 import './setup'
 
-/** Local session listing and session-to-issue import (SES-001). */
+/** Local session listing and session-to-issue import. */
 
 const ROOT = join(tmpdir(), `bkd-api-sessions-${process.pid}`)
 const PROJECT_DIR = join(ROOT, 'workspace')

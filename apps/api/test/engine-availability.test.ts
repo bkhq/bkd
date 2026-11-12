@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { parseClaudeAuthStatus } from '@/engines/executors/claude'
 /**
- * Engine availability detection (ENG-030).
+ * Engine availability detection.
  *
  * Auth status comes from `claude auth status --json`, which is the only
  * cross-platform source: on macOS the credentials live in the login Keychain,

@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SidePanel, SidePanelActions } from '@/components/ui/side-panel'
 
-/** Shared side panel shell (UI-006). */
+/** Shared side panel shell. */
 
 function renderPanel(props: Partial<Parameters<typeof SidePanel>[0]> = {}) {
   const onClose = vi.fn()

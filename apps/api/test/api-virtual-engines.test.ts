@@ -264,7 +264,7 @@ describe('resolveExecEnvVars', () => {
   })
 })
 
-describe('engine settings routes accept a virtual id (ENG-015)', () => {
+describe('engine settings routes accept a virtual id', () => {
   test('default-engine, per-engine model + hidden-models accept a virtual id', async () => {
     await putVirtual([GLM])
 

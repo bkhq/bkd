@@ -2,7 +2,7 @@ import type { NormalizedLogEntry, ToolGroupChatMessage } from '@bkd/shared'
 import { describe, expect, it } from 'vitest'
 import { ChatMessageBuilder, rebuildMessages } from '@/hooks/use-chat-messages'
 
-/** Subagent nesting in the chat rebuilder (ENG-031). */
+/** Subagent nesting in the chat rebuilder. */
 
 const PARENT = 'toolu_agent_1'
 

@@ -78,7 +78,7 @@ export const issues = sqliteTable(
     totalInputTokens: integer('total_input_tokens').notNull().default(0),
     totalOutputTokens: integer('total_output_tokens').notNull().default(0),
     totalCostUsd: text('total_cost_usd').notNull().default('0'),
-    // Live context-window usage (claude-code only; see ENG-026)
+    // Live context-window usage (claude-code only)
     contextTokens: integer('context_tokens').notNull().default(0),
     contextWindow: integer('context_window').notNull().default(0),
     statusUpdatedAt: integer('status_updated_at', { mode: 'timestamp' })

@@ -1,5 +1,5 @@
 /**
- * Tests for the generic snapshot-driven schema safety-net (ENG-011).
+ * Tests for the generic snapshot-driven schema safety-net.
  */
 import { Database } from 'bun:sqlite'
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'

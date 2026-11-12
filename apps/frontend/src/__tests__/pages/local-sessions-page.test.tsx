@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '@/i18n'
 import LocalSessionsPage from '@/pages/LocalSessionsPage'
 
-/** Local session listing, detail view and import dialog (SES-001, SES-002). */
+/** Local session listing, detail view and import dialog. */
 
 const mocks = vi.hoisted(() => ({
   importMutate: vi.fn(),

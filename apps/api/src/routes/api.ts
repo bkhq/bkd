@@ -147,7 +147,7 @@ apiRoutes.openapi(R.getStatus, async (c) => {
   })
 })
 
-// SEC-017: Gate /api/runtime behind explicit opt-in env var
+// Gate /api/runtime behind explicit opt-in env var
 apiRoutes.get('/runtime', (c) => {
   if (process.env.ENABLE_RUNTIME_ENDPOINT !== 'true') {
     return c.json({ success: false, error: 'Not Found' }, 404)

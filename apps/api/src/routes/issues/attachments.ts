@@ -16,7 +16,7 @@ const attachmentsRouter = createOpenAPIRouter()
 const LEGACY_UPLOAD_DIR = resolve(process.cwd(), 'data/uploads')
 
 /**
- * SEC-025: resolve `storedName` inside `base`, or null when it escapes the directory.
+ * Resolve `storedName` inside `base`, or null when it escapes the directory.
  */
 function resolveInside(base: string, storedName: string): string | null {
   const path = resolve(base, storedName)
@@ -79,7 +79,7 @@ attachmentsRouter.openapi(createRoute({
   return new Response(file.stream(), {
     headers: {
       'Content-Type': attachment.mimeType,
-      // SEC-024: Force download to prevent content-sniffing and XSS via served files
+      // Force download to prevent content-sniffing and XSS via served files
       'Content-Disposition': `attachment; filename="${encodeURIComponent(attachment.originalName)}"`,
       'X-Content-Type-Options': 'nosniff',
       'Cache-Control': 'private, max-age=86400',

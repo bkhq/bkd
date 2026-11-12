@@ -14,7 +14,7 @@ import './setup'
 const PNG_B64
   = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
-describe('extractImageDataUris (ENG-018)', () => {
+describe('extractImageDataUris', () => {
   test('extracts a base64 image to an attachment file and rewrites the content', async () => {
     const projectId = await createTestProject('Image Extract Project')
     const issue = expectSuccess(
@@ -52,7 +52,7 @@ describe('extractImageDataUris (ENG-018)', () => {
     expect(extractImageDataUris(issue.id, content)).toBe(content)
   })
 
-  test('rewrites metadata.imageData to an attachment URL and drops the base64 (ENG-019)', async () => {
+  test('rewrites metadata.imageData to an attachment URL and drops the base64', async () => {
     const projectId = await createTestProject('Image Block Project')
     const issue = expectSuccess(
       await createTestIssue(projectId, { title: 'x', statusId: 'todo' }),

@@ -166,7 +166,7 @@ describe('turn completion pending-flush regression', () => {
   })
 })
 
-describe('turn completion signal attribution (ENG-036)', () => {
+describe('turn completion signal attribution', () => {
   test('a subagent-scoped result does not end the main turn', () => {
     expect(
       isTurnCompletionEntry(entry({ turnCompleted: true, resultSubtype: 'success' })),
@@ -200,7 +200,7 @@ describe('turn completion signal attribution (ENG-036)', () => {
   })
 })
 
-describe('background task settlement hold (ENG-036)', () => {
+describe('background task settlement hold', () => {
   test('holds settlement while a background task is live, settles on the follow-up turn', async () => {
     const issue = await createWorkingIssue(`bg-hold-${Date.now()}`)
     const executionId = `exec-bg-${Date.now()}`
@@ -256,7 +256,7 @@ describe('background task settlement hold (ENG-036)', () => {
   })
 })
 
-describe('turn reopen (ENG-036)', () => {
+describe('turn reopen', () => {
   test('a new turn on a live process reverts the auto review', async () => {
     const issue = await createWorkingIssue(`reopen-${Date.now()}`)
     const executionId = `exec-reopen-${Date.now()}`

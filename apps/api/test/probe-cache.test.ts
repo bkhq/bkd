@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { getProbeResults, saveProbeResults, setAppSetting } from '@/db/helpers'
 /**
- * Persisted engine probe results (ENG-035, replacing the ENG-029 TTL).
+ * Persisted engine probe results.
  *
  * The DB copy is storage, not a cache: probing spawns the engine CLIs, and for
  * Claude that means `claude auth status`, which touches the rotating OAuth

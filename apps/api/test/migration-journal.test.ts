@@ -5,8 +5,8 @@
  * watermark (`sqlite-core` `dialect.migrate`: apply iff
  * `last.created_at < migration.when`). A journal whose `when` is not strictly
  * increasing by `idx` makes the migrator permanently skip any later entry that
- * regresses below the running max — exactly the ENG-010 incident, where
- * `0020`'s `when` was below `0019`'s and `0020` was never applied.
+ * regresses below the running max: with `0020`'s `when` below `0019`'s,
+ * `0020` was never applied.
  *
  * This test fails fast if a future migration is appended (or hand-edited)
  * with a non-monotonic `when`.

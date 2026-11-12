@@ -4,7 +4,6 @@ import './setup'
 
 /**
  * Security headers tests — CSP, CORS, HSTS.
- * Covers SEC-019, SEC-002, SEC-031.
  */
 
 async function requestHeaders(path: string, init?: RequestInit) {
@@ -12,7 +11,7 @@ async function requestHeaders(path: string, init?: RequestInit) {
   return res
 }
 
-describe('Content-Security-Policy (SEC-019)', () => {
+describe('Content-Security-Policy', () => {
   test('returns CSP header on API responses', async () => {
     const res = await requestHeaders('/api/projects')
     const csp = res.headers.get('content-security-policy')
@@ -28,7 +27,7 @@ describe('Content-Security-Policy (SEC-019)', () => {
   })
 })
 
-describe('Strict-Transport-Security (SEC-031)', () => {
+describe('Strict-Transport-Security', () => {
   test('returns HSTS header', async () => {
     const res = await requestHeaders('/api/projects')
     const hsts = res.headers.get('strict-transport-security')
@@ -36,7 +35,7 @@ describe('Strict-Transport-Security (SEC-031)', () => {
   })
 })
 
-describe('CORS (SEC-002)', () => {
+describe('CORS', () => {
   test('returns CORS headers for API preflight', async () => {
     const res = await requestHeaders('/api/projects', {
       method: 'OPTIONS',
