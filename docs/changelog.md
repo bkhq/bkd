@@ -1453,3 +1453,12 @@ Task: 20261111-1734-dedupe-redundant-code.
 Deleted `upgrade/fixdb-01.md` and `upgrade/fixdb-01.sql`, the repair script for the migration 0009 timestamp bug in
 v0.0.7–v0.0.22: no install of those versions remains. Task: 20261111-1734-dedupe-redundant-code.
 
+## 2026-11-12 10:55 [progress]
+
+Vendored file manager updated from upstream `92bfee0` to `1006f4d` (task 20261112-1040-filemanager-upstream-1006f4d).
+The local trees matched `92bfee0`, so the five changed registry files were re-copied as they are: `react/labels.ts`,
+`react/path-bar.tsx`, `react/shell-parts.tsx`, `react/use-listing-state.ts`, `react/workspace-shell.tsx`. Upstream
+changes: the workspace header fits one row from 640px with a "New" menu (folder, text file, uploads) and a "View"
+menu (list / grid, sort) in place of five icon buttons; a folder step of the path bar goes to that folder and the
+separator after it opens a picker of the folder's entries. The API-side tree did not change.
+

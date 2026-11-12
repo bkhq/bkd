@@ -199,6 +199,7 @@ export function ShellBreadcrumb({ fm, root, className }: PartProps & { root?: Re
         filter={filter}
         root={root}
         className={className}
+        onNavigate={p => mount && navigate(mount, p)}
         onOpenFile={open}
         onOpenFolder={open}
       />
@@ -226,10 +227,13 @@ export function ShellSearch({ fm, width, children }: PartProps & { width: string
     ? labels.searchHere
     : labels.searchBelow;
   return (
-    <div className={cn("flex items-center gap-1", narrow && "order-last basis-full")}>
+    <div className={cn("flex min-w-0 items-center gap-1", narrow
+      ? "order-last basis-full"
+      : "shrink-100")}
+    >
       <InputGroup className={cn("h-7", narrow
         ? "w-full"
-        : width)}
+        : cn(width, "min-w-40"))}
       >
         <InputGroupAddon className="py-0">
           <DropdownMenu>

@@ -119,6 +119,8 @@ export function useListingState(props: FileManagerProps, v: FmViewState) {
   // The drive lists the folder beside its tree and opens files in the preview dialog.
   const explorer = split && !pick && !drive;
   const [openFile, setOpenFile] = useState<FmEntry>();
+  // Set by a folder step of the path bar: with no file open, the pane lists the current folder.
+  const [folderList, setFolderList] = useState(false);
   const picked = explorer && !inTrash && selected.length === 1 && selected[0]!.kind === "file"
     ? selected[0]
     : undefined;
@@ -142,6 +144,8 @@ export function useListingState(props: FileManagerProps, v: FmViewState) {
     setFiltersFor,
     openFile,
     setOpenFile,
+    folderList,
+    setFolderList,
     pick,
     listing,
     below,

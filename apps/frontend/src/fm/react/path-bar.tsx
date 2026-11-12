@@ -67,10 +67,11 @@ function PickerEntries({ client, mount, path, current, labels, filter, onOpenFil
 
 /**
  * Editor-style path of the open file (or of the current folder when none is
- * open): the mount, each folder and the file. Every step opens a picker of what
- * sits beside it: folders unfold, files open.
+ * open): the mount, each folder and the file. A folder step goes to that folder;
+ * the separator after it opens a picker of what the folder holds (folders unfold,
+ * files open). The last step opens a picker of what sits beside it.
  */
-export function PathBar({ client, mounts, mount, path, file, labels, filter, root, className, onOpenFile, onOpenFolder }: {
+export function PathBar({ client, mounts, mount, path, file, labels, filter, root, className, onNavigate, onOpenFile, onOpenFolder }: {
   client: FmClient;
   mounts: FmMountInfo[];
   /** Current mount and folder, shown while no file is open. */
@@ -83,6 +84,8 @@ export function PathBar({ client, mounts, mount, path, file, labels, filter, roo
   /** Replaces the mount step. */
   root?: ReactNode | undefined;
   className?: string | undefined;
+  /** Clicking a folder step that is not the last one. */
+  onNavigate: (path: string) => void;
   onOpenFile: (entry: FmEntry) => void;
   /** Clicking a folder in a picker opens it; without it folders only unfold. */
   onOpenFolder?: ((entry: FmEntry) => void) | undefined;
@@ -126,25 +129,21 @@ export function PathBar({ client, mounts, mount, path, file, labels, filter, roo
   const crumb = (last: boolean) => cn("max-w-48 shrink-0 truncate rounded-sm px-1 py-0.5 hover:bg-muted hover:text-foreground", last
     ? "font-medium text-foreground"
     : "text-muted-foreground");
-  const step = (target: string, label: string, last: boolean) => (
+  const picker = (key: string, folder: string, current: string, trigger: ReactNode) => (
     <DropdownMenu
-      open={openStep === target}
+      open={openStep === key}
       onOpenChange={o => setOpenStep(o
-        ? target
+        ? key
         : undefined)}
     >
-      <DropdownMenuTrigger render={<button type="button" className={crumb(last)} {...spring(target)} />}>{label}</DropdownMenuTrigger>
+      {trigger}
       <DropdownMenuContent align="start" className={PICKER}>
         <MenuScroll>
           <PickerEntries
             client={client}
             mount={at}
-            path={target === "/"
-              ? "/"
-              : dirname(target)}
-            current={target === "/"
-              ? trail[0] ?? ""
-              : target}
+            path={folder}
+            current={current}
             labels={labels}
             filter={filter}
             onOpenFile={onOpenFile}
@@ -157,15 +156,35 @@ export function PathBar({ client, mounts, mount, path, file, labels, filter, roo
       </DropdownMenuContent>
     </DropdownMenu>
   );
+  const step = (target: string, label: string, last: boolean) => last
+    ? picker(
+        target,
+        target === "/"
+          ? "/"
+          : dirname(target),
+        target,
+        <DropdownMenuTrigger render={<button type="button" className={crumb(true)} {...spring(target)} />}>{label}</DropdownMenuTrigger>,
+      )
+    : <button type="button" className={crumb(false)} onClick={() => onNavigate(target)} {...spring(target)}>{label}</button>;
+  const mountLabel = mounts.find(m => m.id === at)?.label ?? at;
+  /** Separator after `folder`: opens the picker of its entries, with the next step marked. */
+  const separator = (folder: string, next: string) => picker(
+    `>${folder}`,
+    folder,
+    next,
+    <DropdownMenuTrigger render={<button type="button" className="shrink-0 rounded-sm py-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={labels.folderContents(basename(folder) || mountLabel)} />}>
+      <ChevronRightIcon className="size-3.5" />
+    </DropdownMenuTrigger>,
+  );
   return (
     <nav aria-label={labels.path} className={cn("flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto px-1 text-sm whitespace-nowrap [scrollbar-width:none]", className)}>
       {/* Keyed apart: `root` often arrives after the first render and must not inherit the step's controlled menu. */}
       {root
         ? <Fragment key="root">{root}</Fragment>
-        : <Fragment key="/">{step("/", mounts.find(m => m.id === at)?.label ?? at, trail.length === 0)}</Fragment>}
+        : <Fragment key="/">{step("/", mountLabel, trail.length === 0)}</Fragment>}
       {trail.map((target, i) => (
         <Fragment key={target}>
-          <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          {separator(trail[i - 1] ?? "/", target)}
           {step(target, basename(target), i === trail.length - 1)}
         </Fragment>
       ))}

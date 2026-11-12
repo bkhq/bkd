@@ -16,6 +16,7 @@ import {
   LayoutGridIcon,
   ListIcon,
   PanelLeftIcon,
+  PlusIcon,
   RefreshCwIcon,
   SettingsIcon,
   Trash2Icon,
@@ -70,7 +71,6 @@ import {
   ShellTrash,
   SortMenuItems,
   UploadMenuItems,
-  ViewToggle,
 } from "./shell-parts";
 import { EMPTY_SELECTION, formatSize } from "./state";
 import { WorkspaceTreePane } from "./workspace-tree-pane";
@@ -112,6 +112,9 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
     entries,
     selected,
     explorer,
+    folderList,
+    setFolderList,
+    setOpenFile,
     paneFile,
     review,
     reviewer,
@@ -140,14 +143,6 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
   } = fm;
   // Without the sidebar the listing takes the drive look.
   const roomy = !split && !pick;
-  const uploadMenu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger render={<IconButton label={labels.upload} />}><UploadIcon /></DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <UploadMenuItems fm={fm} />
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
   const refreshButton = (
     <RefreshButton
       label={labels.refresh}
@@ -175,6 +170,11 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
       : {}),
   });
 
+  // The explorer's main pane shows the open file, a diff or its placeholder; after a folder step
+  // of the path bar it lists the current folder until a file opens. The header stays the
+  // explorer's: the folder actions live in the tree pane.
+  const filePane = explorer && !(folderList && !paneFile && !review);
+
   // Narrow containers fold the folder toolbar into one "More" menu so it shares the path row.
   const folded = narrow && !inTrash && !explorer && !(selected.length > 0 && !roomy);
 
@@ -199,7 +199,11 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
         <ResizablePanel id="main" minSize="320px">
 
           <ShellDropSection fm={fm}>
-            <header className="flex flex-wrap items-center gap-1 border-b px-2 py-1.5">
+            <header
+              className={`flex items-center gap-1 border-b px-2 py-1.5 ${narrow
+                ? "flex-wrap"
+                : ""}`}
+            >
               {stacked && (
                 <IconButton label={labels.backToTree} onClick={() => guard(() => setNarrowPane("tree"))}>
                   <ArrowLeftIcon />
@@ -215,6 +219,12 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                       file={paneFile}
                       labels={labels}
                       filter={filter}
+                      onNavigate={p => guard(() => {
+                        // Closes the open file: the pane lists the folder instead.
+                        navigate(paneFile?.mount ?? mount, p);
+                        setOpenFile(undefined);
+                        setFolderList(true);
+                      })}
                       onOpenFile={reveal}
                     />
                   )
@@ -223,12 +233,12 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                       <IconButton label={labels.up} disabled={path === "/"} onClick={() => mount && navigate(mount, dirname(path))}>
                         <ArrowUpIcon />
                       </IconButton>
-                      {/* Narrow: the toolbar wraps below the breadcrumb instead of squeezing it. */}
+                      {/* Narrow: the toolbar wraps below the breadcrumb instead of squeezing it. Wider: the path keeps its width and the search box gives way first. */}
                       <ShellBreadcrumb
                         fm={fm}
                         className={narrow && !folded
                           ? "basis-[calc(100%-2.5rem)]"
-                          : undefined}
+                          : "min-w-24 flex-auto"}
                         root={!split && shownMounts
                           ? (
                               <DropdownMenu>
@@ -401,9 +411,27 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                                 {labels.paste}
                               </Button>
                             )}
-                            {canMkdir && <IconButton label={labels.newFolder} onClick={() => setDialog({ kind: "mkdir" })}><FolderPlusIcon /></IconButton>}
-                            {canNewFile && <IconButton label={labels.newFile} onClick={() => setDialog({ kind: "newFile" })}><FilePlusIcon /></IconButton>}
-                            {canUpload && uploadMenu}
+                            {(canMkdir || canNewFile || canUpload) && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger render={<IconButton label={labels.newMenu} />}><PlusIcon /></DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-44">
+                                  {canMkdir && (
+                                    <DropdownMenuItem onClick={() => setDialog({ kind: "mkdir" })}>
+                                      <FolderPlusIcon />
+                                      {labels.newFolder}
+                                    </DropdownMenuItem>
+                                  )}
+                                  {canNewFile && (
+                                    <DropdownMenuItem onClick={() => setDialog({ kind: "newFile" })}>
+                                      <FilePlusIcon />
+                                      {labels.newFile}
+                                    </DropdownMenuItem>
+                                  )}
+                                  {(canMkdir || canNewFile) && canUpload && <DropdownMenuSeparator />}
+                                  {canUpload && <UploadMenuItems fm={fm} />}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                             <DropdownMenu>
                               <DropdownMenuTrigger render={<IconButton label={labels.filter} aria-pressed={hasFilters(filters)} />}><FilterIcon /></DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-48">
@@ -411,12 +439,23 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                               </DropdownMenuContent>
                             </DropdownMenu>
                             <DropdownMenu>
-                              <DropdownMenuTrigger render={<IconButton label={labels.sortBy} />}><ArrowUpDownIcon /></DropdownMenuTrigger>
+                              <DropdownMenuTrigger render={<IconButton label={labels.viewMenu} />}>
+                                {view === "list"
+                                  ? <ListIcon />
+                                  : <LayoutGridIcon />}
+                              </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-40">
-                                <SortMenuItems fm={fm} />
+                                <DropdownMenuRadioGroup value={view} onValueChange={v => setView(v as typeof view)}>
+                                  <DropdownMenuRadioItem value="list" closeOnClick>{labels.listView}</DropdownMenuRadioItem>
+                                  <DropdownMenuRadioItem value="grid" closeOnClick>{labels.gridView}</DropdownMenuRadioItem>
+                                </DropdownMenuRadioGroup>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuGroup>
+                                  <DropdownMenuLabel>{labels.sortBy}</DropdownMenuLabel>
+                                  <SortMenuItems fm={fm} />
+                                </DropdownMenuGroup>
                               </DropdownMenuContent>
                             </DropdownMenu>
-                            <ViewToggle fm={fm} />
                             {refreshButton}
                           </div>
                         )}
@@ -441,7 +480,7 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
               ? (
                   <ShellTrash fm={fm} mount={mount} />
                 )
-              : explorer
+              : filePane
                 ? (review && reviewer
                     ? (
                         <div className="min-h-0 flex-1" data-fm-review="">
