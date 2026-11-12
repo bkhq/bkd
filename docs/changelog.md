@@ -1462,3 +1462,62 @@ changes: the workspace header fits one row from 640px with a "New" menu (folder,
 menu (list / grid, sort) in place of five icon buttons; a folder step of the path bar goes to that folder and the
 separator after it opens a picker of the folder's entries. The API-side tree did not change.
 
+## 2026-11-12 11:20 [progress]
+
+Documentation brought in line with the code (task 20261112-1105-docs-cleanup).
+
+- Deleted `docs/audit/architecture-performance-audit.md`, `backend-quality-audit.md`, `test-coverage-audit.md`
+  (2026-03 / 2026-04 snapshots, none of their findings referenced anywhere) and `pr-104-audit.md` (review of a PR
+  merged on 2026-03-24). `security-audit.md` and `frontend-quality-audit.md` stay, marked as historical snapshots
+  and indexed by the new `docs/audit/README.md`: the first defines the `SEC-NNN` IDs cited in code, the second
+  still has `U-06` – `U-08` open.
+- `docs/api/`: `files.md` documented `/api/files/*`, which no longer exists, and is replaced by `fm.md` (the two
+  file manager routers). New `messages.md` and `skills.md`. Added the missing routes and fields: issue search and
+  turns, model configs, engine CLI update, `effort` / `engineType` / `sender` on execute, follow-up and issue
+  PATCH, `worktreeMissing` / `timedOut` / `oversized` on changes, the `context-usage`, `message-updated` and
+  `browser-notification` SSE events. `decisions.md` now says it is contract v1 over the messages store and
+  describes the current retention. Every route of the generated OpenAPI document is covered.
+- `docs/development.md`: the Architecture section repeated `architecture.md` with stale content (decision-event
+  tables, `/api/files`, a decisions page, four drawers) and is now a pointer; the project tree and the environment
+  variable table match the code.
+- `docs/architecture.md`: engine file layout, routes, SSE events, webhook channels and events, frontend
+  components and stores, shared types and the migration count corrected.
+- `AGENTS.md`: the stale architecture copy is replaced by pointers; the API and runtime baseline and the
+  conventions stay.
+- `CLAUDE.md`: the scheduler is `cronbake`, not `baker`; SSE events, drawer stores and component areas updated.
+- `README.md` / `README.zh-CN.md`: Grok Build and Cursor CLI, the file manager, messages, skills and message search.
+- New task 20261112-1106-workspace-check-symlinks: `isInsideWorkspace()` compares path strings and does not
+  resolve symlinks (reported by an automated security review; the behaviour predates the helper).
+
+## 2026-11-12 11:40 [decision]
+
+Deleted the detail files of every completed and rejected plan: 57 completed (`PLAN-005` – `PLAN-014`,
+`PLAN-016` – `PLAN-021`, and every `2026MMDD-HHmm-*` plan from `20260909-0230-upgrade-dependencies` through
+`20261111-1734-dedupe-redundant-code`) and 4 rejected (`PLAN-001` – `PLAN-004`: the whiteboard designs, the
+claude-agent-sdk migration and its AskUserQuestion flow). A finished plan only restates work that the code, its
+task and this changelog already record; what each one did is in the entries above and in git history. Their lines
+in `docs/plan/index.md` stay, marked `[d]`. Task files that linked to a deleted plan now say so. The two plans
+still open remain: `PLAN-015` (cron history cleanup, draft) and `20261022-0307-skills-management` (in progress).
+
+## 2026-11-12 11:50 [decision]
+
+Deleted the plan `20261022-0307-skills-management`. Its index marker was still `[-]`, but its task has been
+`completed` since the feature shipped (browse, edit, create, copy, delete, CLI install / update / uninstall, upload,
+update status); the marker was never flipped. The line in `docs/plan/index.md` is now `[d]`.
+
+## 2026-11-12 12:05 [decision]
+
+Deleted the detail files of finished tasks: 123 completed and 6 closed (`WB-001` – `WB-004`, the whiteboard work
+removed in May; `ENG-001` and `ENG-002`, the abandoned claude-agent-sdk migration). The completed ones are every
+`[x]` task except those listed below — the `AUTH`, `AUDIT`, `CI`, `CLI`, `CRON-001/002`, `DEV`, `DOC(S)`, `REL`,
+`WB-005` series, the uncited `ENG` and `UI` tasks, and the `2026MMDD-HHmm-*` tasks through
+`20261112-1105-docs-cleanup`. A finished task's outcome is in the code, in git history and in the entries above.
+Their lines in `docs/task/index.md` stay, marked `[d]`.
+
+Kept on purpose, although completed, because code comments, tests or `CLAUDE.md` cite their IDs as the place
+where a rule is explained: `ENG-009` – `ENG-012`, `ENG-015` – `ENG-019`, `ENG-022` – `ENG-024`, `ENG-026`,
+`ENG-028` – `ENG-036`, `SES-001`, `SES-002`, `UI-004`, `UI-006`, `20260912-1920-project-tags`.
+
+Still open and untouched: `CRON-003`, `20260910-0555-dedupe-issue-log-dir`, `20261013-0538-bkd-log-rotation`,
+`20261013-0614-incremental-chat-messages`, `20261013-0726-workspace-side-panel`,
+`20261106-0600-dev-hot-reload-pid-lock`, `20261112-1106-workspace-check-symlinks`.

@@ -2,20 +2,22 @@
 
 AI-powered project management board. Create issues, assign them to AI coding agents, and watch them work in real time.
 
-BKD is a unified frontend for CLI-based coding agents — [Claude Code](https://github.com/anthropics/claude-code) and [Codex](https://github.com/openai/codex). You manage a Kanban board; the agents write the code.
+BKD is a unified frontend for CLI-based coding agents — [Claude Code](https://github.com/anthropics/claude-code), [Codex](https://github.com/openai/codex), Grok Build and Cursor CLI. You manage a Kanban board; the agents write the code.
 
 [中文说明](README.zh-CN.md)
 
 ## Features
 
 - **Kanban Board** — Drag-and-drop issues across Todo / Working / Review / Done columns
-- **Multi-Agent** — Supports Claude Code and OpenAI Codex as execution engines
+- **Multi-Agent** — Claude Code, OpenAI Codex, Grok Build and Cursor CLI as execution engines, plus virtual engines and custom models with their own environment
 - **Real-time Chat** — Stream agent output as it runs; send follow-up messages mid-session
-- **Diff Viewer** — See file changes made by the agent in a GitHub-style diff panel
-- **File Browser** — Browse, view, and navigate project files with syntax highlighting
+- **File Manager** — Browse, edit, upload and search project and worktree files; review the agent's changes as diffs in the same place
+- **Messages** — Agents send decisions and notifications to an inbox; answer there or from Telegram, and the agent is woken with your answer
+- **Skills** — Browse, edit, create, upload, install and update agent skills
+- **Message Search** — Full-text search across the chat history of a project's issues
 - **Web Terminal** — Built-in xterm.js terminal for direct shell access
 - **File Upload** — Attach files to issues as context for the agent
-- **Webhooks** — Configurable event notifications for issue status changes
+- **Webhooks** — Event notifications to HTTP endpoints, Telegram and the browser
 - **Multi-turn Sessions** — Continue conversations with full session history
 - **Sub-agent Visibility** — Work a Claude sub-agent does is nested under the call that dispatched it, with live progress
 - **Session Import** — Scan Claude Code and Codex sessions run outside BKD and adopt one as an issue
@@ -91,7 +93,11 @@ npm install -g @openai/codex
 
 Requires `OPENAI_API_KEY` or `CODEX_API_KEY`, or authenticate via `codex` CLI.
 
-> BKD auto-detects which agents are installed at startup. You can use any combination.
+### Grok Build and Cursor CLI
+
+Install the `grok` or `cursor-agent` CLI as its vendor documents and sign in with it. Both run headless and do not ask for approval: Grok runs with permissions bypassed, Cursor with `--force`.
+
+> BKD detects installed agents on first start and when you re-probe engines in Settings. You can use any combination.
 
 ## BKD Skill
 
@@ -125,7 +131,7 @@ Restart Codex after installing the skill. You can then invoke it with prompts su
 2. **Create an issue** — Describe the task, pick an AI engine and model
 3. **Execute** — Click execute; the agent spawns in your workspace and starts working
 4. **Chat** — Send follow-up messages, upload files, or cancel at any time
-5. **Review** — View diffs, check the agent's tool calls, drag the issue to Done
+5. **Review** — Review the changes in the file manager, check the agent's tool calls, drag the issue to Done
 
 ## Configuration
 

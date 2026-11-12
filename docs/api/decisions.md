@@ -1,12 +1,14 @@
 # Decision Events
 
-A decision event is one question a coordinating agent needs the user to answer. BKD stores events, shows them in the `/decisions` inbox, and wakes the raiser once the user decides. It never creates an event itself.
+A decision event is one question a coordinating agent needs the user to answer. BKD stores events, shows them in the messages inbox, and wakes the raiser once the user decides. It never creates an event itself.
+
+This is contract version 1, kept for existing agents. The events are messages of `kind: decision` in the store behind [messages.md](./messages.md) (contract version 2), projected to the version 1 field names.
 
 Base: `/api/decisions`. A coordinator sets `BKD_EVENT_URL=$BKD_URL/api/decisions`.
 
-States: `open → decided → applied`, `open → withdrawn`, `open | decided → closed`. A transition from any other state returns `409`. Every write emits `decision-event-updated` over SSE.
+States: `open → decided → applied`, `open → withdrawn`, `open | decided → closed`. A transition from any other state returns `409`. Every write emits `message-updated` over SSE.
 
-Retention: an event that is no longer `open` is removed by a daily cleanup once its last change is more than one day old, and then answers `404`. Open events are kept until they are answered, withdrawn or closed.
+Retention: an event in `applied`, `withdrawn` or `closed` is removed by a daily cleanup once its last change is more than one day old, and then answers `404`. `open` and `decided` events are kept.
 
 ## GET /api/decisions
 

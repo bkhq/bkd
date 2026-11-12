@@ -52,6 +52,11 @@ Update an issue. Status transitions trigger side effects: `working` triggers exe
 | `sortOrder` | `string` (1-50) | No | Fractional sort key |
 | `isPinned` | `boolean` | No | Pin to top |
 | `keepAlive` | `boolean` | No | Prevent idle timeout (synced to in-memory process immediately) |
+| `model` | `string` | No | Model for the next turn |
+| `engineType` | `string` | No | After the first run: only an engine sharing the issue's base engine |
+| `effort` | `"low" \| "medium" \| "high" \| "xhigh" \| "max" \| null` | No | Reasoning effort (`null` clears it) |
+
+Changing `model`, `engineType` or `effort` while the session is `running` or `pending` returns `409`.
 
 ## PATCH /api/projects/:projectId/issues/bulk
 
@@ -106,6 +111,18 @@ Create an issue from a local engine session (see [sessions.md](./sessions.md)).
 | `importLogs` | `boolean` | No | Copy the transcript into the issue's logs (default `true`) |
 
 **Response:** `201` with `{ issue, importedEntries, droppedEntries, cwdMatches }`. `404` when the project or session is missing, `409` when the session is already imported.
+
+## GET /api/projects/:projectId/issues/search
+
+Full-text search over the visible user and assistant messages of the project's issues, one hit per issue. Backed
+by an FTS5 trigram index; a query shorter than 3 characters falls back to `LIKE`.
+
+| Query Param | Type | Description |
+|---|---|---|
+| `q` | `string` (1-200) | Search text |
+| `limit` | `number` (1-50) | Maximum hits |
+
+**Response:** `[{ issue, matchCount, snippet, logId, turnIndex }]`
 
 ## GET /api/issues/review
 

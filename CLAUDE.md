@@ -200,13 +200,13 @@ leading run from one sender, and the rest flush after that turn.
 
 Global SSE endpoint (`GET /api/events`) via Hono `streamSSE`:
 
-- Event types: `log`, `state`, `done`, `issue-updated`, `changes-summary`, `message-updated`, `heartbeat` (15s)
+- Event types: `log`, `log-updated`, `log-removed`, `state`, `done`, `issue-updated`, `changes-summary`, `context-usage`, `message-updated`, `browser-notification`, `heartbeat` (15s)
 - Subscribes to `IssueEngine` callbacks + `onIssueUpdated` + `onChangesSummary`
-- `changes-summary.ts`: runs `git status/diff` after each issue settles, pushes stats via SSE
+- `changes-summary.ts`: runs `git status/diff` after each issue settles, pushes stats via SSE. It shares `collectChanges()` (`utils/changes.ts`) with the `/changes` route
 
 #### Cron System (`cron/`)
 
-Scheduled task execution with cron expressions (powered by `baker` scheduler). DB tables: `cronJobs`, `cronJobLogs`. Supports pluggable actions (`actions/` directory) — each action type (e.g., execute issue, HTTP request) implements a standard interface. Features: auto-pause after 3 consecutive failures, execution logs with pagination, soft-delete.
+Scheduled task execution with cron expressions (powered by the `cronbake` scheduler). DB tables: `cronJobs`, `cronJobLogs`. Supports pluggable actions (`actions/` directory) — each action type (e.g., execute issue, HTTP request) implements a standard interface. Features: auto-pause after 3 consecutive failures, execution logs with pagination, soft-delete.
 
 Routes: `GET/POST /api/cron`, `DELETE /api/cron/:jobId`, `POST /api/cron/:jobId/{trigger,pause,resume}`, `GET /api/cron/:jobId/logs`, `GET /api/cron/actions`.
 
@@ -262,7 +262,7 @@ files (`docs/decisions/2026-11-05-filemanager-vendored-style.md`).
   for them, and file bytes (`read`, `thumb`, `zip/read`) get fm's sandboxing CSP plus `frame-ancestors 'self'`
   (PDFs drop `sandbox` so the browser viewer renders them).
 - Frontend: `components/files/WorkspaceFiles.tsx` opens the issue's worktree mount when present, else `project`,
-  and refreshes listings on `changes-summary`. Used by `FileBrowserDrawer` and the workspace panel's Files tab.
+  and refreshes listings on `changes-summary`. Used by `FileBrowserDrawer` and the issue workspace panel.
 
 #### Background Jobs (built-in cron actions, `cron/actions/builtins/`)
 
@@ -311,7 +311,7 @@ Deployment, migration from the old launcher, and the `lode.toml` reference: `doc
 /cron                                → CronPage
 /messages                            → opens MessagesDrawer on / (kept for inbox links; /decisions redirects here)
 /skills                              → SkillsPage (agent skills: browse, edit, create, copy)
-/sessions                            → SessionsPage (local engine sessions)
+/sessions                            → LocalSessionsPage (local engine sessions)
 ```
 
 Five global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`, `MessagesDrawer` (global inbox: decisions + notifications).
@@ -325,6 +325,9 @@ Five global drawers (lazy-mounted when open): `TerminalDrawer`, `FileBrowserDraw
   - `terminal-store.ts` / `terminal-session-store.ts` — Terminal drawer state + xterm.js session.
   - `file-browser-store.ts` — File manager drawer state (project, issue, width).
   - `process-manager-store.ts` — Process manager drawer state.
+  - `notes-store.ts`, `messages-store.ts` — Notes and messages drawer state.
+  - `workspace-panel-store.ts` — Issue workspace panel (open, maximized, width).
+  - The five drawer stores are built on `lib/drawer-store.ts` (open / minimize / fullscreen / clamped width).
 
 #### Real-Time Data Flow
 
@@ -344,8 +347,8 @@ Server (IssueEngine) → SSE /api/events → EventBus singleton (lib/event-bus.t
 
 - `components/ui/` — shadcn/ui primitives
 - `components/kanban/` — Kanban board: columns, cards, sidebar, create issue dialog, header
-- `components/issue-detail/` — Issue detail page: chat area (`ChatBody`), diff panel, issue list, chat input (attachments, slash commands, model selector)
-- `components/files/` — `WorkspaceFiles` (the fm `<FileManager />` for a project) and the editor pieces the Skills page uses
+- `components/issue-detail/` — Issue detail page: chat area (`ChatBody`), workspace panel (file manager over the issue's workspace), issue list, chat input (attachments, slash commands, model selector)
+- `components/files/` — `WorkspaceFiles` (the fm `<FileManager />` for a project) and `FileBrowserDrawer`
 - `fm/` — vendored file manager UI (see File Manager)
 - `components/terminal/` — xterm.js WebSocket terminal
 - `components/processes/` — Active engine process list

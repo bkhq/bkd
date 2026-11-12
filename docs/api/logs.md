@@ -67,3 +67,10 @@ GET .../logs/filter/types/user-message,assistant-message/turn/2-5
 Pagination query params (`cursor`, `before`, `limit`) work the same as the base `/logs` endpoint.
 
 **Response:** Same envelope as `/logs`.
+
+## GET /api/projects/:projectId/issues/:id/turns
+
+List the chat turns of an issue, oldest first, with short previews. The turn navigator of the chat uses it.
+
+**Response:** `{ turns: [{ messageId, userText, replyText, entriesSince }] }` where `entriesSince` counts the visible
+log entries from that turn's message to the newest one.

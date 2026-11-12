@@ -1,5 +1,7 @@
 # Frontend Code Quality Audit
 
+> Historical snapshot of the code on the date below; not kept current. See [README.md](./README.md).
+
 **Date:** 2026-03-23
 **Scope:** `apps/frontend/src/` — React/Vite frontend
 **Mode:** READ-ONLY (no code modifications)

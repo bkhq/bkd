@@ -1,5 +1,7 @@
 # Security Audit Report
 
+> Historical snapshot of the code on the date below; not kept current. See [README.md](./README.md).
+
 **Date:** 2026-03-23
 **Scope:** Full monorepo — `apps/api/`, `apps/frontend/`, `packages/shared/`
 **Auditor:** Automated static analysis

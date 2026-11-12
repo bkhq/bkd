@@ -19,7 +19,9 @@ Compression is skipped for this route. Visibility filter is applied at the SSE b
 | `done` | `{ issueId, finalStatus }` | Issue execution completed (terminal state) |
 | `issue-updated` | `{ issueId, changes }` | Issue metadata updated (status, title, etc.) |
 | `changes-summary` | `{ issueId, ... }` | Git changes summary after settlement |
-| `decision-event-updated` | `DecisionEvent` | A decision event was created or changed state (see [decisions.md](./decisions.md)) |
+| `context-usage` | `{ issueId, contextTokens, contextWindow }` | Live context-window usage of a running claude-code turn |
+| `message-updated` | `Message` | A message was created or changed state (see [messages.md](./messages.md)) |
+| `browser-notification` | `{ webhookId, event, title, ... }` | A webhook event for a `browser` channel, shown as a desktop notification |
 | `heartbeat` | `{ ts }` | Keep-alive (every 15s) |
 
 Terminal states (`completed`, `failed`, `cancelled`) are emitted via the `done` event after the DB is updated, not via `state`.

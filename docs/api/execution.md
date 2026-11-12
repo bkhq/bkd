@@ -10,10 +10,13 @@ Start execution with a new prompt. Validates working directory against workspace
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `engineType` | `string` | Yes | Engine type (e.g. `claude-code`, `codex`) |
+| `engineType` | `string` | Yes | Engine type (`claude-code`, `codex`, `grok`, `cursor`) or a virtual engine id, which runs on its base engine |
 | `prompt` | `string` (1-32768) | Yes | Task prompt |
 | `model` | `string` (regex: `/^[\w./:\-[\]]{1,160}$/`) | No | Model identifier |
+| `effort` | `"auto" \| "low" \| "medium" \| "high" \| "xhigh" \| "max"` | No | Reasoning effort for claude-code (`auto` clears it); other engines ignore it |
 | `permissionMode` | `"auto" \| "supervised" \| "plan"` | No | Permission mode |
+
+The `issue-execute` cron action starts an execution the same way.
 
 **Response:** `{ executionId, issueId, messageId }`
 
@@ -28,7 +31,7 @@ Send a follow-up message. Accepts `application/json` or `multipart/form-data`.
 - `working` (idle) or `review`: triggers immediate follow-up
 - If follow-up fails, message is saved as pending (not lost)
 
-**Model change restriction:** Cannot change model while session is `running` or `pending` (returns `409`).
+**Settings change restriction:** `model`, `engineType` and `effort` cannot change while the session is `running` or `pending` (returns `409`). After the first run, `engineType` may only switch between engines that share the issue's base engine (the real engine and its virtual engines); the next turn resumes the same session.
 
 **Request Body (JSON):**
 
@@ -36,9 +39,12 @@ Send a follow-up message. Accepts `application/json` or `multipart/form-data`.
 |---|---|---|---|
 | `prompt` | `string` (1-32768) | Yes | Follow-up message |
 | `model` | `string` (regex: `/^[\w./:\-[\]]{1,160}$/`) | No | Model override |
+| `engineType` | `string` | No | Switch to another engine of the same base engine |
+| `effort` | `"auto" \| "low" \| "medium" \| "high" \| "xhigh" \| "max"` | No | Reasoning effort (`auto` clears it) |
 | `permissionMode` | `"auto" \| "supervised" \| "plan"` | No | Permission mode |
 | `busyAction` | `"queue" \| "cancel"` | No | What to do if agent is busy |
 | `displayPrompt` | `string` (0-500) | No | Display-only prompt text (shown in UI instead of full prompt) |
+| `sender` | `{ kind: "agent", projectId, issueId }` | No | The issue an agent sends from, when the user did not write the message; stored as `metadata.sender` and shown as an agent card. The issue must exist. Every engine process gets `BKD_PROJECT_ID` / `BKD_ISSUE_ID` to fill it. |
 
 **Multipart:** same fields + `files[]` for attachments. File validation applied.
 

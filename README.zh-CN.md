@@ -2,20 +2,22 @@
 
 AI 驱动的项目管理看板。创建 Issue，分配给 AI 编程代理，实时观看它们工作。
 
-BKD 是 CLI 编程代理的统一前端 —— 支持 [Claude Code](https://github.com/anthropics/claude-code) 和 [Codex](https://github.com/openai/codex)。你管理看板，代理写代码。
+BKD 是 CLI 编程代理的统一前端 —— 支持 [Claude Code](https://github.com/anthropics/claude-code)、[Codex](https://github.com/openai/codex)、Grok Build 和 Cursor CLI。你管理看板，代理写代码。
 
 [English](README.md)
 
 ## 功能
 
 - **看板** — 拖拽 Issue 在 待办 / 进行中 / 审查 / 完成 列之间移动
-- **多代理** — 支持 Claude Code、OpenAI Codex 作为执行引擎
+- **多代理** — 支持 Claude Code、OpenAI Codex、Grok Build、Cursor CLI 作为执行引擎，另可配置虚拟引擎和带独立环境变量的自定义模型
 - **实时对话** — 流式输出代理运行结果；运行中可发送追加消息
-- **Diff 查看器** — GitHub 风格的差异面板，查看代理所做的文件改动
-- **文件浏览器** — 浏览、查看项目文件，支持语法高亮
+- **文件管理器** — 浏览、编辑、上传、搜索项目和 worktree 中的文件，并在同一处以 diff 审查代理的改动
+- **消息** — 代理把需要你决定的问题和通知发到收件箱；在收件箱或 Telegram 里回答后，代理会被唤醒继续
+- **Skills** — 浏览、编辑、新建、上传、安装和更新 agent skill
+- **消息搜索** — 对项目内各 Issue 的对话历史做全文搜索
 - **Web 终端** — 内置 xterm.js 终端，直接访问 Shell
 - **文件上传** — 上传文件作为代理的上下文
-- **Webhooks** — 可配置的事件通知，支持 Issue 状态变更推送
+- **Webhooks** — 事件通知可推送到 HTTP 端点、Telegram 和浏览器
 - **多轮会话** — 保持完整会话历史，支持连续对话
 - **子 agent 可观测** — Claude 子 agent 的工作嵌套在派发它的工具调用下，带实时进度
 - **会话导入** — 扫描不由 BKD 管理的 Claude Code / Codex 本地会话，可导入为 Issue
@@ -87,7 +89,11 @@ npm install -g @openai/codex
 
 需要 `OPENAI_API_KEY` 或 `CODEX_API_KEY`，或通过 `codex` CLI 完成认证。
 
-> BKD 启动时会自动检测已安装的代理，可以任意组合使用。
+### Grok Build 与 Cursor CLI
+
+按各自官方文档安装 `grok` 或 `cursor-agent` CLI 并完成登录。两者以无头模式运行，不会询问授权：Grok 以跳过权限的方式运行，Cursor 使用 `--force`。
+
+> BKD 在首次启动时检测已安装的代理，之后可在设置里重新探测引擎，可以任意组合使用。
 
 ## BKD Skill
 
@@ -121,7 +127,7 @@ npx skills add zzci/skills --skill bkd
 2. **创建 Issue** — 描述任务内容，选择 AI 引擎和模型
 3. **执行** — 点击执行，代理在你的工作目录中启动并开始工作
 4. **对话** — 随时发送追加消息、上传文件或取消执行
-5. **审查** — 查看 Diff、检查代理的工具调用记录，拖拽 Issue 到完成
+5. **审查** — 在文件管理器里审查改动、检查代理的工具调用记录，拖拽 Issue 到完成
 
 ## 配置
 

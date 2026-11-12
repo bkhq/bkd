@@ -106,6 +106,36 @@ Replace the whole list.
 
 **Response:** `VirtualEngine[]`
 
+## GET /api/engines/model-configs
+
+Model configs of every real engine, keyed by engine type.
+
+**Response:** `Record<engineType, ModelConfig[]>`
+
+`ModelConfig`: `{ id, name?, baseModel?, envVars }`. Without `baseModel` the entry renames a detected model and adds
+environment variables to its runs. With `baseModel` it is a custom model: its `id` must not be a detected model id,
+and the CLI runs on `baseModel`. Custom models appear in `/api/engines/available` with `custom: true`. Environment
+precedence at spawn: project < model < virtual engine.
+
+## PUT /api/engines/:engineType/model-configs
+
+Replace the model configs of one real engine.
+
+**Request Body:** `{ configs: ModelConfig[] }`
+
+**Response:** `ModelConfig[]`
+
+## POST /api/engines/:engineType/update
+
+Run the engine CLI's own updater (`<binary> update`). One update runs at a time and cannot be cancelled. Returns
+`202` with the update; poll it for output.
+
+**Response:** `{ id, engineType, status, output, error, fromVersion, toVersion, startedAt, finishedAt }`
+
+## GET /api/engines/updates/:id
+
+The update with its output lines so far.
+
 ## GET /api/engines/claude/usage
 
 Claude subscription usage.

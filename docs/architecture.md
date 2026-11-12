@@ -2,7 +2,7 @@
 
 ## Overview
 
-BKD is a Kanban application for managing autonomous AI coding agents. Issues on the board are assigned to CLI-based AI engines (Claude Code, Codex, Grok Build, Cursor) that execute in the user's workspace. The system handles process orchestration, streaming log aggregation, real-time SSE updates, cron scheduling, and decision events; upgrades are driven by the [lode](https://github.com/bkhq/lode) supervisor.
+BKD is a Kanban application for managing autonomous AI coding agents. Issues on the board are assigned to CLI-based AI engines (Claude Code, Codex, Grok Build, Cursor) that execute in the user's workspace. The system handles process orchestration, streaming log aggregation, real-time SSE updates, cron scheduling, and agent-to-user messages (decisions and notifications); upgrades are driven by the [lode](https://github.com/bkhq/lode) supervisor.
 
 **Deployment assumption:** BKD is currently designed as a single-user application. The backend, frontend, SSE event model, workspace access model, and settings surface assume one trusted operator per deployment. It is not currently designed as a multi-tenant or per-project-isolated system for mutually untrusted users. This assumption is especially important for features such as the global SSE stream, shared process visibility, workspace browsing, and settings management. If BKD is extended to support multi-user deployments in the future, server-side authorization boundaries will need to be added explicitly.
 
@@ -52,7 +52,7 @@ SQLite via `bun:sqlite` + Drizzle ORM. WAL mode, foreign keys, 64 MB cache, 256 
 | Table | Key Fields | Notes |
 |-------|-----------|-------|
 | `projects` | `id`, `name`, `alias` (unique), `directory`, `repositoryUrl`, `systemPrompt`, `envVars`, `defaultEngine`, `defaultModel` | Top-level container; supports archive; per-project engine/model defaults inherit global when null |
-| `issues` | `id`, `projectId`, `statusId`, `issueNumber`, `title`, `tags`, `parentIssueId`, `useWorktree`, `isPinned`, `keepAlive`, `engineType`, `sessionStatus`, `model`, `externalSessionId`, `totalInputTokens`, `totalOutputTokens`, `totalCostUsd` | Core entity; CHECK constraint on status |
+| `issues` | `id`, `projectId`, `statusId`, `issueNumber`, `title`, `tags`, `parentIssueId`, `useWorktree`, `isPinned`, `keepAlive`, `engineType`, `engineProfileId`, `sessionStatus`, `model`, `effort`, `permissionMode`, `externalSessionId`, `totalInputTokens`, `totalOutputTokens`, `totalCostUsd` | Core entity; CHECK constraint on status |
 | `issueLogs` | `id` (ULID), `issueId`, `turnIndex`, `entryIndex`, `entryType`, `content`, `metadata`, `visible` | Conversation log entries |
 | `issuesLogsToolsCall` | `id` (ULID), `logId`, `issueId`, `toolName`, `toolCallId`, `kind`, `isResult`, `raw` | Tool action detail records |
 | `attachments` | `id` (ULID), `issueId`, `logId`, `originalName`, `storedName`, `mimeType`, `size` | File uploads |
@@ -60,7 +60,7 @@ SQLite via `bun:sqlite` + Drizzle ORM. WAL mode, foreign keys, 64 MB cache, 256 
 | `notes` | `id` (ULID), `title`, `content`, `isPinned` | User notes |
 | `messages` | `id`, `kind`, `expects`, `status`, `level`, `campaignId`, `source`, `ref`, `title`, `body`, `options`, `decision`, `reply` | Decisions and notifications sent by agents |
 | `messageChannelMessages` | `id` (ULID), `webhookId`, `messageId`, `chatId`, `chatMessageId` | Telegram chat message carrying a message |
-| `webhooks` | `id` (ULID), `channel`, `url`, `secret`, `events`, `isActive` | Webhook endpoints |
+| `webhooks` | `id` (ULID), `channel`, `url`, `secret`, `events`, `isActive`, `interactive` | Notification channels: `webhook`, `telegram`, `browser` |
 | `webhookDeliveries` | `id`, `webhookId`, `dedupKey`, `statusCode`, `success`, `duration` | Delivery audit trail |
 | `cronJobs` | `id`, `name`, `cron`, `taskType`, `taskConfig`, `enabled` | Scheduled jobs |
 | `cronJobLogs` | `id`, `jobId`, `status`, `result`, `error`, `durationMs` | Job execution logs |
@@ -91,6 +91,7 @@ Hardcoded constants — no DB table:
 | `/api/projects/sort` | PATCH | `projects.ts` | Reorder projects |
 | `/api/projects/:id/worktrees[/:issueId]` | GET, DELETE | `worktrees.ts` | Worktree management |
 | `/api/.../issues/bulk` | PATCH | `issues/update.ts` | Bulk update status/sort |
+| `/api/.../issues/search` | GET | `issues/search.ts` | Full-text search over chat messages (FTS5 trigram) |
 | `/api/.../issues/import-session` | POST | `issues/import-session.ts` | Create an issue from a local engine session |
 | `/api/.../issues/:id` | GET, PATCH, DELETE | `issues/query.ts`, `update.ts`, `delete.ts` | Single issue CRUD |
 | `/api/.../issues/:id/execute` | POST | `issues/command.ts` | Start AI engine execution |
@@ -100,8 +101,9 @@ Hardcoded constants — no DB table:
 | `/api/.../issues/:id/slash-commands` | GET | `issues/command.ts` | Slash commands of the issue's engine |
 | `/api/.../issues/:id/logs` | GET | `issues/logs.ts` | Paginated logs (cursor-based) |
 | `/api/.../issues/:id/logs/filter/*` | GET | `issues/logs.ts` | Filtered logs (path key/value) |
+| `/api/.../issues/:id/turns` | GET | `issues/logs.ts` | Chat turns with short previews |
 | `/api/.../issues/:id/attachments/:attachmentId` | GET | `issues/attachments.ts` | Download an attachment (uploads go through create / follow-up multipart) |
-| `/api/.../issues/:id/changes[/file]` | GET | `issues/changes.ts` | Git change summary, per-file diff |
+| `/api/.../issues/:id/changes[/file]` | GET | `issues/changes.ts` | Git change summary, per-file diff (the UI reviews changes in the file manager) |
 | `/api/.../issues/:id/duplicate` | POST | `issues/duplicate.ts` | Clone issue |
 | `/api/.../issues/:id/export` | GET | `issues/export.ts` | Export as JSON |
 | `/api/issues/review` | GET | `issues/review.ts` | Global review queue |
@@ -111,18 +113,19 @@ Hardcoded constants — no DB table:
 | Route | Methods | File | Description |
 |-------|---------|------|-------------|
 | `/api`, `/api/health`, `/api/status`, `/api/runtime` | GET | `api.ts` | Status, DB health + version, runtime info |
-| `/api/engines/*` | GET, POST, PATCH, PUT | `engines.ts` | Engine discovery, models, settings, virtual engines, usage, probe |
+| `/api/engines/*` | GET, POST, PATCH, PUT | `engines.ts` | Engine discovery, models, settings, model configs, virtual engines, usage, probe, CLI update |
 | `/api/events` | GET | `events.ts` | Global SSE endpoint |
 | `/api/settings/*` | GET, POST, PATCH, PUT, DELETE | `settings/` | App settings, webhooks, cleanup, system logs, upgrade |
 | `/api/terminal/*`, `/api/terminal/ws/:id` | GET, POST, DELETE, WS | `terminal.ts` | PTY sessions, WebSocket terminal |
-| `/api/fm/:projectId/*` | GET, PUT, POST, DELETE | `fm.ts` | File manager (vendored bkhq/filemanager router): project and worktree mounts, read, write, upload, trash; not in OpenAPI |
+| `/api/fm/:projectId/*` | GET, PUT, POST, DELETE | `fm.ts` | File manager (vendored bkhq/filemanager router): project and worktree mounts, read, write, upload, changes, trash; not in OpenAPI |
+| `/api/skills/fm/:projectId/*` | GET, PUT, POST, DELETE | `skills-fm.ts` | The same router with one mount per skill |
 | `/api/filesystem/dirs` | GET, POST | `filesystem.ts` | Directory listing / creation |
 | `/api/git/detect-remote` | POST | `git.ts` | Remote URL detection |
 | `/api/processes/*` | GET, POST | `processes.ts` | Active engine processes, capacity, terminate |
 | `/api/sessions/*` | GET, POST | `sessions.ts` | Local engine sessions (list, preview, bulk delete) |
 | `/api/cron/*` | GET, POST, DELETE | `cron.ts` | Cron job management |
 | `/api/notes/*` | GET, POST, PATCH, DELETE | `notes.ts` | Notes CRUD |
-| `/api/skills[/*]` | GET, POST, PUT, DELETE | `skills.ts` | Agent skills on disk (`.agents/skills`, `.claude/skills`, per project): list, files, create, copy, delete; managed (CLI-installed) skills are read-only; `operations` runs the `skills` CLI to preview a repo, install, update and uninstall; `updates` compares lock hashes with GitHub; `upload` takes .md / .zip / .skill |
+| `/api/skills[/*]` | GET, POST, DELETE | `skills.ts` | Agent skills on disk (`.agents/skills`, `.claude/skills`, per project): list, create, copy, delete; managed (CLI-installed) skills are read-only; `operations` runs the `skills` CLI to preview a repo, install, update and uninstall; `updates` compares lock hashes with GitHub; `upload` takes .md / .zip / .skill |
 | `/api/messages[/items/*]` | GET, POST, PATCH | `messages.ts` | Capability probe; messages: send, decide, reply, read, notify, ack, withdraw, close |
 | `/api/decisions[/events/*]` | GET, POST, PATCH | `decisions.ts` | v1 decision-event contract over the messages store |
 
@@ -150,18 +153,25 @@ engines/
 ├── startup-probe.ts            — Engine discovery (3-tier cache)
 ├── reconciler.ts               — Stale session cleanup safety net
 ├── spawn.ts                    — node:child_process wrapper
-├── engine-store.ts             — Executor registry
+├── engine-store.ts             — Issue session fields in the DB
+├── model-configs.ts            — Per-model renames, env vars and custom models
+├── virtual-engines.ts          — Virtual engines and same-base engine switch
+├── model-resolver.ts           — Requested model → model the CLI runs
+├── cli-update.ts               — Runs an engine CLI's own updater
+├── safe-env.ts                 — Environment passed to engine processes
 ├── executors/
 │   ├── claude/
 │   │   ├── executor.ts         — Main Claude Code executor
 │   │   ├── protocol.ts         — Stream-JSON protocol handler
 │   │   ├── normalizer.ts       — Log normalization
 │   │   ├── normalizer-types.ts — Type definitions
-│   │   └── normalizer-tool.ts  — Tool call parsing
+│   │   ├── normalizer-tool.ts  — Tool call parsing
+│   │   └── usage.ts            — Subscription usage
 │   ├── codex/
 │   │   ├── executor.ts         — Codex executor (long-lived process)
 │   │   ├── protocol.ts         — JSON-RPC protocol handler
-│   │   └── normalizer.ts       — Log normalization (most complex)
+│   │   ├── normalizer.ts       — Log normalization (most complex)
+│   │   └── usage.ts            — Subscription usage
 │   ├── grok/
 │   │   ├── executor.ts         — Grok Build headless executor
 │   │   └── normalizer.ts       — Log normalization (self-contained)
@@ -174,10 +184,10 @@ engines/
     ├── lifecycle/              — spawn, completion, settlement
     ├── streams/                — Async stdout consumer, log classification
     ├── persistence/            — DB writes for logs + tool calls
-    ├── pipeline/               — Token aggregation, failure detection
+    ├── pipeline/               — Ordered log stages: image extraction, persistence, token and context usage, in-memory store, failure detection
     ├── state/                  — State machine actions
-    ├── process/                — Per-issue lock (chained Promises)
-    ├── store/                  — Execution store, message rebuilder
+    ├── process/                — Per-issue lock (chained Promises), registration, cancel
+    ├── store/                  — In-memory entries of a running execution
     └── utils/                  — Worktree, visibility, normalizer factory
 ```
 
@@ -257,7 +267,7 @@ A message is something an agent sends the user. `kind` is `decision` (one questi
 
 **Single-user assumption:** `/api/events` is intentionally implemented as one global event stream with client-side filtering. This is an explicit tradeoff under the current single-user deployment model, where all visible issue activity belongs to the same trusted operator. It should not be interpreted as a multi-user authorization boundary.
 
-- Event types: `log`, `log-updated`, `log-removed`, `state`, `done`, `issue-updated`, `changes-summary`, `message-updated`, `heartbeat` (15s)
+- Event types: `log`, `log-updated`, `log-removed`, `state`, `done`, `issue-updated`, `changes-summary`, `context-usage`, `message-updated`, `browser-notification`, `heartbeat` (15s)
 - Subscribes to: `IssueEngine.onLog`, `.onStateChange`, `.onIssueSettled`, `onIssueUpdated`, `onChangesSummary`, and the `message-updated` bus event
 
 **`changes-summary.ts`**: runs `git status/diff` after each issue settles; pushes file change stats via SSE.
@@ -274,8 +284,9 @@ See `docs/deployment.md`.
 
 ### Webhook System (`webhooks/`)
 
-- Channels: `webhook` (HTTP POST) and `telegram` (bot API)
-- Events: issue status changes, session state changes
+- Channels: `webhook` (HTTP POST), `telegram` (bot API, sent through `messages/telegram/client.ts`) and `browser` (desktop notification over SSE)
+- Events: `issue.{created,updated,deleted}`, `issue.status.{todo,working,review,done}`, `session.{started,completed,failed}`, `decision.*` and `message.*` (see Messages)
+- URLs may target loopback and private networks; `utils/url-safety.ts` blocks link-local and reserved ranges at save time and at delivery
 - Delivery audit trail in `webhookDeliveries` table
 - Deduplication via `dedupKey`
 
@@ -303,13 +314,13 @@ See `docs/deployment.md`.
 |------|------|-------------|
 | `/` | `HomePage` | Project dashboard |
 | `/projects/:projectId` | `KanbanPage` | Kanban board with drag-and-drop |
-| `/projects/:projectId/issues[/:issueId]` | `IssueDetailPage` | Three-panel: list + chat + diff |
+| `/projects/:projectId/issues[/:issueId]` | `IssueDetailPage` | Issue list, chat, and the workspace panel (file manager over the issue's workspace) |
 | `/review[/:projectId/:issueId]` | `ReviewPage` | Review queue |
 | `/terminal` | `TerminalPage` | Full-page terminal |
 | `/cron` | `CronPage` | Cron job management |
 | `/messages` | (redirect) | Opens the messages drawer on `/` (`/decisions` redirects here) |
 | `/skills` | `SkillsPage` | Agent skills: browse, edit, create, copy |
-| `/sessions` | `SessionsPage` | Local engine sessions |
+| `/sessions` | `LocalSessionsPage` | Local engine sessions |
 
 Five global drawers (lazy-mounted): `TerminalDrawer`, `FileBrowserDrawer`, `ProcessManagerDrawer`, `NotesDrawer`, `MessagesDrawer` (global inbox for decisions and notifications).
 
@@ -319,13 +330,18 @@ Five global drawers (lazy-mounted): `TerminalDrawer`, `FileBrowserDrawer`, `Proc
 components/
 ├── ui/              ← shadcn/ui primitives (25+ components)
 ├── kanban/          ← Board: columns, cards, sidebar, create dialog, header
-├── issue-detail/    ← Chat area, log entries, tool items, diff panel, markdown
-├── files/           ← WorkspaceFiles (fm wrapper), skill editor pieces
+├── issue-detail/    ← Chat area, log entries, tool items, workspace panel, markdown
+├── issue-drag/      ← dnd-kit drag context and drop planning for issues
+├── files/           ← WorkspaceFiles (fm wrapper), FileBrowserDrawer
+├── messages/        ← Messages drawer: decision and notification cards
+├── skills/          ← Skill files and CLI operation dialogs
 ├── terminal/        ← xterm.js WebSocket terminal
 ├── processes/       ← Active engine process list
 ├── notes/           ← Notes drawer and editor
-└── settings/        ← Webhook, cleanup, upgrade settings
+└── settings/        ← Webhooks, usage, model and virtual engine dialogs, engine CLI update
 ```
+
+`fm/` next to `components/` is the vendored file manager UI.
 
 ### State Management
 
@@ -346,6 +362,10 @@ components/
 | `server-store` | Server name, URL |
 | `chat-filter-store` | Chat entry-type filter |
 | `session-panel-store` | Local session panel state |
+| `workspace-panel-store` | Issue workspace panel (open, maximized, width) |
+| `upload-store` | Upload progress shown by `UploadProgress` |
+
+The terminal, messages, notes, process-manager and file-browser stores share their open / minimize / fullscreen / width logic through `lib/drawer-store.ts`.
 
 ### Real-Time Data Flow
 
@@ -377,10 +397,11 @@ Typed async functions wrapping all backend endpoints. Internal helpers (`get`, `
 Single source of truth consumed by both backend and frontend:
 
 - **Domain**: `Project`, `Issue`, `EngineType`, `SessionStatus`, `PermissionMode`, `BusyAction`
-- **Logs**: `NormalizedLogEntry`, `LogEntryType`, `ChatMessage` (8 variants), `ToolAction`, `ToolDetail`
+- **Logs**: `NormalizedLogEntry`, `LogEntryType`, `ChatMessage` (7 variants), `ToolAction`, `ToolDetail`
 - **Engine**: `EngineAvailability`, `EngineModel`, `EngineDiscoveryResult`, `EngineProfile`, `ProbeResult`
 - **API**: `ApiResponse<T>`, `ExecuteIssueRequest`, `IssueLogsResponse`, `IssueChangesResponse`
-- **Files**: `FileEntry`, `DirectoryListing`, `FileContent`
+- **Messages**: `Message`, `DecisionEvent` (v1 shape), `WebhookEventType`, `NotificationChannel`
+- **Statuses**: `STATUSES`, `STATUS_MAP`, `STATUS_IDS`, `DEFAULT_STATUS_ID`
 - **Processes**: `ProcessInfo`, `ProjectProcessesResponse`
 
 Frontend re-exports via `types/kanban.ts`.
@@ -402,7 +423,7 @@ Frontend re-exports via `types/kanban.ts`.
 
 ### Database Migrations
 
-28 migrations in `apps/api/drizzle/` (0000–0027). Auto-applied on startup in `meta/_journal.json` order. Sources: `apps/api/drizzle` (dev), `APP_DIR/migrations/` (package), or the embedded map (`db/embedded-migrations.ts`, used only when no filesystem migrations exist).
+33 migrations in `apps/api/drizzle/` (0000–0032). Auto-applied on startup in `meta/_journal.json` order. Sources: `apps/api/drizzle` (dev), `APP_DIR/migrations/` (package), or the embedded map (`db/embedded-migrations.ts`, used only when no filesystem migrations exist).
 
 ---
 
@@ -411,7 +432,7 @@ Frontend re-exports via `types/kanban.ts`.
 1. **API response envelope**: `{ success: true, data: T } | { success: false, error: string }`
 2. **Soft deletion**: all entities use `isDeleted` flag, never hard-deleted
 3. **Per-issue operation lock**: chained Promises prevent concurrent execute/follow-up/restart
-4. **Optimistic UI**: drag-and-drop uses board store for immediate feedback; sync pauses during drag
+4. **Optimistic UI**: issue drag-and-drop updates the React Query cache immediately and rolls back on failure
 5. **Three-tier engine discovery cache**: memory → DB → live probe
 6. **Event-driven invalidation**: SSE events trigger targeted React Query cache invalidation
 7. **Pending message coalescence**: messages queued while AI is busy merge into single follow-up on exit
