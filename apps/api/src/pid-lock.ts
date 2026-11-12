@@ -193,13 +193,17 @@ export function acquirePidLock(): void {
 
   const existingPid = Number.parseInt(content.split(':')[0] ?? '', 10)
 
-  if (isLockHolderAlive(content)) exitDuplicateInstance(pidFile, existingPid)
+  // Our own pid: `bun --hot` re-evaluated the server in this process. Another
+  // live process cannot share it, so the lock is ours to rewrite.
+  if (existingPid !== process.pid) {
+    if (isLockHolderAlive(content)) exitDuplicateInstance(pidFile, existingPid)
 
-  // PID file exists but the holder is gone (dead or PID reused) → stale lock
-  logger.warn(
-    { stalePid: existingPid, pidFile },
-    'pid_lock_stale_removed',
-  )
+    // PID file exists but the holder is gone (dead or PID reused) → stale lock
+    logger.warn(
+      { stalePid: existingPid, pidFile },
+      'pid_lock_stale_removed',
+    )
+  }
 
   // Remove the stale lock and write our PID
   try {

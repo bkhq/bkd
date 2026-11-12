@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'bun:test'
-import { getProcessStartTime, isLockHolderAlive } from '@/pid-lock'
+import { describe, expect, spyOn, test } from 'bun:test'
+import { acquirePidLock, getProcessStartTime, isLockHolderAlive, releasePidLock } from '@/pid-lock'
 
 /**
  * Guards ENG-017: the lock holder is identified by the (pid, starttime) pair so
@@ -38,5 +38,24 @@ describe('pid-lock holder detection', () => {
     // No start time to compare → cannot detect reuse → must NOT be treated as
     // stale (deleting it would allow a concurrent second instance at startup).
     expect(isLockHolderAlive(String(process.pid))).toBe(true)
+  })
+})
+
+describe('acquirePidLock', () => {
+  test('a second call in the same process keeps the lock instead of exiting', () => {
+    // `bun --hot` re-evaluates server-main.ts in the running process.
+    const exit = spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit(${code})`)
+    }) as typeof process.exit)
+    const stderr = spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      acquirePidLock()
+      expect(() => acquirePidLock()).not.toThrow()
+      expect(exit).not.toHaveBeenCalled()
+    } finally {
+      releasePidLock()
+      exit.mockRestore()
+      stderr.mockRestore()
+    }
   })
 })
