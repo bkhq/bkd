@@ -13,7 +13,7 @@ import type {
   ToolGroupItem,
   UserChatMessage,
 } from '@bkd/shared'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 // ---------- Helpers ----------
 
@@ -159,13 +159,17 @@ function buildSubagentThread(
  */
 function partitionSubagents(rawEntries: NormalizedLogEntry[]): {
   entries: NormalizedLogEntry[]
+  /** Index in `rawEntries` of each entry of `entries`. */
+  rawIndex: number[]
   subagentThreads: Map<string, SubagentThread>
 } {
   const entries: NormalizedLogEntry[] = []
+  const rawIndex: number[] = []
   const inner = new Map<string, NormalizedLogEntry[]>()
   const status = new Map<string, SubagentStatus>()
 
-  for (const entry of rawEntries) {
+  for (let r = 0; r < rawEntries.length; r++) {
+    const entry = rawEntries[r]
     const attribution = subagentOf(entry)
     if (attribution) {
       const existing = inner.get(attribution.toolCallId)
@@ -184,6 +188,7 @@ function partitionSubagents(rawEntries: NormalizedLogEntry[]): {
     }
 
     entries.push(entry)
+    rawIndex.push(r)
   }
 
   const subagentThreads = new Map<string, SubagentThread>()
@@ -193,7 +198,7 @@ function partitionSubagents(rawEntries: NormalizedLogEntry[]): {
       buildSubagentThread(callId, inner.get(callId) ?? [], status.get(callId) ?? {}),
     )
   }
-  return { entries, subagentThreads }
+  return { entries, rawIndex, subagentThreads }
 }
 
 // ---------- TodoWrite → TaskPlan ----------
@@ -226,15 +231,93 @@ export function extractTodos(entry: NormalizedLogEntry): TaskPlanChatMessage['to
 
 // ---------- Main rebuild ----------
 
+/**
+ * A point where the entry list can be cut: everything before it groups into
+ * the same messages whether or not the rest is there.
+ */
+interface Checkpoint {
+  /** Index of the first entry after the cut. */
+  entryIndex: number
+  /** Messages produced by the entries before the cut. */
+  messageCount: number
+  /** Fallback-id counter at the cut. */
+  seq: number
+  /** First command before the cut still waiting for its output, or -1. */
+  openCommand: number
+}
+
+interface BuildResult {
+  /** Grouped messages, the trailing tool group not yet marked active. */
+  messages: ChatMessage[]
+  checkpoints: Checkpoint[]
+}
+
+/** What an entry is tied to elsewhere in the list: a tool call, or a turn's duration. */
+function linkKeys(entry: NormalizedLogEntry): string[] {
+  const keys: string[] = []
+  const callId = toolCallIdOf(entry)
+  if (callId) keys.push(`c:${callId}`)
+  const attribution = subagentOf(entry)
+  if (attribution) keys.push(`c:${attribution.toolCallId}`)
+  if (
+    entry.entryType === 'assistant-message'
+    || (entry.entryType === 'system-message' && typeof entry.metadata?.duration === 'number')
+  ) {
+    keys.push(`t:${entry.turnIndex ?? 0}`)
+  }
+  return keys
+}
+
+function isCommandOutput(entry: NormalizedLogEntry): boolean {
+  return entry.entryType === 'system-message' && entry.metadata?.subtype === 'command_output'
+}
+
 export function rebuildMessages(rawEntries: NormalizedLogEntry[]): ChatMessage[] {
+  return markActiveToolGroup(buildMessages(rawEntries, 0).messages)
+}
+
+/**
+ * Mark the trailing tool group as active — it hasn't been closed by a
+ * subsequent assistant/user message, so it may still receive new tool calls.
+ * The group is copied, so `messages` may hold shared objects.
+ */
+function markActiveToolGroup(messages: ChatMessage[]): ChatMessage[] {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message.type === 'tool-group') {
+      const marked = [...messages]
+      marked[i] = { ...message, isActive: true }
+      return marked
+    }
+    // Stop searching if an assistant message is found — the group was
+    // properly flushed and is no longer the trailing group.
+    // Note: user messages include pending/done types that don't flush tool
+    // buffers, so only assistant messages are a reliable boundary.
+    if (message.type === 'assistant') break
+  }
+  return messages
+}
+
+function buildMessages(rawEntries: NormalizedLogEntry[], startSeq: number): BuildResult {
   // Subagent turns are nested under the tool call that dispatched them, so
   // they must not take part in main-timeline grouping.
-  const { entries, subagentThreads } = partitionSubagents(rawEntries)
+  const { entries, rawIndex, subagentThreads } = partitionSubagents(rawEntries)
 
   // Local counter — avoids module-level singleton race when multiple
   // components call useChatMessages concurrently.
-  let seq = 0
+  let seq = startSeq
   const nextId = (prefix: string) => `${prefix}-${++seq}`
+
+  // Last raw index each link is seen at: a cut is only safe once every link
+  // opened before it has closed.
+  const lastSeen = new Map<string, number>()
+  for (let r = 0; r < rawEntries.length; r++) {
+    for (const key of linkKeys(rawEntries[r])) lastSeen.set(key, r)
+  }
+  const checkpoints: Checkpoint[] = []
+  let linkedUntil = -1
+  let swept = 0
+  let openCommand = -1
 
   const messages: ChatMessage[] = []
   let toolBuffer: ToolGroupItem[] = []
@@ -282,6 +365,19 @@ export function rebuildMessages(rawEntries: NormalizedLogEntry[]): ChatMessage[]
           break
         }
       }
+    }
+  }
+
+  /** Record a checkpoint before main-timeline entry `i` when nothing before it reaches past it. */
+  function checkpointBefore(i: number): void {
+    const cut = rawIndex[i]
+    for (; swept < cut; swept++) {
+      for (const key of linkKeys(rawEntries[swept])) {
+        linkedUntil = Math.max(linkedUntil, lastSeen.get(key)!)
+      }
+    }
+    if (cut > 0 && linkedUntil < cut) {
+      checkpoints.push({ entryIndex: cut, messageCount: messages.length, seq, openCommand })
     }
   }
 
@@ -442,6 +538,7 @@ export function rebuildMessages(rawEntries: NormalizedLogEntry[]): ChatMessage[]
     // ── Conversation messages flush the tool group ──
     flushToolBuffer()
     flushPendingThinking()
+    if (entry.entryType === 'user-message' || entry.entryType === 'assistant-message') checkpointBefore(i)
 
     switch (entry.entryType) {
       case 'user-message': {
@@ -472,6 +569,9 @@ export function rebuildMessages(rawEntries: NormalizedLogEntry[]): ChatMessage[]
           const outputIdx = commandOutputByIdx.get(i)
           if (outputIdx !== undefined) {
             msg.commandOutput = entries[outputIdx]
+            linkedUntil = Math.max(linkedUntil, rawIndex[outputIdx])
+          } else if (openCommand < 0) {
+            openCommand = rawIndex[i]
           }
         }
         messages.push(msg)
@@ -495,21 +595,91 @@ export function rebuildMessages(rawEntries: NormalizedLogEntry[]): ChatMessage[]
   flushToolBuffer()
   flushPendingThinking()
 
-  // Mark the trailing tool group as active — it hasn't been closed by a
-  // subsequent assistant/user message, so it may still receive new tool calls.
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].type === 'tool-group') {
-      (messages[i] as ToolGroupChatMessage).isActive = true
-      break
+  return { messages, checkpoints }
+}
+
+// ---------- Incremental rebuild ----------
+
+/**
+ * Groups a growing entry list without regrouping what did not change: after an
+ * update it restarts from the last checkpoint before the first changed entry,
+ * so the messages before it are the same objects as last time. The result
+ * always equals `rebuildMessages(entries)`.
+ */
+export class ChatMessageBuilder {
+  private entries: NormalizedLogEntry[] = []
+  private messages: ChatMessage[] = []
+  private checkpoints: Checkpoint[] = []
+  /** First index each link is seen at, for the entries of the last update. */
+  private firstSeen = new Map<string, number>()
+
+  update(entries: NormalizedLogEntry[]): ChatMessage[] {
+    const previous = this.entries
+    let same = 0
+    const limit = Math.min(previous.length, entries.length)
+    while (same < limit && previous[same] === entries[same]) same++
+
+    // Entries past the unchanged part are regrouped; forget where their links were.
+    if (same < previous.length) {
+      for (const [key, index] of this.firstSeen) {
+        if (index >= same) this.firstSeen.delete(key)
+      }
     }
-    // Stop searching if an assistant message is found — the group was
-    // properly flushed and is no longer the trailing group.
-    // Note: user messages include pending/done types that don't flush tool
-    // buffers, so only assistant messages are a reliable boundary.
-    if (messages[i].type === 'assistant') break
+
+    const start = this.restartPoint(entries, same)
+    const built = buildMessages(start.entryIndex > 0 ? entries.slice(start.entryIndex) : entries, start.seq)
+
+    this.messages = start.entryIndex > 0
+      ? [...this.messages.slice(0, start.messageCount), ...built.messages]
+      : built.messages
+    this.checkpoints = [
+      ...this.checkpoints.filter(c => c.entryIndex <= start.entryIndex),
+      ...built.checkpoints.map(c => ({
+        entryIndex: c.entryIndex + start.entryIndex,
+        messageCount: c.messageCount + start.messageCount,
+        seq: c.seq,
+        openCommand: start.openCommand >= 0
+          ? start.openCommand
+          : c.openCommand >= 0 ? c.openCommand + start.entryIndex : -1,
+      })),
+    ]
+    for (let i = start.entryIndex; i < entries.length; i++) {
+      for (const key of linkKeys(entries[i])) {
+        if (!this.firstSeen.has(key)) this.firstSeen.set(key, i)
+      }
+    }
+    this.entries = entries
+
+    return markActiveToolGroup(this.messages)
   }
 
-  return messages
+  /** Latest checkpoint at or before `same` that nothing after it links back across. */
+  private restartPoint(entries: NormalizedLogEntry[], same: number): Checkpoint {
+    const origin: Checkpoint = { entryIndex: 0, messageCount: 0, seq: 0, openCommand: -1 }
+    let candidates = this.checkpoints.filter(c => c.entryIndex <= same)
+    let scanned = entries.length
+    let hasCommandOutput = false
+    let earliestLink = Number.POSITIVE_INFINITY
+
+    while (candidates.length > 0) {
+      const checkpoint = candidates.at(-1)!
+      for (let i = scanned - 1; i >= checkpoint.entryIndex; i--) {
+        if (isCommandOutput(entries[i])) hasCommandOutput = true
+        for (const key of linkKeys(entries[i])) {
+          const first = this.firstSeen.get(key)
+          if (first !== undefined) earliestLink = Math.min(earliestLink, first)
+        }
+      }
+      scanned = checkpoint.entryIndex
+
+      // The cut must sit at or before everything the rest links back to.
+      let bound = earliestLink
+      if (hasCommandOutput && checkpoint.openCommand >= 0) bound = Math.min(bound, checkpoint.openCommand)
+      if (bound >= checkpoint.entryIndex) return checkpoint
+      candidates = candidates.filter(c => c.entryIndex <= bound)
+    }
+    return origin
+  }
 }
 
 // ---------- Hook ----------
@@ -525,8 +695,9 @@ interface ChatMessagesResult {
  * Pending messages are extracted and returned separately for bottom-pinned display.
  */
 export function useChatMessages(logs: NormalizedLogEntry[]): ChatMessagesResult {
+  const [builder] = useState(() => new ChatMessageBuilder())
   return useMemo(() => {
-    const all = rebuildMessages(logs)
+    const all = builder.update(logs)
     const messages: ChatMessage[] = []
     const pendingMessages: UserChatMessage[] = []
     for (const msg of all) {
@@ -537,5 +708,5 @@ export function useChatMessages(logs: NormalizedLogEntry[]): ChatMessagesResult 
       }
     }
     return { messages, pendingMessages }
-  }, [logs])
+  }, [builder, logs])
 }
