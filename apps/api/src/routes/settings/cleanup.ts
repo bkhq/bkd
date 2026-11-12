@@ -20,9 +20,7 @@ import type { WorktreeOnDisk } from '@/engines/issue/utils/worktree'
 import { listWorktreesOnDisk, removeWorktrees, resolveWorktreePath, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
-import { DATA_DIR } from '@/root'
-
-const ISSUE_LOG_DIR = join(DATA_DIR, 'logs', 'issues')
+import { ISSUE_LOG_DIR } from '@/root'
 
 const cleanup = createOpenAPIRouter()
 

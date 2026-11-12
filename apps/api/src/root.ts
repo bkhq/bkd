@@ -38,6 +38,9 @@ export function resolveDataDir(env: Record<string, string | undefined>): string 
 
 export const DATA_DIR = resolveDataDir(process.env)
 
+/** Per-issue debug logs: `<DATA_DIR>/logs/issues/<issueId>/`. */
+export const ISSUE_LOG_DIR = resolve(DATA_DIR, 'logs', 'issues')
+
 /**
  * App package directory (package mode only).
  *
