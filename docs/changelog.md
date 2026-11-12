@@ -1472,6 +1472,12 @@ Task: 20261111-1734-dedupe-redundant-code.
   `EditDialogFooter` replace copied JSX; `useNoteDraft()` replaces two copies inside `NotesDrawer`.
 - REST routes keep their URLs and shapes, including `/changes/file` and `/issues/:id/terminate`.
 
+## 2026-11-12 08:30 [progress]
+
+Narrow chat columns: the issue toolbar above the chat input wraps instead of clipping and, by container width, folds
+the delete / dev / empty-tag labels to icons and the context and usage badges to their percentage and cost. The chat
+input's top row shows only the changed-file count when narrow, and the model name truncates instead of crowding it.
+
 ## 2026-11-12 10:34 [progress]
 
 Deleted `upgrade/fixdb-01.md` and `upgrade/fixdb-01.sql`, the repair script for the migration 0009 timestamp bug in

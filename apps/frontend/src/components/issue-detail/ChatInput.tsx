@@ -544,15 +544,17 @@ export function ChatInput({
           null}
 
         {/* Status bar */}
-        <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border/30">
+        {/* Sized by the chat column: on narrow ones the changes label folds to its count and the selects shrink */}
+        <div className="@container flex items-center gap-1.5 px-2 py-1.5 border-b border-border/30">
           <button
             type="button"
             onClick={() => projectId && toggleFileBrowserDrawer(projectId, issueId)}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted-foreground bg-muted/40 hover:bg-muted/60 transition-all duration-200"
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1 text-xs text-muted-foreground bg-muted/40 hover:bg-muted/60 transition-all duration-200"
             title={t('diff.openFiles')}
           >
             <FolderOpen className="h-3.5 w-3.5" />
-            <span>{t('chat.filesChanged', { count: changedCount })}</span>
+            <span className="@md:hidden tabular-nums">{changedCount}</span>
+            <span className="hidden @md:inline">{t('chat.filesChanged', { count: changedCount })}</span>
             <span className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-medium">
               +
               {additions}
@@ -562,7 +564,7 @@ export function ChatInput({
               {deletions}
             </span>
           </button>
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex min-w-0 items-center justify-end gap-1">
             {isSessionActive && !isThinking ?
                 (
                   <BusyActionSelect value={busyAction} onChange={setBusyAction} />
@@ -810,7 +812,8 @@ function ModelSelect({
             variant="ghost"
             size="sm"
             disabled={disabled}
-            className="h-6 px-2 text-xs text-muted-foreground gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+            // min-w-0: the model name is what gives way (ellipsis) when the row is tight
+            className="h-6 min-w-0 px-2 text-xs text-muted-foreground gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
           />
         )}
       >
