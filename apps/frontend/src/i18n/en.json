@@ -824,7 +824,13 @@
     "delete": "Delete",
     "deleting": "Deleting...",
     "deleteConfirmTitle": "Delete cron job?",
-    "deleteConfirm": "The cron job \"{{name}}\" will be removed from the schedule. Its execution logs will be kept."
+    "deleteConfirm": "The cron job \"{{name}}\" will be removed from the schedule. \"Clean up history\" then removes it for good.",
+    "cleanupHistory": "Clean up history",
+    "cleanup": "Clean up",
+    "cleaning": "Cleaning up...",
+    "cleanupConfirmTitle": "Clean up cron history?",
+    "cleanupConfirm": "Deleted cron jobs are removed for good with all their logs, and the finished execution logs of the remaining jobs are cleared. Running executions are kept. This cannot be undone.",
+    "cleanupDone": "Removed {{jobs}} deleted jobs and {{logs}} log entries"
   },
   "decisions": {
     "status": {

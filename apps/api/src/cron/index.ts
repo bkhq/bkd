@@ -1,7 +1,7 @@
-import { and, eq } from 'drizzle-orm'
+import { and, count, eq, inArray, isNotNull } from 'drizzle-orm'
 import Baker, { Cron } from 'cronbake'
 import { db } from '@/db'
-import { cronJobs } from '@/db/schema'
+import { appSettings, cronJobLogs, cronJobs } from '@/db/schema'
 import { logger } from '@/logger'
 // Import actions to trigger self-registration before any job loads
 import { getActionHandler, getDefaultActions } from './actions'
@@ -65,9 +65,25 @@ export function getBaker(): Baker {
   return baker
 }
 
-/** Ensure default jobs have been seeded (deleted rows act as tombstones) */
+/** Built-in jobs the user deleted and then cleaned from history: never seeded again. */
+const SUPPRESSED_DEFAULTS_KEY = 'cron:suppressedDefaults'
+
+function readSuppressedDefaults(): string[] {
+  const row = db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, SUPPRESSED_DEFAULTS_KEY)).get()
+  if (!row) return []
+  try {
+    const names: unknown = JSON.parse(row.value)
+    return Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+/** Ensure default jobs have been seeded (deleted rows and suppressed names stay deleted) */
 function ensureDefaultJobs(): void {
+  const suppressed = new Set(readSuppressedDefaults())
   for (const { name, cron } of getDefaultActions()) {
+    if (suppressed.has(name)) continue
     const [existing] = db
       .select({ id: cronJobs.id })
       .from(cronJobs)
@@ -85,6 +101,49 @@ function ensureDefaultJobs(): void {
       logger.info({ name }, 'cron_default_job_created')
     }
   }
+}
+
+/**
+ * Permanently remove soft-deleted jobs with all their logs, and the finished
+ * logs of the remaining jobs (a running log is the job's current state).
+ */
+export function cleanupCronHistory(): { jobsDeleted: number, logsDeleted: number } {
+  return db.transaction((tx) => {
+    const removed = tx
+      .select({ id: cronJobs.id, name: cronJobs.name, taskType: cronJobs.taskType })
+      .from(cronJobs)
+      .where(eq(cronJobs.isDeleted, 1))
+      .all()
+
+    // A deleted row is what keeps a built-in job from being seeded again;
+    // remember its name before the row goes.
+    const defaults = new Set(getDefaultActions().map(a => a.name))
+    const names = removed.filter(j => j.taskType === 'builtin' && defaults.has(j.name)).map(j => j.name)
+    if (names.length > 0) {
+      const value = JSON.stringify([...new Set([...readSuppressedDefaults(), ...names])])
+      tx.insert(appSettings)
+        .values({ key: SUPPRESSED_DEFAULTS_KEY, value })
+        .onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } })
+        .run()
+    }
+
+    let logsDeleted = 0
+    const deleteLogs = (where: Parameters<ReturnType<typeof tx.delete>['where']>[0]) => {
+      logsDeleted += tx.select({ n: count() }).from(cronJobLogs).where(where).get()?.n ?? 0
+      tx.delete(cronJobLogs).where(where).run()
+    }
+
+    const BATCH = 500
+    const ids = removed.map(j => j.id)
+    for (let i = 0; i < ids.length; i += BATCH) {
+      const batch = ids.slice(i, i + BATCH)
+      deleteLogs(inArray(cronJobLogs.jobId, batch))
+      tx.delete(cronJobs).where(inArray(cronJobs.id, batch)).run()
+    }
+    deleteLogs(isNotNull(cronJobLogs.finishedAt))
+
+    return { jobsDeleted: ids.length, logsDeleted }
+  })
 }
 
 /** Register a single DB job row into Baker */

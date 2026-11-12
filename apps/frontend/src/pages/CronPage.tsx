@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
+  Eraser,
   Loader2,
   Pause,
   Play,
@@ -17,6 +18,7 @@ import {
 import type { MouseEvent } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { AppSidebar } from '@/components/kanban/AppSidebar'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import {
@@ -32,7 +34,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { useCronJobs, useDeleteCronJob, usePauseCronJob, useResumeCronJob } from '@/hooks/use-kanban'
+import { useCleanupCronHistory, useCronJobs, useDeleteCronJob, usePauseCronJob, useResumeCronJob } from '@/hooks/use-kanban'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { formatDateTime, formatDuration } from '@/lib/format'
 import type { CronJob, CronJobLog, CronJobLogsResponse } from '@/lib/kanban-api'
@@ -444,6 +446,8 @@ export default function CronPage() {
   const deleteCronJob = useDeleteCronJob()
   const [selectedJob, setSelectedJob] = useState<CronJob | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<CronJob | null>(null)
+  const cleanupHistory = useCleanupCronHistory()
+  const [cleanupOpen, setCleanupOpen] = useState(false)
   // Keep the detail view in sync with live query data after pause/resume
   const liveSelectedJob = selectedJob
     ? (jobs?.find(j => j.id === selectedJob.id) ?? selectedJob)
@@ -460,6 +464,17 @@ export default function CronPage() {
       onSuccess: () => {
         if (selectedJob?.id === deleteTarget.id) setSelectedJob(null)
         setDeleteTarget(null)
+      },
+    })
+  }
+
+  const confirmCleanup = () => {
+    cleanupHistory.mutate(undefined, {
+      onSuccess: ({ jobsDeleted, logsDeleted }) => {
+        // The open detail view holds logs that are gone now
+        setSelectedJob(null)
+        setCleanupOpen(false)
+        toast.success(t('cron.cleanupDone', { jobs: jobsDeleted, logs: logsDeleted }))
       },
     })
   }
@@ -481,6 +496,18 @@ export default function CronPage() {
               </Badge>
             )}
             <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-muted-foreground"
+                onClick={() => {
+                  cleanupHistory.reset()
+                  setCleanupOpen(true)
+                }}
+              >
+                <Eraser className="h-4 w-4" />
+                {t('cron.cleanupHistory')}
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -556,6 +583,37 @@ export default function CronPage() {
                   onClick={confirmDelete}
                 >
                   {deleteCronJob.isPending ? t('cron.deleting') : t('cron.delete')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog
+            open={cleanupOpen}
+            onOpenChange={(open) => {
+              if (!open && !cleanupHistory.isPending) setCleanupOpen(false)
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('cron.cleanupConfirmTitle')}</AlertDialogTitle>
+                <AlertDialogDescription>{t('cron.cleanupConfirm')}</AlertDialogDescription>
+              </AlertDialogHeader>
+              {cleanupHistory.error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {cleanupHistory.error.message}
+                </p>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={cleanupHistory.isPending}>
+                  {t('common.cancel')}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  disabled={cleanupHistory.isPending}
+                  onClick={confirmCleanup}
+                >
+                  {cleanupHistory.isPending ? t('cron.cleaning') : t('cron.cleanup')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

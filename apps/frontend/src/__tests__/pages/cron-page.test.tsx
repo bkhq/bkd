@@ -8,6 +8,9 @@ import CronPage from '@/pages/CronPage'
 const mocks = vi.hoisted(() => ({
   deleteMutate: vi.fn(),
   deleteReset: vi.fn(),
+  cleanupMutate: vi.fn(),
+  cleanupReset: vi.fn(),
+  toastSuccess: vi.fn(),
 }))
 
 const job: CronJob = {
@@ -34,9 +37,17 @@ vi.mock('@/hooks/use-kanban', () => ({
     isPending: false,
     error: null,
   }),
+  useCleanupCronHistory: () => ({
+    mutate: mocks.cleanupMutate,
+    reset: mocks.cleanupReset,
+    isPending: false,
+    error: null,
+  }),
   usePauseCronJob: () => ({ mutate: vi.fn(), isPending: false }),
   useResumeCronJob: () => ({ mutate: vi.fn(), isPending: false }),
 }))
+
+vi.mock('sonner', () => ({ toast: { success: mocks.toastSuccess } }))
 
 vi.mock('@/hooks/use-theme', () => ({
   useTheme: () => ({ resolved: 'light' }),
@@ -68,5 +79,35 @@ describe('cron page deletion', () => {
       'cron-1',
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     )
+  })
+})
+
+describe('cron page history cleanup', () => {
+  beforeEach(async () => {
+    mocks.cleanupMutate.mockReset()
+    mocks.cleanupReset.mockReset()
+    mocks.toastSuccess.mockReset()
+    await i18n.changeLanguage('en')
+  })
+
+  it('confirms before cleaning the history and reports what was removed', () => {
+    render(
+      <MemoryRouter>
+        <CronPage />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clean up history' }))
+
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByText('Clean up cron history?')).toBeInTheDocument()
+    expect(mocks.cleanupMutate).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Clean up' }))
+
+    expect(mocks.cleanupMutate).toHaveBeenCalledTimes(1)
+    const [, options] = mocks.cleanupMutate.mock.calls[0]!
+    options.onSuccess({ jobsDeleted: 2, logsDeleted: 30 })
+    expect(mocks.toastSuccess).toHaveBeenCalledWith('Removed 2 deleted jobs and 30 log entries')
   })
 })

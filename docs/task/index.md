@@ -82,7 +82,7 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-029 Engine probe cache never expires (stale Codex model catalog)**](ENG-029.md) `P1`
 - [x] [**ENG-030 Claude auth status is wrong on macOS; stale binary paths survive in cache**](ENG-030.md) `P2`
 - [d] [**CRON-002 Add persistent cron job deletion to the UI**](CRON-002.md) `P1`
-- [-] [**CRON-003 Add one-click cron history cleanup**](CRON-003.md) `P1`
+- [x] [**CRON-003 Add one-click cron history cleanup**](CRON-003.md) `P1`
 - [x] [**ENG-031 Observe Claude subagent activity in issue chat**](ENG-031.md) `P1`
 - [x] [**SES-001 Scan local engine sessions and import them as issues**](SES-001.md) `P1`
 - [x] [**SES-002 Hide managed sessions and add a session detail view**](SES-002.md) `P2`

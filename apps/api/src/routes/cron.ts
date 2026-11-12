@@ -6,7 +6,7 @@ import { db } from '@/db'
 import { cronJobLogs, cronJobs } from '@/db/schema'
 import { getAction, getActionsHelp, validateActionConfig } from '@/cron/actions'
 import { executeTask } from '@/cron/executor'
-import { getBaker, isValidCron, normalizeCron, SUPPORTED_CRON_FORMATS, syncJob } from '@/cron/index'
+import { cleanupCronHistory, getBaker, isValidCron, normalizeCron, SUPPORTED_CRON_FORMATS, syncJob } from '@/cron/index'
 import { serializeJob, serializeJobs } from '@/cron/serialize'
 import { logger } from '@/logger'
 import type { TaskConfig } from '@/cron/executor'
@@ -144,6 +144,14 @@ cronRoute.openapi(R.createCronJob, async (c) => {
   syncJob(name)
   logger.info({ name, cron, action }, 'cron_job_created')
   return c.json({ success: true, data: serializeJob(row) }, 201 as const)
+})
+
+// DELETE /api/cron/history — hard-delete soft-deleted jobs and finished logs.
+// Registered before /:jobId so "history" is never read as a job ID.
+cronRoute.openapi(R.cleanupCronHistory, (c) => {
+  const result = cleanupCronHistory()
+  logger.info(result, 'cron_history_cleaned')
+  return c.json({ success: true, data: result }, 200 as const)
 })
 
 // DELETE /api/cron/:jobId — soft-delete a cron job (by ID)

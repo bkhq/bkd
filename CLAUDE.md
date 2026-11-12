@@ -206,9 +206,9 @@ Global SSE endpoint (`GET /api/events`) via Hono `streamSSE`:
 
 #### Cron System (`cron/`)
 
-Scheduled task execution with cron expressions (powered by the `cronbake` scheduler). DB tables: `cronJobs`, `cronJobLogs`. Supports pluggable actions (`actions/` directory) — each action type (e.g., execute issue, HTTP request) implements a standard interface. Features: auto-pause after 3 consecutive failures, execution logs with pagination, soft-delete.
+Scheduled task execution with cron expressions (powered by the `cronbake` scheduler). DB tables: `cronJobs`, `cronJobLogs`. Supports pluggable actions (`actions/` directory) — each action type (e.g., execute issue, HTTP request) implements a standard interface. Features: auto-pause after 3 consecutive failures, execution logs with pagination, soft-delete. `DELETE /api/cron/history` (`cleanupCronHistory()`) is the one hard delete: it removes soft-deleted jobs with their logs and the finished logs of the remaining jobs. A deleted built-in job's row is what stops `ensureDefaultJobs()` from seeding it again, so the cleanup first records its name in `appSettings` (`cron:suppressedDefaults`).
 
-Routes: `GET/POST /api/cron`, `DELETE /api/cron/:jobId`, `POST /api/cron/:jobId/{trigger,pause,resume}`, `GET /api/cron/:jobId/logs`, `GET /api/cron/actions`.
+Routes: `GET/POST /api/cron`, `DELETE /api/cron/history`, `DELETE /api/cron/:jobId`, `POST /api/cron/:jobId/{trigger,pause,resume}`, `GET /api/cron/:jobId/logs`, `GET /api/cron/actions`.
 
 #### Messages (`messages/`)
 

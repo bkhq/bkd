@@ -243,6 +243,7 @@ Powered by `cronbake` scheduler:
 - **Issue jobs**: `issue-execute`, `issue-follow-up`, `issue-close`, `issue-check-status`
 - Tables: `cronJobs` + `cronJobLogs`
 - Jobs are addressed by ID only; a job auto-pauses after 3 consecutive failures
+- Deleting a job is a soft delete; `DELETE /api/cron/history` hard-deletes soft-deleted jobs with their logs and clears the finished logs of the rest. Deleted built-in jobs are remembered in `appSettings` (`cron:suppressedDefaults`) so startup does not seed them again
 
 ### Messages (`messages/`)
 

@@ -1129,6 +1129,16 @@ export function useDeleteCronJob() {
   })
 }
 
+export function useCleanupCronHistory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => kanbanApi.cleanupCronHistory(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cronJobs() })
+    },
+  })
+}
+
 // ── Local engine sessions ────────────────────────────────
 
 export function useLocalSessions(filters: {

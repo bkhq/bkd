@@ -1,8 +1,8 @@
 # CRON-003 Add one-click cron history cleanup
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P1
-- **owner**: roy
+- **owner**: claude/session-cron-history
 - **createdAt**: 2026-08-21 01:30
 
 ## Description
@@ -31,11 +31,11 @@ Acceptance criteria:
 
 ## ActiveForm
 
-Designing one-click cron history cleanup with persistent default suppression.
+Adding one-click cron history cleanup with persistent default suppression
 
 ## Dependencies
 
-- **blocked by**: PLAN-015 approval
+- **blocked by**: (none)
 - **blocks**: (none)
 
 ## Notes
@@ -44,3 +44,7 @@ CRON-002 currently uses soft-deleted cron rows as tombstones to prevent deleted
 built-in defaults from being reseeded. Hard cleanup must persist those default
 names in `app_settings` before removing their rows, otherwise cleanup would
 silently undo deletion after restart.
+
+- unclaim: Handed over on the owner's instruction to implement PLAN-015.
+
+- complete: Implemented per PLAN-015 without VACUUM; lint, typecheck, tests, build and a browser check of the cron page pass.

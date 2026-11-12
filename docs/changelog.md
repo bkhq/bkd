@@ -1521,3 +1521,15 @@ where a rule is explained: `ENG-009` – `ENG-012`, `ENG-015` – `ENG-019`, `EN
 Still open and untouched: `CRON-003`, `20260910-0555-dedupe-issue-log-dir`, `20261013-0538-bkd-log-rotation`,
 `20261013-0614-incremental-chat-messages`, `20261013-0726-workspace-side-panel`,
 `20261106-0600-dev-hot-reload-pid-lock`, `20261112-1106-workspace-check-symlinks`.
+
+## 2026-11-12 12:50 [progress]
+
+One-click cron history cleanup (CRON-003, PLAN-015, approved 2026-11-12 after sitting in draft since 2026-08-21).
+`DELETE /api/cron/history` hard-deletes soft-deleted cron jobs with all their logs and clears the finished logs of
+the remaining jobs in one transaction; running logs of remaining jobs stay. A deleted built-in job's row was the
+only thing keeping startup from seeding it again, so its name is first recorded in `appSettings`
+(`cron:suppressedDefaults`) and `ensureDefaultJobs()` skips those names. The cron page has a "Clean up history"
+button with a destructive confirmation and a toast reporting both counts. No `VACUUM`: it would require rebuilding
+the message search index for two small tables. The cron delete confirmation used to say the job's logs are kept,
+which was not true (they were unreadable and purged daily); it now points at the cleanup.
+

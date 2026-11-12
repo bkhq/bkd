@@ -864,6 +864,17 @@ export const createCronJob = createRoute({
   },
 })
 
+export const cleanupCronHistory = createRoute({
+  method: 'delete',
+  path: '/history',
+  tags: ['Cron'],
+  summary: 'Permanently remove deleted cron jobs and finished execution logs',
+  operationId: 'cleanupCronHistory',
+  responses: {
+    200: successResponse(z.object({ jobsDeleted: z.number(), logsDeleted: z.number() }), 'Cleaned'),
+  },
+})
+
 export const deleteCronJob = createRoute({
   method: 'delete',
   path: '/{jobId}',

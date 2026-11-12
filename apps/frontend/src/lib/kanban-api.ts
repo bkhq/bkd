@@ -706,6 +706,8 @@ export const kanbanApi = {
     post<{ resumed: boolean, name: string }>(`/api/cron/${jobId}/resume`, {}),
   deleteCronJob: (jobId: string) =>
     del<{ deleted: boolean, name: string }>(`/api/cron/${jobId}`),
+  cleanupCronHistory: () =>
+    del<{ jobsDeleted: number, logsDeleted: number }>('/api/cron/history'),
 
   // Local engine sessions recorded outside BKD
   getLocalSessions: (opts?: {

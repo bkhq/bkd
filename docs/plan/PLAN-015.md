@@ -1,8 +1,8 @@
 # PLAN-015 Add one-click cron history cleanup
 
-- **status**: draft
+- **status**: completed
 - **createdAt**: 2026-08-21 01:30
-- **approvedAt**: (pending)
+- **approvedAt**: 2026-11-12 12:20
 - **relatedTask**: CRON-003
 
 ## Context
@@ -28,9 +28,10 @@ toaster, the cron query key hierarchy, and the CRON-002 page-level destructive
 confirmation pattern. These can be reused without a new dependency or UI
 primitive.
 
-The repository still has no `docs/changelog.md`. The working tree contains the
-completed but uncommitted CRON-002 changes; CRON-003 will build surgically on
-those files and preserve them.
+State of the code on 2026-11-12, when the plan was approved: nothing of it is implemented. `GET
+/api/cron/:jobId/logs` answers 404 for a soft-deleted job, and the daily `log-cleanup` action already purges the
+logs of soft-deleted jobs, so what this adds is the hard delete of the rows, the immediate purge, and clearing the
+completed logs of active jobs.
 
 ## Proposal
 
@@ -48,9 +49,10 @@ those files and preserve them.
    - hard-delete the soft-deleted cron job rows;
    - return `{ jobsDeleted, logsDeleted }`.
 3. Update default-job startup seeding to skip names recorded in the persistent
-   suppression setting as well as names represented by existing rows. Run
-   `VACUUM` after a non-empty cleanup so the one-click operation also reclaims
-   SQLite pages, matching the existing settings cleanup behavior.
+   suppression setting as well as names represented by existing rows. No
+   `VACUUM`: since migration `0028` every `VACUUM` must be followed by a rebuild
+   of the message search index, which is out of proportion for two small
+   tables; SQLite reuses the freed pages.
 4. Add a typed API client method and React Query mutation. On success,
    invalidate the cron query hierarchy so job lists, last-run summaries, and
    cached log queries refresh.
@@ -69,9 +71,6 @@ those files and preserve them.
 - A deleted cron may still have an already-running callback. Its log row must
   be removed with the deleted parent, and a later completion update becomes a
   harmless no-op. Active cron jobs keep their running log rows.
-- `VACUUM` is synchronous and can briefly block SQLite access after a large
-  cleanup. It only runs when at least one row was deleted and is initiated by
-  an explicit operator action.
 - The persistent suppression setting must be written in the same transaction
   as hard deletion; otherwise a failure could allow cleaned built-in defaults
   to return on restart.
@@ -107,9 +106,18 @@ No dependency or database schema migration is required.
 - Extend the generic settings cleanup target: possible, but a cron-owned API
   and button keep the operation discoverable and avoid coupling the cron page
   to unrelated issue/worktree cleanup payloads.
-- Skip `VACUUM`: faster and less blocking, but the SQLite file would retain its
-  size even after a user explicitly requests history cleanup.
 
 ## Annotations
 
-(pending user review)
+- 2026-11-12: approved by the user ("需要做"). `VACUUM` dropped, see step 3.
+
+## Outcome
+
+Implemented as proposed, without `VACUUM`. `cleanupCronHistory()` lives in `cron/index.ts`; the suppressed names
+are stored under `cron:suppressedDefaults`. No separate hook test file: the page test covers the confirmation and
+the success report, the client test covers the request. The delete confirmation no longer says the logs are kept
+(a deleted job's logs were already unreadable and purged daily).
+
+Verified: `bun run lint`, `bun run typecheck`, `bun run test` (API 1047 pass, frontend 397 pass),
+`bun run db:generate` (no drift), `bun run build`, and the cron page in a browser (button and confirmation
+dialog; the destructive action itself was exercised only by the API tests).

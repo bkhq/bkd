@@ -51,6 +51,14 @@ Soft-delete a job.
 
 **Response:** `{ deleted: true, name }`
 
+## DELETE /api/cron/history
+
+Permanently remove soft-deleted jobs with all their logs, and the finished execution logs of the remaining jobs.
+Logs of executions still running on a remaining job are kept. A deleted built-in job stays deleted: its name is
+recorded so startup does not seed it again. Irreversible; safe to repeat.
+
+**Response:** `{ jobsDeleted, logsDeleted }`
+
 ## GET /api/cron/:jobId/logs
 
 Execution history of a job.

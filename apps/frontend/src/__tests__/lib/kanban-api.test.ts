@@ -276,3 +276,16 @@ describe('kanbanApi.recallPendingMessage', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('kanbanApi.cleanupCronHistory', () => {
+  it('calls DELETE /api/cron/history', async () => {
+    mockFetch.mockResolvedValueOnce(mockJsonResponse({ jobsDeleted: 2, logsDeleted: 30 }))
+
+    const result = await kanbanApi.cleanupCronHistory()
+
+    const [url, options] = mockFetch.mock.calls[0]
+    expect(url).toBe('/api/cron/history')
+    expect(options.method).toBe('DELETE')
+    expect(result).toEqual({ jobsDeleted: 2, logsDeleted: 30 })
+  })
+})
