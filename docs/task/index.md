@@ -82,7 +82,7 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**ENG-029 Engine probe cache never expires (stale Codex model catalog)**](ENG-029.md) `P1`
 - [x] [**ENG-030 Claude auth status is wrong on macOS; stale binary paths survive in cache**](ENG-030.md) `P2`
 - [d] [**CRON-002 Add persistent cron job deletion to the UI**](CRON-002.md) `P1`
-- [x] [**CRON-003 Add one-click cron history cleanup**](CRON-003.md) `P1`
+- [d] [**CRON-003 Add one-click cron history cleanup**](CRON-003.md) `P1`
 - [x] [**ENG-031 Observe Claude subagent activity in issue chat**](ENG-031.md) `P1`
 - [x] [**SES-001 Scan local engine sessions and import them as issues**](SES-001.md) `P1`
 - [x] [**SES-002 Hide managed sessions and add a session detail view**](SES-002.md) `P2`
@@ -111,7 +111,7 @@ Each task is a single line linking to its detail file. All detailed information 
 - [d] [**ENG-037 Show Codex subscription usage in the settings usage panel**](ENG-037.md) `P2`
 - [d] [**AUDIT-001 Fix API and repository audit findings**](AUDIT-001.md) `P1`
 - [d] [**20260910-0528-uploads-root-dir Resolve data paths from a single DATA_DIR**](20260910-0528-uploads-root-dir.md) `P1`
-- [ ] [**20260910-0555-dedupe-issue-log-dir Deduplicate the ISSUE_LOG_DIR constant**](20260910-0555-dedupe-issue-log-dir.md) `P3`
+- [d] [**20260910-0555-dedupe-issue-log-dir Deduplicate the ISSUE_LOG_DIR constant**](20260910-0555-dedupe-issue-log-dir.md) `P3`
 - [d] [**20260910-0724-drop-fable-5 Drop Claude Fable 5 from the model catalog**](20260910-0724-drop-fable-5.md) `P2`
 - [x] [**20260912-1920-project-tags Tag and filter projects by tag**](20260912-1920-project-tags.md) `P2`
 
@@ -155,11 +155,11 @@ Each task is a single line linking to its detail file. All detailed information 
 - [d] [**20261013-0244-worktree-cleanup-on-delete Clean up worktrees of deleted issues and stop cleanup stats from timing out**](20261013-0244-worktree-cleanup-on-delete.md) `P1`
 - [d] [**20261013-0538-files-upload-test-poisons-suite Stop api-files-upload.test.ts from breaking every later API test**](20261013-0538-files-upload-test-poisons-suite.md) `P1`
 - [d] [**20261013-0538-spawn-leak-tests-order-dependent Fix engine-spawn-leak concurrency tests that time out in the full suite**](20261013-0538-spawn-leak-tests-order-dependent.md) `P2`
-- [ ] [**20261013-0538-bkd-log-rotation Rotate data/logs/bkd.log and keep data/ out of ESLint**](20261013-0538-bkd-log-rotation.md) `P1`
+- [d] [**20261013-0538-bkd-log-rotation Rotate data/logs/bkd.log and keep data/ out of ESLint**](20261013-0538-bkd-log-rotation.md) `P1`
 - [d] [**20261013-0540-chat-turn-navigator Add a turn navigator rail with hover previews to the chat area**](20261013-0540-chat-turn-navigator.md) `P2`
 - [d] [**20261013-0553-turn-navigator-full-history Show every turn in the chat turn navigator, including unloaded history**](20261013-0553-turn-navigator-full-history.md) `P2`
-- [ ] [**20261013-0614-incremental-chat-messages Rebuild chat messages incrementally instead of on every log change**](20261013-0614-incremental-chat-messages.md) `P2`
-- [-] [**20261013-0726-workspace-side-panel Merge the diff and file panels into one tabbed workspace side panel**](20261013-0726-workspace-side-panel.md) `P2`
+- [d] [**20261013-0614-incremental-chat-messages Rebuild chat messages incrementally instead of on every log change**](20261013-0614-incremental-chat-messages.md) `P2`
+- [d] [**20261013-0726-workspace-side-panel Merge the diff and file panels into one tabbed workspace side panel**](20261013-0726-workspace-side-panel.md) `P2`
 - [d] [**20261013-1706-tickets Add tickets for decisions and user feedback**](20261013-1706-tickets.md) `P1`
 - [d] [**20261013-1950-engine-protocol-drift Fix Claude and Codex wire-protocol drift**](20261013-1950-engine-protocol-drift.md) `P1`
 - [d] [**20261013-2004-tool-panel-lazy-render Stop rendering collapsed tool calls, keep Markdown for agent messages only**](20261013-2004-tool-panel-lazy-render.md) `P1`
@@ -191,7 +191,7 @@ Each task is a single line linking to its detail file. All detailed information 
 - [d] [**20261102-1023-file-browser-polish File browser fixes, recoverable delete, create/rename, quick open, virtual tree**](20261102-1023-file-browser-polish.md) `P2`
 - [d] [**20261102-1100-browser-notifications Show browser notifications for review and new messages**](20261102-1100-browser-notifications.md) `P2`
 - [d] [**20261105-1053-adopt-filemanager Replace the file browser with bkhq/filemanager**](20261105-1053-adopt-filemanager.md) `P1`
-- [ ] [**20261106-0600-dev-hot-reload-pid-lock Dev API exits on hot reload: the pid lock treats its own pid as another instance**](20261106-0600-dev-hot-reload-pid-lock.md) `P2`
+- [d] [**20261106-0600-dev-hot-reload-pid-lock Dev API exits on hot reload: the pid lock treats its own pid as another instance**](20261106-0600-dev-hot-reload-pid-lock.md) `P2`
 - [d] [**20261106-0745-filemanager-rollout Roll bkhq/filemanager out across BKD's file UI**](20261106-0745-filemanager-rollout.md) `P1`
 - [d] [**20261110-1217-agent-cli-update Update agent CLIs (claude, codex) from Settings**](20261110-1217-agent-cli-update.md) `P2`
 - [d] [**20261110-1220-claude-dynamic-models Fetch the claude-code model list from the CLI**](20261110-1220-claude-dynamic-models.md) `P2`
@@ -201,4 +201,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [d] [**20261111-1734-dedupe-redundant-code Remove duplicated implementations and dead code found by the redundancy audit**](20261111-1734-dedupe-redundant-code.md) `P2`
 - [d] [**20261112-1040-filemanager-upstream-1006f4d Update the vendored file manager to upstream 1006f4d**](20261112-1040-filemanager-upstream-1006f4d.md) `P2`
 - [d] [**20261112-1105-docs-cleanup Remove outdated docs and correct inaccurate descriptions**](20261112-1105-docs-cleanup.md) `P3`
-- [ ] [**20261112-1106-workspace-check-symlinks Resolve symlinks in the workspace boundary check**](20261112-1106-workspace-check-symlinks.md) `P2`
+- [d] [**20261112-1106-workspace-check-symlinks Resolve symlinks in the workspace boundary check**](20261112-1106-workspace-check-symlinks.md) `P2`

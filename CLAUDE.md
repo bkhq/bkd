@@ -67,7 +67,7 @@ bun scripts/migrate-to-lode.ts --root /opt/bkd --apply --prune
   - Schema in `db/schema.ts`. All tables share `commonFields` (`createdAt`, `updatedAt`, `isDeleted` soft delete)
   - Projects/issues use `shortId()` (nanoid 8-char), logs use `id()` (ULID)
   - Migrations in `apps/api/drizzle/`, auto-applied on startup. Runtime applies them in `meta/_journal.json` order, tracked per-DB in `__drizzle_migrations` (snapshots are never read at runtime). Rules: never edit or reorder a shipped migration (drizzle keys applied state by file hash); only append new ones via `bun run db:generate`; always commit the schema change, generated `.sql`, `meta/<n>_snapshot.json`, and `_journal.json` together. CI (`Migrations` job) fails if `db:generate` yields uncommitted changes. Intermediate snapshots `0001,0005,0012,0014–0019` are missing — accepted (archival-only; the diff base re-aligned at `0020`, see ENG-009)
-- **Logging**: pino (`logger.ts`)
+- **Logging**: pino (`logger.ts`) to stdout and `data/logs/bkd.log`, which rotates at 50 MB and keeps 5 rotated files (`log-rotation.ts`)
 - **Caching**: in-process LRU+TTL Map-based cache (`cache.ts`, max 500 entries)
 - **Static serving**: `APP_DIR/public/` when running from a package, `apps/frontend/dist/` in dev
 
@@ -340,6 +340,8 @@ Server (IssueEngine) → SSE /api/events → EventBus singleton (lib/event-bus.t
 ```
 
 `EventBus`: single `EventSource` to `/api/events` with exponential backoff reconnection and 35s heartbeat watchdog. On reconnect: invalidates all React Query caches.
+
+`useChatMessages` groups the log list into chat messages through a `ChatMessageBuilder`: after an update it regroups only from the last checkpoint before the first changed entry, so earlier message objects keep their identity and their rows do not re-render. Its output must equal `rebuildMessages(logs)`; a randomized test holds the two together.
 
 `useIssueStream` (most complex hook): fetches historical logs via HTTP, subscribes to SSE for real-time updates. Two arrays: `liveLogs` (capped at 500) and `olderLogs` (user-loaded pages). ULID-based deduplication.
 

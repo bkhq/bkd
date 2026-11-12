@@ -25,7 +25,7 @@ BKD is a Kanban application for managing autonomous AI coding agents. Issues on 
 
 - **Runtime**: Bun with `Bun.serve()` (`idleTimeout: 60`, WebSocket support)
 - **Router**: Hono mounted at `/api` via `app.ts`
-- **Logging**: pino (structured HTTP request logging)
+- **Logging**: pino (structured HTTP request logging) to stdout and `data/logs/bkd.log`, size-capped by rotation (50 MB, 5 rotated files)
 - **Caching**: In-process LRU+TTL Map (max 500 entries, 5-min sweep)
 - **Static serving**: `APP_DIR/public/` (package), `apps/frontend/dist/` (dev)
 

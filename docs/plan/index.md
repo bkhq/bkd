@@ -46,7 +46,7 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [d] [**PLAN-012 Virtual engines (claude-code executor + preset env vars)**](PLAN-012.md) `2026-05-22`
 - [d] [**PLAN-013 Upgrade all workspace dependencies to latest**](PLAN-013.md) `2026-07-17`
 - [d] [**PLAN-014 Add persistent cron job deletion**](PLAN-014.md) `2026-08-20`
-- [x] [**PLAN-015 Add one-click cron history cleanup**](PLAN-015.md) `2026-08-21`
+- [d] [**PLAN-015 Add one-click cron history cleanup**](PLAN-015.md) `2026-08-21`
 - [d] [**PLAN-016 Observe Claude subagent (Task/Agent tool) activity**](PLAN-016.md) `2026-08-22`
 - [d] [**PLAN-017 Global local session scanner and session-to-issue import**](PLAN-017.md) `2026-08-22`
 - [d] [**PLAN-018 Migrate distribution and self-upgrade to lode**](PLAN-018.md) `2026-08-24`

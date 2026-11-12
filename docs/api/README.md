@@ -43,7 +43,7 @@ Database-backed DELETE operations (projects, issues, notes, webhooks, etc.) use 
 
 ### Request Protection
 
-- Workspace root boundary validation (SEC-016)
+- Workspace root boundary validation (SEC-016); symlinks are resolved on both sides, so a link inside the workspace pointing out of it is refused
 - Git command injection prevention (SEC-019)
 - Workspace directory confinement (SEC-022)
 - XSS prevention via `Content-Disposition: attachment` (SEC-024)

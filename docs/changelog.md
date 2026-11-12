@@ -1533,3 +1533,30 @@ button with a destructive confirmation and a toast reporting both counts. No `VA
 the message search index for two small tables. The cron delete confirmation used to say the job's logs are kept,
 which was not true (they were unreadable and purged daily); it now points at the cleanup.
 
+## 2026-11-12 23:20 [progress]
+
+The remaining open tasks, done in one pass. Their detail files are deleted with this entry as the record; the index
+lines are `[d]`.
+
+- `20261013-0538-bkd-log-rotation`: `data/logs/bkd.log` had no size limit (73 GB seen on a dev machine).
+  `log-rotation.ts` is a synchronous append stream that renames the file to `.1` once a write would pass 50 MB and
+  keeps 5 rotated files. `data/**` is in the ESLint ignores. Pitfall: an oversized log from before the change is
+  rotated once to `bkd.log.1` and only disappears after five more rotations; delete it by hand to reclaim the space.
+- `20261106-0600-dev-hot-reload-pid-lock`: `bun --hot` re-evaluates `server-main.ts` in the same process, and
+  `acquirePidLock()` exited on finding its own pid in the lock. A lock holding the current pid is now rewritten.
+- `20261112-1106-workspace-check-symlinks`: `isInsideWorkspace()` compares real paths (nearest existing ancestor
+  for a directory that does not exist yet), so a symlink inside the workspace pointing out of it is refused, and a
+  workspace root that is itself a symlink still works. A project whose directory is such a symlink can no longer
+  execute or open in the file manager.
+- [BUG] found by the slower check: the auto-execute failure path wrote `sessionStatus: 'failed'` without dropping
+  the cached issue row, so a read that had cached `pending` kept returning it for the cache TTL. It now goes
+  through `updateIssueSession()`.
+- `20261013-0614-incremental-chat-messages`: `useChatMessages` regrouped every loaded entry on each SSE event and
+  produced new message objects each time. `ChatMessageBuilder` records checkpoints (a user or assistant message
+  that no tool call, subagent, turn duration or command output links across) and regroups from the last one before
+  the first changed entry. Measured on 28,000 entries: 200 appends take 22 ms instead of 1,344 ms and 99.97% of
+  the message objects are reused. A randomized test keeps it equal to `rebuildMessages()`.
+- `20260910-0555-dedupe-issue-log-dir`: `ISSUE_LOG_DIR` is exported once from `root.ts`.
+- `20261013-0726-workspace-side-panel` closed as superseded by the file manager rollout.
+- `PLAN-015` and `CRON-003` (cron history cleanup, shipped in v0.3.40) detail files deleted.
+
