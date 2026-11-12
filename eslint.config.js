@@ -22,6 +22,8 @@ export default antfu({
   markdown: false,
 
   ignores: [
+    // Runtime data (logs, database, uploads); a large log stalls the run
+    'data/**',
     'apps/api/drizzle/**',
     'apps/frontend/src/components/ui/**',
     // Vendored verbatim from github.com/bkhq/lode (sdks/lode.ts) so updates stay a plain copy

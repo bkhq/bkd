@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { MiddlewareHandler } from 'hono'
 import pino from 'pino'
 import { ulid } from 'ulid'
+import { rotatingFileStream } from './log-rotation'
 import { DATA_DIR } from './root'
 import { runtimeConfig } from './runtime-config'
 
@@ -14,11 +15,15 @@ mkdirSync(logDir, { recursive: true })
 
 const logFile = join(logDir, `${name}.log`)
 
+/** The log rotates at this size; with the rotated files it stays under ~300 MB. */
+const LOG_MAX_BYTES = 50 * 1024 * 1024
+const LOG_KEEP_FILES = 5
+
 export const logger = pino(
   { level, base: undefined },
   pino.multistream([
     { level, stream: process.stdout },
-    { level, stream: pino.destination(logFile) },
+    { level, stream: rotatingFileStream(logFile, { maxBytes: LOG_MAX_BYTES, keep: LOG_KEEP_FILES }) },
   ]),
 )
 
