@@ -12,6 +12,7 @@ import {
   upsertPendingMessage,
 } from '@/db/pending-messages'
 import { attachments as attachmentsTable, issues as issuesTable } from '@/db/schema'
+import { updateIssueSession } from '@/engines/engine-store'
 import { engineRegistry } from '@/engines/executors'
 import { issueEngine } from '@/engines/issue'
 import type { EngineType } from '@/engines/types'
@@ -495,10 +496,8 @@ export function triggerIssueExecution(
       if (relocated) restorePendingVisibility(relocated.oldIds)
       issueEngine.setLastError(issueId, err instanceof Error ? err.message : 'auto_execute_failed')
       try {
-        await db
-          .update(issuesTable)
-          .set({ sessionStatus: 'failed' })
-          .where(eq(issuesTable.id, issueId))
+        // updateIssueSession also drops the cached row, so a read right after sees the failure
+        await updateIssueSession(issueId, { sessionStatus: 'failed' })
         // Notify frontend so it doesn't stay stuck in "working" state
         emitIssueUpdated(issueId, { sessionStatus: 'failed' })
       } catch (dbErr) {
