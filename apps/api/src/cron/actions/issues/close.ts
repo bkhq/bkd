@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { cacheDel } from '@/cache'
-import { STATUS_IDS } from '@/config'
+import { STATUS_IDS } from '@bkd/shared'
 import { db } from '@/db'
 import { issues as issuesTable } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'

@@ -1,4 +1,4 @@
-import { classifyCommand } from '@/engines/logs'
+import { classifyCommand, parseTaskPlanItems } from '@/engines/logs'
 import type { CommandCategory, ToolAction } from '@/engines/types'
 import type { ToolCallInfo } from './normalizer-types'
 
@@ -231,20 +231,7 @@ export function classifyToolAction(toolName: string, input: Record<string, unkno
       }
     }
     case 'TodoWrite': {
-      const rawTodos = Array.isArray(input.todos) ? input.todos : []
-      const items = rawTodos
-        .map((raw) => {
-          if (typeof raw !== 'object' || raw === null) return null
-          const obj = raw as Record<string, unknown>
-          const content = typeof obj.content === 'string' ? obj.content : null
-          if (!content) return null
-          const status = typeof obj.status === 'string' ? obj.status : 'pending'
-          const activeForm = typeof obj.activeForm === 'string' ? obj.activeForm : undefined
-          return activeForm !== undefined
-            ? { content, status, activeForm }
-            : { content, status }
-        })
-        .filter((item): item is { content: string, status: string, activeForm?: string } => item !== null)
+      const items = parseTaskPlanItems(input.todos)
       return { kind: 'task-plan', items }
     }
     case 'AskUserQuestion': {

@@ -1,4 +1,5 @@
 import type { DecisionEventOption, Message, MessageLevel } from '@bkd/shared'
+import { escapeHtml } from './client'
 
 /** Telegram's limit on message text, counted after entities are parsed. */
 const TEXT_LIMIT = 4096
@@ -40,9 +41,7 @@ export function parseCallback(data: string): Callback | null {
   return null
 }
 
-function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
+const esc = escapeHtml
 
 function clip(s: string, max: number): string {
   if (max <= 0) return ''

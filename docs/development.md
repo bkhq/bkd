@@ -82,7 +82,6 @@ bkd/
 │   │   ├── src/
 │   │   │   ├── index.ts          ← Server entry (Bun.serve, static serving)
 │   │   │   ├── app.ts            ← Hono router + middleware
-│   │   │   ├── config.ts         ← Hardcoded statuses (todo/working/review/done)
 │   │   │   ├── db/               ← SQLite/Drizzle schema + migrations
 │   │   │   ├── engines/          ← AI engine executors + process management
 │   │   │   ├── routes/           ← API routes
@@ -138,7 +137,7 @@ bkd/
 #### Data Layer
 
 - Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings`, `notes`, `webhooks`, `webhookDeliveries`, `decisionEvents`, `decisionChannelMessages`, `cronJobs`, `cronJobLogs`
-- Statuses are hardcoded in `config.ts` (`todo`, `working`, `review`, `done`)
+- Statuses are hardcoded in `@bkd/shared` (`todo`, `working`, `review`, `done`)
 - API responses: `{ success: true, data: T } | { success: false, error: string }`
 - Settings (server name, URL, max concurrency, webhooks, etc.) stored in `appSettings` key-value table
 

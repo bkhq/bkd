@@ -53,6 +53,10 @@ async function call<T>(
   }
 }
 
+export function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 export function sendMessage(token: string, body: Record<string, unknown>) {
   return call<{ message_id: number }>(token, 'sendMessage', { parse_mode: 'HTML', ...body })
 }

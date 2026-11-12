@@ -2,7 +2,7 @@
  * Shared Zod schemas with OpenAPI metadata.
  *
  * These schemas serve dual purpose:
- * 1. Runtime validation via @hono/zod-validator
+ * 1. Runtime validation via @hono/zod-openapi
  * 2. OpenAPI spec generation via @hono/zod-openapi
  *
  * Convention: every schema that appears in the generated spec

@@ -4,7 +4,7 @@ import { registerContextUsageStage } from './context-usage'
 import { registerExtractImagesStage } from './extract-images'
 import { registerFailureDetectStage } from './failure-detect'
 import { registerPersistStage } from './persist'
-import { registerRingBufferStage } from './ring-buffer'
+import { registerStorePushStage } from './store-push'
 import { registerTokenUsageStage } from './token-usage'
 
 /**
@@ -15,7 +15,7 @@ import { registerTokenUsageStage } from './token-usage'
  *   order 10   — DB persistence + messageId enrichment  (persist.ts)
  *   order 15   — token usage accumulation               (token-usage.ts)
  *   order 16   — live context usage, claude-code only   (context-usage.ts)
- *   order 20   — ring buffer push                       (ring-buffer.ts)
+ *   order 20   — in-memory store push                   (store-push.ts)
  *   order 40   — logical failure detection              (failure-detect.ts)
  *   order 100  — SSE broadcast (registered by routes/events.ts)
  *
@@ -34,6 +34,6 @@ export function registerLogPipeline(ctx: EngineContext): void {
   registerPersistStage(ctx, on)
   registerTokenUsageStage(ctx, on)
   registerContextUsageStage(ctx, on)
-  registerRingBufferStage(ctx, on)
+  registerStorePushStage(ctx, on)
   registerFailureDetectStage(ctx, on)
 }

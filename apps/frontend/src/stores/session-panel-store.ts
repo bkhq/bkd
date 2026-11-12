@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { ratioClamp } from '@/lib/drawer-store'
 import { attachResizeClamp } from '@/lib/store-resize'
 
 /**
@@ -10,13 +11,7 @@ const MIN_WIDTH = 420
 const DEFAULT_WIDTH_RATIO = 0.55
 const MAX_WIDTH_RATIO = 0.9
 
-function getViewportWidth(): number {
-  return typeof window === 'undefined' ? 1024 : window.innerWidth
-}
-
-function clampWidth(w: number): number {
-  return Math.max(MIN_WIDTH, Math.min(w, getViewportWidth() * MAX_WIDTH_RATIO))
-}
+const clampWidth = ratioClamp(MIN_WIDTH, MAX_WIDTH_RATIO)
 
 interface SessionPanelStore {
   width: number
@@ -29,7 +24,7 @@ export { MIN_WIDTH as SESSION_PANEL_MIN_WIDTH }
 export const SESSION_PANEL_MAX_WIDTH_RATIO = MAX_WIDTH_RATIO
 
 export const useSessionPanelStore = create<SessionPanelStore>(set => ({
-  width: Math.round(getViewportWidth() * DEFAULT_WIDTH_RATIO),
+  width: Math.round((typeof window === 'undefined' ? 1024 : window.innerWidth) * DEFAULT_WIDTH_RATIO),
   isFullscreen: false,
   setWidth: w => set({ width: clampWidth(w) }),
   toggleFullscreen: () => set(s => ({ isFullscreen: !s.isFullscreen })),

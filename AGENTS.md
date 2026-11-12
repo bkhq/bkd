@@ -55,7 +55,6 @@ bkd/
 │   │   ├── src/
 │   │   │   ├── index.ts          ← CLI entry; loads server-main.ts for HTTP serving
 │   │   │   ├── app.ts            ← Hono router + middleware
-│   │   │   ├── config.ts         ← Hardcoded statuses (todo/working/review/done)
 │   │   │   ├── db/               ← SQLite/Drizzle schema + migrations
 │   │   │   ├── engines/          ← AI engine executors + process management
 │   │   │   ├── routes/           ← API routes
@@ -119,7 +118,7 @@ bkd/
 #### Data Layer
 
 - `apps/api/src/db/index.ts` + `apps/api/src/db/schema.ts` — SQLite/Drizzle ORM. Tables include `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`, `appSettings`, `notes`, `cronJobs`, `cronJobLogs`, `webhooks`, and `webhookDeliveries`. All route handlers use Drizzle queries directly.
-- `apps/api/src/config.ts` — Hardcoded status constants (`STATUSES`, `STATUS_MAP`, `STATUS_IDS`, `DEFAULT_STATUS_ID`). Statuses are fixed (todo, working, review, done) — no DB table.
+- `packages/shared/src/index.ts` — Hardcoded status constants (`STATUSES`, `STATUS_MAP`, `STATUS_IDS`, `DEFAULT_STATUS_ID`). Statuses are fixed (todo, working, review, done) — no DB table.
 - Migrations in `drizzle/`, auto-applied on startup.
 
 #### API Routes

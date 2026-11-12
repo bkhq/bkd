@@ -4,32 +4,12 @@ import * as z from 'zod'
 import { createRoute } from '@hono/zod-openapi'
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { runCommand } from '@/engines/spawn'
 import { findProject } from '@/db/helpers'
-import { checkOversized, countTextLines, isPathInsideRoot, resolveIssueDir } from '@/utils/changes'
+import { collectChanges, isPathInsideRoot, listChangedFiles, resolveIssueDir, runGit } from '@/utils/changes'
 import { isGitRepo } from '@/utils/git'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
 import { getProjectOwnedIssue } from './_shared'
-
-// ---------- Types ----------
-
-type ChangeType = 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'unknown'
-
-interface GitChangedFile {
-  path: string
-  status: string
-  type: ChangeType
-  staged: boolean
-  unstaged: boolean
-  previousPath?: string
-  additions?: number
-  deletions?: number
-  /** true when the file exceeds the large-file threshold (20 MB) */
-  oversized?: boolean
-  /** human-readable file size (only set when oversized) */
-  sizeDisplay?: string
-}
 
 // ---------- Git helpers ----------
 
@@ -44,100 +24,6 @@ async function resolveProjectDir(projectId: string): Promise<string | null> {
     return null
   }
   return root
-}
-
-async function runGit(
-  args: string[],
-  cwd: string,
-): Promise<{ code: number, stdout: string, timedOut?: boolean }> {
-  return runCommand(['git', ...args], { cwd, timeout: 15_000 })
-}
-
-function parsePorcelainLine(line: string): GitChangedFile | null {
-  if (line.length < 3) return null
-  const x = line[0]
-  const y = line[1]
-  const status = `${x}${y}`
-  const rest = line.slice(3).trim()
-  const hasRenameArrow = rest.includes(' -> ')
-  const previousPath = hasRenameArrow ? rest.split(' -> ')[0]?.trim() : undefined
-  const path = hasRenameArrow ? rest.split(' -> ').at(-1)?.trim() || rest : rest
-  if (!path) return null
-
-  let type: ChangeType = 'unknown'
-  if (status === '??') type = 'untracked'
-  else if (x === 'R' || y === 'R') type = 'renamed'
-  else if (x === 'A' || y === 'A') type = 'added'
-  else if (x === 'D' || y === 'D') type = 'deleted'
-  else if (x === 'M' || y === 'M') type = 'modified'
-
-  const staged = x !== ' ' && x !== '?'
-  const unstaged = y !== ' ' && y !== '?'
-  return { path, status, type, staged, unstaged, previousPath }
-}
-
-async function listChangedFiles(cwd: string): Promise<{ files: GitChangedFile[], timedOut?: boolean }> {
-  const result = await runGit(['status', '--porcelain=v1', '-uall'], cwd)
-  if (result.timedOut) return { files: [], timedOut: true }
-  if (result.code !== 0) return { files: [] }
-  const { stdout } = result
-  const parsed = stdout
-    .split('\n')
-    .map(line => line.trimEnd())
-    .filter(Boolean)
-    .map(parsePorcelainLine)
-    .filter((f): f is GitChangedFile => !!f)
-    .sort((a, b) => a.path.localeCompare(b.path))
-
-  // Check file sizes in parallel and merge oversized flags (immutable)
-  const sizeFlags = await Promise.all(
-    parsed.map(file => checkOversized(cwd, file.path)),
-  )
-  const files = parsed.map((file, i) => sizeFlags[i] ? { ...file, ...sizeFlags[i] } : file)
-  return { files }
-}
-
-async function summarizeFileLines(
-  cwd: string,
-  file: GitChangedFile,
-): Promise<{ additions: number, deletions: number }> {
-  // Skip diff for oversized files — they would block the event loop or OOM
-  if (file.oversized) return { additions: 0, deletions: 0 }
-
-  if (file.type === 'untracked') {
-    if (!isPathInsideRoot(cwd, file.path)) return { additions: 0, deletions: 0 }
-    try {
-      const content = await Bun.file(resolve(cwd, file.path)).text()
-      return { additions: countTextLines(content), deletions: 0 }
-    } catch {
-      return { additions: 0, deletions: 0 }
-    }
-  }
-
-  // Single diff against HEAD: covers both staged and unstaged changes,
-  // avoids double-counting partially staged hunks, handles renames with -M
-  try {
-    const { code, stdout } = await runGit(
-      ['diff', 'HEAD', '-M', '--numstat', '--no-color', '--no-ext-diff', '--', file.path],
-      cwd,
-    )
-    if (code === 0) {
-      const firstLine = stdout
-        .split('\n')
-        .map(line => line.trim())
-        .find(Boolean)
-      if (firstLine) {
-        const [addRaw, delRaw] = firstLine.split('\t')
-        const additions = Number.isNaN(Number(addRaw)) ? 0 : Number(addRaw)
-        const deletions = Number.isNaN(Number(delRaw)) ? 0 : Number(delRaw)
-        return { additions, deletions }
-      }
-    }
-  } catch {
-    // fall through
-  }
-
-  return { additions: 0, deletions: 0 }
 }
 
 // ---------- Routes ----------
@@ -184,26 +70,10 @@ changes.openapi(R.getIssueChanges, async (c) => {
     }, 200 as const)
   }
 
-  const { files, timedOut } = await listChangedFiles(root)
-
-  if (timedOut) {
-    return c.json({
-      success: true as const,
-      data: { root, worktreeMissing, gitRepo: true, files: [], additions: 0, deletions: 0, timedOut: true },
-    }, 200 as const)
-  }
-
-  const filesWithStats = await Promise.all(
-    files.map(async file => ({
-      ...file,
-      ...(await summarizeFileLines(root, file)),
-    })),
-  )
-  const additions = filesWithStats.reduce((sum, file) => sum + (file.additions ?? 0), 0)
-  const deletions = filesWithStats.reduce((sum, file) => sum + (file.deletions ?? 0), 0)
+  const { files, additions, deletions, timedOut } = await collectChanges(root)
   return c.json({
     success: true as const,
-    data: { root, worktreeMissing, gitRepo: true, files: filesWithStats, additions, deletions },
+    data: { root, worktreeMissing, gitRepo: true, files, additions, deletions, ...(timedOut ? { timedOut } : {}) },
   }, 200 as const)
 })
 

@@ -67,7 +67,7 @@ SQLite via `bun:sqlite` + Drizzle ORM. WAL mode, foreign keys, 64 MB cache, 256 
 
 All tables share `commonFields`: `createdAt`, `updatedAt`, `isDeleted` (soft delete).
 
-### Statuses (`config.ts`)
+### Statuses (`@bkd/shared`)
 
 Hardcoded constants — no DB table:
 

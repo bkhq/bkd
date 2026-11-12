@@ -5,12 +5,12 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { useIssue, useUpdateIssue } from '@/hooks/use-kanban'
+import { useIssue } from '@/hooks/use-kanban'
+import { IssueTitle } from './IssueTitle'
 import { IssueContextMenu, IssueContextMenuButton } from '@/components/issue-detail/IssueContextMenu'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useWorkspacePanelStore } from '@/stores/workspace-panel-store'
 import { ChatBody } from './ChatBody'
-import { isImeComposing } from '@/lib/keyboard'
 
 const LazyWorkspacePanel = lazy(() => import('./WorkspacePanel').then(m => ({ default: m.WorkspacePanel })))
 
@@ -42,8 +42,6 @@ export function ChatArea({
   const navigate = useNavigate()
   const { data: issue, isLoading, isError } = useIssue(projectId, issueId)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [editingTitle, setEditingTitle] = useState(false)
-  const [titleDraft, setTitleDraft] = useState('')
   const isMobile = useIsMobile()
   const panelOpen = useWorkspacePanelStore(s => s.isOpen)
   const panelMaximized = useWorkspacePanelStore(s => s.isOpen && s.isMaximized && !isMobile)
@@ -72,23 +70,6 @@ export function ChatArea({
     if (e.target !== e.currentTarget) return
     setPanelPhase(p => (p === 'entering' ? 'open' : p === 'leaving' ? 'closed' : p))
   }, [])
-
-  const updateIssue = useUpdateIssue(projectId)
-
-  const saveTitle = useCallback(() => {
-    const trimmed = titleDraft.trim()
-    if (trimmed && trimmed !== issue?.title) {
-      updateIssue.mutate({ id: issueId, title: trimmed })
-    }
-    setEditingTitle(false)
-  }, [titleDraft, issue?.title, updateIssue, issueId])
-
-  const startEditingTitle = useCallback(() => {
-    if (issue) {
-      setTitleDraft(issue.title)
-      setEditingTitle(true)
-    }
-  }, [issue])
 
   const defaultBack = showBackToList ? `/projects/${projectId}/issues` : `/projects/${projectId}`
   const resolvedBackPath = backPath ?? defaultBack
@@ -145,41 +126,7 @@ export function ChatArea({
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-muted-foreground/70 bg-muted/50 rounded px-1.5 py-0.5 shrink-0 tabular-nums">
-                #
-                {issue.issueNumber}
-              </span>
-              {editingTitle ?
-                  (
-                    <input
-                      className="text-base md:text-sm font-semibold bg-transparent border-b-2 border-primary outline-none min-w-0 flex-1 tracking-tight"
-                      value={titleDraft}
-                      onChange={e => setTitleDraft(e.target.value)}
-                      onBlur={saveTitle}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !isImeComposing(e)) {
-                          e.preventDefault()
-                          saveTitle()
-                        } else if (e.key === 'Escape') {
-                          setEditingTitle(false)
-                        }
-                      }}
-                      autoFocus
-                    />
-                  ) :
-                  (
-                    <span
-                      className="text-sm font-semibold truncate cursor-pointer hover:text-primary transition-colors duration-200 tracking-tight decoration-primary/30 hover:underline underline-offset-2"
-                      onClick={startEditingTitle}
-                      title={t('issue.editTitle')}
-                    >
-                      {issue.title}
-                    </span>
-                  )}
-            </div>
-          </div>
+          <IssueTitle projectId={projectId} issue={issue} />
           <IssueContextMenu issue={issue} projectId={projectId} showPin onDeleted={handleAfterDelete}>
             <IssueContextMenuButton className="h-7 w-7 shrink-0" />
           </IssueContextMenu>

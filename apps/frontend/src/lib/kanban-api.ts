@@ -11,7 +11,6 @@ import type {
   EngineDiscoveryResult,
   EngineProfile,
   EngineSettings,
-  ExecuteIssueRequest,
   ExecuteIssueResponse,
   ImportSessionRequest,
   ImportSessionResult,
@@ -333,9 +332,6 @@ export const kanbanApi = {
     `/api/projects/${projectId}/issues/${issueId}/export?format=json`,
 
   // Issue session operations (merged from sessions)
-  executeIssue: (projectId: string, issueId: string, data: ExecuteIssueRequest) =>
-    post<ExecuteIssueResponse>(`/api/projects/${projectId}/issues/${issueId}/execute`, data),
-
   followUpIssue: (opts: {
     projectId: string
     issueId: string
@@ -382,15 +378,6 @@ export const kanbanApi = {
       `/api/projects/${projectId}/issues/${issueId}/cancel`,
       {},
     ),
-
-  terminateIssue: (projectId: string, issueId: string) =>
-    post<{ issueId: string, status: string }>(
-      `/api/projects/${projectId}/issues/${issueId}/terminate`,
-      {},
-    ),
-
-  restartIssue: (projectId: string, issueId: string) =>
-    post<ExecuteIssueResponse>(`/api/projects/${projectId}/issues/${issueId}/restart`, {}),
 
   clearIssueSession: (projectId: string, issueId: string) =>
     post<{ issueId: string }>(

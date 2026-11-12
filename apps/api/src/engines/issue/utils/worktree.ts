@@ -1,6 +1,9 @@
 import { existsSync } from 'node:fs'
-import { mkdir, rm } from 'node:fs/promises'
-import { join, resolve, sep } from 'node:path'
+import { mkdir, readdir, rm } from 'node:fs/promises'
+import { basename, join, resolve, sep } from 'node:path'
+import { inArray } from 'drizzle-orm'
+import { db } from '@/db'
+import { projects as projectsTable } from '@/db/schema'
 import { WORKTREE_DIR } from '@/engines/issue/constants'
 import { runCommand } from '@/engines/spawn'
 import { logger } from '@/logger'
@@ -160,4 +163,77 @@ export function cleanupWorktree(baseDir: string, issueId: string, worktreePath: 
   void removeWorktree(baseDir, worktreePath).catch((error) => {
     logger.warn({ issueId, worktreePath, error }, 'worktree_cleanup_failed')
   })
+}
+
+export interface WorktreeOnDisk {
+  projectId: string
+  projectDir: string
+  issueId: string
+  path: string
+}
+
+/** Every `<WORKTREE_BASE>/<projectId>/<issueId>` directory on disk. */
+export async function listWorktreesOnDisk(): Promise<WorktreeOnDisk[]> {
+  const found: WorktreeOnDisk[] = []
+  const projectEntries = await readdir(WORKTREE_BASE, { withFileTypes: true }).catch(() => [])
+  for (const pe of projectEntries) {
+    if (!pe.isDirectory()) continue
+    const projectDir = resolve(WORKTREE_BASE, pe.name)
+    const issueEntries = await readdir(projectDir, { withFileTypes: true }).catch(() => [])
+    for (const ie of issueEntries) {
+      if (!ie.isDirectory()) continue
+      found.push({ projectId: pe.name, projectDir, issueId: ie.name, path: resolve(projectDir, ie.name) })
+    }
+  }
+  return found
+}
+
+/** Map project IDs to their repository directories, soft-deleted projects included. */
+async function getProjectRepoDirs(projectIds: string[]): Promise<Map<string, string>> {
+  const dirs = new Map<string, string>()
+  const BATCH = 500
+  for (let i = 0; i < projectIds.length; i += BATCH) {
+    const rows = await db
+      .select({ id: projectsTable.id, directory: projectsTable.directory })
+      .from(projectsTable)
+      .where(inArray(projectsTable.id, projectIds.slice(i, i + BATCH)))
+    for (const r of rows) {
+      if (r.directory) dirs.set(r.id, resolve(r.directory))
+    }
+  }
+  return dirs
+}
+
+/** Remove worktrees and any project directory left empty; returns how many went. */
+export async function removeWorktrees(
+  worktrees: Array<Pick<WorktreeOnDisk, 'projectDir' | 'issueId' | 'path'>>,
+  /** Checked right before each removal; false skips that worktree. */
+  stillRemovable?: (issueId: string) => boolean,
+): Promise<number> {
+  let cleaned = 0
+
+  const repoDirs = await getProjectRepoDirs([...new Set(worktrees.map(w => basename(w.projectDir)))])
+  const projectDirs = new Set<string>()
+  for (const w of worktrees) {
+    projectDirs.add(w.projectDir)
+    if (stillRemovable && !stillRemovable(w.issueId)) continue
+    try {
+      // Without a project row there is no repo to deregister from;
+      // removeWorktree then falls back to deleting the directory.
+      await removeWorktree(repoDirs.get(basename(w.projectDir)) ?? process.cwd(), w.path)
+      cleaned++
+    } catch {
+      await rm(w.path, { recursive: true }).catch(() => {})
+      cleaned++
+    }
+  }
+
+  for (const projectDir of projectDirs) {
+    const remaining = await readdir(projectDir).catch(() => ['_'])
+    if (remaining.length === 0) {
+      await rm(projectDir, { recursive: true }).catch(() => {})
+    }
+  }
+
+  return cleaned
 }

@@ -1,5 +1,4 @@
-import { closeSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
-import { randomBytes } from 'node:crypto'
+import { closeSync, mkdirSync, openSync, readFileSync, unlinkSync, writeSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { resolveDbPath } from './db/migrations-source'
 import { logger } from './logger'
@@ -8,7 +7,6 @@ import { DATA_DIR } from './root'
 // ---------- Constants ----------
 
 const PID_FILE_NAME = 'bkd.pid'
-const UPGRADE_TOKEN_FILE_NAME = 'bkd.upgrade-token'
 const HTTP_PROBE_TIMEOUT_MS = 2000
 
 /**
@@ -25,10 +23,6 @@ function getLockDir(): string {
 
 function getPidFilePath(): string {
   return resolve(getLockDir(), PID_FILE_NAME)
-}
-
-function getUpgradeTokenPath(): string {
-  return resolve(getLockDir(), UPGRADE_TOKEN_FILE_NAME)
 }
 
 // ---------- Helpers ----------
@@ -153,49 +147,7 @@ function tryCreateExclusive(filePath: string, content: string): boolean {
   }
 }
 
-/**
- * Verify upgrade token: the upgrading process writes a file containing
- * its PID and a random nonce. The new process reads and validates both,
- * then deletes the token file. This prevents external spoofing — unlike
- * environment variables, the token file is protected by filesystem permissions.
- */
-function isValidUpgradeToken(existingPid: number): boolean {
-  const tokenPath = getUpgradeTokenPath()
-  try {
-    const content = readFileSync(tokenPath, 'utf8').trim()
-    const [pidStr, nonce] = content.split(':')
-    const tokenPid = Number.parseInt(pidStr ?? '', 10)
-
-    if (tokenPid !== existingPid || !nonce || nonce.length < 16) {
-      return false
-    }
-
-    // Token is valid — consume it (one-time use)
-    try {
-      unlinkSync(tokenPath)
-    } catch { /* best effort */ }
-
-    return true
-  } catch {
-    return false
-  }
-}
-
 // ---------- Public API ----------
-
-/**
- * Write an upgrade token file that authorises the new process to take
- * over the PID lock from this process. Called by the upgrade system
- * just before spawning the replacement process.
- */
-export function writeUpgradeToken(): void {
-  const tokenPath = getUpgradeTokenPath()
-  const nonce = randomBytes(16).toString('hex')
-  const content = `${process.pid}:${nonce}`
-  mkdirSync(dirname(tokenPath), { recursive: true })
-  writeFileSync(tokenPath, content, 'utf8')
-  logger.debug({ tokenPath }, 'upgrade_token_written')
-}
 
 /**
  * Acquire a PID lock. If another BKD instance is already running,
@@ -241,27 +193,15 @@ export function acquirePidLock(): void {
 
   const existingPid = Number.parseInt(content.split(':')[0] ?? '', 10)
 
-  if (isLockHolderAlive(content)) {
-    // Allow takeover when the upgrading process left a valid token file.
-    // The token contains the parent's PID + a random nonce, so it cannot
-    // be forged via environment variables or command-line arguments.
-    if (isValidUpgradeToken(existingPid)) {
-      logger.info(
-        { existingPid, pidFile },
-        'pid_lock_takeover_from_upgrade_parent',
-      )
-    } else {
-      exitDuplicateInstance(pidFile, existingPid)
-    }
-  } else {
-    // PID file exists but the holder is gone (dead or PID reused) → stale lock
-    logger.warn(
-      { stalePid: existingPid, pidFile },
-      'pid_lock_stale_removed',
-    )
-  }
+  if (isLockHolderAlive(content)) exitDuplicateInstance(pidFile, existingPid)
 
-  // Remove stale/takeover lock and write our PID
+  // PID file exists but the holder is gone (dead or PID reused) → stale lock
+  logger.warn(
+    { stalePid: existingPid, pidFile },
+    'pid_lock_stale_removed',
+  )
+
+  // Remove the stale lock and write our PID
   try {
     unlinkSync(pidFile)
   } catch { /* best effort */ }

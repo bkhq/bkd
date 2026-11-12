@@ -1,8 +1,4 @@
-import { resolve } from 'node:path'
-import { getAppSetting } from '@/db/helpers'
-import { issueEngine } from '@/engines/issue'
-import type { EngineType } from '@/engines/types'
-import { ensureWorking, parseProjectEnvVars } from '@/routes/issues/_shared'
+import { startIssueExecution } from '@/routes/issues/_shared'
 import { registerAction } from '../registry'
 import { resolveIssue, validateIssueRefs } from './resolver'
 
@@ -20,37 +16,12 @@ registerAction('issue-execute', {
       return `skipped: issue ${issue.id} already has active session (${issue.sessionStatus})`
     }
 
-    // Tracked across ensureWorking() and the spawn, so the reconciler does not
-    // read the 'working' issue as stale while it is starting.
-    const result = await issueEngine.trackStart(issue.id, async () => {
-      const guard = await ensureWorking(issue)
-      if (!guard.ok) throw new Error(guard.reason!)
-
-      // SEC-016: Validate working directory within workspace root
-      const workingDir = project.directory || undefined
-      if (workingDir) {
-        const workspaceRoot = await getAppSetting('workspace:defaultPath')
-        if (workspaceRoot && workspaceRoot !== '/') {
-          const resolvedRoot = resolve(workspaceRoot)
-          const resolvedDir = resolve(workingDir)
-          if (!resolvedDir.startsWith(`${resolvedRoot}/`) && resolvedDir !== resolvedRoot) {
-            throw new Error('Project directory is outside the configured workspace')
-          }
-        }
-      }
-
-      const engineType = ((config.engineType as string) ?? issue.engineType ?? 'claude-code') as EngineType
-      const basePrompt = project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt
-      const envVars = parseProjectEnvVars(project.envVars)
-
-      return issueEngine.executeIssue(issue.id, {
-        engineType,
-        prompt: basePrompt,
-        workingDir,
-        model: (config.model as string) ?? issue.model ?? undefined,
-        envVars,
-      })
+    const result = await startIssueExecution(project, issue, {
+      prompt,
+      engineType: (config.engineType as string) ?? issue.engineType ?? 'claude-code',
+      model: (config.model as string) ?? issue.model ?? undefined,
     })
+    if (!result.ok) throw new Error(result.error)
 
     return `execution started for issue ${issue.id} in project ${project.id} (executionId: ${result.executionId})`
   },

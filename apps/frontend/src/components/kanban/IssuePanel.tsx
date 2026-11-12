@@ -1,12 +1,12 @@
 import { Check, Link, Maximize2, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { ChatBody } from '@/components/issue-detail/ChatBody'
 import { Button } from '@/components/ui/button'
-import { useIssue, useUpdateIssue } from '@/hooks/use-kanban'
+import { IssueTitle } from '@/components/issue-detail/IssueTitle'
+import { useIssue } from '@/hooks/use-kanban'
 import { getIssueUrl } from '@/stores/server-store'
-import { isImeComposing } from '@/lib/keyboard'
 
 interface IssuePanelProps {
   projectId: string
@@ -22,31 +22,9 @@ export function IssuePanel({ projectId, issueId, onClose, hideHeaderActions }: I
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const [copied, setCopied] = useState(false)
-  const [editingTitle, setEditingTitle] = useState(false)
-  const [titleDraft, setTitleDraft] = useState('')
 
   const { data: issue } = useIssue(projectId, issueId ?? '')
   const effectiveIssue = issue
-
-  const updateIssue = useUpdateIssue(projectId)
-
-  const displayId = effectiveIssue ? `#${effectiveIssue.issueNumber}` : ''
-
-  // --- Title editing ---
-  const saveTitle = useCallback(() => {
-    const trimmed = titleDraft.trim()
-    if (trimmed && effectiveIssue && trimmed !== effectiveIssue.title) {
-      updateIssue.mutate({ id: effectiveIssue.id, title: trimmed })
-    }
-    setEditingTitle(false)
-  }, [titleDraft, effectiveIssue, updateIssue])
-
-  const startEditingTitle = useCallback(() => {
-    if (effectiveIssue) {
-      setTitleDraft(effectiveIssue.title)
-      setEditingTitle(true)
-    }
-  }, [effectiveIssue])
 
   // Auto-focus panel on mount
   useEffect(() => {
@@ -87,40 +65,7 @@ export function IssuePanel({ projectId, issueId, onClose, hideHeaderActions }: I
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-2.5 py-2.5 border-b border-border/60 shrink-0 min-h-[45px] bg-background/80 backdrop-blur-sm">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono text-muted-foreground/70 bg-muted/50 rounded px-1.5 py-0.5 shrink-0 tabular-nums">
-              {displayId}
-            </span>
-            {editingTitle ?
-                (
-                  <input
-                    className="text-base md:text-sm font-semibold bg-transparent border-b-2 border-primary outline-none min-w-0 flex-1 tracking-tight"
-                    value={titleDraft}
-                    onChange={e => setTitleDraft(e.target.value)}
-                    onBlur={saveTitle}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !isImeComposing(e)) {
-                        e.preventDefault()
-                        saveTitle()
-                      } else if (e.key === 'Escape') {
-                        setEditingTitle(false)
-                      }
-                    }}
-                    autoFocus
-                  />
-                ) :
-                (
-                  <span
-                    className="text-sm font-semibold truncate cursor-pointer hover:text-primary transition-colors duration-200 tracking-tight decoration-primary/30 hover:underline underline-offset-2"
-                    onClick={startEditingTitle}
-                    title={t('issue.editTitle')}
-                  >
-                    {effectiveIssue?.title}
-                  </span>
-                )}
-          </div>
-        </div>
+        <IssueTitle projectId={projectId} issue={effectiveIssue} />
         <div className="flex items-center gap-0.5 shrink-0">
           {!hideHeaderActions ?
               (

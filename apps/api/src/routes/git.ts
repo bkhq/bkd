@@ -3,7 +3,7 @@ import { errorResponse, successResponse } from '@/openapi/schemas'
 import { createRoute } from '@hono/zod-openapi'
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { getAppSetting } from '@/db/helpers'
+import { isInsideWorkspace } from '@/utils/workspace'
 import { runCommand } from '@/engines/spawn'
 import * as z from 'zod'
 import { createOpenAPIRouter } from '@/openapi/hono'
@@ -39,13 +39,8 @@ git.openapi(createRoute({
   const dir = resolve(directory)
 
   // SEC-030: Validate directory is within workspace root
-  const workspaceRoot = await getAppSetting('workspace:defaultPath')
-  if (workspaceRoot && workspaceRoot !== '/') {
-    const resolvedWorkspace = resolve(workspaceRoot)
-    const isInside = dir === resolvedWorkspace || dir.startsWith(`${resolvedWorkspace}/`)
-    if (!isInside) {
-      return c.json({ success: false as const, error: 'Directory is outside the configured workspace' }, 403)
-    }
+  if (!await isInsideWorkspace(dir)) {
+    return c.json({ success: false as const, error: 'Directory is outside the configured workspace' }, 403)
   }
 
   // Check directory exists

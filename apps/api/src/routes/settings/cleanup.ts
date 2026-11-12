@@ -3,7 +3,7 @@ import { errorResponse, successResponse } from '@/openapi/schemas'
 import { createRoute } from '@hono/zod-openapi'
 import { existsSync } from 'node:fs'
 import { readdir, rm, stat } from 'node:fs/promises'
-import { basename, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import * as z from 'zod'
 import { db } from '@/db'
@@ -16,7 +16,8 @@ import {
   projects as projectsTable,
 } from '@/db/schema'
 import { issueEngine } from '@/engines/issue'
-import { removeWorktree, resolveWorktreePath, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
+import type { WorktreeOnDisk } from '@/engines/issue/utils/worktree'
+import { listWorktreesOnDisk, removeWorktrees, resolveWorktreePath, WORKTREE_BASE } from '@/engines/issue/utils/worktree'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import { DATA_DIR } from '@/root'
@@ -184,30 +185,12 @@ async function getLogsStats() {
   }
 }
 
-/** Scan disk for all worktree issue IDs, then query DB for active ones. */
-async function scanCleanableWorktrees(): Promise<Array<{ projectDir: string, issueId: string, path: string }>> {
-  if (!existsSync(WORKTREE_BASE)) return []
-
-  const allOnDisk: Array<{ projectDir: string, issueId: string, path: string }> = []
-  try {
-    const projectEntries = await readdir(WORKTREE_BASE, { withFileTypes: true })
-    for (const pe of projectEntries) {
-      if (!pe.isDirectory()) continue
-      const projectDir = resolve(WORKTREE_BASE, pe.name)
-      const issueEntries = await readdir(projectDir, { withFileTypes: true }).catch(() => [])
-      for (const ie of issueEntries) {
-        if (!ie.isDirectory()) continue
-        allOnDisk.push({ projectDir, issueId: ie.name, path: resolve(projectDir, ie.name) })
-      }
-    }
-  } catch {
-    // ignore
-  }
-  if (allOnDisk.length === 0) return []
-
-  const diskIds = [...new Set(allOnDisk.map(w => w.issueId))]
-  const aliveIds = await getAliveIssueIds(diskIds)
-  return allOnDisk.filter(w => !aliveIds.has(w.issueId))
+/** Worktrees on disk whose issue is deleted or missing. */
+async function scanCleanableWorktrees(): Promise<WorktreeOnDisk[]> {
+  const onDisk = await listWorktreesOnDisk()
+  if (onDisk.length === 0) return []
+  const aliveIds = await getAliveIssueIds([...new Set(onDisk.map(w => w.issueId))])
+  return onDisk.filter(w => !aliveIds.has(w.issueId))
 }
 
 async function getWorktreesStats() {
@@ -284,56 +267,6 @@ async function cleanupWorktrees(): Promise<{ cleaned: number }> {
   const cleaned = await removeWorktrees(await scanCleanableWorktrees())
   logger.info({ cleaned }, 'cleanup_worktrees_done')
   return { cleaned }
-}
-
-export async function removeWorktrees(
-  cleanable: Array<{ projectDir: string, issueId: string, path: string }>,
-  /** Checked right before each removal; false skips that worktree. */
-  stillRemovable?: (issueId: string) => boolean,
-): Promise<number> {
-  let cleaned = 0
-
-  const repoDirs = await getProjectRepoDirs([...new Set(cleanable.map(w => basename(w.projectDir)))])
-  const projectDirs = new Set<string>()
-  for (const w of cleanable) {
-    projectDirs.add(w.projectDir)
-    if (stillRemovable && !stillRemovable(w.issueId)) continue
-    try {
-      // Without a project row there is no repo to deregister from;
-      // removeWorktree then falls back to deleting the directory.
-      await removeWorktree(repoDirs.get(basename(w.projectDir)) ?? process.cwd(), w.path)
-      cleaned++
-    } catch {
-      await rm(w.path, { recursive: true }).catch(() => {})
-      cleaned++
-    }
-  }
-
-  // Remove empty project directories
-  for (const projectDir of projectDirs) {
-    const remaining = await readdir(projectDir).catch(() => ['_'])
-    if (remaining.length === 0) {
-      await rm(projectDir, { recursive: true }).catch(() => {})
-    }
-  }
-
-  return cleaned
-}
-
-/** Map project IDs to their repository directories, soft-deleted projects included. */
-async function getProjectRepoDirs(projectIds: string[]): Promise<Map<string, string>> {
-  const dirs = new Map<string, string>()
-  const BATCH = 500
-  for (let i = 0; i < projectIds.length; i += BATCH) {
-    const rows = await db
-      .select({ id: projectsTable.id, directory: projectsTable.directory })
-      .from(projectsTable)
-      .where(inArray(projectsTable.id, projectIds.slice(i, i + BATCH)))
-    for (const r of rows) {
-      if (r.directory) dirs.set(r.id, resolve(r.directory))
-    }
-  }
-  return dirs
 }
 
 async function cleanupDeletedIssues(): Promise<{ cleaned: number }> {

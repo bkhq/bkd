@@ -66,7 +66,3 @@ export const useIsPanelOpen = () => usePanelStore(s => s.panel.kind !== 'closed'
 
 // Re-clamp width on window resize (HMR-safe via import.meta.hot.dispose)
 attachResizeClamp(usePanelStore.getState, clampWidth, import.meta.hot)
-
-// Per-field selectors to avoid full re-renders
-export const usePanelWidth = () => usePanelStore(s => s.width)
-export const useCreateDialogOpen = () => usePanelStore(s => s.createDialogOpen)

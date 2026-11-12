@@ -13,10 +13,10 @@ import { issueEngine } from '@/engines/issue'
 import {
   createWorktree,
   isWorktreeRegistered,
+  removeWorktrees,
   WORKTREE_BASE,
 } from '@/engines/issue/utils/worktree'
 import { spawnNodeSync } from '@/engines/spawn'
-import { removeWorktrees } from '@/routes/settings/cleanup'
 import { createTestProject, del, expectSuccess, get, post } from './helpers'
 /**
  * Worktrees of deleted issues are kept so a recycle-bin restore is lossless,

@@ -4,13 +4,14 @@ import type { FmMount } from '@/fm/server/router'
 import { createHash } from 'node:crypto'
 import { cp, mkdir, readdir, realpath, rename, rm, stat } from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
-import { findProject, getAppSetting } from '@/db/helpers'
+import { findProject } from '@/db/helpers'
 import { WORKTREE_BASE } from '@/engines/issue/utils/worktree'
 import { FmError } from '@/fm/core/errors'
 import { localDriver } from '@/fm/drivers/local'
 import { createFmRouter } from '@/fm/server/router'
 import { TRASH_DIR } from '@/fm/server/trash'
 import { DATA_DIR } from '@/root'
+import { isInsideWorkspace } from '@/utils/workspace'
 import { getProjectOwnedIssue } from './issues/_shared'
 
 /** Folders the fm router keeps per mount; BKD stores them under `data/`, never in a project. */
@@ -100,12 +101,6 @@ export function workspaceDriver(root: string, { git = true }: { git?: boolean } 
   }
 }
 
-/** The directory is inside the configured workspace (SEC-007); `/` or unset allows all. */
-async function insideWorkspace(dir: string): Promise<boolean> {
-  const workspace = await getAppSetting('workspace:defaultPath')
-  return !workspace || workspace === '/' || inside(dir, resolve(workspace))
-}
-
 async function isDir(path: string): Promise<boolean> {
   return stat(path).then(s => s.isDirectory(), () => false)
 }
@@ -118,7 +113,7 @@ export async function projectMounts(projectId: string): Promise<FmMount[]> {
   const project = await findProject(projectId)
   if (!project?.directory) return []
   const root = resolve(project.directory)
-  if (!(await isDir(root)) || !(await insideWorkspace(root))) return []
+  if (!(await isDir(root)) || !(await isInsideWorkspace(root))) return []
 
   const trash = { retentionDays: TRASH_RETENTION_DAYS }
   const mounts: FmMount[] = [{ id: 'project', label: project.name, driver: workspaceDriver(root), trash, absoluteRoot: root }]

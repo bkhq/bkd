@@ -3,11 +3,11 @@ import { db } from '@/db'
 import { issuesLogsToolsCall as toolsTable } from '@/db/schema'
 import type {
   NormalizedLogEntry,
-  TaskPlanItem,
   ToolAction,
   ToolDetail,
   UserQuestionItem,
 } from '@/engines/types'
+import { parseTaskPlanItems } from '@/engines/logs'
 import { logger } from '@/logger'
 
 /** Persist tool detail row linked to a log entry. */
@@ -121,20 +121,7 @@ export function rawToToolAction(kind: string, rawData: Record<string, unknown>):
       }
     }
     case 'task-plan': {
-      const rawItems = Array.isArray(action?.items) ? (action.items as unknown[]) : []
-      const items: TaskPlanItem[] = rawItems
-        .map((raw) => {
-          if (typeof raw !== 'object' || raw === null) return null
-          const obj = raw as Record<string, unknown>
-          const content = typeof obj.content === 'string' ? obj.content : null
-          if (!content) return null
-          const status = typeof obj.status === 'string' ? obj.status : 'pending'
-          const activeForm = typeof obj.activeForm === 'string' ? obj.activeForm : undefined
-          return activeForm !== undefined
-            ? { content, status, activeForm }
-            : { content, status }
-        })
-        .filter((i): i is TaskPlanItem => i !== null)
+      const items = parseTaskPlanItems(action?.items)
       return { kind: 'task-plan', items }
     }
     case 'user-question': {

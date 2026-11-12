@@ -39,7 +39,7 @@ const CONVERSATION_MSG_CONDITION = sql`(
 )`
 
 /** Map a DB row + optional tool detail to a NormalizedLogEntry. */
-function rowToEntry(
+export function rowToEntry(
   row: typeof logsTable.$inferSelect,
   toolByLogId: Map<string, typeof toolsTable.$inferSelect>,
 ): NormalizedLogEntry {
@@ -77,7 +77,7 @@ function rowToEntry(
 }
 
 /** Batch-fetch tool details for a set of log rows. */
-function fetchToolDetails(logIds: string[]): Map<string, typeof toolsTable.$inferSelect> {
+export function fetchToolDetails(logIds: string[]): Map<string, typeof toolsTable.$inferSelect> {
   const map = new Map<string, typeof toolsTable.$inferSelect>()
   if (logIds.length === 0) return map
   const toolRows = db.select().from(toolsTable).where(inArray(toolsTable.logId, logIds)).all()

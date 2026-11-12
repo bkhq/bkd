@@ -1,11 +1,6 @@
-import { mkdir, stat } from 'node:fs/promises'
-import { resolve } from 'node:path'
-import { findProject, getAppSetting } from '@/db/helpers'
+import { findProject } from '@/db/helpers'
 import { updateIssueSession } from '@/engines/engine-store'
-import { engineRegistry } from '@/engines/executors'
 import { issueEngine } from '@/engines/issue'
-import type { EngineType } from '@/engines/types'
-import { getVirtualEngine } from '@/engines/virtual-engines'
 import { logger } from '@/logger'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as R from '@/openapi/routes'
@@ -13,7 +8,7 @@ import {
   ensureWorking,
   getProjectOwnedIssue,
   normalizePrompt,
-  parseProjectEnvVars,
+  startIssueExecution,
 } from './_shared'
 
 const command = createOpenAPIRouter()
@@ -38,101 +33,15 @@ command.openapi(R.executeIssue, async (c) => {
     return c.json({ success: false, error: 'Prompt is required' }, 400 as const)
   }
 
-  // Resolve workingDir from project.directory
-  const workingDir = project.directory || undefined
-
-  // Ensure workingDir exists and is within the configured workspace root.
-  let effectiveWorkingDir: string | undefined
-  if (workingDir) {
-    const resolvedDir = resolve(workingDir)
-
-    // SEC-016: Validate directory is within workspace root
-    const workspaceRoot = await getAppSetting('workspace:defaultPath')
-    if (workspaceRoot && workspaceRoot !== '/') {
-      const resolvedRoot = resolve(workspaceRoot)
-      if (!resolvedDir.startsWith(`${resolvedRoot}/`) && resolvedDir !== resolvedRoot) {
-        return c.json(
-          {
-            success: false,
-            error: 'Project directory is outside the configured workspace',
-          },
-          403 as const,
-        )
-      }
-    }
-
-    try {
-      await mkdir(resolvedDir, { recursive: true })
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: `Failed to create project directory: ${resolvedDir}`,
-        },
-        400 as const,
-      )
-    }
-
-    try {
-      const s = await stat(resolvedDir)
-      if (!s.isDirectory()) {
-        return c.json({ success: false, error: 'Project directory is not a directory' }, 400 as const)
-      }
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: `Project directory is unavailable: ${resolvedDir}`,
-        },
-        400 as const,
-      )
-    }
-    effectiveWorkingDir = resolvedDir
-  }
-
   try {
-    // Tracked from before ensureWorking() until the engine returns: the issue
-    // is 'working' for the whole spawn, which the reconciler would otherwise
-    // read as stale.
-    return await issueEngine.trackStart(issueId, async () => {
-      const guard = await ensureWorking(issue)
-      if (!guard.ok) {
-        return c.json({ success: false, error: guard.reason! }, 400 as const)
-      }
-      // Prepend project-level system prompt if configured
-      const basePrompt = project.systemPrompt ? `${project.systemPrompt}\n\n${prompt}` : prompt
-      const envVars = parseProjectEnvVars(project.envVars)
-      // A virtual engine id resolves to its base engine; its preset env vars are
-      // injected by the engine layer from the issue's persisted engineProfileId.
-      const virtual = await getVirtualEngine(body.engineType)
-      const baseEngine = (virtual ? virtual.baseEngine : body.engineType) as EngineType
-      // Validate the engine resolves to a real executor BEFORE mutating the issue,
-      // so an unknown/stale id is a clean 400 without clobbering engineProfileId.
-      if (!engineRegistry.get(baseEngine)) {
-        return c.json({ success: false, error: `Unknown engine type: ${body.engineType}` }, 400 as const)
-      }
-      // Sync the virtual profile (set for a virtual engine, cleared for a real
-      // one) via executeIssue so the write happens under the per-issue lock —
-      // avoiding a race between concurrent execute requests.
-      const result = await issueEngine.executeIssue(issueId, {
-        engineType: baseEngine,
-        engineProfileId: virtual ? virtual.id : null,
-        prompt: basePrompt,
-        workingDir: effectiveWorkingDir,
-        model: body.model ?? virtual?.model,
-        effort: body.effort === 'auto' ? null : body.effort,
-        permissionMode: body.permissionMode,
-        envVars,
-      })
-      return c.json({
-        success: true,
-        data: {
-          executionId: result.executionId,
-          issueId,
-          messageId: result.messageId,
-        },
-      }, 200 as const)
-    })
+    const outcome = await startIssueExecution(project, issue, { ...body, prompt })
+    if (!outcome.ok) {
+      return c.json({ success: false, error: outcome.error }, outcome.status)
+    }
+    return c.json({
+      success: true,
+      data: { executionId: outcome.executionId, issueId, messageId: outcome.messageId },
+    }, 200 as const)
   } catch (error) {
     logger.warn(
       {

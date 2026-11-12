@@ -1,15 +1,16 @@
 import { ExportSchema } from '@/openapi/extra-schemas'
 import { errorResponse } from '@/openapi/schemas'
 import { createRoute } from '@hono/zod-openapi'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { createOpenAPIRouter } from '@/openapi/hono'
 import * as z from 'zod'
 import { db } from '@/db'
 import { findProject } from '@/db/helpers'
-import { issueLogs as logsTable, issuesLogsToolsCall as toolsTable } from '@/db/schema'
+import type { issuesLogsToolsCall as toolsTable } from '@/db/schema'
+import { issueLogs as logsTable } from '@/db/schema'
 import { isVisible } from '@/engines/issue/utils/visibility'
 import type { NormalizedLogEntry } from '@/engines/types'
-import { rawToToolAction } from '@/engines/issue/persistence/tool-detail'
+import { fetchToolDetails, rowToEntry } from '@/engines/issue/persistence/queries'
 import { getProjectOwnedIssue } from './_shared'
 
 const exportRoute = createOpenAPIRouter()
@@ -22,52 +23,13 @@ function getAllLogs(issueId: string): NormalizedLogEntry[] {
     .orderBy(asc(logsTable.id))
     .all()
 
+  // Batch in chunks of 500 to avoid SQLite variable limits
   const toolByLogId = new Map<string, (typeof toolsTable)['$inferSelect']>()
-  if (rows.length > 0) {
-    const logIds = rows.map(r => r.id)
-    // Batch in chunks of 500 to avoid SQLite variable limits
-    for (let i = 0; i < logIds.length; i += 500) {
-      const chunk = logIds.slice(i, i + 500)
-      const toolRows = db.select().from(toolsTable).where(inArray(toolsTable.logId, chunk)).all()
-      for (const r of toolRows) toolByLogId.set(r.logId, r)
-    }
+  for (let i = 0; i < rows.length; i += 500) {
+    for (const [logId, tool] of fetchToolDetails(rows.slice(i, i + 500).map(r => r.id))) toolByLogId.set(logId, tool)
   }
 
-  return rows
-    .map((row) => {
-      const parsedMeta = row.metadata ? JSON.parse(row.metadata) : undefined
-      const base: NormalizedLogEntry = {
-        messageId: row.id,
-        replyToMessageId: row.replyToMessageId ?? undefined,
-        entryType: row.entryType as NormalizedLogEntry['entryType'],
-        content: row.content.trim(),
-        turnIndex: row.turnIndex,
-        timestamp: row.timestamp ?? undefined,
-        metadata: parsedMeta,
-      }
-
-      const tool = toolByLogId.get(row.id)
-      if (tool) {
-        const rawData = tool.raw ? JSON.parse(tool.raw) : {}
-        base.toolDetail = {
-          kind: tool.kind,
-          toolName: tool.toolName,
-          toolCallId: tool.toolCallId ?? undefined,
-          isResult: tool.isResult ?? false,
-          raw: rawData,
-        }
-        base.toolAction = rawToToolAction(tool.kind, rawData)
-        if (!base.content && rawData.content) {
-          base.content = rawData.content as string
-        }
-        if (!base.metadata && rawData.metadata) {
-          base.metadata = rawData.metadata as Record<string, unknown>
-        }
-      }
-
-      return base
-    })
-    .filter(isVisible)
+  return rows.map(row => rowToEntry(row, toolByLogId)).filter(isVisible)
 }
 
 const exportQuerySchema = z.object({

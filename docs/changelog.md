@@ -1421,3 +1421,35 @@ file browser drawer, whose file manager reviews changes too. The old diff view l
 deleted: `DiffPanel`, `ChangesTree`, `files/TreePane`, `files/TreeRow`, `diff-view-store`, `tree-pane-store`,
 `lib/path-tree`, `useIssueFilePatch` / `getIssueFilePatch`, their tests, and the `diff.*` (except `diff.openFiles`)
 and old file-browser i18n keys. The backend `GET .../changes/file` route stays. Task: 20261111-1343-merge-changes-button.
+
+## 2026-11-11 17:55 [progress]
+
+Collapsed duplicated implementations found by a redundancy audit and removed dead code.
+Task: 20261111-1734-dedupe-redundant-code.
+
+- One `isInsideWorkspace()` (`utils/workspace.ts`) replaces the workspace-boundary check copied into the execute
+  route, `triggerIssueExecution()`, the `issue-execute` cron action, `routes/git.ts` and `routes/fm.ts`.
+- One `startIssueExecution()` serves the execute route and the cron action. The cron action now creates a missing
+  project directory, resolves virtual engines and rejects an engine with no executor, as the route does.
+- `utils/changes.ts` owns `listChangedFiles()` / `collectChanges()`; the `/changes` route and the `changes-summary`
+  watcher share them. Line counts come from one `git diff --numstat -z` instead of one git process per file.
+- Worktree scan and removal (`listWorktreesOnDisk()`, `removeWorktrees()`) live in `engines/issue/utils/worktree.ts`
+  for both the settings cleanup route and the `worktree-cleanup` builtin, which now also removes a project
+  directory left empty.
+- The webhook dispatcher sends Telegram messages through `messages/telegram/client.ts`.
+- Deleted: `store/message-rebuilder.ts` and its test, `utils/ring-buffer.ts`, four unused barrels under
+  `engines/issue/`, the pid-lock upgrade token (nothing wrote it since the move to lode), `apps/api/src/config.ts`
+  (statuses moved to `@bkd/shared`), `tools/codex-probe.ts`, `scripts/pty-feasibility/`, `ui/combobox.tsx`, the
+  unused hooks `useExecuteIssue` / `useRestartIssue` / `useTerminateIssue` / `useCronJobLogs` with their client
+  functions, unused store selectors, and the dependencies `bs58`, `@hono/zod-validator`, `eslint-plugin-react-hooks`.
+- `ExecutionStore` is a plain array; its in-memory SQLite database and query methods had no callers.
+- Frontend: `lib/drawer-store.ts` backs the terminal, messages, notes, process-manager and file-browser stores;
+  `useListPanelLayout()` backs the issue and review pages; `ProjectLocationFields`, `IssueTitle` and
+  `EditDialogFooter` replace copied JSX; `useNoteDraft()` replaces two copies inside `NotesDrawer`.
+- REST routes keep their URLs and shapes, including `/changes/file` and `/issues/:id/terminate`.
+
+## 2026-11-12 10:34 [progress]
+
+Deleted `upgrade/fixdb-01.md` and `upgrade/fixdb-01.sql`, the repair script for the migration 0009 timestamp bug in
+v0.0.7–v0.0.22: no install of those versions remains. Task: 20261111-1734-dedupe-redundant-code.
+

@@ -370,64 +370,7 @@ function NoteEditor({
   onDelete: () => void
 }) {
   const { t } = useTranslation()
-  const [title, setTitle] = useState(note.title)
-  const [content, setContent] = useState(note.content)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingRef = useRef<{ title?: string, content?: string } | null>(null)
-  const noteIdRef = useRef(note.id)
-  const onUpdateRef = useRef(onUpdate)
-  onUpdateRef.current = onUpdate
-  noteIdRef.current = note.id
-
-  useEffect(() => {
-    setTitle(note.title)
-    setContent(note.content)
-  }, [note.title, note.content])
-
-  const scheduleUpdate = useCallback(
-    (data: { title?: string, content?: string }) => {
-      pendingRef.current = data
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-      debounceRef.current = setTimeout(() => {
-        pendingRef.current = null
-        onUpdate({ id: note.id, ...data })
-      }, 800)
-    },
-    [note.id, onUpdate],
-  )
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-      if (pendingRef.current) {
-        onUpdateRef.current({ id: noteIdRef.current, ...pendingRef.current })
-      }
-    }
-  }, [])
-
-  const handleTitleChange = useCallback(
-    (value: string) => {
-      setTitle(value)
-      scheduleUpdate({ title: value, content })
-    },
-    [content, scheduleUpdate],
-  )
-
-  const handleContentChange = useCallback(
-    (value: string) => {
-      setContent(value)
-      scheduleUpdate({ title, content: value })
-    },
-    [title, scheduleUpdate],
-  )
-
-  const lastEdited = useMemo(() => {
-    const date = new Date(note.updatedAt)
-    return date.toLocaleTimeString(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }, [note.updatedAt])
+  const { title, content, handleTitleChange, handleContentChange, lastEdited } = useNoteDraft(note, onUpdate)
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -501,6 +444,72 @@ function MobileNoteEditor({
   onPin: () => void
 }) {
   const { t } = useTranslation()
+  const { title, content, handleTitleChange, handleContentChange, lastEdited } = useNoteDraft(note, onUpdate)
+
+  return (
+    <>
+      <div className="flex items-center justify-between px-2 py-1.5 shrink-0">
+        <button
+          type="button"
+          onClick={onBack}
+          className="p-2 rounded-full text-foreground hover:bg-accent transition-colors"
+          aria-label={t('notes.back')}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onPin}
+            className={cn(
+              'p-2 rounded-full hover:bg-accent transition-colors',
+              note.isPinned ? 'text-primary' : 'text-muted-foreground',
+            )}
+            aria-label={note.isPinned ? t('notes.unpin') : t('notes.pin')}
+          >
+            {note.isPinned ? <PinOff className="h-4.5 w-4.5" /> : <Pin className="h-4.5 w-4.5" />}
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="p-2 rounded-full text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
+            aria-label={t('notes.delete')}
+          >
+            <Trash2 className="h-4.5 w-4.5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto px-4">
+        <input
+          type="text"
+          value={title}
+          onChange={e => handleTitleChange(e.target.value)}
+          placeholder={t('notes.titlePlaceholder')}
+          className="text-xl font-medium bg-transparent outline-none placeholder:text-muted-foreground py-2"
+        />
+        <textarea
+          value={content}
+          onChange={e => handleContentChange(e.target.value)}
+          placeholder={t('notes.contentPlaceholder')}
+          className="flex-1 text-sm bg-transparent outline-none resize-none placeholder:text-muted-foreground min-h-[200px]"
+        />
+      </div>
+
+      <div className="flex items-center justify-center px-4 py-3 border-t border-border shrink-0">
+        <span className="text-xs text-muted-foreground">
+          {t('notes.lastEdited', { time: lastEdited })}
+        </span>
+      </div>
+    </>
+  )
+}
+
+/** Local title and content of a note being edited, saved 800 ms after the last change and on unmount. */
+function useNoteDraft(
+  note: Note,
+  onUpdate: (data: { id: string, title?: string, content?: string }) => void,
+) {
   const [title, setTitle] = useState(note.title)
   const [content, setContent] = useState(note.content)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -560,61 +569,5 @@ function MobileNoteEditor({
     })
   }, [note.updatedAt])
 
-  return (
-    <>
-      <div className="flex items-center justify-between px-2 py-1.5 shrink-0">
-        <button
-          type="button"
-          onClick={onBack}
-          className="p-2 rounded-full text-foreground hover:bg-accent transition-colors"
-          aria-label={t('notes.back')}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onPin}
-            className={cn(
-              'p-2 rounded-full hover:bg-accent transition-colors',
-              note.isPinned ? 'text-primary' : 'text-muted-foreground',
-            )}
-            aria-label={note.isPinned ? t('notes.unpin') : t('notes.pin')}
-          >
-            {note.isPinned ? <PinOff className="h-4.5 w-4.5" /> : <Pin className="h-4.5 w-4.5" />}
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="p-2 rounded-full text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
-            aria-label={t('notes.delete')}
-          >
-            <Trash2 className="h-4.5 w-4.5" />
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto px-4">
-        <input
-          type="text"
-          value={title}
-          onChange={e => handleTitleChange(e.target.value)}
-          placeholder={t('notes.titlePlaceholder')}
-          className="text-xl font-medium bg-transparent outline-none placeholder:text-muted-foreground py-2"
-        />
-        <textarea
-          value={content}
-          onChange={e => handleContentChange(e.target.value)}
-          placeholder={t('notes.contentPlaceholder')}
-          className="flex-1 text-sm bg-transparent outline-none resize-none placeholder:text-muted-foreground min-h-[200px]"
-        />
-      </div>
-
-      <div className="flex items-center justify-center px-4 py-3 border-t border-border shrink-0">
-        <span className="text-xs text-muted-foreground">
-          {t('notes.lastEdited', { time: lastEdited })}
-        </span>
-      </div>
-    </>
-  )
+  return { title, content, handleTitleChange, handleContentChange, lastEdited }
 }

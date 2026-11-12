@@ -2,15 +2,10 @@ import type { AppEventMap } from '@bkd/shared'
 import type { EngineContext } from '../context'
 
 /**
- * Order 20 — ExecutionStore push.
- *
- * Pushes non-streaming entries into the in-memory ExecutionStore
- * so `getLogs()` can merge DB + recent entries for fast reads.
- *
- * (Formerly used RingBuffer; now uses ExecutionStore which provides
- * the same push/toArray/length interface plus structured queries.)
+ * Order 20 — pushes non-streaming entries into the execution's in-memory
+ * store so `getLogs()` can merge DB + recent entries.
  */
-export function registerRingBufferStage(
+export function registerStorePushStage(
   ctx: EngineContext,
   on: (cb: (data: AppEventMap['log']) => void, opts: { order: number }) => () => void,
 ): () => void {

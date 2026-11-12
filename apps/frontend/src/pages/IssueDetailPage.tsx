@@ -1,19 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ChatArea } from '@/components/issue-detail/ChatArea'
-import { IssueListPanel, LIST_MAX_WIDTH, LIST_MIN_WIDTH } from '@/components/issue-detail/IssueListPanel'
+import { IssueListPanel } from '@/components/issue-detail/IssueListPanel'
 import { AppSidebar } from '@/components/kanban/AppSidebar'
 import { CreateIssueDialog } from '@/components/kanban/CreateIssueDialog'
 import { MobileSidebar } from '@/components/kanban/MobileSidebar'
 import { useProject } from '@/hooks/use-kanban'
-import { useIsMobile } from '@/hooks/use-mobile'
-import { shouldHideListPanel } from '@/lib/list-panel'
-import { useWorkspacePanelStore } from '@/stores/workspace-panel-store'
-
-const SIDEBAR_WIDTH = 56
-const MIN_CHAT_WIDTH = 300
-const DEFAULT_LIST_WIDTH = 232
+import { useListPanelLayout } from '@/hooks/use-list-panel-layout'
 
 export default function IssueDetailPage() {
   const { t } = useTranslation()
@@ -24,56 +18,8 @@ export default function IssueDetailPage() {
   }>()
 
   const { data: project, isLoading, isError } = useProject(projectId)
-  const panelOpen = useWorkspacePanelStore(s => s.isOpen)
-  const panelWidth = useWorkspacePanelStore(s => s.width)
-  const setPanelWidth = useWorkspacePanelStore(s => s.setWidth)
-  const [listWidth, setListWidth] = useState(DEFAULT_LIST_WIDTH)
-  const isMobile = useIsMobile()
-
-  const handleListWidthChange = useCallback(
-    (next: number) => {
-      // Clamp against what is left after the sidebar, the workspace panel and the
-      // chat's minimum — the ceiling moves as those come and go.
-      const viewport = typeof window !== 'undefined' ? window.innerWidth : 1600
-      const panelSpace = panelOpen ? panelWidth : 0
-      const dynamicMax = Math.min(
-        LIST_MAX_WIDTH,
-        viewport - SIDEBAR_WIDTH - panelSpace - MIN_CHAT_WIDTH,
-      )
-      setListWidth(Math.min(dynamicMax, Math.max(LIST_MIN_WIDTH, next)))
-    },
-    [panelOpen, panelWidth],
-  )
-
-  // On mobile: show list when no issue selected, show chat when issue selected
-  // On desktop: hide list panel when workspace panel needs more than 50% of available space
-  const availableWidth = typeof window !== 'undefined' ? window.innerWidth - SIDEBAR_WIDTH : 1200
-  const hideListPanel = shouldHideListPanel({
-    isMobile,
-    issueId,
-    panelOpen,
-    panelWidth,
-    availableWidth,
-    listMinWidth: LIST_MIN_WIDTH,
-    minChatWidth: MIN_CHAT_WIDTH,
-  })
-
-  const handlePanelWidthChange = useCallback(
-    (w: number) => {
-      const viewport = typeof window !== 'undefined' ? window.innerWidth : 1600
-      const listSpace = hideListPanel ? 0 : listWidth
-      setPanelWidth(Math.min(w, viewport - SIDEBAR_WIDTH - listSpace - MIN_CHAT_WIDTH))
-    },
-    [hideListPanel, listWidth, setPanelWidth],
-  )
-
-  // Clamp listWidth when workspace panel opens or grows to preserve MIN_CHAT_WIDTH
-  useEffect(() => {
-    if (!panelOpen) return
-    const viewport = typeof window !== 'undefined' ? window.innerWidth : 1600
-    const maxList = Math.min(LIST_MAX_WIDTH, viewport - SIDEBAR_WIDTH - panelWidth - MIN_CHAT_WIDTH)
-    setListWidth(prev => Math.max(LIST_MIN_WIDTH, Math.min(prev, maxList)))
-  }, [panelOpen, panelWidth])
+  const { isMobile, listWidth, handleListWidthChange, hideListPanel, panelWidth, handlePanelWidthChange }
+    = useListPanelLayout(issueId)
 
   useEffect(() => {
     if (!isLoading && (isError || !project)) {

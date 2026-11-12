@@ -12,6 +12,7 @@ import {
 import { appEvents } from '@/events'
 import { logger } from '@/logger'
 import { findMessage, serializeMessage } from '@/messages/service'
+import { escapeHtml, sendMessage } from '@/messages/telegram/client'
 import { renderNotification } from '@/messages/telegram/render'
 import { toDecisionEvent } from '@/messages/v1'
 import { validateWebhookUrl } from '@/utils/url-safety'
@@ -150,14 +151,6 @@ function buildMetadataPayload(meta: IssueMetadata): Record<string, unknown> {
 
 // ── Telegram formatting ─────────────────────────────────
 
-function escapeTelegramHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
 function formatTelegramMessage(event: WebhookEventType, payload: Record<string, unknown>): string {
   const emoji: Record<string, string> = {
     'issue.created': '\u{1F4DD}',
@@ -172,58 +165,58 @@ function formatTelegramMessage(event: WebhookEventType, payload: Record<string, 
     'session.failed': '\u{274C}',
   }
   const icon = emoji[event] ?? '\u{1F4CC}'
-  const lines = [`${icon} <b>${escapeTelegramHtml(event)}</b>`]
+  const lines = [`${icon} <b>${escapeHtml(event)}</b>`]
 
   // Project
-  if (payload.projectName) lines.push(`Project: ${escapeTelegramHtml(String(payload.projectName))}`)
+  if (payload.projectName) lines.push(`Project: ${escapeHtml(String(payload.projectName))}`)
 
   // Issue line: #number title (with link if available)
   const issueNumber = payload.issueNumber
   const title = payload.title ? String(payload.title) : null
   const issueUrl = payload.issueUrl ? String(payload.issueUrl) : null
   if (issueNumber && title) {
-    const label = `#${issueNumber} ${escapeTelegramHtml(title)}`
+    const label = `#${issueNumber} ${escapeHtml(title)}`
     lines.push(`Issue: ${label}`)
   }
 
   // Status info
   if (payload.newStatus) {
-    lines.push(`Status: → ${escapeTelegramHtml(String(payload.newStatus))}`)
+    lines.push(`Status: → ${escapeHtml(String(payload.newStatus))}`)
   } else if (payload.statusId) {
-    lines.push(`Status: ${escapeTelegramHtml(String(payload.statusId))}`)
+    lines.push(`Status: ${escapeHtml(String(payload.statusId))}`)
   }
 
   // Engine + model for session/create events
   if (payload.engineType) {
-    let engineLine = `Engine: ${escapeTelegramHtml(String(payload.engineType))}`
-    if (payload.model) engineLine += ` | Model: ${escapeTelegramHtml(String(payload.model))}`
+    let engineLine = `Engine: ${escapeHtml(String(payload.engineType))}`
+    if (payload.model) engineLine += ` | Model: ${escapeHtml(String(payload.model))}`
     lines.push(engineLine)
   }
 
   // Changed fields for issue.updated
   if (payload.changes && typeof payload.changes === 'object') {
     const keys = Object.keys(payload.changes as Record<string, unknown>)
-    if (keys.length > 0) lines.push(`Changed: ${escapeTelegramHtml(keys.join(', '))}`)
+    if (keys.length > 0) lines.push(`Changed: ${escapeHtml(keys.join(', '))}`)
   }
 
   // Last log for session.failed
   if (payload.lastLog) {
     lines.push('')
-    lines.push(`\u{1F4AC} ${escapeTelegramHtml(String(payload.lastLog))}`)
+    lines.push(`\u{1F4AC} ${escapeHtml(String(payload.lastLog))}`)
   }
 
   // Conversation context for status changes (e.g., review)
   if (payload.userMessage) {
     lines.push('')
-    lines.push(`\u{1F464} ${escapeTelegramHtml(String(payload.userMessage))}`)
+    lines.push(`\u{1F464} ${escapeHtml(String(payload.userMessage))}`)
   }
   if (payload.agentReply) {
-    lines.push(`\u{1F916} ${escapeTelegramHtml(String(payload.agentReply))}`)
+    lines.push(`\u{1F916} ${escapeHtml(String(payload.agentReply))}`)
   }
 
   // Link
   if (issueUrl) {
-    lines.push(`\u{1F517} <a href="${escapeTelegramHtml(issueUrl)}">Open</a>`)
+    lines.push(`\u{1F517} <a href="${escapeHtml(issueUrl)}">Open</a>`)
   }
 
   return lines.join('\n')
@@ -289,20 +282,8 @@ async function deliverTelegram(
   }
 
   const text = telegramText ?? formatTelegramMessage(event, payload)
-  const apiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`
-
-  const res = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: 'HTML',
-    }),
-    signal: AbortSignal.timeout(10_000),
-  })
-  const response = (await res.text()).slice(0, 1024)
-  return { statusCode: res.status, response, success: res.ok }
+  const res = await sendMessage(botToken, { chat_id: chatId, text })
+  return { statusCode: res.status, response: res.description ?? (res.ok ? 'ok' : null), success: res.ok }
 }
 
 function stringOrNull(value: unknown): string | null {

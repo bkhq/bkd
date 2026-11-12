@@ -1,4 +1,4 @@
-import type { CommandCategory, LogEntryType, NormalizedLogEntry } from './types'
+import type { CommandCategory, LogEntryType, NormalizedLogEntry, TaskPlanItem } from './types'
 
 // Classify shell commands by category
 export function classifyCommand(command: string): CommandCategory {
@@ -69,4 +69,20 @@ export function createLogEntry(
     timestamp: new Date().toISOString(),
     metadata,
   }
+}
+
+/** Todo items of a task-plan tool call; entries without content are dropped. */
+export function parseTaskPlanItems(raw: unknown): TaskPlanItem[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item) => {
+      if (typeof item !== 'object' || item === null) return null
+      const obj = item as Record<string, unknown>
+      const content = typeof obj.content === 'string' ? obj.content : null
+      if (!content) return null
+      const status = typeof obj.status === 'string' ? obj.status : 'pending'
+      const activeForm = typeof obj.activeForm === 'string' ? obj.activeForm : undefined
+      return activeForm !== undefined ? { content, status, activeForm } : { content, status }
+    })
+    .filter((i): i is TaskPlanItem => i !== null)
 }

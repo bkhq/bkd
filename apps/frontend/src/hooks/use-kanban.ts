@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { eventBus } from '@/lib/event-bus'
 import { kanbanApi } from '@/lib/kanban-api'
 import { STALE_TIME } from '@/lib/query-config'
-import type { DeleteLocalSessionsRequest, EffortLevel, ExecuteIssueRequest, ImportSessionRequest, Issue, ModelConfig, VirtualEngine, WebhookEventType } from '@/types/kanban'
+import type { DeleteLocalSessionsRequest, EffortLevel, ImportSessionRequest, Issue, ModelConfig, VirtualEngine, WebhookEventType } from '@/types/kanban'
 
 export const queryKeys = {
   workspacePath: () => ['settings', 'workspacePath'] as const,
@@ -52,7 +52,6 @@ export const queryKeys = {
     ['localSessions', filters] as const,
   localSession: (engine: string, sessionId: string) =>
     ['localSessions', engine, sessionId] as const,
-  cronJobLogs: (jobId: string) => ['cron', 'jobs', jobId, 'logs'] as const,
   pendingMessages: (projectId: string, issueId: string) =>
     ['projects', projectId, 'issues', issueId, 'pending'] as const,
 }
@@ -381,19 +380,6 @@ export function useDuplicateIssue(projectId: string) {
 
 // --- Issue session hooks ---
 
-export function useExecuteIssue(projectId: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (args: { issueId: string, data: ExecuteIssueRequest }) =>
-      kanbanApi.executeIssue(projectId, args.issueId, args.data),
-    onSuccess: (_data, args) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.issue(projectId, args.issueId),
-      })
-    },
-  })
-}
-
 export function useFollowUpIssue(projectId: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -426,18 +412,6 @@ export function useFollowUpIssue(projectId: string) {
   })
 }
 
-export function useRestartIssue(projectId: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (issueId: string) => kanbanApi.restartIssue(projectId, issueId),
-    onSuccess: (_data, issueId) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.issue(projectId, issueId),
-      })
-    },
-  })
-}
-
 export function useClearIssueSession(projectId: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -454,24 +428,6 @@ export function useCancelIssue(projectId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (issueId: string) => kanbanApi.cancelIssue(projectId, issueId),
-    onSuccess: (_data, issueId) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.issue(projectId, issueId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.issues(projectId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.allProcesses(),
-      })
-    },
-  })
-}
-
-export function useTerminateIssue(projectId: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (issueId: string) => kanbanApi.terminateIssue(projectId, issueId),
     onSuccess: (_data, issueId) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.issue(projectId, issueId),
@@ -1139,15 +1095,6 @@ export function useCronJobs() {
   return useQuery({
     queryKey: queryKeys.cronJobs(),
     queryFn: () => kanbanApi.getCronJobs(),
-    staleTime: STALE_TIME.STANDARD,
-  })
-}
-
-export function useCronJobLogs(jobId: string | null, opts?: { limit?: number }) {
-  return useQuery({
-    queryKey: queryKeys.cronJobLogs(jobId ?? ''),
-    queryFn: () => kanbanApi.getCronJobLogs(jobId!, { limit: opts?.limit }),
-    enabled: !!jobId,
     staleTime: STALE_TIME.STANDARD,
   })
 }

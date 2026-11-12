@@ -85,7 +85,7 @@ Tables: `projects`, `issues`, `issueLogs`, `issuesLogsToolsCall`, `attachments`,
 
 Message search: `issues_logs_fts` (FTS5, `trigram` tokenizer, migration `0028`) indexes visible `user-message`/`assistant-message` rows, kept in sync by triggers on `issues_logs` and keyed by its implicit `rowid`. `VACUUM` may renumber those rowids, so every `VACUUM` must be followed by `rebuildIssueLogsFts()` (`db/issue-log-search.ts`). Queries under 3 characters fall back to `LIKE`.
 
-Statuses are hardcoded constants in `config.ts` (`todo`, `working`, `review`, `done`) — no DB table.
+Statuses are hardcoded constants in `@bkd/shared` (`todo`, `working`, `review`, `done`) — no DB table.
 
 Issue create resolves engine/model by precedence: explicit request value → per-project default (`projects.defaultEngine`/`defaultModel`) → global default (`appSettings`) → `claude-code` fallback. An engine with no registered executor is coerced to `claude-code`.
 

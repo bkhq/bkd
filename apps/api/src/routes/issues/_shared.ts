@@ -4,7 +4,6 @@ import { resolve } from 'node:path'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { cacheDel, cacheGetOrSet } from '@/cache'
 import { db } from '@/db'
-import { getAppSetting } from '@/db/helpers'
 import {
   buildFileContextFromRows,
   getPendingMessages,
@@ -13,12 +12,15 @@ import {
   upsertPendingMessage,
 } from '@/db/pending-messages'
 import { attachments as attachmentsTable, issues as issuesTable } from '@/db/schema'
+import { engineRegistry } from '@/engines/executors'
 import { issueEngine } from '@/engines/issue'
 import type { EngineType } from '@/engines/types'
+import { getVirtualEngine } from '@/engines/virtual-engines'
 import { emitIssueLogRemoved, emitIssueUpdated } from '@/events/issue-events'
 import { logger } from '@/logger'
 import { toISO } from '@/utils/date'
 import { parseTags } from '@/utils/tags'
+import { isInsideWorkspace } from '@/utils/workspace'
 
 export type IssueRow = typeof issuesTable.$inferSelect
 
@@ -184,6 +186,82 @@ export type FollowUpOutcome =
   | { ok: true, queued: false, executionId: string, messageId?: string | null }
   | { ok: false, error: string }
 
+export type StartExecutionOutcome =
+  | { ok: true, executionId: string, messageId?: string | null }
+  | { ok: false, status: 400 | 403, error: string }
+
+/**
+ * Start the first execution of an issue from an explicit prompt: prepare the
+ * project directory, move the issue to working and hand the prompt to the engine.
+ */
+export async function startIssueExecution(
+  project: { directory: string | null, systemPrompt: string | null, envVars: string | null },
+  issue: IssueRow,
+  input: {
+    prompt: string
+    engineType: string
+    model?: string
+    effort?: EffortLevel | 'auto'
+    permissionMode?: 'auto' | 'supervised' | 'plan'
+  },
+): Promise<StartExecutionOutcome> {
+  let workingDir: string | undefined
+  if (project.directory) {
+    const resolvedDir = resolve(project.directory)
+
+    // SEC-016: Validate directory is within workspace root
+    if (!await isInsideWorkspace(resolvedDir)) {
+      return { ok: false, status: 403, error: 'Project directory is outside the configured workspace' }
+    }
+
+    try {
+      await mkdir(resolvedDir, { recursive: true })
+    } catch {
+      return { ok: false, status: 400, error: `Failed to create project directory: ${resolvedDir}` }
+    }
+
+    try {
+      const s = await stat(resolvedDir)
+      if (!s.isDirectory()) return { ok: false, status: 400, error: 'Project directory is not a directory' }
+    } catch {
+      return { ok: false, status: 400, error: `Project directory is unavailable: ${resolvedDir}` }
+    }
+    workingDir = resolvedDir
+  }
+
+  // Tracked from before ensureWorking() until the engine returns: the issue
+  // is 'working' for the whole spawn, which the reconciler would otherwise
+  // read as stale.
+  return issueEngine.trackStart(issue.id, async (): Promise<StartExecutionOutcome> => {
+    const guard = await ensureWorking(issue)
+    if (!guard.ok) return { ok: false, status: 400, error: guard.reason! }
+
+    // A virtual engine id resolves to its base engine; its preset env vars are
+    // injected by the engine layer from the issue's persisted engineProfileId.
+    const virtual = await getVirtualEngine(input.engineType)
+    const baseEngine = (virtual ? virtual.baseEngine : input.engineType) as EngineType
+    // Validate the engine resolves to a real executor BEFORE mutating the issue,
+    // so an unknown/stale id is a clean 400 without clobbering engineProfileId.
+    if (!engineRegistry.get(baseEngine)) {
+      return { ok: false, status: 400, error: `Unknown engine type: ${input.engineType}` }
+    }
+    // Sync the virtual profile (set for a virtual engine, cleared for a real
+    // one) via executeIssue so the write happens under the per-issue lock —
+    // avoiding a race between concurrent execute requests.
+    const result = await issueEngine.executeIssue(issue.id, {
+      engineType: baseEngine,
+      engineProfileId: virtual ? virtual.id : null,
+      prompt: project.systemPrompt ? `${project.systemPrompt}\n\n${input.prompt}` : input.prompt,
+      workingDir,
+      model: input.model ?? virtual?.model,
+      effort: input.effort === 'auto' ? null : input.effort,
+      permissionMode: input.permissionMode,
+      envVars: parseProjectEnvVars(project.envVars),
+    })
+    return { ok: true, executionId: result.executionId, messageId: result.messageId }
+  })
+}
+
 /**
  * Route a follow-up message to an issue: queue it while the issue cannot take
  * a turn (todo, done, turn in flight, older messages pending), otherwise move
@@ -302,16 +380,9 @@ export function triggerIssueExecution(
         const resolvedDir = resolve(projectDirectory)
 
         // SEC-016: Validate directory is within workspace root
-        const workspaceRoot = await getAppSetting('workspace:defaultPath')
-        if (workspaceRoot && workspaceRoot !== '/') {
-          const resolvedRoot = resolve(workspaceRoot)
-          if (!resolvedDir.startsWith(`${resolvedRoot}/`) && resolvedDir !== resolvedRoot) {
-            logger.warn(
-              { issueId, resolvedDir, workspaceRoot: resolvedRoot },
-              'auto_execute_workdir_outside_workspace',
-            )
-            throw new Error('Project directory is outside the configured workspace')
-          }
+        if (!await isInsideWorkspace(resolvedDir)) {
+          logger.warn({ issueId, resolvedDir }, 'auto_execute_workdir_outside_workspace')
+          throw new Error('Project directory is outside the configured workspace')
         }
 
         try {

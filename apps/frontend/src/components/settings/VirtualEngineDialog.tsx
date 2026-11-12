@@ -1,8 +1,7 @@
-import { Loader2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { EditDialogFooter } from '@/components/settings/EditDialogFooter'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -142,34 +141,14 @@ function VirtualEngineForm({ target, engines, onClose }: VirtualEngineProps & { 
           : null}
       </div>
 
-      <DialogFooter className="sm:justify-between">
-        <div>
-          {existing
-            ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={save.isPending}
-                  onClick={() => persist(others)}
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                >
-                  <Trash2 className="size-3" />
-                  {t('settings.virtualEngineEdit.delete')}
-                </Button>
-              )
-            : null}
-        </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button type="button" size="sm" disabled={!canSave} onClick={handleSave}>
-            {save.isPending ? <Loader2 className="size-3 animate-spin" /> : null}
-            {t('common.save')}
-          </Button>
-        </div>
-      </DialogFooter>
+      <EditDialogFooter
+        deleteLabel={t('settings.virtualEngineEdit.delete')}
+        onDelete={existing ? () => persist(others) : undefined}
+        onClose={onClose}
+        onSave={handleSave}
+        canSave={canSave}
+        saving={save.isPending}
+      />
     </>
   )
 }
