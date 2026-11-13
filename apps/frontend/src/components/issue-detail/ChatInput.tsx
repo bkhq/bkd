@@ -48,6 +48,7 @@ import { commandFromKey, commandKey, groupSlashCommands } from './slash-command-
 import { useFileAttachments } from '@/hooks/use-file-attachments'
 import { useClearIssueSession, useEngineAvailability, useEngineProfiles, useEngineSettings, useFollowUpIssue, useUpdateIssue, useVirtualEngines } from '@/hooks/use-kanban'
 import { formatModelName } from '@/lib/format'
+import { isImeComposing } from '@/lib/keyboard'
 import { useFileBrowserStore } from '@/stores/file-browser-store'
 import { EFFORT_LEVELS } from '@bkd/shared'
 import type { BusyAction, EffortLevel, EngineModel, SessionStatus } from '@/types/kanban'
@@ -422,7 +423,7 @@ export function ChatInput({
   }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (showCommandMenu && !e.nativeEvent.isComposing) {
+    if (showCommandMenu && !isImeComposing(e)) {
       // The textarea keeps focus; cmdk moves the selection, scrolls it into view and
       // selects on Enter. Forwarded only while the menu is open, so the keys behave
       // normally in the textarea otherwise.

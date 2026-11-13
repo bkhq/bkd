@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NotesDrawer } from '@/components/notes/NotesDrawer'
 import i18n from '@/i18n'
@@ -41,5 +41,26 @@ describe('notes drawer', () => {
     const body = screen.getByPlaceholderText('Write something...')
     expect(body.closest('[data-slot="scroll-area-viewport"]')).not.toBeNull()
     expect(body).toHaveClass('overflow-hidden')
+  })
+
+  it('keeps the scroll position when the note body is measured again', () => {
+    notes.data = [{ id: 'n1', title: 'Long', content: 'line\n'.repeat(200), isPinned: false, createdAt: '2026-11-10T00:00:00Z', updatedAt: '2026-11-10T00:00:00Z' }]
+    useNotesStore.setState({ selectedNoteId: 'n1' })
+    render(<NotesDrawer />)
+    const body = screen.getByPlaceholderText('Write something...')
+    const viewport = body.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')!
+    // A browser clamps the viewport's scroll position while the textarea is collapsed for measuring
+    Object.defineProperty(body, 'scrollHeight', {
+      configurable: true,
+      get: () => {
+        viewport.scrollTop = 0
+        return 4000
+      },
+    })
+    viewport.scrollTop = 1200
+
+    fireEvent.change(body, { target: { value: `${'line\n'.repeat(200)}x` } })
+
+    expect(viewport.scrollTop).toBe(1200)
   })
 })

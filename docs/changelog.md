@@ -1602,3 +1602,13 @@ With nothing citing them, the 27 completed task files kept on 2026-11-12 are del
 `ENG-015` – `ENG-019`, `ENG-022` – `ENG-024`, `ENG-026`, `ENG-028` – `ENG-036`, `SES-001`, `SES-002`, `UI-004`,
 `UI-006`, `20260912-1920-project-tags`); their index lines are `[d]`. `docs/task/` now holds the index only.
 
+## 2026-11-13 03:20 [BUG-P1]
+
+Two fixes from the review of the UI polish pull request, before it merged.
+
+- Notes editor: typing in a note longer than the panel moved the view so the caret line landed at the bottom
+  edge (a jump of up to a screen). The auto-height textarea is collapsed to be measured, and that clamped the
+  surrounding ScrollArea's scroll position; the position is now saved and put back.
+- Slash-command menu: the Enter that ends an IME composition was only recognised through `isComposing`. It now
+  uses `isImeComposing()`, which also covers Safari's `keyCode` 229.
+

@@ -125,6 +125,15 @@ describe('chatInput slash commands', () => {
     expect(textbox).toHaveValue('/gamma ')
   })
 
+  it('leaves the Enter that ends an IME composition to the textarea', () => {
+    const textbox = renderInput()
+    typeSlash(textbox)
+    // Composition in progress, and Safari's Enter right after it ends (keyCode 229)
+    expect(fireEvent.keyDown(textbox, { key: 'Enter', isComposing: true })).toBe(true)
+    expect(fireEvent.keyDown(textbox, { key: 'Enter', keyCode: 229 })).toBe(true)
+    expect(textbox).toHaveValue('/')
+  })
+
   it('inserts a clicked command', () => {
     const textbox = renderInput()
     typeSlash(textbox)

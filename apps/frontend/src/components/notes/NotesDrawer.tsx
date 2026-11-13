@@ -377,8 +377,12 @@ function useAutoHeight(value: string) {
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
+    // Collapsing the textarea to measure it clamps the viewport's scroll position; put it back
+    const viewport = el.closest<HTMLElement>('[data-slot=scroll-area-viewport]')
+    const scrollTop = viewport?.scrollTop
     el.style.height = 'auto'
     el.style.height = `${el.scrollHeight}px`
+    if (viewport && scrollTop !== undefined) viewport.scrollTop = scrollTop
   }, [value])
   return ref
 }
