@@ -201,12 +201,17 @@
     "unknownType": "未知类型",
     "closePreview": "关闭预览",
     "commands": "命令",
+    "commandGroups": {
+      "skills": "技能",
+      "pluginCommands": "插件命令",
+      "builtin": "内置命令",
+      "plugins": "插件"
+    },
     "commandSearch": "搜索命令...",
     "noCommands": "没有匹配的命令",
     "agents": "Agents",
     "agentSearch": "搜索 Agent...",
     "noAgents": "没有匹配的 Agent",
-    "plugins": "Plugins",
     "pluginSearch": "搜索插件...",
     "noPlugins": "没有匹配的插件",
     "refreshLogs": "刷新日志",
@@ -784,6 +789,7 @@
     "titlePlaceholder": "笔记标题...",
     "contentPlaceholder": "写点什么...",
     "resizePanel": "调整笔记面板大小",
+    "resizeList": "调整笔记列表宽度",
     "searchPlaceholder": "搜索您的笔记",
     "back": "返回",
     "lastEdited": "上次编辑时间: {{time}}",
@@ -856,8 +862,8 @@
     "resend": "重新发送",
     "notDelivered": "决策已记录，但尚未通知到代理。",
     "closeReasonPlaceholder": "原因（可选）",
-    "campaign": "Campaign",
-    "allCampaigns": "全部 campaign"
+    "campaign": "活动",
+    "allCampaigns": "全部活动"
   },
   "messages": {
     "title": "消息",

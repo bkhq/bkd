@@ -53,6 +53,7 @@ import {
 import { EVENT_LABEL_KEYS } from '@/lib/webhook-events'
 import { cn } from 'cn'
 import type { Webhook } from '@/types/kanban'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 const GROUP_LABEL_KEYS: Record<string, string> = {
   issue: 'settings.webhooksGroupIssue',
@@ -472,7 +473,7 @@ function DeliveryList({ webhookId }: { webhookId: string }) {
       <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
         {t('settings.webhooksDeliveries')}
       </div>
-      <div className="max-h-48 overflow-y-auto">
+      <ScrollArea className="[&>[data-slot=scroll-area-viewport]]:max-h-48">
         {deliveries.map(d => (
           <div key={d.id} className="flex items-center gap-2 border-t px-3 py-1.5 text-xs">
             {d.success ?
@@ -495,7 +496,7 @@ function DeliveryList({ webhookId }: { webhookId: string }) {
             </span>
           </div>
         ))}
-      </div>
+      </ScrollArea>
     </div>
   )
 }

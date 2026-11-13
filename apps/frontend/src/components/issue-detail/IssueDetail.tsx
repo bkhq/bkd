@@ -53,7 +53,9 @@ export function IssueDetail({
   const worktreeBranch = worktreeEntry?.branch ?? (issue.id ? `bkd/${issue.id}` : '')
 
   return (
-    <div className="shrink-0 relative z-20 flex items-center gap-1.5 px-4 py-1.5 border-t border-border/40 bg-muted/20">
+    // Sized by the chat column, not the window: labels fold to icons when it is narrow, and the row wraps
+    // rather than clipping what does not fit
+    <div className="@container shrink-0 relative z-20 flex flex-wrap items-center gap-1 px-2 py-1.5 sm:gap-1.5 sm:px-4 border-t border-border/40 bg-muted/20">
       {/* Status — editable */}
       <StatusSelect status={status} onChange={id => onUpdate?.({ statusId: id })} />
 
@@ -87,7 +89,7 @@ export function IssueDetail({
               title={t('issue.delete')}
             >
               <Trash2 className="h-3 w-3" />
-              <span>{isDeleting ? t('issue.deleting') : t('issue.delete')}</span>
+              <span className="hidden @lg:inline">{isDeleting ? t('issue.deleting') : t('issue.delete')}</span>
             </Button>
           ) :
         null}
@@ -106,7 +108,7 @@ export function IssueDetail({
         title={devMode ? t('chat.devModeActive') : t('chat.devMode')}
       >
         <Wrench className="h-3 w-3" />
-        <span>{t('issue.devMode')}</span>
+        <span className="hidden @lg:inline">{t('issue.devMode')}</span>
       </Button>
 
       {/* Tags — editable (comma-separated) */}
@@ -155,7 +157,7 @@ export function IssueDetail({
               title={t('issue.tag')}
             >
               <Tag className="h-3 w-3" />
-              {issue.tags && issue.tags.length > 0 ? issue.tags.join(', ') : t('issue.tag')}
+              {issue.tags && issue.tags.length > 0 ? issue.tags.join(', ') : <span className="hidden @lg:inline">{t('issue.tag')}</span>}
             </button>
           )}
 
@@ -236,7 +238,8 @@ function ContextUsageMeter({ issue }: { issue: Issue }) {
       title={`${t('issue.contextUsage')}: ${tokens.toLocaleString()} / ${window.toLocaleString()}`}
     >
       <Gauge className="h-3 w-3" />
-      {`${percent}% · ${formatTokenCount(tokens)}/${formatTokenCount(window)}`}
+      <span>{`${percent}%`}</span>
+      <span className="hidden @2xl:inline">{`· ${formatTokenCount(tokens)}/${formatTokenCount(window)}`}</span>
     </span>
   )
 }
@@ -249,14 +252,18 @@ function TokenUsageBadge({ issue }: { issue: Issue }) {
   const cost = Number(issue.totalCostUsd ?? '0')
   if (input <= 0 && output <= 0) return null
 
-  const costLabel = cost > 0 ? ` · $${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}` : ''
+  const costLabel = cost > 0 ? `$${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}` : ''
   return (
     <span
       className={`${badgeBase} border-border/50 bg-muted/20 text-muted-foreground tabular-nums`}
       title={`${t('issue.tokenUsage')}: ${input.toLocaleString()} in / ${output.toLocaleString()} out${cost > 0 ? ` · $${cost.toFixed(4)}` : ''}`}
     >
       <Coins className="h-3 w-3" />
-      {`↑${formatTokenCount(input)} ↓${formatTokenCount(output)}${costLabel}`}
+      {/* Narrow columns keep only the cost (or the token counts when there is no cost) */}
+      <span className={costLabel ? 'hidden @2xl:inline' : undefined}>
+        {`↑${formatTokenCount(input)} ↓${formatTokenCount(output)}${costLabel ? ' ·' : ''}`}
+      </span>
+      {costLabel ? <span>{costLabel}</span> : null}
     </span>
   )
 }

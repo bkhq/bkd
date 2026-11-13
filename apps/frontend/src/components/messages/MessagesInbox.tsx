@@ -27,6 +27,8 @@ import {
 } from '@/hooks/use-messages'
 import { DecisionCard } from './DecisionCard'
 import { NotificationCard } from './NotificationCard'
+import { CheckCheck } from 'lucide-react'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 type Group = 'waiting' | 'answered' | 'history'
 
@@ -93,24 +95,34 @@ export function MessagesInbox() {
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-3xl p-3">
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <Tabs value={group} onValueChange={value => setGroup(value as Group)}>
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Toolbar stays put while the list scrolls; it sits on one row once the panel is wide enough */}
+      <div className="shrink-0 border-b border-border/60">
+        {/* Controls size to their content; the right-hand group wraps below the tabs when the panel is narrow */}
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 px-3 py-2">
+          <Tabs value={group} onValueChange={value => setGroup(value as Group)} className="shrink-0">
             <TabsList>
               {(Object.keys(GROUPS) as Group[]).map(g => (
-                <TabsTrigger key={g} value={g} className="gap-1.5 px-3">
+                <TabsTrigger key={g} value={g}>
                   {t(`messages.group.${g}`)}
                   <Badge variant="secondary">{grouped[g].length}</Badge>
                 </TabsTrigger>
               ))}
             </TabsList>
           </Tabs>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             {hasUnread ?
                 (
-                  <Button variant="outline" size="sm" disabled={readAll.isPending} onClick={() => readAll.mutate()}>
-                    {t('messages.markAllRead')}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                    disabled={readAll.isPending}
+                    onClick={() => readAll.mutate()}
+                  >
+                    <CheckCheck />
+                    {/* Icon only on phones, so the filters keep to one row */}
+                    <span className="sr-only sm:not-sr-only">{t('messages.markAllRead')}</span>
                   </Button>
                 ) :
               null}
@@ -118,7 +130,7 @@ export function MessagesInbox() {
               value={kind}
               onValueChange={value => setKind((value ?? ALL) as MessageKind | typeof ALL)}
             >
-              <SelectTrigger size="sm" className="w-[150px]" aria-label={t('messages.kind.label')}>
+              <SelectTrigger size="sm" aria-label={t('messages.kind.label')}>
                 <SelectValue>{(value: string | null) => t(`messages.kind.${value ?? ALL}`)}</SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -130,8 +142,8 @@ export function MessagesInbox() {
             {campaigns.length > 1 ?
                 (
                   <Select value={campaign} onValueChange={value => setCampaign(value ?? ALL)}>
-                    <SelectTrigger size="sm" className="w-[180px]" aria-label={t('decisions.campaign')}>
-                      <SelectValue />
+                    <SelectTrigger size="sm" aria-label={t('decisions.campaign')}>
+                      <SelectValue>{(value: string | null) => !value || value === ALL ? t('decisions.allCampaigns') : value}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
@@ -144,78 +156,82 @@ export function MessagesInbox() {
               null}
           </div>
         </div>
-
-        {error ?
-            <p role="alert" className="mb-3 text-sm text-destructive">{error.message}</p> :
-          null}
-
-        {isLoading ?
-            <div className="h-32 rounded-lg border bg-card/30 animate-pulse" /> :
-          visible.length === 0 ?
-              (
-                <p className="py-16 text-center text-sm text-muted-foreground">
-                  {t(`messages.empty.${group}`)}
-                </p>
-              ) :
-              (
-                <div className="space-y-3">
-                  {visible.map(event => event.kind === 'decision' ?
-                      (
-                        <DecisionCard
-                          key={event.id}
-                          event={event}
-                          pending={pending}
-                          onDecide={data => decide.mutate({ id: event.id, ...data })}
-                          onClose={() => requestClose(event)}
-                          onResend={() => notify.mutate(event.id)}
-                        />
-                      ) :
-                      (
-                        <NotificationCard
-                          key={event.id}
-                          message={event}
-                          pending={pending}
-                          onRead={() => read.mutate(event.id)}
-                          onReply={text => reply.mutate({ id: event.id, text })}
-                          onClose={() => requestClose(event)}
-                          onResend={() => notify.mutate(event.id)}
-                        />
-                      ))}
-                </div>
-              )}
-
-        <AlertDialog
-          open={!!closeTarget}
-          onOpenChange={(open) => {
-            if (!open && !close.isPending) setCloseTarget(null)
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{t('messages.closeConfirmTitle')}</AlertDialogTitle>
-              <AlertDialogDescription>{t('messages.closeConfirm')}</AlertDialogDescription>
-            </AlertDialogHeader>
-            <Input
-              value={closeReason}
-              onChange={e => setCloseReason(e.target.value)}
-              placeholder={t('decisions.closeReasonPlaceholder')}
-              aria-label={t('decisions.closeReason')}
-              maxLength={2000}
-            />
-            {close.error ?
-                <p role="alert" className="text-sm text-destructive">{close.error.message}</p> :
-              null}
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={close.isPending}>
-                {t('common.cancel')}
-              </AlertDialogCancel>
-              <AlertDialogAction disabled={close.isPending} onClick={confirmClose}>
-                {t('decisions.close')}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
+
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="mx-auto max-w-3xl p-3">
+          {error ?
+              <p role="alert" className="mb-3 text-sm text-destructive">{error.message}</p> :
+            null}
+
+          {isLoading ?
+              <div className="h-32 rounded-lg border bg-card/30 animate-pulse" /> :
+            visible.length === 0 ?
+                (
+                  <p className="py-16 text-center text-sm text-muted-foreground">
+                    {t(`messages.empty.${group}`)}
+                  </p>
+                ) :
+                (
+                  <div className="space-y-3">
+                    {visible.map(event => event.kind === 'decision' ?
+                        (
+                          <DecisionCard
+                            key={event.id}
+                            event={event}
+                            pending={pending}
+                            onDecide={data => decide.mutate({ id: event.id, ...data })}
+                            onClose={() => requestClose(event)}
+                            onResend={() => notify.mutate(event.id)}
+                          />
+                        ) :
+                        (
+                          <NotificationCard
+                            key={event.id}
+                            message={event}
+                            pending={pending}
+                            onRead={() => read.mutate(event.id)}
+                            onReply={text => reply.mutate({ id: event.id, text })}
+                            onClose={() => requestClose(event)}
+                            onResend={() => notify.mutate(event.id)}
+                          />
+                        ))}
+                  </div>
+                )}
+
+          <AlertDialog
+            open={!!closeTarget}
+            onOpenChange={(open) => {
+              if (!open && !close.isPending) setCloseTarget(null)
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('messages.closeConfirmTitle')}</AlertDialogTitle>
+                <AlertDialogDescription>{t('messages.closeConfirm')}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <Input
+                value={closeReason}
+                onChange={e => setCloseReason(e.target.value)}
+                placeholder={t('decisions.closeReasonPlaceholder')}
+                aria-label={t('decisions.closeReason')}
+                maxLength={2000}
+              />
+              {close.error ?
+                  <p role="alert" className="text-sm text-destructive">{close.error.message}</p> :
+                null}
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={close.isPending}>
+                  {t('common.cancel')}
+                </AlertDialogCancel>
+                <AlertDialogAction disabled={close.isPending} onClick={confirmClose}>
+                  {t('decisions.close')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </ScrollArea>
     </div>
   )
 }

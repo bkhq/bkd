@@ -34,6 +34,7 @@ import {
   useStartSkillsOperation,
 } from '@/hooks/use-skills'
 import type { SkillInfo, SkillUpdateStatus } from '@/types/kanban'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 const NO_PROJECT = '__none__'
 
@@ -196,51 +197,53 @@ export default function SkillsPage() {
                       className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
                     />
                   </div>
-                  <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-                    {isLoading ? <p className="px-1 text-sm text-muted-foreground">{t('common.loading')}</p> : null}
-                    {groups.map(group => (
-                      <section key={group.scope}>
-                        <button
-                          type="button"
-                          aria-expanded={!collapsed[group.scope]}
-                          onClick={() => setCollapsed(prev => ({ ...prev, [group.scope]: !prev[group.scope] }))}
-                          className="mb-1 flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
-                        >
-                          <ChevronRight className={cn('h-3.5 w-3.5 shrink-0 transition-transform', !collapsed[group.scope] && 'rotate-90')} />
-                          {group.label}
-                          <span className="tabular-nums">
-                            (
-                            {group.items.length}
-                            )
-                          </span>
-                        </button>
-                        {collapsed[group.scope]
-                          ? null
-                          : (
-                              <>
-                                {group.items.length === 0 && !isLoading
-                                  ? <p className="px-1 py-2 text-xs text-muted-foreground">{group.scope === 'project' ? t('skills.emptyProject') : t('skills.empty')}</p>
-                                  : null}
-                                <div className="space-y-1">
-                                  {group.items.map(skill => (
-                                    <SkillRow
-                                      key={skillKey(skill)}
-                                      skill={skill}
-                                      active={skillKey(skill) === selectedKey}
-                                      updateStatus={updateStatus.get(skillKey(skill))}
-                                      onSelect={() => {
+                  <ScrollArea className="min-h-0 flex-1">
+                    <div className="space-y-4">
+                      {isLoading ? <p className="px-1 text-sm text-muted-foreground">{t('common.loading')}</p> : null}
+                      {groups.map(group => (
+                        <section key={group.scope}>
+                          <button
+                            type="button"
+                            aria-expanded={!collapsed[group.scope]}
+                            onClick={() => setCollapsed(prev => ({ ...prev, [group.scope]: !prev[group.scope] }))}
+                            className="mb-1 flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            <ChevronRight className={cn('h-3.5 w-3.5 shrink-0 transition-transform', !collapsed[group.scope] && 'rotate-90')} />
+                            {group.label}
+                            <span className="tabular-nums">
+                              (
+                              {group.items.length}
+                              )
+                            </span>
+                          </button>
+                          {collapsed[group.scope]
+                            ? null
+                            : (
+                                <>
+                                  {group.items.length === 0 && !isLoading
+                                    ? <p className="px-1 py-2 text-xs text-muted-foreground">{group.scope === 'project' ? t('skills.emptyProject') : t('skills.empty')}</p>
+                                    : null}
+                                  <div className="space-y-1">
+                                    {group.items.map(skill => (
+                                      <SkillRow
+                                        key={skillKey(skill)}
+                                        skill={skill}
+                                        active={skillKey(skill) === selectedKey}
+                                        updateStatus={updateStatus.get(skillKey(skill))}
+                                        onSelect={() => {
                                         // A dialog belongs to the skill it was opened for
-                                        setDialog(null)
-                                        setSelectedKey(skillKey(skill))
-                                      }}
-                                    />
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                      </section>
-                    ))}
-                  </div>
+                                          setDialog(null)
+                                          setSelectedKey(skillKey(skill))
+                                        }}
+                                      />
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                        </section>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </aside>
               )
             : null}

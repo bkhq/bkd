@@ -97,12 +97,17 @@ import { cn } from 'cn'
 import { useViewModeStore } from '@/stores/view-mode-store'
 import type { EngineAvailability, EngineModel, EngineProfile } from '@/types/kanban'
 import { UPDATABLE_ENGINES } from '@bkd/shared'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { viewportRef } from '@/lib/scroll-viewport'
 
 const THEME_OPTIONS = [
   { id: 'system' as const, labelKey: 'theme.system' },
   { id: 'light' as const, labelKey: 'theme.light' },
   { id: 'dark' as const, labelKey: 'theme.dark' },
 ]
+
+/** The logs view scrolls its own list, so it fills the dialog body. */
+const FILL_ITEMS = ['logs']
 
 export function AppSettingsDialog({
   open,
@@ -135,6 +140,7 @@ export function AppSettingsDialog({
       title={t('settings.title')}
       items={navItems}
       defaultItem="general"
+      fillItems={FILL_ITEMS}
     >
       {active => (
         <>
@@ -691,15 +697,18 @@ function LogsSection({ open }: { open: boolean }) {
                 </div>
               ) :
               (
-                <div
-                  ref={logContainerRef}
-                  onScroll={handleScroll}
-                  className="flex-1 min-h-0 max-h-[400px] overflow-auto rounded-md border bg-muted/30 p-2 font-mono text-[11px] leading-relaxed"
+                <ScrollArea
+                  ref={viewportRef(logContainerRef)}
+                  // Scroll events do not bubble; capture them from the viewport
+                  onScrollCapture={handleScroll}
+                  className="min-h-0 max-h-[400px] flex-1 rounded-md border bg-muted/30 [&>[data-slot=scroll-area-viewport]]:max-h-[400px]"
                 >
-                  {filteredLines.map((line, i) => (
-                    <LogLine key={i} line={line} highlight={keyword} />
-                  ))}
-                </div>
+                  <div className="p-2 font-mono text-[11px] leading-relaxed">
+                    {filteredLines.map((line, i) => (
+                      <LogLine key={i} line={line} highlight={keyword} />
+                    ))}
+                  </div>
+                </ScrollArea>
               )}
     </div>
   )

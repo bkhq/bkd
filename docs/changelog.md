@@ -1349,6 +1349,30 @@ the drive and workspace views, and declares the `react-zoom-pan-pinch` dependenc
 copies the real absolute path and only shows when a mount sets `absoluteRoot`, next to a new "Copy relative path".
 BKD sets `absoluteRoot` on the project, worktree, and skill mounts; those directories are already visible in BKD.
 
+## 2026-11-10 06:55 [progress]
+
+Completed 20261110-0647-user-message-markdown: sent messages (user, queued, agent/system follow-ups) go through
+`MarkdownContent` like assistant messages, following the global render-Markdown setting with a per-message source
+toggle; typed single line breaks stay visible in rendered paragraphs.
+
+## 2026-11-10 08:10 [progress]
+
+Completed 20261110-0750-scroll-area-non-chat: BKD's vertical scroll containers outside the chat (issue/review lists,
+changes tree, kanban columns, notes, messages, processes, cron/skills/sessions pages, directory picker, webhook
+deliveries, skill operations, file preview, system logs) use the `ScrollArea` base component, unchanged. The chat,
+horizontal-only overflow, textareas, menus, the diff virtualizer and hidden-scrollbar rails stay native.
+
+## 2026-11-10 09:40 [progress]
+
+Follow-up UI polish on the same branch:
+- ScrollArea also covers the kanban column strip (horizontal bar), notes body (auto-height textarea), settings dialogs
+  (one keyed ScrollArea per section; the logs section opts out via `fillItems`), and the project flyout.
+- Resize handles sit at `z-20` with a grip; issue/review list scrollbars sit above their sticky group headers.
+- Messages inbox toolbar stays fixed and wraps instead of switching layouts; zh copy for campaigns is translated.
+- Left-aligned sent messages (agent/system/queued) put their footer actions at the right edge.
+- The slash-command menu is built on cmdk (keyboard selection scrolls into view), floats above the chat input instead
+  of growing it, and is grouped into skills / plugin commands / built-in / plugins, shared with the toolbar picker.
+
 ## 2026-11-10 12:30 [progress]
 
 Settings -> Models: Claude Code and Codex cards get an "Update" button that runs the CLI's own updater
@@ -1447,6 +1471,12 @@ Task: 20261111-1734-dedupe-redundant-code.
   `useListPanelLayout()` backs the issue and review pages; `ProjectLocationFields`, `IssueTitle` and
   `EditDialogFooter` replace copied JSX; `useNoteDraft()` replaces two copies inside `NotesDrawer`.
 - REST routes keep their URLs and shapes, including `/changes/file` and `/issues/:id/terminate`.
+
+## 2026-11-12 08:30 [progress]
+
+Narrow chat columns: the issue toolbar above the chat input wraps instead of clipping and, by container width, folds
+the delete / dev / empty-tag labels to icons and the context and usage badges to their percentage and cost. The chat
+input's top row shows only the changed-file count when narrow, and the model name truncates instead of crowding it.
 
 ## 2026-11-12 10:34 [progress]
 
@@ -1571,4 +1601,14 @@ gone from `CLAUDE.md`; `SEC-NNN` remains in `docs/api/` and `CLAUDE.md`, where i
 With nothing citing them, the 27 completed task files kept on 2026-11-12 are deleted (`ENG-009` – `ENG-012`,
 `ENG-015` – `ENG-019`, `ENG-022` – `ENG-024`, `ENG-026`, `ENG-028` – `ENG-036`, `SES-001`, `SES-002`, `UI-004`,
 `UI-006`, `20260912-1920-project-tags`); their index lines are `[d]`. `docs/task/` now holds the index only.
+
+## 2026-11-13 03:20 [BUG-P1]
+
+Two fixes from the review of the UI polish pull request, before it merged.
+
+- Notes editor: typing in a note longer than the panel moved the view so the caret line landed at the bottom
+  edge (a jump of up to a screen). The auto-height textarea is collapsed to be measured, and that clamped the
+  surrounding ScrollArea's scroll position; the position is now saved and put back.
+- Slash-command menu: the Enter that ends an IME composition was only recognised through `isComposing`. It now
+  uses `isImeComposing()`, which also covers Safari's `keyCode` 229.
 

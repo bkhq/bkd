@@ -13,6 +13,8 @@ import { useWaitingMessageCount } from '@/hooks/use-messages'
 import { useEventConnection } from '@/hooks/use-event-connection'
 import { useProjects } from '@/hooks/use-kanban'
 import { placeFlyout } from '@/lib/flyout-position'
+import { viewportRef } from '@/lib/scroll-viewport'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { getProjectInitials } from '@/lib/format'
 import { GLOBAL_PAGES, isGlobalPageActive } from '@/lib/global-pages'
 import { useNotesStore } from '@/stores/notes-store'
@@ -97,25 +99,28 @@ function ProjectFlyout({
 }) {
   const { t } = useTranslation()
   const flyoutRef = useRef<HTMLDivElement>(null)
+  // The ScrollArea viewport scrolls the rows; the flyout itself only frames them
+  const listRef = useRef<HTMLDivElement>(null)
   const activeRowRef = useRef<HTMLButtonElement>(null)
   const [position, setPosition] = useState({ left: 0, top: 0 })
 
   // Measure before paint so the flyout never shows at an unaligned position.
   useLayoutEffect(() => {
     const flyout = flyoutRef.current
+    const list = listRef.current
     const rail = railRef.current?.getBoundingClientRect()
-    if (!flyout || !rail) return
+    if (!flyout || !list || !rail) return
     const icon = activeIconRef.current?.getBoundingClientRect()
     const row = activeRowRef.current
     const border = flyout.offsetHeight - flyout.clientHeight
     const placed = placeFlyout({
       anchorCenter: icon ? icon.top + icon.height / 2 : rail.top,
       rowCenter: icon && row ? row.offsetTop + flyout.clientTop + row.offsetHeight / 2 : 0,
-      flyoutHeight: flyout.scrollHeight + border,
+      flyoutHeight: list.scrollHeight + border,
       viewportHeight: window.innerHeight,
     })
     setPosition({ left: rail.right + 4, top: placed.top })
-    flyout.scrollTop = placed.scrollTop
+    list.scrollTop = placed.scrollTop
   }, [activeProjectId, projects, railRef, activeIconRef])
 
   return (
@@ -126,37 +131,42 @@ function ProjectFlyout({
       aria-label={t('sidebar.projects')}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className="fixed z-[100] w-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg animate-in fade-in-0 duration-100"
+      className="fixed z-[100] flex w-56 flex-col overflow-hidden rounded-lg border border-border bg-popover shadow-lg animate-in fade-in-0 duration-100"
       style={{ ...position, maxHeight: 'calc(100vh - 1rem)' }}
     >
-      {projects.map((project) => {
-        const isActive = activeProjectId === project.id
-        return (
-          <button
-            key={project.id}
-            ref={isActive ? activeRowRef : undefined}
-            type="button"
-            role="menuitem"
-            aria-current={isActive ? 'true' : undefined}
-            onClick={() => onSelect(project)}
-            className={`flex w-full items-center gap-2 rounded-md p-1 pr-2 text-left text-sm cursor-pointer focus:outline-none ${
-              isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60'
-            }`}
-          >
-            <span
-              aria-hidden="true"
-              className={`${INITIALS_CLASS} ${
-                isActive ?
-                  'bg-primary text-primary-foreground' :
-                  'bg-foreground/[0.07] text-foreground/60'
-              }`}
-            >
-              {getProjectInitials(project.name)}
-            </span>
-            <span className="truncate">{project.name}</span>
-          </button>
-        )
-      })}
+      {/* Capped below the flyout's own max height (less its 1px borders) so the viewport scrolls */}
+      <ScrollArea ref={viewportRef(listRef)} className="[&>[data-slot=scroll-area-viewport]]:max-h-[calc(100vh-1rem-2px)]">
+        <div className="p-1">
+          {projects.map((project) => {
+            const isActive = activeProjectId === project.id
+            return (
+              <button
+                key={project.id}
+                ref={isActive ? activeRowRef : undefined}
+                type="button"
+                role="menuitem"
+                aria-current={isActive ? 'true' : undefined}
+                onClick={() => onSelect(project)}
+                className={`flex w-full items-center gap-2 rounded-md p-1 pr-2 text-left text-sm cursor-pointer focus:outline-none ${
+                  isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60'
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`${INITIALS_CLASS} ${
+                    isActive ?
+                      'bg-primary text-primary-foreground' :
+                      'bg-foreground/[0.07] text-foreground/60'
+                  }`}
+                >
+                  {getProjectInitials(project.name)}
+                </span>
+                <span className="truncate">{project.name}</span>
+              </button>
+            )
+          })}
+        </div>
+      </ScrollArea>
     </div>
   )
 }

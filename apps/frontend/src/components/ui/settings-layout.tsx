@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { cn } from 'cn'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 export interface SettingsNavItem {
   id: string
@@ -25,6 +26,7 @@ export function SettingsLayout({
   children,
   footer,
   sidebarFooter,
+  fillItems,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -34,6 +36,8 @@ export function SettingsLayout({
   children: (activeItem: string) => React.ReactNode
   footer?: (activeItem: string) => React.ReactNode
   sidebarFooter?: React.ReactNode
+  /** Items that manage their own scrolling and fill the body instead of scrolling in it. */
+  fillItems?: string[]
 }) {
   const [active, setActive] = useState(defaultItem ?? items[0]?.id ?? '')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -139,9 +143,18 @@ export function SettingsLayout({
                 <span className="sr-only">Close</span>
               </DialogClose>
             </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
-              {children(active)}
-            </div>
+            {fillItems?.includes(active) ? (
+              <div className="flex min-h-0 flex-1 flex-col p-5">
+                {children(active)}
+              </div>
+            ) : (
+              // Keyed by section so each one starts at the top with its own scrollbar state
+              <ScrollArea key={active} className="min-h-0 flex-1">
+                <div className="flex min-h-full flex-col p-5">
+                  {children(active)}
+                </div>
+              </ScrollArea>
+            )}
             {footer?.(active)}
           </div>
         </div>

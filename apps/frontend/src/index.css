@@ -388,11 +388,13 @@
 /* Shiki markdown source rendering (AI messages) */
 .markdown-shiki .shiki,
 .markdown-shiki .shiki span {
-  background-color: transparent;
+  /* !important to beat the dual-theme .shiki background above; the chat bubble supplies the tint */
+  background-color: transparent !important;
 }
 
 .markdown-shiki .shiki {
-  padding: 0.5rem;
+  /* No padding: the chat block already pads, so toggling source view does not shift the text */
+  padding: 0;
   /* Not a scroll container: the body wraps below, and a horizontally
      scrollable element turns a long press into a pan instead of a selection. */
   overflow-x: visible;

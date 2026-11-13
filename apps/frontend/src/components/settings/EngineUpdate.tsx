@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useEngineUpdate, useStartEngineUpdate } from '@/hooks/use-kanban'
 
 /** Runs an engine CLI's own updater and shows its output until it ends. */
@@ -56,10 +57,12 @@ export function EngineUpdateButton({ engineType, name }: { engineType: string, n
             </p>
             {update && update.output.length > 0
               ? (
-                  <pre className="max-h-48 overflow-auto rounded-md bg-muted/50 p-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
-                    {update.output.join('\n')}
-                    <div ref={endRef} />
-                  </pre>
+                  <ScrollArea className="rounded-md bg-muted/50 [&>[data-slot=scroll-area-viewport]]:max-h-48">
+                    <pre className="p-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                      {update.output.join('\n')}
+                      <div ref={endRef} />
+                    </pre>
+                  </ScrollArea>
                 )
               : null}
           </div>

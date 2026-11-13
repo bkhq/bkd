@@ -64,6 +64,13 @@ describe('sender messages', () => {
     expect(container.querySelector('[data-slot="sender-body"]')).not.toHaveClass('font-mono')
   })
 
+  it('puts the footer actions at the right edge of a left-aligned follow-up', () => {
+    renderEntry({ sender: { kind: 'agent', projectId: 'p2', issueId: 'l2' } })
+    const footer = screen.getByText(/2026/).parentElement!
+    expect(footer).toHaveClass('self-stretch')
+    expect(footer).toContainElement(screen.getByRole('button', { name: 'Copy message' }))
+  })
+
   it('keeps the queued badge on a queued agent follow-up', () => {
     renderEntry({ type: 'pending', sender: { kind: 'agent', projectId: 'p2', issueId: 'l2' } })
     expect(screen.getByText('Queued')).toBeInTheDocument()

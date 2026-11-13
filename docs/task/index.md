@@ -193,6 +193,9 @@ Each task is a single line linking to its detail file. All detailed information 
 - [d] [**20261105-1053-adopt-filemanager Replace the file browser with bkhq/filemanager**](20261105-1053-adopt-filemanager.md) `P1`
 - [d] [**20261106-0600-dev-hot-reload-pid-lock Dev API exits on hot reload: the pid lock treats its own pid as another instance**](20261106-0600-dev-hot-reload-pid-lock.md) `P2`
 - [d] [**20261106-0745-filemanager-rollout Roll bkhq/filemanager out across BKD's file UI**](20261106-0745-filemanager-rollout.md) `P1`
+- [d] [**20261110-0647-user-message-markdown Render Markdown in sent messages**](20261110-0647-user-message-markdown.md) `P2`
+- [d] [**20261110-0735-scroll-area-adoption Use the ScrollArea base component for BKD's scroll containers**](20261110-0735-scroll-area-adoption.md) `P2`
+- [d] [**20261110-0750-scroll-area-non-chat Use ScrollArea for BKD scroll containers outside the chat**](20261110-0750-scroll-area-non-chat.md) `P2`
 - [d] [**20261110-1217-agent-cli-update Update agent CLIs (claude, codex) from Settings**](20261110-1217-agent-cli-update.md) `P2`
 - [d] [**20261110-1220-claude-dynamic-models Fetch the claude-code model list from the CLI**](20261110-1220-claude-dynamic-models.md) `P2`
 - [d] [**20261110-1254-same-base-engine-switch-effort Switch between engines sharing a base engine, and pass effort**](20261110-1254-same-base-engine-switch-effort.md) `P2`

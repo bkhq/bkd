@@ -91,6 +91,7 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [d] [**20261102-1100-browser-notifications Browser notifications for review and new messages**](20261102-1100-browser-notifications.md) `2026-11-02`
 - [d] [**20261105-1053-adopt-filemanager Replace the file browser with bkhq/filemanager**](20261105-1053-adopt-filemanager.md) `2026-11-05`
 - [d] [**20261106-0745-filemanager-rollout Roll bkhq/filemanager out across BKD's file UI**](20261106-0745-filemanager-rollout.md) `2026-11-06`
+- [d] [**20261110-0735-scroll-area-adoption Use the ScrollArea base component for BKD's scroll containers**](20261110-0735-scroll-area-adoption.md) `2026-11-10`
 - [d] [**20261110-1217-agent-cli-update Update agent CLIs (claude, codex) from Settings**](20261110-1217-agent-cli-update.md) `2026-11-10`
 - [d] [**20261110-1220-claude-dynamic-models Fetch the claude-code model list from the CLI**](20261110-1220-claude-dynamic-models.md) `2026-11-10`
 - [d] [**20261110-1254-same-base-engine-switch-effort Switch between engines sharing a base engine, and pass effort**](20261110-1254-same-base-engine-switch-effort.md) `2026-11-10`

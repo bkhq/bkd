@@ -63,7 +63,8 @@ describe('appSidebar project rail', () => {
 })
 
 // jsdom has no layout, so give the flyout fixed geometry: rows are 44px tall
-// inside 4px of padding and a 1px border.
+// inside 4px of padding and a 1px border. The rows sit in a ScrollArea whose
+// viewport is the element that scrolls.
 const ROW_HEIGHT = 44
 const PADDING = 4
 const BORDER = 1
@@ -73,6 +74,9 @@ function mockFlyoutLayout() {
     Array.from(el.parentElement?.children ?? []).indexOf(el)
   const isRow = (el: HTMLElement) => el.getAttribute('role') === 'menuitem'
   const isFlyout = (el: HTMLElement) => el.dataset.testid === 'project-flyout'
+  const isList = (el: HTMLElement) =>
+    el.dataset.slot === 'scroll-area-viewport' && !!el.closest('[data-testid="project-flyout"]')
+  const rows = (el: HTMLElement) => el.querySelectorAll('[role="menuitem"]').length
   const define = (prop: string, get: (el: HTMLElement) => number) =>
     Object.defineProperty(HTMLElement.prototype, prop, {
       configurable: true,
@@ -83,11 +87,11 @@ function mockFlyoutLayout() {
 
   define('offsetTop', el => (isRow(el) ? PADDING + rowIndex(el) * ROW_HEIGHT : 0))
   define('offsetHeight', el =>
-    isRow(el) ? ROW_HEIGHT : isFlyout(el) ? el.children.length * ROW_HEIGHT + 2 * (PADDING + BORDER) : 0)
+    isRow(el) ? ROW_HEIGHT : isFlyout(el) ? rows(el) * ROW_HEIGHT + 2 * (PADDING + BORDER) : 0)
   define('clientHeight', el =>
-    isFlyout(el) ? el.children.length * ROW_HEIGHT + 2 * PADDING : 0)
+    isFlyout(el) || isList(el) ? rows(el) * ROW_HEIGHT + 2 * PADDING : 0)
   define('scrollHeight', el =>
-    isFlyout(el) ? el.children.length * ROW_HEIGHT + 2 * PADDING : 0)
+    isList(el) ? rows(el) * ROW_HEIGHT + 2 * PADDING : 0)
   define('clientTop', el => (isFlyout(el) ? BORDER : 0))
 }
 
@@ -142,6 +146,30 @@ describe('appSidebar project flyout', () => {
     // Icon centre 318. Gamma is the third row: 4 padding + 2 * 44 above it, plus
     // the 1px border and half a row (22) => its centre is 115px below the top.
     expect(getByTestId('project-flyout').style.top).toBe(`${318 - 115}px`)
+  })
+
+  it('scrolls the ScrollArea viewport when the list is taller than the window', () => {
+    const scrolled: { el: HTMLElement, top: number }[] = []
+    Object.defineProperty(HTMLElement.prototype, 'scrollTop', {
+      configurable: true,
+      get: () => 0,
+      set(this: HTMLElement, top: number) {
+        scrolled.push({ el: this, top })
+      },
+    })
+    const innerHeight = window.innerHeight
+    window.innerHeight = 100
+    try {
+      const { getByLabelText } = render(<AppSidebar activeProjectId="p3" />)
+      placeAt(getByLabelText('Gamma'), 60)
+      fireEvent.mouseEnter(getByLabelText('Gamma'))
+      const last = scrolled.at(-1)!
+      expect(last.el.dataset.slot).toBe('scroll-area-viewport')
+      expect(last.top).toBeGreaterThan(0)
+    } finally {
+      window.innerHeight = innerHeight
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).scrollTop
+    }
   })
 
   it('stays put while the pointer moves between icons', () => {
