@@ -501,7 +501,6 @@ export default function CronPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 text-muted-foreground"
                   onClick={() => {
                     cleanupHistory.reset()
                     setCleanupOpen(true)
