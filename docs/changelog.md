@@ -1612,3 +1612,9 @@ Two fixes from the review of the UI polish pull request, before it merged.
 - Slash-command menu: the Enter that ends an IME composition was only recognised through `isComposing`. It now
   uses `isImeComposing()`, which also covers Safari's `keyCode` 229.
 
+
+## 2026-11-21 12:00 [progress]
+
+Completed `20261121-1141-virtual-engine-oauth-models`: a `claude-code` virtual engine with
+`CLAUDE_CODE_OAUTH_TOKEN` and no base URL lists models from the Anthropic `/v1/models` API (OAuth beta header), and
+the token counts as the engine's own credentials. Not yet checked against a live subscription token.

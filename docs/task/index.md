@@ -205,3 +205,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [d] [**20261112-1040-filemanager-upstream-1006f4d Update the vendored file manager to upstream 1006f4d**](20261112-1040-filemanager-upstream-1006f4d.md) `P2`
 - [d] [**20261112-1105-docs-cleanup Remove outdated docs and correct inaccurate descriptions**](20261112-1105-docs-cleanup.md) `P3`
 - [d] [**20261112-1106-workspace-check-symlinks Resolve symlinks in the workspace boundary check**](20261112-1106-workspace-check-symlinks.md) `P2`
+- [x] [**20261121-1141-virtual-engine-oauth-models List Anthropic models for OAuth-token virtual engines**](20261121-1141-virtual-engine-oauth-models.md) `P2`

@@ -341,4 +341,71 @@ describe('fetchVirtualEngineModels', () => {
     })
     expect(models).toEqual([])
   })
+
+  test('an OAuth-token engine without a base URL lists models from the Anthropic API', async () => {
+    let calledUrl = ''
+    let headers: Record<string, string> = {}
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      calledUrl = String(url)
+      headers = init?.headers as Record<string, string>
+      return new Response(JSON.stringify({
+        data: [{ id: 'claude-opus-x', display_name: 'Claude Opus X' }, { id: 'claude-sonnet-x' }],
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as unknown as typeof fetch
+
+    const models = await fetchVirtualEngineModels({
+      id: 'oauth-acct',
+      name: 'OAuth',
+      baseEngine: 'claude-code',
+      model: 'claude-sonnet-x',
+      envVars: { CLAUDE_CODE_OAUTH_TOKEN: 'oat-x' },
+    })
+
+    expect(calledUrl).toBe('https://api.anthropic.com/v1/models?limit=1000')
+    expect(headers.authorization).toBe('Bearer oat-x')
+    expect(headers['anthropic-version']).toBe('2023-06-01')
+    expect(headers['anthropic-beta']).toBe('oauth-2025-04-20')
+    expect(models).toEqual([
+      { id: 'claude-opus-x', name: 'Claude Opus X', isDefault: false },
+      { id: 'claude-sonnet-x', name: 'claude-sonnet-x', isDefault: true },
+    ])
+  })
+
+  test('an engine without a base URL or OAuth token fetches nothing', async () => {
+    let called = false
+    globalThis.fetch = (async () => {
+      called = true
+      return new Response('{}')
+    }) as unknown as typeof fetch
+    const models = await fetchVirtualEngineModels({
+      id: 'bare',
+      name: 'B',
+      baseEngine: 'claude-code',
+      envVars: {},
+    })
+    expect(called).toBe(false)
+    expect(models).toEqual([])
+  })
+})
+
+describe('OAuth-token virtual engine auth status', () => {
+  test('CLAUDE_CODE_OAUTH_TOKEN counts as the engine\'s own credentials', async () => {
+    const realFetch = globalThis.fetch
+    globalThis.fetch = (async () => new Response('nope', { status: 503 })) as unknown as typeof fetch
+    try {
+      await putVirtual([{
+        id: 'oauth-acct',
+        name: 'OAuth',
+        baseEngine: 'claude-code',
+        envVars: { CLAUDE_CODE_OAUTH_TOKEN: 'oat-x' },
+      }])
+      const discovery = expectSuccess(
+        await get<{ engines: Array<{ engineType: string, authStatus: string }> }>('/api/engines/available'),
+      )
+      expect(discovery.engines.find(e => e.engineType === 'oauth-acct')?.authStatus).toBe('authenticated')
+    } finally {
+      globalThis.fetch = realFetch
+      clearVirtualModelCache()
+    }
+  }, 30_000)
 })

@@ -213,23 +213,51 @@ function modelsUrl(base: string): string {
   return /\/v\d+$/.test(trimmed) ? `${trimmed}/models` : `${trimmed}/v1/models`
 }
 
+const ANTHROPIC_API_URL = 'https://api.anthropic.com'
+
 /**
- * Fetch the provider's model list (`{baseUrl}/v1/models`, OpenAI format) for a
- * virtual engine. Cached per-id with a TTL. Returns [] on any failure so the
- * caller can fall back to the optional manual `model`.
+ * Where and how to list a virtual engine's models. A provider base URL is
+ * queried OpenAI-style (`{base}/v1/models`, Bearer token). Without one, a
+ * claude-code engine carrying `CLAUDE_CODE_OAUTH_TOKEN` talks to Anthropic
+ * directly, which needs the OAuth beta header for a subscription token.
+ */
+function modelsRequest(ve: VirtualEngine): { url: string, headers: Record<string, string> } | null {
+  const base = ve.baseUrl ?? ve.envVars.ANTHROPIC_BASE_URL
+  if (base) {
+    const token = ve.authToken ?? ve.envVars.ANTHROPIC_AUTH_TOKEN
+    return {
+      url: modelsUrl(base),
+      headers: { 'anthropic-version': '2023-06-01', ...(token && { authorization: `Bearer ${token}` }) },
+    }
+  }
+  const oauthToken = ve.envVars.CLAUDE_CODE_OAUTH_TOKEN
+  if (ve.baseEngine !== 'claude-code' || !oauthToken) return null
+  return {
+    url: `${modelsUrl(ANTHROPIC_API_URL)}?limit=1000`,
+    headers: {
+      'authorization': `Bearer ${oauthToken}`,
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'oauth-2025-04-20',
+    },
+  }
+}
+
+/**
+ * Fetch the provider's model list for a virtual engine (see modelsRequest).
+ * Cached per-id with a TTL. Returns [] on any failure so the caller can fall
+ * back to the optional manual `model`.
  */
 export async function fetchVirtualEngineModels(ve: VirtualEngine): Promise<EngineModel[]> {
-  const base = ve.baseUrl ?? ve.envVars.ANTHROPIC_BASE_URL
-  const token = ve.authToken ?? ve.envVars.ANTHROPIC_AUTH_TOKEN
-  if (!base) return []
+  const request = modelsRequest(ve)
+  if (!request) return []
 
   const cached = modelCache.get(ve.id)
   if (cached && Date.now() - cached.at < MODEL_CACHE_TTL_MS) return cached.models
 
   try {
-    const res = await fetch(modelsUrl(base), {
+    const res = await fetch(request.url, {
       method: 'GET',
-      headers: token ? { authorization: `Bearer ${token}` } : {},
+      headers: request.headers,
       redirect: 'error',
       signal: AbortSignal.timeout(MODEL_FETCH_TIMEOUT_MS),
     })
@@ -238,11 +266,14 @@ export async function fetchVirtualEngineModels(ve: VirtualEngine): Promise<Engin
       modelCache.set(ve.id, { at: Date.now(), models: [] })
       return []
     }
-    const body = (await res.json()) as { data?: Array<{ id?: unknown }> }
+    const body = (await res.json()) as { data?: Array<{ id?: unknown, display_name?: unknown }> }
     const models: EngineModel[] = (body.data ?? [])
-      .map(m => (typeof m.id === 'string' ? m.id : null))
-      .filter((id): id is string => !!id)
-      .map(id => ({ id, name: id, isDefault: id === ve.model }))
+      .filter((m): m is { id: string, display_name?: unknown } => typeof m.id === 'string' && !!m.id)
+      .map(m => ({
+        id: m.id,
+        name: typeof m.display_name === 'string' && m.display_name ? m.display_name : m.id,
+        isDefault: m.id === ve.model,
+      }))
     modelCache.set(ve.id, { at: Date.now(), models })
     return models
   } catch (error) {
@@ -275,11 +306,12 @@ export async function decorateDiscoveryWithVirtual(discovery: {
 
   virtuals.forEach((ve, i) => {
     const base = discovery.engines.find(e => e.engineType === ve.baseEngine)
-    // A virtual engine authenticates with its own token (baseUrl + authToken),
+    // A virtual engine authenticates with its own token (baseUrl + authToken,
+    // or CLAUDE_CODE_OAUTH_TOKEN),
     // so its auth status comes from its own credentials — not the base engine's
     // local auth (which would wrongly hide it from the UI when the base CLI is
     // locally unauthenticated).
-    const hasOwnAuth = !!(ve.authToken || ve.envVars.ANTHROPIC_AUTH_TOKEN)
+    const hasOwnAuth = !!(ve.authToken || ve.envVars.ANTHROPIC_AUTH_TOKEN || ve.envVars.CLAUDE_CODE_OAUTH_TOKEN)
     engines.push({
       // engineType holds the virtual id; the wire schema is z.string().
       engineType: ve.id as EngineType,
