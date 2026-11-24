@@ -2,10 +2,11 @@ import type { Mermaid } from "mermaid";
 import type { PreviewProps } from "../react/previewers";
 import { useEffect, useId, useState } from "react";
 import { SourcePreview } from "../react/source-preview";
+import { createMermaidRenderer } from "./mermaid-render";
 
 let loading: Promise<Mermaid> | undefined;
 /** mermaid is large: loaded with the first diagram, once. */
-const loadMermaid = () => loading ??= import("mermaid").then(m => m.default);
+const renderDiagram = createMermaidRenderer(() => loading ??= import("mermaid").then(m => m.default));
 
 /** Whether the page uses the dark theme (shadcn's `dark` class on `<html>`), kept current. */
 function useDarkTheme() {
@@ -38,17 +39,7 @@ export function MermaidDiagram({ code }: { code: string }) {
     // Waits for typing to pause while the source is edited beside the diagram.
     const timer = setTimeout(async () => {
       try {
-        const mermaid = await loadMermaid();
-        // `strict` sanitizes labels and drops click handlers and scripts.
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: "strict",
-          suppressErrorRendering: true,
-          theme: dark
-            ? "dark"
-            : "default",
-        });
-        const { svg } = await mermaid.render(id, code);
+        const svg = await renderDiagram(id, code, dark);
         if (live)
           setResult({ svg });
       }

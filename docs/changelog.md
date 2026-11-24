@@ -1633,6 +1633,14 @@ pane's attribute is now `data-fm-rendered`). The new `fm-plugin-mermaid` is vend
 in the Markdown preview; it adds the `mermaid` dependency, loaded with the first diagram. The API-side tree did not
 change.
 
+## 2026-11-24 10:20 [progress]
+
+Vendored file manager updated from upstream v1.1.0 to v1.1.1 (`1ff6d4d`, task
+20261124-0840-filemanager-upstream-v1-1-0): `plugins/mermaid-view.tsx` re-copied and the new
+`plugins/mermaid-render.ts` added. Each mermaid `initialize()` + `render()` pair now runs alone, so a Markdown file
+with several ```` ```mermaid ```` blocks (or a theme switch) no longer leaves diagrams blank. Upstream's
+`mermaid-render.test.ts` is not a registry file and is not vendored.
+
 ## 2026-11-25 08:05 [BUG-P1]
 
 Completed `20261125-0752-models-no-live-probe`: once the 10-minute memory cache expired, `getDetectedEngineModels()`

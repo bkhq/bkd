@@ -36,3 +36,6 @@ Updating the vendored file manager to upstream v1.1.0
   and file-manager chunks. A `.mmd` file and a ```` ```mermaid ```` block in Markdown render as diagrams in the
   project file drawer. Checked on the Skills page in the browser: folder
   header, Markdown source / split view (`data-fm-rendered` present), narrow 700px layout; no page errors.
+- update: Upstream v1.1.1 fixes blank Mermaid diagrams when several render at once; re-copied
+  `plugins/mermaid-view.tsx` and added `plugins/mermaid-render.ts`, src/fm matches v1.1.1. `bun run check` passes; a
+  Markdown file with three mermaid blocks renders all three in the browser.
