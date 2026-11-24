@@ -45,6 +45,7 @@ export function ManagerOverlays({ fm }: { fm: FmController }) {
     changeMessage,
     mounts,
     pluginPreviewers,
+    pluginCodeRenderers,
     features,
     hostHidden,
     mount,
@@ -123,6 +124,7 @@ export function ManagerOverlays({ fm }: { fm: FmController }) {
           labels={labels}
           editable={features.edit}
           previewers={pluginPreviewers}
+          codeRenderers={pluginCodeRenderers}
           onNavigate={setPreview}
           {...(features.download
             ? {

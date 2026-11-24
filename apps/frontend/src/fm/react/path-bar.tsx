@@ -3,7 +3,7 @@ import type { FmClient, FmListFilter } from "../client/client";
 import type { FmEntry, FmMountInfo } from "../core/schema";
 import type { FmLabels } from "./labels";
 import { cn } from "cn";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, FolderIcon } from "lucide-react";
 import { Fragment, useState } from "react";
 import {
   DropdownMenu,
@@ -23,6 +23,8 @@ import { springDrag, springKey } from "./spring-load";
 /** A picker: one line per entry, capped in width and height. */
 const PICKER = "w-auto max-w-72 min-w-40 overflow-hidden p-0";
 const PICKER_ITEM = "gap-1.5 py-1 text-xs whitespace-nowrap";
+/** Steps after the mount from which the middle of the path folds into "…". */
+const COLLAPSE_FROM = 4;
 
 /** Entries of `path`: folders unfold into their own entries (and open on click with `onOpenFolder`), files open. */
 function PickerEntries({ client, mount, path, current, labels, filter, onOpenFile, onOpenFolder }: {
@@ -101,6 +103,10 @@ export function PathBar({ client, mounts, mount, path, file, labels, filter, roo
   const trail = file
     ? [...folders, file.path]
     : folders;
+  // Long paths keep the mount, the first folder and the last two steps; the rest fold into "…".
+  const hidden = trail.length >= COLLAPSE_FROM
+    ? trail.slice(1, -2)
+    : [];
   /** Drag handlers of a folder crumb: a drag resting on it opens the folder (needs `onOpenFolder`). */
   const spring = (target: string) => {
     const info = mounts.find(m => m.id === at);
@@ -182,12 +188,34 @@ export function PathBar({ client, mounts, mount, path, file, labels, filter, roo
       {root
         ? <Fragment key="root">{root}</Fragment>
         : <Fragment key="/">{step("/", mountLabel, trail.length === 0)}</Fragment>}
-      {trail.map((target, i) => (
-        <Fragment key={target}>
-          {separator(trail[i - 1] ?? "/", target)}
-          {step(target, basename(target), i === trail.length - 1)}
-        </Fragment>
-      ))}
+      {trail.map((target, i) => {
+        if (hidden.includes(target)) {
+          return i === 1 && (
+            <Fragment key="…">
+              {separator(trail[0]!, target)}
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<button type="button" className={crumb(false)} aria-label={labels.collapsedPath} />}>…</DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className={PICKER}>
+                  <MenuScroll>
+                    {hidden.map(h => (
+                      <DropdownMenuItem key={h} className={PICKER_ITEM} title={basename(h)} onClick={() => onNavigate(h)}>
+                        <FolderIcon className="size-3.5" />
+                        <span className="truncate">{basename(h)}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </MenuScroll>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </Fragment>
+          );
+        }
+        return (
+          <Fragment key={target}>
+            {separator(trail[i - 1] ?? "/", target)}
+            {step(target, basename(target), i === trail.length - 1)}
+          </Fragment>
+        );
+      })}
     </nav>
   );
 }

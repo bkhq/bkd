@@ -1,6 +1,7 @@
 import type { FmClient } from "../client/client";
 import type { FmEntry } from "../core/schema";
 import type { FmLabels } from "./labels";
+import type { FmCodeRenderer } from "./plugins";
 import type { FmPreviewer } from "./preview-registry";
 import { createElement, Suspense } from "react";
 import {
@@ -15,13 +16,15 @@ import {
 import { findPreviewer } from "./preview-registry";
 
 /** The previewer for `entry`; read-only unless `editable`. Used by the dialog and the inline pane. */
-export function PreviewBody({ entry, client, labels, editable, previewers, actions, onDirtyChange }: {
+export function PreviewBody({ entry, client, labels, editable, previewers, codeRenderers, actions, onDirtyChange }: {
   entry: FmEntry;
   client: FmClient;
   labels: FmLabels;
   editable: boolean;
   /** Plugin previewers, considered next to the registered ones. */
   previewers?: readonly FmPreviewer[] | undefined;
+  /** Plugin code block renderers, handed to the previewer. */
+  codeRenderers?: readonly FmCodeRenderer[] | undefined;
   /** Element the previewer may portal header buttons into. */
   actions: HTMLElement | null;
   onDirtyChange: (dirty: boolean) => void;
@@ -41,6 +44,7 @@ export function PreviewBody({ entry, client, labels, editable, previewers, actio
         labels,
         actions,
         onDirtyChange,
+        codeRenderers,
       })}
     </Suspense>
   );

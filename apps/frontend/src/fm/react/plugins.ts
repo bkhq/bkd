@@ -47,9 +47,20 @@ export interface FmReviewProps {
   onOpenFile: (path: string) => void;
 }
 
+/**
+ * Renders fenced code blocks of `language` in rendered text views (the Markdown
+ * preview) instead of showing them as code; e.g. ```` ```mermaid ```` as a diagram.
+ */
+export interface FmCodeRenderer {
+  language: string | string[];
+  component: ComponentType<{ code: string; language: string }>;
+}
+
 export interface FmPlugin {
   id: string;
   previewers?: FmPreviewer[];
+  /** Fenced code block renderers offered to the previewers of every plugin. */
+  codeRenderers?: FmCodeRenderer[];
   actions?: FmFileAction[];
   /** Diff view for mounts with changes (one per manager; the first plugin providing it wins). */
   review?: ComponentType<FmReviewProps>;

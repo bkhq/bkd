@@ -246,7 +246,7 @@ Routes: `GET /api/skills?projectId=` (also `cliAvailable`), `GET /api/skills/upd
 
 The file browser is the [bkhq/filemanager](https://github.com/bkhq/filemanager) shadcn registry, vendored as-is
 into `apps/api/src/fm/` (core, router, local driver) and `apps/frontend/src/fm/` (client, `<FileManager />`,
-Markdown plugin). Both trees keep upstream formatting and are eslint-ignored; update by re-copying the registry
+Markdown, Mermaid and review plugins). Both trees keep upstream formatting and are eslint-ignored; update by re-copying the registry
 files (`docs/decisions/2026-11-05-filemanager-vendored-style.md`).
 
 - `routes/fm.ts` mounts `createFmRouter()` at `/api/fm/:projectId`. Mounts per project: `project` (its directory)

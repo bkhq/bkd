@@ -69,7 +69,7 @@ describe('workspaceFiles', () => {
 
   it('shows Markdown previews and git-change reviews', () => {
     renderFiles(new QueryClient(), 'i1')
-    expect(screen.getByText('fm /api/fm/p1 wt-i1').closest('div')).toHaveAttribute('data-plugins', 'markdown,review')
+    expect(screen.getByText('fm /api/fm/p1 wt-i1').closest('div')).toHaveAttribute('data-plugins', 'markdown,mermaid,review')
   })
 
   it('waits for the mounts before choosing one', () => {

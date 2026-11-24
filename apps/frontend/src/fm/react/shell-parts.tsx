@@ -13,10 +13,12 @@ import {
   ListIcon,
   PencilIcon,
   ScissorsIcon,
+  SearchIcon,
   Trash2Icon,
   UploadIcon,
   XIcon,
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -220,23 +222,53 @@ export function ShellBreadcrumb({ fm, root, className }: PartProps & { root?: Re
   );
 }
 
-/** `children` sit after the input. The scope menu leads the input; a clear button ends it while there is a query. */
-export function ShellSearch({ fm, width, children }: PartProps & { width: string; children?: ReactNode }) {
+/**
+ * The scope menu leads the input; a clear button ends it while there is a query. `collapsible`
+ * shows a search button until it is clicked; the box folds back on Escape or when focus leaves
+ * it empty.
+ */
+export function ShellSearch({ fm, width, collapsible = false }: PartProps & { width: string; collapsible?: boolean }) {
   const { narrow, query, changeQuery, searchScope, setSearchScope, labels } = fm;
+  const [expanded, setExpanded] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const menuOpenRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // A query cleared from elsewhere (opening a hit) folds the box unless it has the focus.
+  useEffect(() => {
+    if (!query && !boxRef.current?.contains(document.activeElement))
+      setExpanded(false);
+  }, [query]);
   const scopeLabel = (s: typeof searchScope) => s === "folder"
     ? labels.searchHere
     : labels.searchBelow;
+  if (collapsible && !expanded && !query) {
+    return (
+      <IconButton label={labels.search} className="shrink-0" onClick={() => setExpanded(true)}>
+        <SearchIcon />
+      </IconButton>
+    );
+  }
+  // Checked a tick later: the scope menu takes the focus into a portal while it is open.
+  const leave = () => setTimeout(() => {
+    if (!menuOpenRef.current && !boxRef.current?.contains(document.activeElement))
+      setExpanded(false);
+  });
   return (
-    <div className={cn("flex min-w-0 items-center gap-1", narrow
-      ? "order-last basis-full"
-      : "shrink-100")}
+    <div
+      ref={boxRef}
+      className={cn("flex items-center", narrow
+        ? "order-last min-w-0 basis-full"
+        : cn(width, "min-w-40 shrink-100"))}
+      onBlur={collapsible && !query
+        ? leave
+        : undefined}
     >
-      <InputGroup className={cn("h-7", narrow
-        ? "w-full"
-        : cn(width, "min-w-40"))}
-      >
+      <InputGroup className="h-7 w-full">
         <InputGroupAddon className="py-0">
-          <DropdownMenu>
+          <DropdownMenu onOpenChange={(o) => {
+            menuOpenRef.current = o;
+          }}
+          >
             <DropdownMenuTrigger render={<InputGroupButton size="xs" variant="secondary" className="h-5 px-1.5 text-xs" />}>
               {scopeLabel(searchScope)}
               <ChevronDownIcon />
@@ -247,23 +279,39 @@ export function ShellSearch({ fm, width, children }: PartProps & { width: string
           </DropdownMenu>
         </InputGroupAddon>
         <InputGroupInput
+          ref={inputRef}
           type="search"
+          autoFocus={collapsible}
           aria-label={labels.search}
           placeholder={labels.searchPlaceholder}
           className="h-full text-xs md:text-xs [&::-webkit-search-cancel-button]:appearance-none"
           value={query}
           onChange={e => changeQuery(e.target.value)}
-          onKeyDown={e => e.key === "Escape" && changeQuery("")}
+          onKeyDown={(e) => {
+            if (e.key !== "Escape")
+              return;
+            if (query)
+              changeQuery("");
+            else
+              setExpanded(false);
+          }}
         />
         {query && (
           <InputGroupAddon align="inline-end" className="py-0">
-            <InputGroupButton size="icon-xs" aria-label={labels.clearSearch} title={labels.clearSearch} onClick={() => changeQuery("")}>
+            <InputGroupButton
+              size="icon-xs"
+              aria-label={labels.clearSearch}
+              title={labels.clearSearch}
+              onClick={() => {
+                changeQuery("");
+                inputRef.current?.focus();
+              }}
+            >
               <XIcon />
             </InputGroupButton>
           </InputGroupAddon>
         )}
       </InputGroup>
-      {children}
     </div>
   );
 }

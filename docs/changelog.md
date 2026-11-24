@@ -1619,6 +1619,20 @@ Completed `20261121-1141-virtual-engine-oauth-models`: a `claude-code` virtual e
 `CLAUDE_CODE_OAUTH_TOKEN` and no base URL lists models from the Anthropic `/v1/models` API (OAuth beta header), and
 the token counts as the engine's own credentials. Not yet checked against a live subscription token.
 
+## 2026-11-24 08:55 [progress]
+
+Vendored file manager updated from upstream v1.0.0 to v1.1.0 (`aa082c5`, task
+20261124-0840-filemanager-upstream-v1-1-0). The local trees matched v1.0.0, so the changed registry files were
+re-copied as they are: `plugins/markdown-view.tsx` and `react/{labels,manager-overlays,manager-shared,path-bar,
+plugins,preview-dialog,preview-pane,previewers,shell-parts,use-view-state,workspace-shell}`, plus the new
+`react/source-preview.tsx`. Upstream changes: search in the workspace header sits behind an icon (quick open stays
+on Ctrl/Cmd+P), long paths fold their middle into a `…` menu, headers under 760px fold the folder toolbar into the
+More menu, and the Markdown preview builds on `SourcePreview` (source, rendered, or side by side; the rendered
+pane's attribute is now `data-fm-rendered`). The new `fm-plugin-mermaid` is vendored and enabled in
+`WorkspaceFiles` and `SkillFiles`: `.mmd` / `.mermaid` files open as diagrams and ```` ```mermaid ```` blocks render
+in the Markdown preview; it adds the `mermaid` dependency, loaded with the first diagram. The API-side tree did not
+change.
+
 ## 2026-11-25 08:05 [BUG-P1]
 
 Completed `20261125-0752-models-no-live-probe`: once the 10-minute memory cache expired, `getDetectedEngineModels()`

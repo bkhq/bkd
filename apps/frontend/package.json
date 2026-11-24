@@ -51,6 +51,7 @@
     "i18next": "^26.4.4",
     "jittered-fractional-indexing": "catalog:",
     "lucide-react": "^1.55.0",
+    "mermaid": "^12.3.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-dropzone": "^20.1.4",

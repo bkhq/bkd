@@ -8,7 +8,6 @@ import {
   ClipboardPasteIcon,
   EllipsisIcon,
   FilePlusIcon,
-  FileSearchIcon,
   FilterIcon,
   FolderOpenIcon,
   FolderPlusIcon,
@@ -53,7 +52,7 @@ import { FilterChips, FilterMenuItems } from "./filter-menu";
 import { hasFilters } from "./filters";
 import { IconButton, RefreshButton } from "./icon-button";
 import { ManagerList } from "./manager-list";
-import { shellDetailsEntry } from "./manager-shared";
+import { FOLD, shellDetailsEntry, useWidth } from "./manager-shared";
 import { MenuScroll } from "./menu-scroll";
 import { groupMountsByDriver } from "./mount-visibility";
 import { PathBar } from "./path-bar";
@@ -82,7 +81,6 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
     setNarrowPane,
     setRawSelection,
     setDialog,
-    setQuickOpen,
     detailsOpen,
     setDetailsOpen,
     paneActions,
@@ -92,6 +90,7 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
     labels,
     qc,
     pluginPreviewers,
+    pluginCodeRenderers,
     features,
     storageKey,
     mount,
@@ -130,7 +129,6 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
     navigate,
     reveal,
     pickQuickOpen,
-    canQuickOpen,
     canPaste,
     paste,
     pickFiles,
@@ -175,8 +173,11 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
   // explorer's: the folder actions live in the tree pane.
   const filePane = explorer && !(folderList && !paneFile && !review);
 
-  // Narrow containers fold the folder toolbar into one "More" menu so it shares the path row.
-  const folded = narrow && !inTrash && !explorer && !(selected.length > 0 && !roomy);
+  // Narrow containers, or a main header short of room, fold the folder toolbar into one "More"
+  // menu so it shares the path row.
+  const [headerRef, headerWidth] = useWidth();
+  const cramped = narrow || (headerWidth > 0 && headerWidth < FOLD);
+  const folded = cramped && !inTrash && !explorer && !(selected.length > 0 && !roomy);
 
   // Host controls go in the bar at the manager's top-right corner: the explorer row while a
   // narrow manager shows only the tree, the main header otherwise. Never in pick mode.
@@ -200,6 +201,7 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
 
           <ShellDropSection fm={fm}>
             <header
+              ref={headerRef}
               className={`flex items-center gap-1 border-b px-2 py-1.5 ${narrow
                 ? "flex-wrap"
                 : ""}`}
@@ -313,9 +315,7 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                     <EmptyTrashButton fm={fm} />
                   )
                 : features.search && !explorer && (
-                  <ShellSearch fm={fm} width="w-64">
-                    {canQuickOpen && <IconButton label={labels.quickOpen} onClick={() => setQuickOpen(true)}><FileSearchIcon /></IconButton>}
-                  </ShellSearch>
+                  <ShellSearch fm={fm} width="w-64" collapsible />
                 )}
 
               {inTrash
@@ -397,6 +397,7 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                               </DropdownMenuItem>
                               {features.details && (
                                 <DropdownMenuCheckboxItem closeOnClick checked={detailsOpen} onCheckedChange={setDetailsOpen}>
+                                  <InfoIcon />
                                   {labels.details}
                                 </DropdownMenuCheckboxItem>
                               )}
@@ -508,6 +509,7 @@ export function WorkspaceShell({ props, fm }: { props: FileManagerProps; fm: FmC
                               labels={labels}
                               editable={features.edit}
                               previewers={pluginPreviewers}
+                              codeRenderers={pluginCodeRenderers}
                               actions={paneActions}
                               onDirtyChange={(d) => {
                                 paneDirtyRef.current = d;
