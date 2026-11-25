@@ -55,7 +55,8 @@ lode --dir /opt/bkd
 ```
 
 启动后访问 http://localhost:3000。arm64 或 macOS 还需要改 `lode.toml` 里
-`[runtime].download` 的 bun 下载地址——那是第三处 `CHANGE ME`。
+`[runtime].download` 的 bun 下载地址——那是第三处 `CHANGE ME`。macOS 上登录后自动启动见
+[macOS: install and start at login](docs/deployment.md#macos-install-and-start-at-login)。
 
 > **已经在用 `bkd-launcher-*` 安装？** 它不会更新到当前版本。发布包已从 `bkd-app*.tar.gz`
 > 改名为 `bkd-server.tar.gz`，旧 launcher 找不到匹配的 asset，会一直停留在原有版本。请显式

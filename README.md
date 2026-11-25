@@ -57,7 +57,8 @@ lode --dir /opt/bkd
 ```
 
 Open http://localhost:3000 once it is up. On arm64 or macOS also update the
-`[runtime].download` bun URL in `lode.toml` — it is the third `CHANGE ME`.
+`[runtime].download` bun URL in `lode.toml` — it is the third `CHANGE ME`. To start BKD at
+login on macOS, see [macOS: install and start at login](docs/deployment.md#macos-install-and-start-at-login).
 
 > **Already running a `bkd-launcher-*` install?** It will not reach current releases. The
 > package was renamed from `bkd-app*.tar.gz` to `bkd-server.tar.gz`, so the old launcher

@@ -186,6 +186,90 @@ ExecStart=/usr/local/bin/lode --dir /opt/bkd
 Restart=always
 ```
 
+On macOS use a launchd agent instead — see [macOS: install and start at login](#macos-install-and-start-at-login).
+
+### macOS: install and start at login
+
+Run BKD as a per-user **LaunchAgent**, not a system LaunchDaemon. Claude Code keeps its
+login in the user's Keychain, which a daemon cannot read, and BKD should run as you anyway
+(it spawns coding agents in your workspace). The trade-off: an agent starts when you log
+in, not at boot — on a headless Mac, turn on automatic login.
+
+```bash
+# 1. lode — lode-darwin-arm64 on Apple silicon, lode-darwin-x64 on Intel.
+#    /usr/local/bin does not exist on a fresh Apple-silicon Mac.
+sudo mkdir -p /usr/local/bin
+curl -fsSL https://github.com/bkhq/lode/releases/latest/download/lode-darwin-arm64.tar.gz \
+  | sudo tar -xz -C /usr/local/bin lode lode-cli
+
+# 2. an install root in your home — no sudo, and TOML needs the absolute path
+BKD_ROOT="$HOME/bkd"
+mkdir -p "$BKD_ROOT"
+
+# 3. the config, with the three CHANGE ME values filled in for this Mac
+curl -fsSL https://raw.githubusercontent.com/bkhq/bkd/main/docs/bkd.lode.toml \
+  | sed -e "s#/opt/bkd#$BKD_ROOT#g" \
+        -e "s#bun-linux-x64.zip#bun-darwin-aarch64.zip#" \
+  > "$BKD_ROOT/lode.toml"          # Intel: bun-darwin-x64.zip
+
+# 4. try it in the foreground first; Ctrl-C once it serves on http://localhost:3000
+lode --dir "$BKD_ROOT"
+```
+
+Then register the agent. launchd starts jobs with a bare `PATH` (`/usr/bin:/bin:/usr/sbin:/sbin`)
+and does not read your shell profile, so set `PATH` explicitly: BKD finds `claude`, `codex`,
+`git` and `node` through it. Run `command -v claude codex git node` in your shell and make
+sure every directory it prints is listed.
+
+```bash
+cat > ~/Library/LaunchAgents/com.bkhq.bkd.plist <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>             <string>com.bkhq.bkd</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/lode</string>
+    <string>--dir</string>
+    <string>$BKD_ROOT</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>WorkingDirectory</key>  <string>$BKD_ROOT</string>
+  <key>RunAtLoad</key>         <true/>
+  <key>KeepAlive</key>         <true/>
+  <!-- BKD needs up to stop_timeout (30 s) to stop engines; launchd's default is 20 s -->
+  <key>ExitTimeOut</key>       <integer>40</integer>
+  <key>StandardOutPath</key>   <string>$BKD_ROOT/lode.log</string>
+  <key>StandardErrorPath</key> <string>$BKD_ROOT/lode.log</string>
+</dict>
+</plist>
+EOF
+
+plutil -lint ~/Library/LaunchAgents/com.bkhq.bkd.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.bkhq.bkd.plist
+```
+
+The heredoc expands `$HOME` and `$BKD_ROOT` when the file is written — launchd itself
+expands nothing, so the plist must hold absolute paths.
+
+| Task | Command |
+|---|---|
+| Status (launchd) | `launchctl print gui/$(id -u)/com.bkhq.bkd` |
+| Status (lode) | `lode-cli status --dir ~/bkd` |
+| Restart lode and BKD | `launchctl kickstart -k gui/$(id -u)/com.bkhq.bkd` |
+| Stop and disable | `launchctl bootout gui/$(id -u)/com.bkhq.bkd` |
+| Logs | `~/bkd/lode.log` (lode), `~/bkd/data/logs/bkd.log` (BKD) |
+
+After editing the plist, `bootout` then `bootstrap` again — launchd does not reload it on
+its own. Updates, rollbacks and BKD restarts (§5) need none of this: lode handles them
+inside the running job. A sleeping Mac pauses BKD and its agents; keep it awake in
+System Settings → Energy (or run `caffeinate -s`) if issues should keep running.
+
 ## 5. Operating
 
 | Task | CLI | UI (Settings → Upgrade) |
