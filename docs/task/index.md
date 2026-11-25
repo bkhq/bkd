@@ -206,3 +206,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [d] [**20261112-1105-docs-cleanup Remove outdated docs and correct inaccurate descriptions**](20261112-1105-docs-cleanup.md) `P3`
 - [d] [**20261112-1106-workspace-check-symlinks Resolve symlinks in the workspace boundary check**](20261112-1106-workspace-check-symlinks.md) `P2`
 - [x] [**20261121-1141-virtual-engine-oauth-models List Anthropic models for OAuth-token virtual engines**](20261121-1141-virtual-engine-oauth-models.md) `P2`
+- [x] [**20261125-0752-models-no-live-probe Serve engine models from stored probe results instead of spawning the CLI**](20261125-0752-models-no-live-probe.md) `P1`

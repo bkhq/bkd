@@ -1618,3 +1618,11 @@ Two fixes from the review of the UI polish pull request, before it merged.
 Completed `20261121-1141-virtual-engine-oauth-models`: a `claude-code` virtual engine with
 `CLAUDE_CODE_OAUTH_TOKEN` and no base URL lists models from the Anthropic `/v1/models` API (OAuth beta header), and
 the token counts as the engine's own credentials. Not yet checked against a live subscription token.
+
+## 2026-11-25 08:05 [BUG-P1]
+
+Completed `20261125-0752-models-no-live-probe`: once the 10-minute memory cache expired, `getDetectedEngineModels()`
+spawned the engine CLI instead of reading the stored probe results. Every execute, follow-up and restart resolves
+the model twice, so after an idle period each run started extra `claude -p` processes next to the real one. They
+share `~/.claude/.credentials.json` and race the rotating OAuth refresh token, which logged the CLI out. A cache
+miss now goes through `getEngineDiscovery()` (memory → DB → deduplicated probe).

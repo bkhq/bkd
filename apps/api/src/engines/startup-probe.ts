@@ -312,14 +312,14 @@ export async function setEngineVersion(engineType: EngineType, version: string):
 }
 
 /**
- * Get the models an engine reports (cached, falling back to a live query),
+ * Get the models an engine reports (memory cache, then stored probe results),
  * without the user's model configs.
  */
 export async function getDetectedEngineModels(engineType: EngineType): Promise<EngineModel[]> {
   const cached = await cacheGet<EngineModel[]>(`${CACHE_KEY_MODELS_PREFIX}${engineType}`)
   if (cached) return cached
 
-  return engineRegistry.getModels(engineType)
+  return (await getEngineDiscovery()).models[engineType] ?? []
 }
 
 /** Get an engine's models with the user's model configs applied. */

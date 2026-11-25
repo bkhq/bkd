@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, test } from 'bun:test'
 import { inArray } from 'drizzle-orm'
 import { cacheDel, cacheDelByPrefix } from '../src/cache'
 import { db } from '../src/db'
+import { saveProbeResults } from '../src/db/helpers'
 import { appSettings as appSettingsTable } from '../src/db/schema'
 import { engineRegistry } from '../src/engines/executors'
-import { __resetProbeInFlightForTests, getEngineDiscovery } from '../src/engines/startup-probe'
+import { __resetProbeInFlightForTests, getDetectedEngineModels, getEngineDiscovery } from '../src/engines/startup-probe'
 import type { EngineExecutor } from '../src/engines/types'
 import './setup'
 
@@ -133,6 +134,31 @@ describe('startup probe deep behavior', () => {
       expect(modelsCalls).toBe(2)
     } finally {
       ;(engineRegistry as any).getAll = originalGetAll
+      await clearProbeState()
+    }
+  }, TEST_TIMEOUT_MS)
+
+  test('a cold memory cache serves models from stored probe results without spawning the CLI', async () => {
+    await saveProbeResults(
+      [{ engineType: 'codex', installed: true, authStatus: 'authenticated' }],
+      { codex: [{ id: 'stored', name: 'Stored', isDefault: true }] },
+    )
+
+    let modelsCalls = 0
+    const executor = engineRegistry.get('codex')!
+    const original = executor.getModels.bind(executor)
+    executor.getModels = async () => {
+      modelsCalls += 1
+      return []
+    }
+
+    try {
+      const models = await Promise.all([getDetectedEngineModels('codex'), getDetectedEngineModels('codex')])
+      expect(models[0]?.[0]?.id).toBe('stored')
+      expect(models[1]?.[0]?.id).toBe('stored')
+      expect(modelsCalls).toBe(0)
+    } finally {
+      executor.getModels = original
       await clearProbeState()
     }
   }, TEST_TIMEOUT_MS)
