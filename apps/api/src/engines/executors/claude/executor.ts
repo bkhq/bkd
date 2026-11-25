@@ -494,7 +494,7 @@ export class ClaudeCodeExecutor implements EngineExecutor {
     const skipPermissions = (await getAppSetting(SKIP_PERMISSIONS_KEY)) === 'true'
 
     const builder = CommandBuilder.create(resolveBaseCmd())
-      .params(['-p', '--output-format=stream-json', '--verbose', '--no-chrome'])
+      .params(['-p', '--output-format=stream-json', '--verbose'])
       // stream_event message_delta carries per-call usage — feeds the
       // live context meter (parseMessageDelta → token-usage entries)
       .param('--include-partial-messages')
