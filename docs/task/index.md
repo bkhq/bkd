@@ -208,3 +208,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261121-1141-virtual-engine-oauth-models List Anthropic models for OAuth-token virtual engines**](20261121-1141-virtual-engine-oauth-models.md) `P2`
 - [x] [**20261124-0840-filemanager-upstream-v1-1-0 Update the vendored file manager to upstream v1.1.0**](20261124-0840-filemanager-upstream-v1-1-0.md) `P2`
 - [x] [**20261125-0752-models-no-live-probe Serve engine models from stored probe results instead of spawning the CLI**](20261125-0752-models-no-live-probe.md) `P1`
+- [x] [**20261125-2209-codex-models-spawn-error Skip the Codex model query when Codex is not installed, and report spawn failures**](20261125-2209-codex-models-spawn-error.md) `P2`

@@ -98,3 +98,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [d] [**20261110-1259-model-configs Per-model edit dialogs and custom models in Settings**](20261110-1259-model-configs.md) `2026-11-10`
 - [d] [**20261111-1343-merge-changes-button One changes button in the chat input; drop the old diff panel**](20261111-1343-merge-changes-button.md) `2026-11-11`
 - [d] [**20261111-1734-dedupe-redundant-code Remove duplicated implementations and dead code found by the redundancy audit**](20261111-1734-dedupe-redundant-code.md) `2026-11-11`
+- [x] [**20261125-2209-codex-models-spawn-error Skip the Codex model query when Codex is not installed, and report spawn failures**](20261125-2209-codex-models-spawn-error.md) `2026-11-25`

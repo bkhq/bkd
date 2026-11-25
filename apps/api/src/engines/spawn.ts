@@ -99,14 +99,17 @@ export function spawnNode(
     },
   }
 
-  // Convert Node Readable to Web ReadableStream
-  const stdout = child.stdout
-    ? nodeReadableToWebStream(child.stdout)
-    : emptyReadableStream()
-
-  const stderr = child.stderr
-    ? nodeReadableToWebStream(child.stderr)
-    : emptyReadableStream()
+  // A failed spawn leaves pid undefined and stdio destroyed; Readable.toWeb()
+  // would then fail reads with AbortError, so fail them with the spawn error.
+  const spawnError = child.pid === undefined
+    ? new Promise<Error>(resolve => child.once('error', resolve))
+    : null
+  const toWebStream = (readable: Readable | null) => {
+    if (spawnError) return erroredReadableStream(spawnError)
+    return readable ? nodeReadableToWebStream(readable) : emptyReadableStream()
+  }
+  const stdout = toWebStream(child.stdout)
+  const stderr = toWebStream(child.stderr)
 
   // Create exited promise from exit event.
   // Preserve signal exit codes (128 + signal) for compatibility with
@@ -289,6 +292,14 @@ const SIGNAL_NUMBERS: Record<string, number> = {
 
 function nodeReadableToWebStream(readable: Readable): ReadableStream<Uint8Array> {
   return Readable.toWeb(readable) as unknown as ReadableStream<Uint8Array>
+}
+
+function erroredReadableStream(error: Promise<Error>): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      controller.error(await error)
+    },
+  })
 }
 
 function emptyReadableStream(): ReadableStream<Uint8Array> {

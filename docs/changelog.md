@@ -1648,3 +1648,16 @@ spawned the engine CLI instead of reading the stored probe results. Every execut
 the model twice, so after an idle period each run started extra `claude -p` processes next to the real one. They
 share `~/.claude/.credentials.json` and race the rotating OAuth refresh token, which logged the CLI out. A cache
 miss now goes through `getEngineDiscovery()` (memory → DB → deduplicated probe).
+
+## 2026-11-25 22:40 [progress]
+
+Completed `20261125-2209-codex-models-spawn-error`.
+
+- `CodexExecutor.getModels()` returns `[]` when no `codex` binary is found instead of
+  spawning `npx -y @openai/codex app-server`, matching the other executors. A BKD under
+  launchd without `npx` on `PATH` logged `codex_get_models_failed` on every probe.
+- `spawnNode()`: when the executable cannot be started (`child.pid` undefined), stdout and
+  stderr now fail with the spawn error (`Executable not found in $PATH: "…"`) instead of the
+  `AbortError` produced by `Readable.toWeb()` on Bun's already-destroyed stdio.
+- [pitfall] Under `bun test`, `expect(promise).rejects` on Bun's spawn `SystemError` reports an
+  unhandled error and fails the test; catch the rejection and assert on the error instead.

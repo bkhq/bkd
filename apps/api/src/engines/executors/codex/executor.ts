@@ -250,10 +250,10 @@ interface CodexModelListResponse {
  * Start a short-lived Codex app-server, perform the initialize handshake,
  * then paginate through model/list. Returns flattened EngineModel[].
  */
-async function queryCodexModels(): Promise<EngineModel[]> {
-  logger.debug({ cmd: [...resolveBaseCmd(), 'app-server'].join(' ') }, 'codex_models_start')
+async function queryCodexModels(binaryPath: string): Promise<EngineModel[]> {
+  logger.debug({ cmd: `${binaryPath} app-server` }, 'codex_models_start')
 
-  const proc = spawnNode([...resolveBaseCmd(), 'app-server'], {
+  const proc = spawnNode([binaryPath, 'app-server'], {
     stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',
@@ -634,8 +634,10 @@ export class CodexExecutor implements EngineExecutor {
   }
 
   async getModels(): Promise<EngineModel[]> {
+    const binaryPath = resolveBinaryOnly()
+    if (!binaryPath) return []
     try {
-      return await queryCodexModels()
+      return await queryCodexModels(binaryPath)
     } catch (error) {
       logger.error(
         {
