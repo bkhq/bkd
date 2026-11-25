@@ -113,6 +113,8 @@ export function readLast(key: string) {
 }
 
 export const NARROW = 640;
+/** Main header width below which the workspace folds its folder toolbar into a menu. */
+export const FOLD = 760;
 
 export const MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
 const key = (id: FmShortcutId) => shortcutText(id, MAC);

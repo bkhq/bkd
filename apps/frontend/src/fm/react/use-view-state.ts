@@ -38,6 +38,7 @@ export function useViewState(props: FileManagerProps, mode: "workspace" | "drive
   const qc = useQueryClient();
   const mounts = useMounts(client);
   const pluginPreviewers = useMemo(() => (props.plugins ?? []).flatMap(p => p.previewers ?? []), [props.plugins]);
+  const pluginCodeRenderers = useMemo(() => (props.plugins ?? []).flatMap(p => p.codeRenderers ?? []), [props.plugins]);
   const features = useMemo(() => resolveFeatures(props.readOnly, props.features), [props.readOnly, props.features]);
   const [location, setLocation] = useState({ mount: props.initialMount, path: props.initialPath ?? "/", trash: false });
   const storageKey = props.storageKey ?? "fm";
@@ -247,6 +248,7 @@ export function useViewState(props: FileManagerProps, mode: "workspace" | "drive
     qc,
     mounts,
     pluginPreviewers,
+    pluginCodeRenderers,
     features,
     storageKey,
     hostHidden,

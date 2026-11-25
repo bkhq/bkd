@@ -66,7 +66,7 @@ describe('skillFiles', () => {
   it('opens the skill mount of the global scope, editable, with Markdown previews', () => {
     renderFiles(new QueryClient(), { skill: skill() })
     const fm = screen.getByText('fm /api/skills/fm/global global-agents~notes editable')
-    expect(fm).toHaveAttribute('data-plugins', 'markdown')
+    expect(fm).toHaveAttribute('data-plugins', 'markdown,mermaid')
   })
 
   it('shows only this skill in the sidebar tree, as its one drive', () => {

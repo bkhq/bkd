@@ -2,6 +2,7 @@ import type { KeyboardEvent } from "react";
 import type { FmClient } from "../client/client";
 import type { FmEntry } from "../core/schema";
 import type { FmLabels } from "./labels";
+import type { FmCodeRenderer } from "./plugins";
 import type { FmPreviewer } from "./preview-registry";
 import { cn } from "cn";
 import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon } from "lucide-react";
@@ -13,7 +14,7 @@ import { IconButton } from "./icon-button";
 import { DiscardChangesDialog, PreviewBody } from "./preview-pane";
 
 /** Preview of `entry` with previous / next over `siblings` and a guard against losing unsaved edits. */
-export function PreviewDialog({ entry, siblings, client, labels, editable, previewers, onNavigate, onDownload, onClose }: {
+export function PreviewDialog({ entry, siblings, client, labels, editable, previewers, codeRenderers, onNavigate, onDownload, onClose }: {
   entry: FmEntry;
   /** Files in display order. */
   siblings: FmEntry[];
@@ -22,6 +23,8 @@ export function PreviewDialog({ entry, siblings, client, labels, editable, previ
   editable: boolean;
   /** Plugin previewers, considered next to the registered ones. */
   previewers?: readonly FmPreviewer[];
+  /** Plugin code block renderers, handed to the previewer. */
+  codeRenderers?: readonly FmCodeRenderer[];
   onNavigate: (entry: FmEntry) => void;
   /** Omit to hide the download button. */
   onDownload?: (entry: FmEntry) => void;
@@ -70,7 +73,7 @@ export function PreviewDialog({ entry, siblings, client, labels, editable, previ
             <MaximizeButton maximized={maximized} labels={labels} onToggle={() => setMaximized(!maximized)} />
           </DialogHeader>
           <div className="min-h-0 flex-1">
-            <PreviewBody entry={entry} client={client} labels={labels} editable={editable} previewers={previewers} actions={actions} onDirtyChange={setDirty} />
+            <PreviewBody entry={entry} client={client} labels={labels} editable={editable} previewers={previewers} codeRenderers={codeRenderers} actions={actions} onDirtyChange={setDirty} />
           </div>
         </DialogContent>
       </Dialog>

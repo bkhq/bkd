@@ -5,11 +5,12 @@ import { useTranslation } from 'react-i18next'
 import { createFmClient } from '@/fm/client/client'
 import { useMounts } from '@/fm/client/hooks'
 import { markdownPlugin } from '@/fm/plugins/markdown'
+import { mermaidPlugin } from '@/fm/plugins/mermaid'
 import { FileManager } from '@/fm/react/file-manager'
 import { enLabels, zhLabels } from '@/fm/react/labels'
 import { skillsKeys } from '@/hooks/use-skills'
 
-const plugins = [markdownPlugin()]
+const plugins = [markdownPlugin(), mermaidPlugin()]
 
 /**
  * The file manager over one skill (`/api/skills/fm/:projectId`, mount

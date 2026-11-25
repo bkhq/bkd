@@ -5,12 +5,13 @@ import { useTranslation } from 'react-i18next'
 import { createFmClient } from '@/fm/client/client'
 import { fmKeys, useMounts } from '@/fm/client/hooks'
 import { markdownPlugin } from '@/fm/plugins/markdown'
+import { mermaidPlugin } from '@/fm/plugins/mermaid'
 import { reviewPlugin } from '@/fm/plugins/review'
 import { FileManager } from '@/fm/react/file-manager'
 import { enLabels, zhLabels } from '@/fm/react/labels'
 import { eventBus } from '@/lib/event-bus'
 
-const plugins = [markdownPlugin(), reviewPlugin()]
+const plugins = [markdownPlugin(), mermaidPlugin(), reviewPlugin()]
 
 /**
  * The file manager over a project's directories (`/api/fm/:projectId`). It

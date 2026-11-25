@@ -1,8 +1,9 @@
 import type { FmClient } from "../client/client";
 import type { FmEntry } from "../core/schema";
 import type { FmLabels } from "./labels";
+import type { FmCodeRenderer } from "./plugins";
 import { useQuery } from "@tanstack/react-query";
-import { DownloadIcon, FileCodeIcon, ImageIcon } from "lucide-react";
+import { DownloadIcon, EyeIcon, FileCodeIcon } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,8 @@ export interface PreviewProps {
   onDirtyChange?: (dirty: boolean) => void;
   /** Editors report their current text, unsaved edits included (e.g. for a live preview). */
   onTextChange?: (text: string) => void;
+  /** Code block renderers of all plugins, for previewers that render text with code blocks. */
+  codeRenderers?: readonly FmCodeRenderer[] | undefined;
 }
 
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
@@ -39,7 +42,7 @@ export function SvgPreview(props: PreviewProps) {
     <>
       {actions && createPortal(
         source
-          ? <IconButton label={labels.openPreview} onClick={() => setSource(false)}><ImageIcon /></IconButton>
+          ? <IconButton label={labels.openPreview} onClick={() => setSource(false)}><EyeIcon /></IconButton>
           : <IconButton label={labels.reopenSource} onClick={() => setSource(true)}><FileCodeIcon /></IconButton>,
         actions,
       )}
